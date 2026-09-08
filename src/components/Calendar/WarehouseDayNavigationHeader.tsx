@@ -12,6 +12,7 @@ interface WarehouseDayNavigationHeaderProps {
   onDateChange: (nextDate: Date) => void;
   viewMode: WarehouseCalendarViewMode;
   onViewModeChange: (mode: WarehouseCalendarViewMode) => void;
+  viewOptions?: ReadonlyArray<{ key: WarehouseCalendarViewMode; label: string }>;
 }
 
 const capitalize = (s: string) => (s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -21,8 +22,15 @@ const WarehouseDayNavigationHeader: React.FC<WarehouseDayNavigationHeaderProps> 
   onDateChange,
   viewMode,
   onViewModeChange,
+  viewOptions,
 }) => {
   const dayLabel = capitalize(format(date, 'EEEE d MMMM yyyy', { locale: sv }));
+  const options = viewOptions ?? [
+    { key: 'day' as const, label: 'Dag' },
+    { key: 'weekly' as const, label: 'Vecka' },
+    { key: 'monthly' as const, label: 'Månad' },
+    { key: 'list' as const, label: 'Lista' },
+  ];
 
   return (
     <div className="flex items-center justify-between bg-background border-b border-border px-6 py-3">
@@ -54,38 +62,20 @@ const WarehouseDayNavigationHeader: React.FC<WarehouseDayNavigationHeaderProps> 
       </div>
 
       <div className="flex gap-1">
-        <Button
-          variant={viewMode === 'day' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => onViewModeChange('day')}
-          className={cn("text-xs px-2 py-1 h-7", viewMode === 'day' && "bg-warehouse hover:bg-warehouse-hover")}
-        >
-          Dag
-        </Button>
-        <Button
-          variant={viewMode === 'weekly' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => onViewModeChange('weekly')}
-          className={cn("text-xs px-2 py-1 h-7", viewMode === 'weekly' && "bg-warehouse hover:bg-warehouse-hover")}
-        >
-          Vecka
-        </Button>
-        <Button
-          variant={viewMode === 'monthly' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => onViewModeChange('monthly')}
-          className={cn("text-xs px-2 py-1 h-7", viewMode === 'monthly' && "bg-warehouse hover:bg-warehouse-hover")}
-        >
-          Månad
-        </Button>
-        <Button
-          variant={viewMode === 'list' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => onViewModeChange('list')}
-          className={cn("text-xs px-2 py-1 h-7", viewMode === 'list' && "bg-warehouse hover:bg-warehouse-hover")}
-        >
-          Lista
-        </Button>
+        {options.map((option) => (
+          <Button
+            key={option.key}
+            variant={viewMode === option.key ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onViewModeChange(option.key)}
+            className={cn(
+              'h-7 px-2 py-1 text-xs',
+              viewMode === option.key && 'bg-warehouse hover:bg-warehouse-hover',
+            )}
+          >
+            {option.label}
+          </Button>
+        ))}
       </div>
     </div>
   );

@@ -80,11 +80,22 @@ const warehouseEventToCalendarEvent = (event: WarehouseEvent): CalendarEvent => 
 const eventProps = (event: CalendarEvent): Record<string, unknown> =>
   (event.extendedProps || {}) as Record<string, unknown>;
 
+type WarehousePersonnelViewMode = 'day' | 'weekly';
+const PERSONNEL_VIEW_OPTIONS = [
+  { key: 'day' as const, label: 'Dag sida vid sida' },
+  { key: 'weekly' as const, label: 'Veckoöversikt' },
+];
+
 const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<WarehouseCalendarView>('weekly');
-  const [planningMode, setPlanningMode] = useState<WarehousePlanningMode>('calendar');
+  const [planningMode, setPlanningMode] = useState<WarehousePlanningMode>(() =>
+    searchParams.get('planning') === 'personnel' ? 'personnel' : 'calendar',
+  );
+  const [personnelViewMode, setPersonnelViewMode] = useState<WarehousePersonnelViewMode>(() =>
+    searchParams.get('personnelView') === 'day' ? 'day' : 'weekly',
+  );
   const [selectedDate, setSelectedDate] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 }),
   );
@@ -115,6 +126,11 @@ const WarehouseCalendarPage = () => {
   useEffect(() => {
     const dateParam = searchParams.get('date');
     const viewParam = searchParams.get('view');
+    const requestedPlanningMode =
+      searchParams.get('planning') === 'personnel' ? 'personnel' : 'calendar';
+    const requestedPersonnelView = searchParams.get('personnelView') === 'day' ? 'day' : 'weekly';
+    setPlanningMode(requestedPlanningMode);
+    setPersonnelViewMode(requestedPersonnelView);
     if (!dateParam) return;
     const parsed = parseISO(dateParam);
     if (Number.isNaN(parsed.getTime())) return;
@@ -123,7 +139,9 @@ const WarehouseCalendarPage = () => {
         ? viewParam
         : 'weekly';
     setSelectedDate(
-      requestedView === 'day'
+      requestedPlanningMode === 'personnel' && requestedPersonnelView === 'day'
+        ? parsed
+        : requestedView === 'day'
         ? parsed
         : requestedView === 'monthly'
           ? startOfMonth(parsed)
@@ -135,7 +153,7 @@ const WarehouseCalendarPage = () => {
 
   const dataView =
     planningMode === 'personnel'
-      ? 'week'
+      ? personnelViewMode === 'day' ? 'day' : 'week'
       : viewMode === 'day'
         ? 'day'
         : viewMode === 'monthly'
@@ -208,8 +226,17 @@ const WarehouseCalendarPage = () => {
     [enrichedEvents, transportEvents],
   );
 
+  const updateUrl = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    setSearchParams(next);
+  };
+
   const setDayInUrl = (date: Date) => {
-    setSearchParams({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
+    updateUrl({ date: format(date, 'yyyy-MM-dd'), view: 'day' });
   };
 
   const handleViewModeChange = (mode: WarehouseCalendarView) => {
@@ -217,7 +244,7 @@ const WarehouseCalendarPage = () => {
     if (mode === 'day') {
       setDayInUrl(selectedDate);
     } else {
-      setSearchParams({ date: format(selectedDate, 'yyyy-MM-dd'), view: mode });
+      updateUrl({ date: format(selectedDate, 'yyyy-MM-dd'), view: mode });
     }
     if (mode === 'monthly') setMonthlyDate(startOfMonth(selectedDate));
   };
@@ -234,9 +261,39 @@ const WarehouseCalendarPage = () => {
     setSelectedDate(month);
   };
 
+  const handleWeekChange = (date: Date) => {
+    const week = startOfWeek(date, { weekStartsOn: 1 });
+    setSelectedDate(week);
+    setMonthlyDate(startOfMonth(week));
+    updateUrl({ date: format(week, 'yyyy-MM-dd') });
+  };
+
   const openDay = (date: Date) => {
     setViewMode('day');
     handleDayChange(date);
+  };
+
+  const handlePlanningModeChange = (mode: WarehousePlanningMode) => {
+    setPlanningMode(mode);
+    updateUrl({
+      planning: mode === 'personnel' ? 'personnel' : null,
+      personnelView: mode === 'personnel' ? personnelViewMode : null,
+      date: format(selectedDate, 'yyyy-MM-dd'),
+    });
+  };
+
+  const handlePersonnelViewModeChange = (mode: WarehouseCalendarView) => {
+    const nextMode: WarehousePersonnelViewMode = mode === 'day' ? 'day' : 'weekly';
+    const nextDate = nextMode === 'weekly'
+      ? startOfWeek(selectedDate, { weekStartsOn: 1 })
+      : selectedDate;
+    setPersonnelViewMode(nextMode);
+    setSelectedDate(nextDate);
+    updateUrl({
+      planning: 'personnel',
+      personnelView: nextMode,
+      date: format(nextDate, 'yyyy-MM-dd'),
+    });
   };
 
   return (
@@ -244,19 +301,26 @@ const WarehouseCalendarPage = () => {
       <div className="flex h-screen flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
         <div className="flex items-center">
           <div className="flex-1">
-            {planningMode === 'calendar' && viewMode === 'day' ? (
+            {(planningMode === 'calendar' && viewMode === 'day') ||
+            (planningMode === 'personnel' && personnelViewMode === 'day') ? (
               <WarehouseDayNavigationHeader
                 date={selectedDate}
                 onDateChange={handleDayChange}
-                viewMode={viewMode}
-                onViewModeChange={handleViewModeChange}
+                viewMode={planningMode === 'personnel' ? personnelViewMode : viewMode}
+                onViewModeChange={
+                  planningMode === 'personnel' ? handlePersonnelViewModeChange : handleViewModeChange
+                }
+                viewOptions={planningMode === 'personnel' ? PERSONNEL_VIEW_OPTIONS : undefined}
               />
             ) : (
               <WeekNavigation
                 currentWeekStart={selectedDate}
-                setCurrentWeekStart={setSelectedDate}
-                viewMode={planningMode === 'calendar' ? viewMode : undefined}
-                onViewModeChange={planningMode === 'calendar' ? handleViewModeChange : undefined}
+                setCurrentWeekStart={handleWeekChange}
+                viewMode={planningMode === 'calendar' ? viewMode : personnelViewMode}
+                onViewModeChange={
+                  planningMode === 'calendar' ? handleViewModeChange : handlePersonnelViewModeChange
+                }
+                viewOptions={planningMode === 'personnel' ? PERSONNEL_VIEW_OPTIONS : undefined}
                 currentMonth={monthlyDate}
                 onMonthChange={handleMonthChange}
                 variant="warehouse"
@@ -284,7 +348,7 @@ const WarehouseCalendarPage = () => {
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => setPlanningMode(mode)}
+                  onClick={() => handlePlanningModeChange(mode)}
                   className={
                     'h-7 rounded px-3 text-xs font-semibold transition-colors ' +
                     (planningMode === mode
@@ -301,7 +365,7 @@ const WarehouseCalendarPage = () => {
 
         <main className="mx-2 mb-2 flex min-h-0 flex-1 flex-col rounded-2xl bg-card p-3 shadow-sm">
           {planningMode === 'personnel' ? (
-            <WarehousePersonnelView currentDate={selectedDate} />
+            <WarehousePersonnelView currentDate={selectedDate} viewMode={personnelViewMode} />
           ) : (
             <WarehouseWorkCalendar
               events={allWork}

@@ -66,11 +66,16 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
   const from = format(rangeStart, 'yyyy-MM-dd');
   const to = format(rangeEnd, 'yyyy-MM-dd');
   const { organizationId, isLoading: organizationLoading } = useCurrentOrg();
+  const queryKey = ['warehouse-personnel-week', organizationId, from, to] as const;
 
   const query = useQuery<{ rows: PersonnelRow[]; unstaffed: PersonnelJob[] }>({
-    queryKey: ['warehouse-personnel-week', organizationId, from, to],
+    queryKey,
     enabled: !!organizationId,
     staleTime: 30_000,
+    // These tables are not in the project's Realtime publication. Poll while
+    // the manager has the view open so changes from another planner still land.
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const [{ data: assignments, error: aErr }, { data: events, error: eErr }, { data: staff, error: sErr }] =
         await Promise.all([

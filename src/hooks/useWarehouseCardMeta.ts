@@ -125,6 +125,8 @@ export function useWarehouseEventCrew(eventIds: string[]) {
     queryKey: ['warehouse-card-event-crew', ids.join(',')],
     enabled: ids.length > 0,
     staleTime: 30_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
     select: (data: unknown) => toMap<WarehouseEventCrew>(data),
     queryFn: async (): Promise<Map<string, WarehouseEventCrew>> => {
       const result = new Map<string, WarehouseEventCrew>();

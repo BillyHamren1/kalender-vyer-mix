@@ -6,11 +6,12 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import type { EventClickArg, EventContentArg, EventDropArg } from '@fullcalendar/core';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { AlertTriangle, Clock3, MapPin, PackageCheck, UsersRound } from 'lucide-react';
+import { Clock3, MapPin, PackageCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { getEventDotClass } from '@/components/Calendar/ResourceData';
 import { updateWarehouseCalendarEvent } from '@/services/warehouseCalendarService';
+import QuickAssignStaffPopover from '@/components/warehouse-ops/QuickAssignStaffPopover';
 import './WarehouseWorkCalendar.css';
 
 export type WarehouseCalendarView = 'day' | 'weekly' | 'monthly' | 'list';
@@ -51,6 +52,12 @@ const extendedPropsOf = (value: unknown): ExtendedProps =>
 const optionalText = (value: unknown): string | undefined =>
   value === null || value === undefined || value === '' ? undefined : String(value);
 
+const crewNamesFrom = (value: unknown): string[] =>
+  optionalText(value)
+    ?.split(',')
+    .map((name) => name.trim())
+    .filter(Boolean) ?? [];
+
 const EventCard: React.FC<{ info: EventContentArg }> = ({ info }) => {
   const props = extendedPropsOf(info.event.extendedProps);
   const activityType = String(props.eventType || props.activityType || 'internal_task');
@@ -85,13 +92,24 @@ const EventCard: React.FC<{ info: EventContentArg }> = ({ info }) => {
       </div>
       {crewLabel && (
         <div className="warehouse-fc-event__crew" title={crewFullLabel}>
-          <UsersRound className="h-3 w-3 shrink-0" />
-          <span className="truncate">{crewLabel}</span>
+          <QuickAssignStaffPopover
+            warehouseEventId={info.event.id}
+            packingName={bookingNumber || bookingTitle || info.event.title}
+            assignedNames={crewNamesFrom(crewFullLabel)}
+            label={crewLabel}
+            muted={false}
+          />
         </div>
       )}
       {isUnstaffed && (
         <div className="warehouse-fc-event__warning">
-          <AlertTriangle className="h-3 w-3" /> Obemannat
+          <QuickAssignStaffPopover
+            warehouseEventId={info.event.id}
+            packingName={bookingNumber || bookingTitle || info.event.title}
+            assignedNames={[]}
+            label="Bemanna"
+            muted
+          />
         </div>
       )}
     </div>
@@ -221,18 +239,21 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
                   const bookingTitle = optionalText(props.bookingTitle);
                   const crewLabel = optionalText(props.crewLabel);
                   const phaseContext = optionalText(props.phaseContext);
+                  const crewFullLabel = optionalText(props.crewFullLabel);
                   return (
-                    <button
+                    <div
                       key={event.id}
-                      type="button"
-                      onClick={() => event.bookingId && onOpenBooking(event.bookingId)}
                       className="grid w-full grid-cols-[90px_1fr_auto] items-center gap-3 px-4 py-3 text-left hover:bg-accent/40"
                     >
                       <span className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums">
                         <Clock3 className="h-3.5 w-3.5 text-muted-foreground" />
                         {format(new Date(event.start), 'HH:mm')}–{format(new Date(event.end), 'HH:mm')}
                       </span>
-                      <span className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => event.bookingId && onOpenBooking(event.bookingId)}
+                        className="min-w-0 text-left"
+                      >
                         <span className="flex items-center gap-2 text-xs font-semibold">
                           <span className={`h-2 w-2 rounded-full ${getEventDotClass(eventType)}`} />
                           {activityLabel || ACTIVITY_LABELS[eventType] || 'Lagerjobb'}
@@ -251,19 +272,21 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
                             <MapPin className="h-3 w-3 shrink-0" /> {event.deliveryAddress}
                           </span>
                         )}
-                      </span>
+                      </button>
                       <span className="text-right text-xs">
-                        {unstaffed ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800">
-                            <AlertTriangle className="h-3 w-3" /> Obemannat
-                          </span>
+                        {isTransport ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">Transport</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <UsersRound className="h-3.5 w-3.5" /> {crewLabel || 'Transport'}
-                          </span>
+                          <QuickAssignStaffPopover
+                            warehouseEventId={event.id}
+                            packingName={event.bookingNumber || bookingTitle || event.title}
+                            assignedNames={crewNamesFrom(crewFullLabel)}
+                            label={unstaffed ? 'Bemanna' : crewLabel || 'Bemanna'}
+                            muted={unstaffed}
+                          />
                         )}
                       </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
