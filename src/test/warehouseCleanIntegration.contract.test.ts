@@ -27,7 +27,7 @@ describe('warehouse clean integration', () => {
       { id: 'lager-1', title: 'Lager 1', eventColor: '#000' },
       { id: 'lager-7', title: 'Lager 7', eventColor: '#000' },
       { id: 'warehouse-transport', title: 'Transport', eventColor: '#000' },
-    ] as any);
+    ] as Parameters<typeof toDisplayResources>[0]);
 
     expect(display.map((r) => r.id)).toEqual(['lager-1', 'lager-7', 'warehouse-transport']);
     expect(display.map((r) => r.title)).toEqual(['Lager', 'Lager', 'Transport']);
@@ -39,7 +39,8 @@ describe('warehouse clean integration', () => {
   it('offers a classic warehouse calendar and Personal as the two planning modes', () => {
     const page = read('src/pages/WarehouseCalendarPage.tsx');
     const calendar = read('src/components/warehouse/WarehouseWorkCalendar.tsx');
-    expect(page).toContain("useState<WarehousePlanningMode>('calendar')");
+    expect(page).toContain("searchParams.get('planning') === 'personnel'");
+    expect(page).toContain("searchParams.get('personnelView') === 'day'");
     expect(page).toContain('WarehousePersonnelView');
     expect(page).toContain('WarehouseWorkCalendar');
     expect(page).not.toContain('CustomCalendar');
@@ -66,7 +67,9 @@ describe('warehouse clean integration', () => {
     const exactAssignment = service.slice(start, end);
     const personnel = read('src/components/warehouse/WarehousePersonnelView.tsx');
 
-    expect(exactAssignment).toContain(".upsert(row, { onConflict: 'staff_id,warehouse_event_id' })");
+    expect(exactAssignment).toContain('writeAssignmentRow(row, {');
+    expect(exactAssignment).toContain('warehouse_event_id: warehouseEventId');
+    expect(exactAssignment).not.toContain('.upsert(');
     expect(exactAssignment).not.toContain('syncWarehouseAssignmentsForStaffTeamDay');
     expect(personnel).toContain('warehouseEventId={job.warehouseEventId}');
   });

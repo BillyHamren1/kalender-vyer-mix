@@ -42,6 +42,13 @@ describe('Lagerkalenderns kortinnehåll (presentation only)', () => {
     expect(meta).not.toContain("from('staff_assignments')");
   });
 
+  it('kan bemanna och ändra bemanning direkt på kalenderkortet', () => {
+    expect(card).toContain('QuickAssignStaffPopover');
+    expect(card).toContain('warehouseEventId={info.event.id}');
+    expect(card).toContain('assignedNames={crewNamesFrom(crewFullLabel)}');
+    expect(card).toContain('label="Bemanna"');
+  });
+
   it('metadata-hämtningen är read-only', () => {
     const meta = fs.readFileSync('src/hooks/useWarehouseCardMeta.ts', 'utf8');
     expect(meta).not.toMatch(/\.(insert|update|upsert|delete)\(/);

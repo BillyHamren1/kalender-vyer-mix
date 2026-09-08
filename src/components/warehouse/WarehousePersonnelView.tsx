@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { eachDayOfInterval, endOfWeek, format, startOfWeek } from 'date-fns';
+import { eachDayOfInterval, endOfWeek, format, startOfDay, startOfWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { AlertTriangle, Clock3, MapPin, UserRound, UsersRound } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,14 +34,40 @@ const ACTIVITY_LABELS: Record<string, string> = {
 
 interface Props {
   currentDate: Date;
+  viewMode: 'day' | 'weekly';
 }
+
+const DAY_START_MINUTES = 5 * 60;
+const DAY_END_MINUTES = 24 * 60;
+const HOUR_HEIGHT = 56;
+const TIMELINE_HEIGHT = ((DAY_END_MINUTES - DAY_START_MINUTES) / 60) * HOUR_HEIGHT;
+
+const minutesFromTime = (value: string | null): number | null => {
+  if (!value) return null;
+  const match = value.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+};
+
+const timelinePosition = (job: PersonnelJob): React.CSSProperties | null => {
+  const rawStart = minutesFromTime(job.startTime);
+  if (rawStart === null) return null;
+  const rawEnd = minutesFromTime(job.endTime) ?? rawStart + 60;
+  const start = Math.max(DAY_START_MINUTES, Math.min(rawStart, DAY_END_MINUTES - 15));
+  const end = Math.max(start + 15, Math.min(rawEnd, DAY_END_MINUTES));
+  return {
+    top: ((start - DAY_START_MINUTES) / 60) * HOUR_HEIGHT + 4,
+    height: Math.max(46, ((end - start) / 60) * HOUR_HEIGHT - 8),
+  };
+};
 
 const JobCard: React.FC<{
   job: PersonnelJob;
   onOpen: (job: PersonnelJob) => void;
   unstaffed?: boolean;
-}> = ({ job, onOpen, unstaffed = false }) => (
-  <div className={`rounded-md border border-border/60 p-1.5 ${getEventBgClass(job.activityType)}`}>
+  compact?: boolean;
+}> = ({ job, onOpen, unstaffed = false, compact = false }) => (
+  <div className={`overflow-hidden rounded-md border border-border/60 p-1.5 shadow-sm ${getEventBgClass(job.activityType)}`}>
     <button type="button" onClick={() => onOpen(job)} className="block w-full text-left">
       <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[hsl(var(--heading))]">
         <span className={`h-2 w-2 rounded-full shrink-0 ${getEventDotClass(job.activityType)}`} />
@@ -56,7 +82,7 @@ const JobCard: React.FC<{
           {job.endTime ? `–${job.endTime}` : ''}
         </span>
       </div>
-      {job.deliveryAddress && (
+      {!compact && job.deliveryAddress && (
         <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
           <MapPin className="h-3 w-3 shrink-0" />
           <span className="truncate">{job.deliveryAddress}</span>
@@ -77,11 +103,67 @@ const JobCard: React.FC<{
   </div>
 );
 
-const WarehousePersonnelView: React.FC<Props> = ({ currentDate }) => {
+const DayColumn: React.FC<{
+  jobs: PersonnelJob[];
+  onOpen: (job: PersonnelJob) => void;
+  unstaffed?: boolean;
+}> = ({ jobs, onOpen, unstaffed = false }) => {
+  const untimed = jobs.filter((job) => timelinePosition(job) === null);
+  const timed = jobs.filter((job) => timelinePosition(job) !== null);
+
+  return (
+    <div className={`border-r border-border/60 ${unstaffed ? 'bg-amber-50/20' : 'bg-background'}`}>
+      <div className="h-[76px] space-y-1 overflow-y-auto border-b border-border/60 p-1.5">
+        {untimed.length === 0 ? (
+          <span className="block pt-5 text-center text-[10px] text-muted-foreground">Inget utan tid</span>
+        ) : (
+          untimed.map((job) => (
+            <JobCard
+              key={job.assignmentId || job.warehouseEventId || job.title}
+              job={job}
+              onOpen={onOpen}
+              unstaffed={unstaffed}
+              compact
+            />
+          ))
+        )}
+      </div>
+      <div
+        className="relative"
+        style={{
+          height: TIMELINE_HEIGHT,
+          backgroundImage:
+            'repeating-linear-gradient(to bottom, transparent 0, transparent 55px, hsl(var(--border) / 0.55) 55px, hsl(var(--border) / 0.55) 56px)',
+        }}
+      >
+        {timed.map((job) => {
+          const position = timelinePosition(job)!;
+          return (
+            <div
+              key={job.assignmentId || job.warehouseEventId || job.title}
+              className="absolute inset-x-1.5 z-10"
+              style={position}
+            >
+              <JobCard job={job} onOpen={onOpen} unstaffed={unstaffed} compact />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
   const navigate = useNavigate();
   const [staffFilter, setStaffFilter] = useState('all');
-  const rangeStart = useMemo(() => startOfWeek(currentDate, { weekStartsOn: 1 }), [currentDate]);
-  const rangeEnd = useMemo(() => endOfWeek(currentDate, { weekStartsOn: 1 }), [currentDate]);
+  const rangeStart = useMemo(
+    () => viewMode === 'day' ? startOfDay(currentDate) : startOfWeek(currentDate, { weekStartsOn: 1 }),
+    [currentDate, viewMode],
+  );
+  const rangeEnd = useMemo(
+    () => viewMode === 'day' ? startOfDay(currentDate) : endOfWeek(currentDate, { weekStartsOn: 1 }),
+    [currentDate, viewMode],
+  );
   const days = useMemo(
     () => eachDayOfInterval({ start: rangeStart, end: rangeEnd }),
     [rangeEnd, rangeStart],
@@ -119,7 +201,11 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate }) => {
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2">
         <div className="inline-flex items-center gap-2">
           <UsersRound className="h-4 w-4 text-warehouse" />
-          <span className="text-sm font-semibold">Personalens lagervecka</span>
+          <span className="text-sm font-semibold">
+            {viewMode === 'day'
+              ? `Lagerpersonal · ${format(currentDate, 'EEEE d MMMM', { locale: sv })}`
+              : 'Personalens lagervecka'}
+          </span>
         </div>
         <span className="text-xs text-muted-foreground">
           {rows.length} personer · {totalJobs} bemannade jobb · {unstaffed.length} obemannade
@@ -141,6 +227,67 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate }) => {
         </Select>
       </div>
 
+      {viewMode === 'day' ? (
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60 bg-background">
+          <div
+            className="grid"
+            style={{
+              minWidth: 64 + (visibleRows.length + (unstaffed.length > 0 ? 1 : 0)) * 220,
+              gridTemplateColumns: `64px ${unstaffed.length > 0 ? '220px ' : ''}repeat(${visibleRows.length}, 220px)`,
+            }}
+          >
+            <div className="sticky left-0 top-0 z-40 border-b border-r bg-muted/95 px-1 py-3 text-center text-[10px] font-semibold text-muted-foreground">
+              Tid
+            </div>
+            {unstaffed.length > 0 && (
+              <div className="sticky top-0 z-30 border-b border-r bg-amber-50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Obemannat
+                </div>
+                <div className="mt-0.5 text-[10px] text-amber-700">{unstaffed.length} jobb</div>
+              </div>
+            )}
+            {visibleRows.map((row) => (
+              <div key={row.staffId ?? row.staffName} className="sticky top-0 z-30 border-b border-r bg-muted/95 px-3 py-2">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <span
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-white"
+                    style={{ backgroundColor: row.staffColor || 'hsl(var(--warehouse))' }}
+                  >
+                    <UserRound className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate">{row.staffName}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">{row.jobs.length} lagerjobb</div>
+              </div>
+            ))}
+
+            <div className="sticky left-0 z-20 border-r bg-muted/80">
+              <div className="flex h-[76px] items-center justify-center border-b px-1 text-center text-[9px] text-muted-foreground">
+                Utan tid
+              </div>
+              <div className="relative" style={{ height: TIMELINE_HEIGHT }}>
+                {Array.from({ length: DAY_END_MINUTES / 60 - DAY_START_MINUTES / 60 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="absolute inset-x-0 -translate-y-1/2 pr-2 text-right text-[10px] tabular-nums text-muted-foreground"
+                    style={{ top: index * HOUR_HEIGHT }}
+                  >
+                    {String(index + DAY_START_MINUTES / 60).padStart(2, '0')}:00
+                  </div>
+                ))}
+              </div>
+            </div>
+            {unstaffed.length > 0 && <DayColumn jobs={unstaffed} onOpen={openJob} unstaffed />}
+            {visibleRows.map((row) => (
+              <DayColumn key={row.staffId ?? row.staffName} jobs={row.jobs} onOpen={openJob} />
+            ))}
+          </div>
+          {visibleRows.length === 0 && unstaffed.length === 0 && (
+            <p className="p-6 text-center text-sm text-muted-foreground">Ingen lagerpersonal eller lagerjobb hittades.</p>
+          )}
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60 bg-background">
         <div
           className="grid min-w-[1040px]"
@@ -225,6 +372,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate }) => {
           <p className="p-6 text-center text-sm text-muted-foreground">Ingen lagerpersonal eller lagerjobb hittades.</p>
         )}
       </div>
+      )}
     </div>
   );
 };
