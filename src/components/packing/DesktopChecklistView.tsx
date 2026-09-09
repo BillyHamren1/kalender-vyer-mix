@@ -620,6 +620,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
       <PackingIntegrityBanner
         integrity={integrity}
         error={integrityError}
+        packingId={packingId}
         packingStatus={packing?.status}
         onRefresh={async () => {
           await onRefreshIntegrity?.();

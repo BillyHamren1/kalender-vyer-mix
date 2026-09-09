@@ -1,12 +1,55 @@
-import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { PackingIntegrityIssue, PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
 
+const DISMISS_KEY = 'packing-integrity-dismissed.v1';
+
+interface DismissRecord {
+  signature: string;
+  dismissedAt: string;
+}
+
+function readDismissed(packingId?: string): DismissRecord | null {
+  if (!packingId || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DISMISS_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, DismissRecord>;
+    return map[packingId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDismissed(packingId: string | undefined, record: DismissRecord | null): void {
+  if (!packingId || typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(DISMISS_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, DismissRecord>) : {};
+    if (record) {
+      map[packingId] = record;
+    } else {
+      delete map[packingId];
+    }
+    window.localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+function buildSignature(integrity: PackingIntegrityResult): string {
+  const parts = integrity.issues
+    .map((issue) => `${issue.severity}:${issue.type}:${issue.bookingProductId ?? 'none'}`)
+    .sort();
+  return `${integrity.blockingCount}:${integrity.warningCount}:${integrity.expectedRows}:${parts.join('|')}`;
+}
+
 interface PackingIntegrityBannerProps {
   integrity: PackingIntegrityResult | null;
   error?: Error | null;
+  packingId?: string;
   packingStatus?: string | null;
   onRefresh?: () => void | Promise<void>;
   compact?: boolean;
@@ -36,6 +79,7 @@ const issueText = (issue: PackingIntegrityIssue) => {
 export const PackingIntegrityBanner = ({
   integrity,
   error = null,
+  packingId,
   packingStatus,
   onRefresh,
   compact = false,
@@ -113,6 +157,33 @@ export const PackingIntegrityBanner = ({
   const blockingIssues = integrity.issues.filter((issue) => issue.severity === 'blocking');
   const warningIssues = integrity.issues.filter((issue) => issue.severity === 'warning');
 
+  const signature = buildSignature(integrity);
+  const dismissedRecord = readDismissed(packingId);
+  const [dismissedSignature, setDismissedSignature] = useState<string | null>(dismissedRecord?.signature ?? null);
+
+  useEffect(() => {
+    const record = readDismissed(packingId);
+    if (record && record.signature !== signature) {
+      writeDismissed(packingId, null);
+      setDismissedSignature(null);
+    }
+  }, [signature, packingId]);
+
+  const isDismissed = dismissedSignature === signature;
+
+  const handleRefresh = async () => {
+    writeDismissed(packingId, null);
+    setDismissedSignature(null);
+    await onRefresh?.();
+  };
+
+  const handleDismiss = () => {
+    writeDismissed(packingId, { signature, dismissedAt: new Date().toISOString() });
+    setDismissedSignature(signature);
+  };
+
+  if (isDismissed) return null;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="rounded-xl border-2 border-destructive/45 bg-destructive/5 overflow-hidden">
@@ -127,7 +198,7 @@ export const PackingIntegrityBanner = ({
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {onRefresh && (
-              <Button variant="outline" size="sm" className="h-8" onClick={() => onRefresh()}>
+              <Button variant="outline" size="sm" className="h-8" onClick={handleRefresh}>
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                 Kontrollera igen
               </Button>
@@ -138,6 +209,9 @@ export const PackingIntegrityBanner = ({
                 <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform ${open ? 'rotate-180' : ''}`} />
               </Button>
             </CollapsibleTrigger>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Avfärda varning" onClick={handleDismiss}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         <CollapsibleContent>
