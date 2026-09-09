@@ -238,6 +238,7 @@ const WarehouseOps = () => {
 
       <CreateInternalTaskDialog open={showTask} onOpenChange={setShowTask} onSuccess={() => { setShowTask(false); refetch(); }} />
       <CreatePackingWizard open={showPacking} onOpenChange={setShowPacking} onSuccess={() => { setShowPacking(false); refetch(); }} />
+      <OpsJobBookingSheet job={selectedJob} open={bookingSheetOpen && !!selectedJob} onOpenChange={setBookingSheetOpen} />
     </div>
   );
 };
