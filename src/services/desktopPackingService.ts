@@ -42,7 +42,7 @@ export const fetchPackingForDesktop = async (id: string): Promise<PackingWithBoo
 export const fetchPackingListItemsForDesktop = async (packingId: string) => {
   const { data, error } = await supabase
     .from('packing_list_items')
-    .select('id, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, booking_product_id, booking_products(id, name, quantity, sku, notes, sort_index, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
+    .select('id, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, planning_excluded_at, packed_at, booking_product_id, booking_products(id, name, quantity, sku, notes, sort_index, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
     .eq('packing_id', packingId);
 
   if (error) throw error;
@@ -228,4 +228,27 @@ const sortPackingItems = (items: any[]) => {
   });
 
   return orderedItems;
+};
+
+/**
+ * Planning-only mjuk exkludering/återställning av packrad.
+ *
+ * Går via den autentiserade edge-funktionen `edit-packing-list` som i sin tur
+ * kör en atomisk RPC. Ingen databasrad raderas, och bokningen med dess
+ * booking_products lämnas alltid orörd.
+ */
+export const planningEditPackingListItem = async (
+  packingId: string,
+  itemId: string,
+  mode: 'exclude' | 'restore',
+): Promise<{ affected_count: number }> => {
+  const { data, error } = await supabase.functions.invoke('edit-packing-list', {
+    body: { packing_id: packingId, item_id: itemId, mode },
+  });
+  if (error) {
+    const detail = (data as any)?.error;
+    throw new Error(detail || error.message || 'Kunde inte uppdatera packlistan.');
+  }
+  if ((data as any)?.error) throw new Error((data as any).error);
+  return { affected_count: Number((data as any)?.affected_count ?? 0) };
 };

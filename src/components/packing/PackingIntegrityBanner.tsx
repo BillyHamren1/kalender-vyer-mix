@@ -23,7 +23,7 @@ const issueText = (issue: PackingIntegrityIssue) => {
     case 'duplicate_item':
       return `${issue.name}: förekommer flera gånger på packlistan.`;
     case 'excluded_source_item':
-      return `${issue.name}: finns i bokningen men är exkluderad från den operativa packlistan.`;
+      return `${issue.name}: borttagen från den operativa packlistan i planeringsläget. Bokningen är oförändrad.`;
     case 'manual_item':
       return `${issue.name}: manuell extrarad på packlistan (${issue.actualQuantity ?? 0} st).`;
     case 'wms_only_item':
