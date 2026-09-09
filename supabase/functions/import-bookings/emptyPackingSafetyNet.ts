@@ -82,11 +82,11 @@ export async function ensureActivePackingNotEmpty(
     const message = countError.message || String(countError);
     return { kind: 'failed', code: 'packing_row_count_failed', error: message };
   }
-  if (!Number.isInteger(count)) {
+  if (!Number.isInteger(count) || count < 0) {
     return {
       kind: 'failed',
       code: 'packing_row_count_invalid',
-      error: `Expected an exact integer row count, got ${count === null ? 'null' : typeof count === 'number' ? String(count) : JSON.stringify(count)}`,
+      error: `Expected an exact non-negative integer row count, got ${count === null ? 'null' : typeof count === 'number' ? String(count) : JSON.stringify(count)}`,
     };
   }
   const rowCount = count as number;
