@@ -56,6 +56,7 @@ const WarehouseOps = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
+  const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "week");
 
   useEffect(() => {
