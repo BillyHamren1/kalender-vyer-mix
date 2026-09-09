@@ -66,6 +66,7 @@ import {
 } from '../_shared/projectionSourceAuthority.ts'
 import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
+import { ensureActivePackingNotEmpty } from './emptyPackingSafetyNet.ts'
 // STEG 3G — observability: audit, counters, circuit breaker, dry-run, anomalier.
 import {
   createSyncCounters,
@@ -3405,11 +3406,51 @@ serve(async (req) => {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
         }));
+        // Säkerhetsnät: en aktiv packing med exakt 0 rader självläker även
+        // när revisionen redan är applicerad. Fail-closed på läsfel; repair
+        // rör aldrig befintliga rader (se emptyPackingSafetyNet.ts).
+        const safetyNet = await ensureActivePackingNotEmpty(
+          supabase,
+          normalizedSingleBookingId,
+          organizationId,
+        );
+        if (safetyNet.kind === 'failed') {
+          console.error('[import-bookings] empty-packing safety net failed', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId,
+            code: safetyNet.code, error: safetyNet.error,
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: safetyNet.code,
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+        if (safetyNet.kind === 'repaired') {
+          console.log('[import-bookings] empty packing repaired on already_current', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId,
+            packing_id: safetyNet.packingId, inserted: safetyNet.inserted,
+            total: safetyNet.total, source: safetyNet.source,
+          }));
+        }
         return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
           organizationId,
           outcome: 'already_current',
-          results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
+          results: {
+            total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent',
+            ...(safetyNet.kind === 'repaired'
+              ? {
+                  packing_repair: {
+                    applied: true,
+                    packing_id: safetyNet.packingId,
+                    inserted: safetyNet.inserted,
+                    total: safetyNet.total,
+                    source: safetyNet.source,
+                  },
+                }
+              : {}),
+          },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
 
