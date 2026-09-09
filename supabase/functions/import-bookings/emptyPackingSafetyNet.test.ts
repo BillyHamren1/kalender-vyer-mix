@@ -180,3 +180,63 @@ Deno.test('uppslagningen är exakt scopad på booking_id + organization_id', asy
   ]);
   noMutations(supabase);
 });
+
+Deno.test('null count utan fel => fail-closed, repair anropas inte', async () => {
+  const supabase = makeMockSupabase({
+    packing_projects: { kind: 'maybeSingle', data: { id: PACKING_ID, status: 'planning' } },
+    packing_list_items: { kind: 'count', count: null },
+  });
+  const repair = repairOk();
+  const res = await ensureActivePackingNotEmpty(supabase, BOOKING_ID, ORG_ID, { repairPackingItems: repair.fn as never });
+  assertEquals(res.kind, 'failed');
+  if (res.kind === 'failed') {
+    assertEquals(res.code, 'packing_row_count_invalid');
+  }
+  assertEquals(repair.calls.length, 0);
+  noMutations(supabase);
+});
+
+Deno.test('ogiltigt radantal: NaN => fail-closed, repair anropas inte', async () => {
+  const supabase = makeMockSupabase({
+    packing_projects: { kind: 'maybeSingle', data: { id: PACKING_ID, status: 'planning' } },
+    packing_list_items: { kind: 'count', count: NaN },
+  });
+  const repair = repairOk();
+  const res = await ensureActivePackingNotEmpty(supabase, BOOKING_ID, ORG_ID, { repairPackingItems: repair.fn as never });
+  assertEquals(res.kind, 'failed');
+  if (res.kind === 'failed') {
+    assertEquals(res.code, 'packing_row_count_invalid');
+  }
+  assertEquals(repair.calls.length, 0);
+  noMutations(supabase);
+});
+
+Deno.test('ogiltigt radantal: negativt => fail-closed, repair anropas inte', async () => {
+  const supabase = makeMockSupabase({
+    packing_projects: { kind: 'maybeSingle', data: { id: PACKING_ID, status: 'planning' } },
+    packing_list_items: { kind: 'count', count: -3 },
+  });
+  const repair = repairOk();
+  const res = await ensureActivePackingNotEmpty(supabase, BOOKING_ID, ORG_ID, { repairPackingItems: repair.fn as never });
+  assertEquals(res.kind, 'failed');
+  if (res.kind === 'failed') {
+    assertEquals(res.code, 'packing_row_count_invalid');
+  }
+  assertEquals(repair.calls.length, 0);
+  noMutations(supabase);
+});
+
+Deno.test('ogiltigt radantal: decimaltal => fail-closed, repair anropas inte', async () => {
+  const supabase = makeMockSupabase({
+    packing_projects: { kind: 'maybeSingle', data: { id: PACKING_ID, status: 'planning' } },
+    packing_list_items: { kind: 'count', count: 1.5 },
+  });
+  const repair = repairOk();
+  const res = await ensureActivePackingNotEmpty(supabase, BOOKING_ID, ORG_ID, { repairPackingItems: repair.fn as never });
+  assertEquals(res.kind, 'failed');
+  if (res.kind === 'failed') {
+    assertEquals(res.code, 'packing_row_count_invalid');
+  }
+  assertEquals(repair.calls.length, 0);
+  noMutations(supabase);
+});
