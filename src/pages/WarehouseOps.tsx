@@ -22,6 +22,7 @@ import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOver
 import WarehouseOpsActionQueue from "@/components/warehouse-ops/WarehouseOpsActionQueue";
 import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
+import OpsJobBookingSheet from "@/components/warehouse-ops/OpsJobBookingSheet";
 import { cn } from "@/lib/utils";
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
