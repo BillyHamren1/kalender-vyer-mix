@@ -160,6 +160,11 @@ export interface ExistingPackingRow {
   quantity_packed: number | null;
   manual_name: string | null;
   excluded?: boolean | null;
+  /**
+   * Satt när raden exkluderats manuellt från Planning. WMS får ALDRIG
+   * återställa (excluded=false) en sådan rad — bara Planning kan ångra.
+   */
+  planning_excluded_at?: string | null;
 }
 
 export interface WmsSyncPlan {
@@ -214,7 +219,8 @@ export function planWmsPackingSync(
     const patch: Record<string, unknown> = {};
     if (existingRow.quantity_to_pack !== row.quantity) patch.quantity_to_pack = row.quantity;
     if ((existingRow.manual_name || null) !== name) patch.manual_name = name;
-    if (existingRow.excluded) patch.excluded = false;
+    // Planning-exkluderade rader återställs aldrig av WMS.
+    if (existingRow.excluded && !existingRow.planning_excluded_at) patch.excluded = false;
     if (Object.keys(patch).length > 0) {
       // Aldrig skriva över packat arbete: minska aldrig under redan packat antal.
       if (typeof patch.quantity_to_pack === 'number') {
@@ -313,7 +319,7 @@ export async function syncPackingListFromWms(
 
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
-    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded')
+    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at')
     .eq('packing_id', args.packingId)
     .eq('organization_id', args.organizationId);
   if (readErr) {

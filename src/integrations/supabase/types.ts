@@ -4446,6 +4446,7 @@ export type Database = {
           packed_by_staff_id: string | null
           packing_id: string
           parcel_id: string | null
+          planning_excluded_at: string | null
           quantity_packed: number
           quantity_returned: number
           quantity_to_pack: number
@@ -4473,6 +4474,7 @@ export type Database = {
           packed_by_staff_id?: string | null
           packing_id: string
           parcel_id?: string | null
+          planning_excluded_at?: string | null
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
@@ -4500,6 +4502,7 @@ export type Database = {
           packed_by_staff_id?: string | null
           packing_id?: string
           parcel_id?: string | null
+          planning_excluded_at?: string | null
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
@@ -11179,6 +11182,17 @@ export type Database = {
       org_internal_lager_enabled: {
         Args: { _org_id: string }
         Returns: boolean
+      }
+      planning_edit_packing_list_item: {
+        Args: {
+          _actor_id: string
+          _actor_name: string
+          _item_id: string
+          _mode: string
+          _organization_id: string
+          _packing_id: string
+        }
+        Returns: Json
       }
       promote_stale_assistant_events: { Args: never; Returns: number }
       recompute_booking_staff_for_day: {

@@ -68,6 +68,8 @@ const EVENT_LABEL: Record<string, string> = {
   parcel_assign: "Tilldelade kolli",
   parcel_remove: "Tog bort från kolli",
   unknown_product_added: "Lade till okänd produkt",
+  planning_exclude: "Borttagen i planering",
+  planning_restore: "Återställd i planering",
 };
 
 const EVENT_COLOR: Record<string, string> = {
@@ -80,6 +82,8 @@ const EVENT_COLOR: Record<string, string> = {
   parcel_assign: "bg-blue-500/10 text-blue-600 border-blue-500/30",
   parcel_remove: "bg-rose-500/10 text-rose-600 border-rose-500/30",
   unknown_product_added: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  planning_exclude: "bg-violet-500/10 text-violet-600 border-violet-500/30",
+  planning_restore: "bg-violet-500/10 text-violet-600 border-violet-500/30",
 };
 
 const fmtTime = (iso: string | null | undefined) => {

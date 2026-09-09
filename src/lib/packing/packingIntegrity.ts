@@ -161,7 +161,9 @@ export const comparePackingSnapshot = (
     if (item.excluded) {
       issues.push({
         type: 'excluded_source_item',
-        severity: 'blocking',
+        // Planning-exkludering är ett medvetet val och blockerar aldrig.
+        // Bokningen är oförändrad — bara den operativa packlistan är justerad.
+        severity: 'warning',
         bookingProductId: product.id,
         name: product.name,
         expectedQuantity: Number(product.quantity || 0),

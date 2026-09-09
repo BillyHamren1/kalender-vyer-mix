@@ -18,7 +18,20 @@ import {
   Printer,
   History,
   Lock,
+  Pencil,
+  Trash2,
+  Undo2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { PackingHistoryDialog } from '@/components/packing/PackingHistoryDialog';
 import type { PrintablePackingMeta, PrintablePackingRow } from '@/lib/packing/printPackingList';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +40,7 @@ import {
   getItemParcelsDesktop as getItemParcels,
   fetchPackingForDesktop as fetchPackingForScanner,
   repairPackingItemsDesktop,
+  planningEditPackingListItem,
 } from '@/services/desktopPackingService';
 import { PackingWithBooking } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
@@ -62,6 +76,8 @@ interface PackingItem {
   verified_at: string | null;
   verified_by: string | null;
   parcel_id: string | null;
+  packed_at?: string | null;
+  planning_excluded_at?: string | null;
   excluded?: boolean;
   manual_name?: string | null;
   booking_product_id?: string | null;
@@ -130,6 +146,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
   const [isRepairing, setIsRepairing] = useState(false);
   const loadDataRef = useRef<((bg?: boolean) => Promise<void>) | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<
+    { item: PackingItem; mode: 'exclude' | 'restore'; affected: PackingItem[]; name: string } | null
+  >(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printRows, setPrintRows] = useState<PrintablePackingRow[]>([]);
   const [printMeta, setPrintMeta] = useState<PrintablePackingMeta | null>(null);
@@ -343,6 +364,53 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     setShowPrintDialog(true);
   };
 
+  // Endast planeringsläge får redigeras — allt annat är scanner-only.
+  const canEdit = packing?.status === 'planning';
+
+  /** Raden + alla rekursiva paketdelar (booking_products-barn). */
+  const collectPackageRows = (item: PackingItem): PackingItem[] => {
+    const collected: PackingItem[] = [item];
+    const walk = (productId?: string | null) => {
+      if (!productId) return;
+      for (const child of childrenByParent[productId] || []) {
+        if (collected.some((c) => c.id === child.id)) continue;
+        collected.push(child);
+        walk(child.booking_products?.id);
+      }
+    };
+    walk(item.booking_products?.id);
+    return collected;
+  };
+
+  const isRowTouched = (row: PackingItem) =>
+    (row.quantity_packed || 0) > 0 || !!row.parcel_id || !!row.packed_at || !!row.verified_at;
+
+  const requestEdit = (item: PackingItem, mode: 'exclude' | 'restore') => {
+    const affected = mode === 'exclude' ? collectPackageRows(item) : [item];
+    const name = cleanProductName(item.manual_name || item.booking_products?.name || 'Okänd produkt');
+    setPendingEdit({ item, mode, affected, name });
+  };
+
+  const confirmEdit = async () => {
+    if (!pendingEdit) return;
+    setIsSavingEdit(true);
+    try {
+      const res = await planningEditPackingListItem(packingId, pendingEdit.item.id, pendingEdit.mode);
+      toast.success(
+        pendingEdit.mode === 'exclude'
+          ? `Borttagen från packlistan (${res.affected_count} rad${res.affected_count === 1 ? '' : 'er'}). Bokningen är oförändrad.`
+          : 'Raden är återställd i packlistan.',
+      );
+      setPendingEdit(null);
+      await loadData(true);
+      await onRefreshIntegrity?.();
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte uppdatera packlistan.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
     const trimmedName = rawName.trimStart();
@@ -458,6 +526,30 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             {packed}/{total}
           </span>
         </div>
+
+        {isEditMode && canEdit && (
+          (() => {
+            const affected = collectPackageRows(item);
+            const touched = affected.some(isRowTouched);
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-destructive hover:text-destructive"
+                disabled={touched}
+                title={
+                  touched
+                    ? 'Raden är packad, kontrollerad eller lagd i kolli och kan inte tas bort'
+                    : 'Ta bort raden från packlistan (bokningen påverkas inte)'
+                }
+                onClick={() => requestEdit(item, 'exclude')}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Ta bort
+              </Button>
+            );
+          })()
+        )}
       </div>
     );
   };
@@ -496,6 +588,17 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
               <AlertTriangle className="h-3.5 w-3.5" />
               Preliminär
             </span>
+          )}
+          {packing?.status === 'planning' && (
+            <Button
+              variant={isEditMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setIsEditMode((v) => !v)}
+              title="Ta bort eller återställ rader i packlistan (endast planeringsläge)"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              {isEditMode ? 'Klar' : 'Redigera'}
+            </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4 mr-2" />
@@ -714,6 +817,17 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                         {item.manual_name || item.booking_products?.name || 'Okänd'}
                       </span>
                     </div>
+                    {isEditMode && canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => requestEdit(item, 'restore')}
+                      >
+                        <Undo2 className="h-4 w-4 mr-1" />
+                        Återställ
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -745,6 +859,56 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         onOpenChange={setShowHistory}
         packingId={packingId}
       />
+
+      <AlertDialog
+        open={!!pendingEdit}
+        onOpenChange={(open) => {
+          if (!open && !isSavingEdit) setPendingEdit(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingEdit?.mode === 'restore'
+                ? 'Återställ raden i packlistan?'
+                : 'Ta bort raden från packlistan?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEdit?.mode === 'restore' ? (
+                <>
+                  «{pendingEdit?.name}» läggs tillbaka i packlistan. Bokningen är oförändrad.
+                </>
+              ) : (
+                <>
+                  «{pendingEdit?.name}» tas bort från den operativa packlistan.
+                  {pendingEdit && pendingEdit.affected.length > 1 && (
+                    <>
+                      {' '}
+                      Detta är en paketrad — {pendingEdit.affected.length - 1} paketdel
+                      {pendingEdit.affected.length - 1 === 1 ? '' : 'ar'} följer med
+                      (totalt {pendingEdit.affected.length} rader).
+                    </>
+                  )}{' '}
+                  Ingenting raderas och bokningen med dess orderrader ändras inte — raden kan
+                  återställas här.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSavingEdit}>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSavingEdit}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmEdit();
+              }}
+            >
+              {pendingEdit?.mode === 'restore' ? 'Återställ' : 'Ta bort'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PrintPackingListDialog
         open={showPrintDialog}

@@ -40,16 +40,17 @@ describe('comparePackingSnapshot', () => {
     expect(result.issues.some((issue) => issue.type === 'duplicate_item' && issue.severity === 'blocking')).toBe(true);
   });
 
-  it('blockerar en bokningsrad som har exkluderats', () => {
+  it('visar en exkluderad bokningsrad som varning (bokningen är oförändrad)', () => {
     const result = comparePackingSnapshot([
       { id: 'p1', booking_id: 'b1', name: 'Bord', quantity: 4, parent_product_id: null },
     ], [
       { id: 'i1', booking_product_id: 'p1', quantity_to_pack: 4, excluded: true },
     ], true);
 
-    expect(result.isExactMatch).toBe(false);
-    expect(result.issues.some((issue) => issue.type === 'excluded_source_item' && issue.severity === 'blocking')).toBe(true);
+    expect(result.issues.some((issue) => issue.type === 'excluded_source_item' && issue.severity === 'warning')).toBe(true);
+    expect(result.issues.some((issue) => issue.type === 'excluded_source_item' && issue.severity === 'blocking')).toBe(false);
   });
+
 
   it('visar manuella extrarader som tydlig varning utan att dölja bokningsmatchningen', () => {
     const result = comparePackingSnapshot([
