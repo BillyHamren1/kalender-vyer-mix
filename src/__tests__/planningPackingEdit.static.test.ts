@@ -173,3 +173,66 @@ describe('Integritet och historik', () => {
     expect(history).toContain('planning_exclude: "bg-violet');
   });
 });
+
+describe('Säkerhetsuppföljning (org-scope, restore-guard, audit)', () => {
+  it('scopar båda leden i den rekursiva booking_products-CTE:n till organisationen', () => {
+    const cte = migrationSql.slice(
+      migrationSql.indexOf('WITH RECURSIVE tree AS'),
+      migrationSql.indexOf('SELECT array_agg(pli.id)'),
+    );
+    expect(cte).toContain('WHERE bp.id = v_root_product');
+    expect(cte).toContain('AND bp.organization_id = _organization_id');
+    expect(cte).toContain('WHERE c.organization_id = _organization_id');
+  });
+
+  it('scopar allocation-kontrollen till organisationen', () => {
+    expect(migrationSql).toContain('WHERE a.packing_list_item_id = pli.id');
+    expect(migrationSql).toContain('AND a.organization_id = _organization_id');
+  });
+
+  it('återställer endast planning-exkluderade rader och failar annars', () => {
+    expect(migrationSql).toContain("RAISE EXCEPTION 'not_planning_excluded'");
+    expect(migrationSql).toContain('IF v_root.planning_excluded_at IS NULL THEN');
+    expect(migrationSql).toContain('AND pli.planning_excluded_at IS NOT NULL');
+  });
+
+  it('auditerar endast rader vars läge faktiskt ändrades', () => {
+    expect(migrationSql).toContain('RETURNING id');
+    expect(migrationSql).toContain('SELECT array_agg(id) INTO v_changed_ids FROM upd');
+    expect(migrationSql).toContain('WHERE pli.id = ANY(v_changed_ids)');
+    expect(migrationSql).not.toContain('WHERE pli.id = ANY(v_ids);');
+  });
+
+  it('gör fortfarande inga DELETE och rör aldrig bookings/booking_products', () => {
+    expect(/\bDELETE\s+FROM\b/i.test(migrationSql)).toBe(false);
+    expect(/UPDATE\s+public\.booking_products/i.test(migrationSql)).toBe(false);
+    expect(/UPDATE\s+public\.bookings/i.test(migrationSql)).toBe(false);
+    expect(/INSERT\s+INTO\s+public\.booking(s|_products)/i.test(migrationSql)).toBe(false);
+  });
+
+  it('edge-funktionen är POST-only men tillåter OPTIONS', () => {
+    expect(edgeFn).toContain("if (req.method === 'OPTIONS')");
+    expect(edgeFn).toContain("req.method !== 'POST'");
+    expect(edgeFn).toContain('method_not_allowed');
+  });
+
+  it('edge-funktionen har svensk mapping för not_planning_excluded', () => {
+    expect(edgeFn).toContain('not_planning_excluded:');
+    expect(edgeFn).toContain('kan därför inte återställas härifrån');
+  });
+
+  it('UI räknar paketdelar även vid restore', () => {
+    expect(view).toContain('const affected = collectPackageRows(item);');
+    expect(view).not.toContain("mode === 'exclude' ? collectPackageRows(item) : [item]");
+  });
+
+  it('UI visar Återställ endast för planning-exkluderade rader', () => {
+    expect(view).toContain('isEditMode && canEdit && !!item.planning_excluded_at');
+  });
+
+  it('bannern beskriver planning-redigering men scanner-only packning', () => {
+    expect(view).not.toContain('Den här webbvyn är skrivskyddad — kolli, +/-, exkludering');
+    expect(view).toContain('I planeringsläget kan du justera vilka rader som ska packas');
+    expect(view).toContain('hanteras enbart i skannern');
+  });
+});
