@@ -22,6 +22,7 @@ import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOver
 import WarehouseOpsActionQueue from "@/components/warehouse-ops/WarehouseOpsActionQueue";
 import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
+import OpsJobBookingSheet from "@/components/warehouse-ops/OpsJobBookingSheet";
 import { cn } from "@/lib/utils";
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
@@ -56,6 +57,7 @@ const WarehouseOps = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
+  const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "week");
 
   useEffect(() => {
@@ -94,6 +96,7 @@ const WarehouseOps = () => {
     setSelectedJobId(job.id);
     setDetailTab("overview");
     setDetailsOpen(true);
+    setBookingSheetOpen(true);
   };
 
   return (
@@ -236,6 +239,7 @@ const WarehouseOps = () => {
 
       <CreateInternalTaskDialog open={showTask} onOpenChange={setShowTask} onSuccess={() => { setShowTask(false); refetch(); }} />
       <CreatePackingWizard open={showPacking} onOpenChange={setShowPacking} onSuccess={() => { setShowPacking(false); refetch(); }} />
+      <OpsJobBookingSheet job={selectedJob} open={bookingSheetOpen && !!selectedJob} onOpenChange={setBookingSheetOpen} />
     </div>
   );
 };
