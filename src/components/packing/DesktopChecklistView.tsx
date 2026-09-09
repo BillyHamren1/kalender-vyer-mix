@@ -820,7 +820,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                         {item.manual_name || item.booking_products?.name || 'Okänd'}
                       </span>
                     </div>
-                    {isEditMode && canEdit && (
+                    {isEditMode && canEdit && !!item.planning_excluded_at && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -833,6 +833,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                     )}
                   </div>
                 ))}
+
               </div>
             </div>
           </CollapsibleContent>
