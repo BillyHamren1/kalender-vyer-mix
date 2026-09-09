@@ -14,7 +14,7 @@ describe('canonical EventFlow module palette', () => {
   });
 
   it('keeps planning purple and warehouse warm orange', () => {
-    expect(MODULE_PALETTE.planning.base).toBe('hsl(255 51% 56%)');
+    expect(MODULE_PALETTE.planning.base).toBe('hsl(254.867 50.673% 56.275%)');
     expect(MODULE_PALETTE.warehouse.base).toBe('hsl(32 71% 46%)');
     // no teal (≈184) anywhere in the module identity palette
     for (const p of Object.values(MODULE_PALETTE)) {
@@ -36,7 +36,7 @@ describe('canonical EventFlow module palette', () => {
     const css = read('src/styles/module-accents.css');
     expect(css).toContain("html[data-module='planning']");
     expect(css).toContain("html[data-module='warehouse']");
-    expect(css).toContain('255 51% 56%');
+    expect(css).toContain('254.867 50.673% 56.275%');
     expect(css).toContain('32 71% 46%');
     expect(read('src/index.css')).toContain('module-accents.css');
   });

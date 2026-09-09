@@ -11,14 +11,14 @@
    ================================================================ */
 
 :root {
-  --module-accent: 255 51% 56%;
+  --module-accent: 254.867 50.673% 56.275%;
   --module-accent-dark: 256 47% 52%;
   --module-accent-soft: 255 60% 97%;
   --module-accent-border: 255 40% 89%;
 }
 
 html[data-module='planning'] {
-  --module-accent: 255 51% 56%;        /* #7357C8 */
+  --module-accent: 254.867 50.673% 56.275%; /* #7357C8 */
   --module-accent-dark: 256 47% 52%;   /* #6849BE */
   --module-accent-soft: 255 60% 97%;
   --module-accent-border: 255 40% 89%;
