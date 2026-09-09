@@ -386,10 +386,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     (row.quantity_packed || 0) > 0 || !!row.parcel_id || !!row.packed_at || !!row.verified_at;
 
   const requestEdit = (item: PackingItem, mode: 'exclude' | 'restore') => {
-    const affected = mode === 'exclude' ? collectPackageRows(item) : [item];
+    // Både exkludering och återställning hanterar hela paketet i RPC:n,
+    // så dialogen måste räkna samma rader i båda lägena.
+    const affected = collectPackageRows(item);
     const name = cleanProductName(item.manual_name || item.booking_products?.name || 'Okänd produkt');
     setPendingEdit({ item, mode, affected, name });
   };
+
 
   const confirmEdit = async () => {
     if (!pendingEdit) return;
@@ -655,10 +658,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
               Packning sker i skannerappen
             </p>
             <p className="text-xs text-amber-800/90 dark:text-amber-200/80 mt-0.5">
-              Den här webbvyn är skrivskyddad — kolli, +/-, exkludering, manuella rader
-              och signering kräver aktiv packningssession och hanteras enbart i skannern.
+              I planeringsläget kan du justera vilka rader som ska packas (ta bort och
+              återställa rader) här. Själva packningen — kolli, +/-, manuella rader och
+              signering — kräver aktiv packningssession och hanteras enbart i skannern.
               Du ser status, kolli-tillhörighet och historik här.
             </p>
+
           </div>
         </CardContent>
       </Card>
@@ -817,7 +822,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                         {item.manual_name || item.booking_products?.name || 'Okänd'}
                       </span>
                     </div>
-                    {isEditMode && canEdit && (
+                    {isEditMode && canEdit && !!item.planning_excluded_at && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -830,6 +835,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                     )}
                   </div>
                 ))}
+
               </div>
             </div>
           </CollapsibleContent>
@@ -876,9 +882,19 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             <AlertDialogDescription>
               {pendingEdit?.mode === 'restore' ? (
                 <>
-                  «{pendingEdit?.name}» läggs tillbaka i packlistan. Bokningen är oförändrad.
+                  «{pendingEdit?.name}» läggs tillbaka i packlistan.
+                  {pendingEdit && pendingEdit.affected.length > 1 && (
+                    <>
+                      {' '}
+                      Detta är en paketrad — {pendingEdit.affected.length - 1} paketdel
+                      {pendingEdit.affected.length - 1 === 1 ? '' : 'ar'} återställs också
+                      (totalt {pendingEdit.affected.length} rader).
+                    </>
+                  )}{' '}
+                  Bokningen är oförändrad.
                 </>
               ) : (
+
                 <>
                   «{pendingEdit?.name}» tas bort från den operativa packlistan.
                   {pendingEdit && pendingEdit.affected.length > 1 && (

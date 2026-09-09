@@ -32,11 +32,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   packing_not_found: 'Packningen hittades inte i din organisation.',
   packing_not_in_planning: 'Packlistan kan bara redigeras när packningen är i planeringsläge.',
   item_not_found: 'Raden finns inte i den här packlistan.',
+  not_planning_excluded:
+    'Raden togs inte bort i planeringen och kan därför inte återställas härifrån.',
   row_touched:
     'Raden (eller en paketdel) är redan packad, kontrollerad eller lagd i kolli och kan inte tas bort.',
   verification_failed: 'Ändringen kunde inte verifieras och rullades tillbaka.',
   invalid_mode: 'Ogiltig åtgärd.',
 }
+
 
 const mapDbError = (message: string): { code: string; message: string; status: number } => {
   for (const code of Object.keys(ERROR_MESSAGES)) {
@@ -50,6 +53,11 @@ const mapDbError = (message: string): { code: string; message: string; status: n
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed', code: 'method_not_allowed' }, 405)
+  }
+
+
 
   try {
     const supabase = createClient(
