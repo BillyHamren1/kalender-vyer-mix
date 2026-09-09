@@ -17,7 +17,6 @@ import {
   Hash,
   Printer,
   History,
-  Lock,
   Pencil,
   Trash2,
   Undo2,
@@ -649,24 +648,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         </Card>
       )}
 
-      {/* Read-only banner */}
-      <Card className="border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20">
-        <CardContent className="py-3 px-4 flex items-start gap-3">
-          <Lock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-semibold text-amber-900 dark:text-amber-200">
-              Packning sker i skannerappen
-            </p>
-            <p className="text-xs text-amber-800/90 dark:text-amber-200/80 mt-0.5">
-              I planeringsläget kan du justera vilka rader som ska packas (ta bort och
-              återställa rader) här. Själva packningen — kolli, +/-, manuella rader och
-              signering — kräver aktiv packningssession och hanteras enbart i skannern.
-              Du ser status, kolli-tillhörighet och historik här.
-            </p>
-
-          </div>
-        </CardContent>
-      </Card>
 
       {showQR && (
         <div className="mb-4">
