@@ -94,6 +94,7 @@ const WarehouseOps = () => {
     setSelectedJobId(job.id);
     setDetailTab("overview");
     setDetailsOpen(true);
+    setBookingSheetOpen(true);
   };
 
   return (
