@@ -880,9 +880,19 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             <AlertDialogDescription>
               {pendingEdit?.mode === 'restore' ? (
                 <>
-                  «{pendingEdit?.name}» läggs tillbaka i packlistan. Bokningen är oförändrad.
+                  «{pendingEdit?.name}» läggs tillbaka i packlistan.
+                  {pendingEdit && pendingEdit.affected.length > 1 && (
+                    <>
+                      {' '}
+                      Detta är en paketrad — {pendingEdit.affected.length - 1} paketdel
+                      {pendingEdit.affected.length - 1 === 1 ? '' : 'ar'} återställs också
+                      (totalt {pendingEdit.affected.length} rader).
+                    </>
+                  )}{' '}
+                  Bokningen är oförändrad.
                 </>
               ) : (
+
                 <>
                   «{pendingEdit?.name}» tas bort från den operativa packlistan.
                   {pendingEdit && pendingEdit.affected.length > 1 && (
