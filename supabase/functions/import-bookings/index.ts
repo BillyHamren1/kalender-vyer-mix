@@ -66,6 +66,7 @@ import {
 } from '../_shared/projectionSourceAuthority.ts'
 import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
+import { ensureActivePackingNotEmpty } from './emptyPackingSafetyNet.ts'
 // STEG 3G — observability: audit, counters, circuit breaker, dry-run, anomalier.
 import {
   createSyncCounters,
