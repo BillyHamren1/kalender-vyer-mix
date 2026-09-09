@@ -658,10 +658,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
               Packning sker i skannerappen
             </p>
             <p className="text-xs text-amber-800/90 dark:text-amber-200/80 mt-0.5">
-              Den här webbvyn är skrivskyddad — kolli, +/-, exkludering, manuella rader
-              och signering kräver aktiv packningssession och hanteras enbart i skannern.
+              I planeringsläget kan du justera vilka rader som ska packas (ta bort och
+              återställa rader) här. Själva packningen — kolli, +/-, manuella rader och
+              signering — kräver aktiv packningssession och hanteras enbart i skannern.
               Du ser status, kolli-tillhörighet och historik här.
             </p>
+
           </div>
         </CardContent>
       </Card>
