@@ -30,6 +30,7 @@ export interface PackingRepairResult {
     | 'wms_not_configured'
     | 'wms_unavailable'
     | 'wms_bad_response'
+    | 'source_empty'
     | 'db_error';
   error?: string;
   inserted?: number;
@@ -76,12 +77,22 @@ export async function repairPackingItems(
 
   // ── 1) WMS-reservationen är kanonisk källa ──────────────────────────────
   const apiKey = (globalThis as any)?.Deno?.env?.get?.('PRICELIST_API_KEY') || '';
-  const { data: bookingRow } = await supabase
+  const { data: bookingRow, error: bookingError } = await supabase
     .from('bookings')
     .select('booking_number')
     .eq('id', packing.booking_id)
     .eq('organization_id', organizationId)
     .maybeSingle();
+  if (bookingError) {
+    return { ok: false, code: 'db_error', error: bookingError.message || String(bookingError) };
+  }
+  if (!bookingRow) {
+    return {
+      ok: false,
+      code: 'db_error',
+      error: 'Bokningskällan hittades inte för packningen',
+    };
+  }
   const bookingNumber = (bookingRow as any)?.booking_number || null;
 
   if (apiKey && bookingNumber) {
@@ -113,7 +124,7 @@ export async function repairPackingItems(
   // ── 2) Fallback: lokala booking_products ────────────────────────────────
 
 
-  const [{ data: products }, { data: existingItems }] = await Promise.all([
+  const [productsResult, existingItemsResult] = await Promise.all([
     supabase
       .from('booking_products')
       .select('id, name, quantity, parent_product_id, sku, inventory_item_type_id, source_missing_since')
@@ -125,15 +136,39 @@ export async function repairPackingItems(
       .eq('packing_id', packingId)
       .eq('organization_id', organizationId),
   ]);
+  if (productsResult.error) {
+    return {
+      ok: false,
+      code: 'db_error',
+      error: productsResult.error.message || String(productsResult.error),
+    };
+  }
+  if (existingItemsResult.error) {
+    return {
+      ok: false,
+      code: 'db_error',
+      error: existingItemsResult.error.message || String(existingItemsResult.error),
+    };
+  }
+  const products = productsResult.data || [];
+  const existingItems = existingItemsResult.data || [];
 
   // Samma packable-filter som sync-booking-to-packing:
   // aktiva rader, paketrubriker (rader som är förälder åt andra rader) exkluderas.
-  const active = (products || []).filter((p: any) => !p.source_missing_since);
+  const active = products.filter((p: any) => !p.source_missing_since);
   const parentIds = new Set(
     active.filter((p: any) => p.parent_product_id).map((p: any) => p.parent_product_id),
   );
   const packable = active.filter((p: any) => !parentIds.has(p.id));
-  const existingProductIds = new Set((existingItems || []).map((i: any) => i.booking_product_id));
+  if (packable.length === 0) {
+    return {
+      ok: false,
+      code: 'source_empty',
+      error: 'Bokningen saknar aktiva packbara produktrader',
+      status: packing.status,
+    };
+  }
+  const existingProductIds = new Set(existingItems.map((i: any) => i.booking_product_id));
 
   const toInsert = packable
     .filter((p: any) => !existingProductIds.has(p.id))
@@ -151,7 +186,7 @@ export async function repairPackingItems(
       wms_identity_needs_repair: !p.inventory_item_type_id,
     }));
 
-  const existingCount = (existingItems || []).length;
+  const existingCount = existingItems.length;
 
   if (toInsert.length === 0) {
     return { ok: true, source: 'booking_products', inserted: 0, total: existingCount, status: packing.status };

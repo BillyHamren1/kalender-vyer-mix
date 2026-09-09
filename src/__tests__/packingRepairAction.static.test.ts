@@ -26,6 +26,13 @@ describe('packing repair', () => {
     expect(shared).toContain('!existingProductIds.has(p.id)');
   });
 
+  it('rapporterar läsfel i stället för att godkänna en tom lista', () => {
+    expect(shared).toContain('if (bookingError)');
+    expect(shared).toContain('if (productsResult.error)');
+    expect(shared).toContain('if (existingItemsResult.error)');
+    expect(shared).toContain("code: 'db_error'");
+  });
+
   it('filtrerar bort borttagna produkter och paketrubriker', () => {
     expect(shared).toContain('source_missing_since');
     expect(shared).toContain('parentIds.has(p.id)');
@@ -49,9 +56,16 @@ describe('packing repair', () => {
     expect(sync).toContain("packingStatus === 'planning' || packingStatus === 'in_progress'");
   });
 
-  it('Uppdatera-knappen triggar packningssynken', () => {
+  it('bokningsuppdatering triggar packningssynken', () => {
     const hook = read('src/hooks/useRefreshBooking.ts');
     expect(hook).toContain('syncBookingToPacking(bookingId, orgId)');
+  });
+
+  it('packningssidans reparationsknapp använder dedikerad missing-only Edge-väg', () => {
+    const page = read('src/pages/PackingDetail.tsx');
+    const service = read('src/services/desktopPackingService.ts');
+    expect(page).toContain('repairPackingItemsDesktop(packing.id)');
+    expect(service).toContain("supabase.functions.invoke('repair-packing-items'");
   });
 
   it('get_packing_items förblir read-only', () => {

@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Contract test for the OFFICIAL inbox → packing pipeline.
  *
@@ -25,6 +26,7 @@ interface FakeDB {
   warehouse_projects: Row[];
   warehouse_project_tasks: Row[];
   warehouse_project_inbox: Row[];
+  warehouse_calendar_events: Row[];
   projects: Row[];
   bookings: Row[];
   large_projects: Row[];
@@ -45,6 +47,7 @@ const resetDb = () => {
     warehouse_projects: [],
     warehouse_project_tasks: [],
     warehouse_project_inbox: [],
+    warehouse_calendar_events: [],
     projects: [],
     bookings: [],
     large_projects: [],
@@ -59,12 +62,13 @@ const resetDb = () => {
 // ---------------------------------------------------------------------------
 // Tiny supabase-like query builder over the fake DB
 // ---------------------------------------------------------------------------
-type Filter = { col: string; op: 'eq' | 'in' | 'is'; val: any };
+type Filter = { col: string; op: 'eq' | 'neq' | 'in' | 'is'; val: any };
 
 const matchRow = (row: Row, filters: Filter[]) =>
   filters.every((f) => {
     const v = row[f.col];
     if (f.op === 'eq') return v === f.val;
+    if (f.op === 'neq') return v !== f.val;
     if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(v);
     // Postgres `IS NULL` semantics: missing/undefined columns count as null.
     if (f.op === 'is') return f.val === null ? v === null || v === undefined : v === f.val;
@@ -152,6 +156,10 @@ const makeBuilder = (table: keyof FakeDB) => {
     },
     eq: (col: string, val: any) => {
       filters.push({ col, op: 'eq', val });
+      return builder;
+    },
+    neq: (col: string, val: any) => {
+      filters.push({ col, op: 'neq', val });
       return builder;
     },
     in: (col: string, val: any[]) => {

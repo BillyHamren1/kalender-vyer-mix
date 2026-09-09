@@ -65,6 +65,7 @@ import {
   PROJECTION_MUTATION_BLOCKED_LOG,
 } from '../_shared/projectionSourceAuthority.ts'
 import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
+import { repairPackingItems } from '../_shared/packingRepair.ts'
 // STEG 3G — observability: audit, counters, circuit breaker, dry-run, anomalier.
 import {
   createSyncCounters,
@@ -671,7 +672,7 @@ const createPackingForBooking = async (
   booking: any,
   orgId: string,
   ctx?: ProjectionSyncContext,
-): Promise<{ created: boolean; error?: string }> => {
+): Promise<{ created: boolean; packingId?: string; error?: string }> => {
   console.log(`[Packing] Checking if packing exists for booking ${booking.id}`);
 
   const projectionCtx: ProjectionSyncContext = ctx ?? {
@@ -723,7 +724,7 @@ const createPackingForBooking = async (
     // Idempotent update: endast Booking-ägda fält, WMS-ägd status/scan/kontroll rörs aldrig.
     if (!hasProjectionChanges(syncFields)) {
       console.log(`[Packing] No booking-owned changes for booking ${booking.id} — skipping update`);
-      return { created: false };
+      return { created: false, packingId: existingPacking[0].id };
     }
     console.log(`[Packing] Updating existing packing for booking ${booking.id} (fields: ${Object.keys(syncFields).join(',')})`);
     const { error: updateError } = await supabase
@@ -736,7 +737,7 @@ const createPackingForBooking = async (
       console.error(`[Packing] Error updating packing project:`, updateError);
       return { created: false, error: updateError.message || String(updateError) };
     }
-    return { created: false };
+    return { created: false, packingId: existingPacking[0].id };
   }
   
   console.log(`[Packing] Creating packing project: ${packingName}`);
@@ -844,7 +845,7 @@ const createPackingForBooking = async (
     }
   }
   
-  return { created: true };
+  return { created: true, packingId: newPacking.id };
 };
 
 interface ProductData {
@@ -5188,6 +5189,42 @@ serve(async (req) => {
             results.failed++;
           } else if (packingResult.created) {
             results.packing_projects_created++;
+          }
+
+          // A confirmed booking must never finish with an empty packing shell.
+          // The product-expansion sync above runs before a brand-new packing
+          // project exists, so explicitly repair an EMPTY project after the
+          // projection has been created. Existing rows are never touched here.
+          if (!packingResult.error && packingResult.packingId) {
+            const { count: packingItemCount, error: packingItemCountError } = await supabase
+              .from('packing_list_items')
+              .select('id', { count: 'exact', head: true })
+              .eq('packing_id', packingResult.packingId)
+              .eq('organization_id', organizationId);
+
+            if (packingItemCountError) {
+              const message = packingItemCountError.message || String(packingItemCountError);
+              console.error(`[Packing] could not verify packing rows for ${bookingData.id}: ${message}`);
+              results.errors.push({ booking_id: bookingData.id, error: `packing_row_verification_failed:${message}` });
+              results.failed++;
+            } else if ((packingItemCount || 0) === 0) {
+              const repairResult = await repairPackingItems(
+                supabase,
+                packingResult.packingId,
+                organizationId,
+              );
+              if (!repairResult.ok) {
+                const message = repairResult.error || repairResult.code || 'unknown_error';
+                console.error(`[Packing] empty packing repair failed for ${bookingData.id}: ${message}`);
+                results.errors.push({ booking_id: bookingData.id, error: `packing_row_creation_failed:${message}` });
+                results.failed++;
+              } else {
+                console.log(
+                  `[Packing] ensured ${repairResult.total || 0} packing rows for ${bookingData.id} ` +
+                  `(inserted=${repairResult.inserted || 0}, source=${repairResult.source || 'unknown'})`,
+                );
+              }
+            }
           }
         }
 

@@ -64,6 +64,70 @@ describe('comparePackingSnapshot', () => {
     expect(result.issues.some((issue) => issue.type === 'manual_item')).toBe(true);
   });
 
+  it('godkänner WMS-rader utan booking_product_id när artikelidentitet och antal matchar', () => {
+    const result = comparePackingSnapshot([
+      {
+        id: 'p1',
+        booking_id: 'b1',
+        name: 'Bord',
+        quantity: 4,
+        parent_product_id: null,
+        inventory_item_type_id: 'type-bord',
+        sku: 'BORD-1',
+      },
+    ], [
+      {
+        id: 'w1',
+        booking_product_id: null,
+        quantity_to_pack: 4,
+        manual_name: 'Bord',
+        wms_line_id: 'line-1',
+        wms_item_type_id: 'type-bord',
+        wms_sku: 'BORD-1',
+      },
+    ], true);
+
+    expect(result.isExactMatch).toBe(true);
+    expect(result.blockingCount).toBe(0);
+    expect(result.warningCount).toBe(0);
+    expect(result.packingRows).toBe(1);
+    expect(result.manualRows).toBe(0);
+  });
+
+  it('blockerar antalsskillnad och okända extrarader från WMS', () => {
+    const result = comparePackingSnapshot([
+      {
+        id: 'p1',
+        booking_id: 'b1',
+        name: 'Bord',
+        quantity: 4,
+        parent_product_id: null,
+        inventory_item_type_id: 'type-bord',
+      },
+    ], [
+      {
+        id: 'w1',
+        booking_product_id: null,
+        quantity_to_pack: 3,
+        manual_name: 'Bord',
+        wms_line_id: 'line-1',
+        wms_item_type_id: 'type-bord',
+      },
+      {
+        id: 'w2',
+        booking_product_id: null,
+        quantity_to_pack: 1,
+        manual_name: 'Okänd WMS-artikel',
+        wms_line_id: 'line-2',
+        wms_item_type_id: 'type-extra',
+      },
+    ], true);
+
+    expect(result.isExactMatch).toBe(false);
+    expect(result.issues.some((issue) => issue.type === 'quantity_mismatch')).toBe(true);
+    expect(result.issues.some((issue) => issue.type === 'wms_only_item')).toBe(true);
+  });
+
   it('kan skilja en känd tom bokningskälla från en helt manuell packlista', () => {
     const result = comparePackingSnapshot([], [], true);
     expect(result.sourceAvailable).toBe(true);

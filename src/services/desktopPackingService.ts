@@ -55,13 +55,29 @@ export const fetchPackingListItemsForDesktop = async (packingId: string) => {
  */
 export const repairPackingItemsDesktop = async (
   packingId: string,
-): Promise<{ inserted: number; total: number }> => {
+): Promise<{ inserted: number; total: number; source?: 'wms' | 'booking_products' }> => {
   const { data, error } = await supabase.functions.invoke('repair-packing-items', {
     body: { packing_id: packingId },
   });
-  if (error) throw new Error(error.message || 'Kunde inte generera packlistan');
+  if (error) {
+    let details = '';
+    const response = (error as unknown as { context?: Response })?.context;
+    if (response && typeof response.clone === 'function') {
+      try {
+        const body = await response.clone().json();
+        details = body?.error || body?.message || body?.code || '';
+      } catch {
+        try { details = await response.clone().text(); } catch { /* no response body */ }
+      }
+    }
+    throw new Error(details || error.message || 'Kunde inte generera packlistan');
+  }
   if (data?.error) throw new Error(data.error);
-  return { inserted: data?.inserted ?? 0, total: data?.total ?? 0 };
+  return {
+    inserted: data?.inserted ?? 0,
+    total: data?.total ?? 0,
+    source: data?.source,
+  };
 };
 
 export const getItemParcelsDesktop = async (

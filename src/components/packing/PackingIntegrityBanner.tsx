@@ -26,6 +26,8 @@ const issueText = (issue: PackingIntegrityIssue) => {
       return `${issue.name}: finns i bokningen men är exkluderad från den operativa packlistan.`;
     case 'manual_item':
       return `${issue.name}: manuell extrarad på packlistan (${issue.actualQuantity ?? 0} st).`;
+    case 'wms_only_item':
+      return `${issue.name}: finns i WMS-packlistan men saknar motsvarande packbar bokningsrad (${issue.actualQuantity ?? 0} st).`;
     default:
       return issue.name;
   }

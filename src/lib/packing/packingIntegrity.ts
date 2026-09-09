@@ -5,6 +5,7 @@ export interface PackingIntegrityProduct {
   quantity: number;
   parent_product_id?: string | null;
   sku?: string | null;
+  inventory_item_type_id?: string | null;
   source_missing_since?: string | null;
 }
 
@@ -14,6 +15,9 @@ export interface PackingIntegrityItem {
   quantity_to_pack: number;
   excluded?: boolean | null;
   manual_name?: string | null;
+  wms_line_id?: string | null;
+  wms_item_type_id?: string | null;
+  wms_sku?: string | null;
 }
 
 export type PackingIntegrityIssueType =
@@ -22,7 +26,8 @@ export type PackingIntegrityIssueType =
   | 'quantity_mismatch'
   | 'duplicate_item'
   | 'excluded_source_item'
-  | 'manual_item';
+  | 'manual_item'
+  | 'wms_only_item';
 
 export interface PackingIntegrityIssue {
   type: PackingIntegrityIssueType;
@@ -72,9 +77,12 @@ export const comparePackingSnapshot = (
   const expected = activeProducts.filter((product) => !parentIds.has(product.id));
   const expectedById = new Map(expected.map((product) => [product.id, product]));
 
-  const manualRows = items.filter((item) => !item.booking_product_id && item.manual_name).length;
+  const manualRows = items.filter(
+    (item) => !item.booking_product_id && !item.wms_line_id && item.manual_name,
+  ).length;
   const excludedRows = items.filter((item) => item.excluded).length;
   const linkedItems = items.filter((item) => Boolean(item.booking_product_id));
+  const wmsItems = items.filter((item) => !item.booking_product_id && Boolean(item.wms_line_id));
   const itemsByProduct = new Map<string, PackingIntegrityItem[]>();
 
   linkedItems.forEach((item) => {
@@ -87,7 +95,9 @@ export const comparePackingSnapshot = (
   const issues: PackingIntegrityIssue[] = [];
 
   items
-    .filter((item) => !item.booking_product_id && Boolean(item.manual_name) && !item.excluded)
+    .filter(
+      (item) => !item.booking_product_id && !item.wms_line_id && Boolean(item.manual_name) && !item.excluded,
+    )
     .forEach((item) => {
       issues.push({
         type: 'manual_item',
@@ -99,8 +109,30 @@ export const comparePackingSnapshot = (
       });
     });
 
+  // WMS-rader är medvetet frikopplade från booking_product_id. Matcha dem
+  // deterministiskt och en-till-en via artikeltyp, med SKU som legacy-fallback.
+  // En WMS-rad får aldrig konsumera mer än en bokningsrad.
+  const unusedWmsItems = new Set(wmsItems);
+  const normalizeSku = (value?: string | null) => value?.trim().toLocaleUpperCase('sv-SE') || null;
+  const findWmsMatch = (product: PackingIntegrityProduct): PackingIntegrityItem | undefined => {
+    const candidates = [...unusedWmsItems].filter((item) => {
+      if (product.inventory_item_type_id && item.wms_item_type_id) {
+        return product.inventory_item_type_id === item.wms_item_type_id;
+      }
+      const productSku = normalizeSku(product.sku);
+      return Boolean(productSku && productSku === normalizeSku(item.wms_sku));
+    });
+    const exactQuantity = candidates.find(
+      (item) => Number(item.quantity_to_pack || 0) === Number(product.quantity || 0),
+    );
+    return exactQuantity || candidates[0];
+  };
+
   expected.forEach((product) => {
-    const matching = itemsByProduct.get(product.id) || [];
+    const linkedMatching = itemsByProduct.get(product.id) || [];
+    const wmsMatch = linkedMatching.length === 0 ? findWmsMatch(product) : undefined;
+    if (wmsMatch) unusedWmsItems.delete(wmsMatch);
+    const matching = wmsMatch ? [wmsMatch] : linkedMatching;
     if (matching.length === 0) {
       issues.push({
         type: 'missing_item',
@@ -151,6 +183,17 @@ export const comparePackingSnapshot = (
     }
   });
 
+  unusedWmsItems.forEach((item) => {
+    issues.push({
+      type: 'wms_only_item',
+      severity: item.excluded ? 'warning' : 'blocking',
+      bookingProductId: null,
+      name: item.manual_name || item.wms_sku || 'WMS-rad utan motsvarighet i bokningen',
+      actualQuantity: Number(item.quantity_to_pack || 0),
+      itemIds: [item.id],
+    });
+  });
+
   const productById = new Map(products.map((product) => [product.id, product]));
 
   itemsByProduct.forEach((matching, productId) => {
@@ -188,7 +231,7 @@ export const comparePackingSnapshot = (
     blockingCount,
     warningCount,
     expectedRows: expected.length,
-    packingRows: linkedItems.length,
+    packingRows: linkedItems.length + wmsItems.length,
     manualRows,
     excludedRows,
     checkedAt,

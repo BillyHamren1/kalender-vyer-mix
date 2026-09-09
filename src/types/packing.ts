@@ -95,6 +95,11 @@ export interface PackingListItem {
   notes: string | null;
   excluded: boolean;
   manual_name: string | null;
+  wms_line_id?: string | null;
+  wms_item_type_id?: string | null;
+  wms_sku?: string | null;
+  wms_identity_source?: string | null;
+  wms_identity_needs_repair?: boolean | null;
   created_at: string;
   // Joined product info
   product?: {

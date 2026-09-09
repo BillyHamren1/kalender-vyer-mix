@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 
 export interface PersonnelJob {
   assignmentId: string | null;
@@ -68,12 +69,21 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
   const { organizationId, isLoading: organizationLoading } = useCurrentOrg();
   const queryKey = ['warehouse-personnel-week', organizationId, from, to] as const;
 
+  useRealtimeInvalidation({
+    channelName: `warehouse-personnel-${organizationId || 'signed-out'}`,
+    tables: [
+      { table: 'warehouse_assignments', events: ['*'] },
+      { table: 'warehouse_calendar_events', events: ['*'] },
+    ],
+    queryKeys: [['warehouse-personnel-week']],
+  });
+
   const query = useQuery<{ rows: PersonnelRow[]; unstaffed: PersonnelJob[] }>({
     queryKey,
     enabled: !!organizationId,
     staleTime: 30_000,
-    // These tables are not in the project's Realtime publication. Poll while
-    // the manager has the view open so changes from another planner still land.
+    // Realtime is primary. Polling stays as a fallback for interrupted
+    // subscriptions so a manager's side-by-side view self-heals.
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {

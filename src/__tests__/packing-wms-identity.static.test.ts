@@ -9,7 +9,9 @@ describe('packing WMS canonical identity contract', () => {
   it('snapshots WMS identity onto packing rows and freezes after planning', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts')
     expect(src).toContain('wms_item_type_id: p.inventory_item_type_id || null')
-    expect(src).toContain("if (packingStatus !== 'planning')")
+    expect(src).toContain('requiresWarehouseAcknowledgement({')
+    expect(src).toContain('const listIsUntouched =')
+    expect(src).toContain('if (needsWarehouseAck && !listIsUntouched)')
     expect(src).toContain('wms_identity_needs_repair')
   })
 

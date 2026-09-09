@@ -46,11 +46,24 @@ Deno.serve(async (req) => {
     if (!result.ok) {
       const status = result.code === 'packing_not_found' ? 404
         : result.code === 'insert_failed' ? 500
+        : result.code === 'db_error' ? 500
+        : result.code === 'wms_unavailable' ? 502
+        : result.code === 'wms_bad_response' ? 502
+        : result.code === 'wms_not_configured' ? 503
+        : result.code === 'source_empty' ? 409
         : 409
-      return json({ error: result.error, code: result.code }, status)
+      return json({ success: false, error: result.error, code: result.code }, status)
     }
 
-    return json({ success: true, inserted: result.inserted, total: result.total })
+    return json({
+      success: true,
+      inserted: result.inserted,
+      updated: result.updated,
+      total: result.total,
+      source: result.source,
+      reservation_id: result.reservationId,
+      conflicts: result.conflicts,
+    })
   } catch (err) {
     console.error('[repair-packing-items] error', err)
     return json({ error: err?.message ?? String(err) }, 500)

@@ -23,6 +23,7 @@ import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
 import { fetchPackingProducts } from "@/services/packingService";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
+import { repairPackingItemsDesktop } from "@/services/desktopPackingService";
 import { BookingProduct } from "@/types/booking";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -173,6 +174,18 @@ const PackingDetail = () => {
 
     setIsRepairingPackingList(true);
     try {
+      if (!isMultiBooking) {
+        const result = await repairPackingItemsDesktop(packing.id);
+        await Promise.all([refetchAll(), refetchItems()]);
+        await loadProducts(false);
+        toast.success(
+          result.inserted > 0
+            ? `Packlistan skapades med ${result.inserted} saknade rader.`
+            : `Packlistan är komplett med ${result.total} rader.`,
+        );
+        return;
+      }
+
       const { data: bookingSources, error } = await supabase
         .from('bookings')
         .select('id, organization_id')
@@ -194,7 +207,8 @@ const PackingDetail = () => {
       toast.success('Packlistan är uppdaterad från aktuell bokning. Kontrollera integritetsstatus innan användning.');
     } catch (error) {
       console.error('[PackingDetail] Repair packing list failed', error);
-      toast.error('Packlistan kunde inte uppdateras säkert. Inga fler försök görs automatiskt.');
+      const message = error instanceof Error ? error.message : 'Okänt serverfel';
+      toast.error(`Packlistan kunde inte uppdateras säkert: ${message}`);
     } finally {
       setIsRepairingPackingList(false);
     }
