@@ -35,12 +35,12 @@ export const MODULE_PALETTE: Record<ModuleKey, ModulePalette> = {
   planning: {
     baseHex: '#7357C8',
     darkHex: '#6849BE',
-    base: 'hsl(255 51% 56%)',
+    base: 'hsl(254.867 50.673% 56.275%)',
     dark: 'hsl(256 47% 52%)',
     soft: 'hsl(255 60% 97%)',
     border: 'hsl(255 40% 89%)',
     hover: 'hsl(255 50% 98%)',
-    ring: 'hsl(255 51% 56%)',
+    ring: 'hsl(254.867 50.673% 56.275%)',
   },
   warehouse: {
     baseHex: '#C77922',
