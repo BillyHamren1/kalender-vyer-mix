@@ -95,9 +95,9 @@ const WarehouseOps = () => {
   const selectJob = (job: OpsJob) => {
     setSelectedJobId(job.id);
     setDetailTab("overview");
-    setDetailsOpen(true);
-    setBookingSheetOpen(true);
+    navigate(`/warehouse/packing/${job.packingId}`);
   };
+
 
   return (
     <div className="h-full min-h-0 overflow-hidden bg-background">
