@@ -386,10 +386,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     (row.quantity_packed || 0) > 0 || !!row.parcel_id || !!row.packed_at || !!row.verified_at;
 
   const requestEdit = (item: PackingItem, mode: 'exclude' | 'restore') => {
-    const affected = mode === 'exclude' ? collectPackageRows(item) : [item];
+    // Både exkludering och återställning hanterar hela paketet i RPC:n,
+    // så dialogen måste räkna samma rader i båda lägena.
+    const affected = collectPackageRows(item);
     const name = cleanProductName(item.manual_name || item.booking_products?.name || 'Okänd produkt');
     setPendingEdit({ item, mode, affected, name });
   };
+
 
   const confirmEdit = async () => {
     if (!pendingEdit) return;
