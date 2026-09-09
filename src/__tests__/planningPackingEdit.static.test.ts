@@ -16,15 +16,19 @@ import path from 'path';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
+/** Alltid SENASTE migrationen som definierar RPC:n (framåtriktade CREATE OR REPLACE). */
 const migrationSql = (() => {
   const dir = path.join(process.cwd(), 'supabase/migrations');
   const file = fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .reverse()
     .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
     .find((sql) => sql.includes('planning_edit_packing_list_item'));
   return file ?? '';
 })();
+
 
 const edgeFn = read('supabase/functions/edit-packing-list/index.ts');
 const wms = read('supabase/functions/_shared/wmsPackingList.ts');
