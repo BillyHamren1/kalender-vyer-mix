@@ -14,6 +14,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { createScannerSignedToken } from '../_shared/scannerSignedAuth.ts'
+import {
+  preflightsScannerContract,
+  requestsScannerContract,
+  scannerCorsHeaders,
+} from '../_shared/scannerCors.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -59,21 +64,23 @@ async function enrichStaffWithRoles(supabase: any, staffMember: any) {
   }
 }
 
-function json(body: unknown, status = 200) {
+function json(body: unknown, status = 200, responseHeaders = corsHeaders) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...responseHeaders, 'Content-Type': 'application/json' },
   })
 }
 
 async function handleLogin(
   supabase: any,
   data: { username?: string; password?: string; email?: string },
+  responseHeaders: Record<string, string>,
+  issueScannerCredential: boolean,
 ) {
   const password = data?.password
   const rawIdentifier = data?.email || data?.username
   if (!rawIdentifier || !password) {
-    return json({ error: 'Email/username and password required' }, 400)
+    return json({ error: 'Email/username and password required' }, 400, responseHeaders)
   }
 
   const normalizedIdentifier = rawIdentifier.trim().toLowerCase()
@@ -91,7 +98,7 @@ async function handleLogin(
 
     if (emailError) {
       console.error('[mobile-app-auth] email lookup error:', emailError)
-      return json({ error: 'Login failed' }, 500)
+      return json({ error: 'Login failed' }, 500, responseHeaders)
     }
     matchedEmailStaff = !!staffByEmail
 
@@ -104,7 +111,7 @@ async function handleLogin(
         .maybeSingle()
       if (acctError) {
         console.error('[mobile-app-auth] account lookup error:', acctError)
-        return json({ error: 'Login failed' }, 500)
+        return json({ error: 'Login failed' }, 500, responseHeaders)
       }
       account = acctByStaff
     }
@@ -118,7 +125,7 @@ async function handleLogin(
         .maybeSingle()
       if (usernameFallbackError) {
         console.error('[mobile-app-auth] username fallback error:', usernameFallbackError)
-        return json({ error: 'Login failed' }, 500)
+        return json({ error: 'Login failed' }, 500, responseHeaders)
       }
       account = acctByUsername
     }
@@ -127,6 +134,7 @@ async function handleLogin(
       return json(
         { error: 'Kontot saknar inloggning för scanner-appen. Kontakta admin.' },
         403,
+        responseHeaders,
       )
     }
   } else {
@@ -138,14 +146,14 @@ async function handleLogin(
       .maybeSingle()
     if (accountError) {
       console.error('[mobile-app-auth] login query error:', accountError)
-      return json({ error: 'Login failed' }, 500)
+      return json({ error: 'Login failed' }, 500, responseHeaders)
     }
     account = acctByUsername
   }
 
-  if (!account) return json({ error: 'Invalid email or password' }, 401)
+  if (!account) return json({ error: 'Invalid email or password' }, 401, responseHeaders)
   if (!verifyPassword(password, account.password_hash)) {
-    return json({ error: 'Invalid username or password' }, 401)
+    return json({ error: 'Invalid username or password' }, 401, responseHeaders)
   }
 
   const { data: staffMember, error: staffError } = await supabase
@@ -155,7 +163,7 @@ async function handleLogin(
     .single()
   if (staffError || !staffMember) {
     console.error('[mobile-app-auth] staff member lookup error:', staffError)
-    return json({ error: 'Staff member not found' }, 404)
+    return json({ error: 'Staff member not found' }, 404, responseHeaders)
   }
 
   const enriched = await enrichStaffWithRoles(supabase, staffMember)
@@ -173,13 +181,15 @@ async function handleLogin(
     .eq('id', account.staff_id)
   if (sessionUpdateError) {
     console.error('[mobile-app-auth] kunde inte uppdatera active_mobile_session_id:', sessionUpdateError)
-    return json({ error: 'Login failed (session)' }, 500)
+    return json({ error: 'Login failed (session)' }, 500, responseHeaders)
   }
 
   const token = generateToken(account.staff_id, sessionId)
   let scannerToken: string | null = null
-  const scannerSigningSecret = Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')
-  if (scannerSigningSecret && staffMember.organization_id) {
+  const scannerSigningSecret = issueScannerCredential
+    ? Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')
+    : undefined
+  if (issueScannerCredential && scannerSigningSecret && staffMember.organization_id) {
     try {
       scannerToken = await createScannerSignedToken(
         {
@@ -192,7 +202,7 @@ async function handleLogin(
     } catch (error) {
       console.error('[mobile-app-auth] signed scanner credential unavailable:', String(error))
     }
-  } else {
+  } else if (issueScannerCredential) {
     console.warn('[mobile-app-auth] signed scanner credential not configured')
   }
   console.log(
@@ -200,15 +210,35 @@ async function handleLogin(
   )
   // `token` behålls oförändrad för Planning-mobilen. Endast den fristående
   // Scannern använder den separata, kortlivade och signerade credentialen.
-  return json({ success: true, token, scanner_token: scannerToken, staff: enriched })
+  return issueScannerCredential
+    ? json({ success: true, token, scanner_token: scannerToken, staff: enriched }, 200, responseHeaders)
+    : json({ success: true, token, staff: enriched }, 200, responseHeaders)
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    const scannerPreflight = preflightsScannerContract(req)
+    const cors = scannerCorsHeaders(
+      req.headers.get('Origin'),
+      Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
+      !scannerPreflight,
+    )
+    return new Response(cors.allowed ? 'ok' : null, {
+      status: cors.allowed ? 200 : 403,
+      headers: cors.headers,
+    })
+  }
+  const scannerRequest = requestsScannerContract(req)
+  const cors = scannerCorsHeaders(
+    req.headers.get('Origin'),
+    Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
+    !scannerRequest,
+  )
+  if (!cors.allowed) {
+    return json({ error: 'Scanner origin is not allowed' }, 403, cors.headers)
   }
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405)
+    return json({ error: 'Method not allowed' }, 405, cors.headers)
   }
 
   const supabase = createClient(
@@ -220,7 +250,7 @@ Deno.serve(async (req) => {
   try {
     body = await req.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return json({ error: 'Invalid JSON body' }, 400, cors.headers)
   }
 
   // Accept either `{ action: 'login', data: {...} }` (mobile-app-api shape)
@@ -228,13 +258,13 @@ Deno.serve(async (req) => {
   // drop-in replacement.
   const action = body?.action ?? 'login'
   if (action !== 'login') {
-    return json({ error: 'Only login is supported on this endpoint' }, 400)
+    return json({ error: 'Only login is supported on this endpoint' }, 400, cors.headers)
   }
   const data = body?.data ?? body ?? {}
   try {
-    return await handleLogin(supabase, data)
+    return await handleLogin(supabase, data, cors.headers, scannerRequest)
   } catch (err) {
     console.error('[mobile-app-auth] uncaught error:', err)
-    return json({ error: 'Internal server error' }, 500)
+    return json({ error: 'Internal server error' }, 500, cors.headers)
   }
 })

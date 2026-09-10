@@ -14,6 +14,11 @@ import {
   verifyScannerSignedToken,
 } from '../_shared/scannerSignedAuth.ts'
 import {
+  preflightsScannerContract,
+  requestsScannerContract,
+  scannerCorsHeaders,
+} from '../_shared/scannerCors.ts'
+import {
   SCANNER_CONTRACT_WMS_CONCURRENCY,
   buildScannerContractV1,
   mapWithConcurrency,
@@ -23,6 +28,11 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+const SCANNER_CONTRACT_READ_ACTIONS = new Set([
+  'list_active_packings',
+  'get_packing_items',
+])
 
 type ScannerAuth = {
   staffId: string
@@ -640,10 +650,19 @@ async function getNextControlItem(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    const scannerPreflight = preflightsScannerContract(req)
+    const cors = scannerCorsHeaders(
+      req.headers.get('Origin'),
+      Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
+      !scannerPreflight,
+    )
+    return new Response(null, {
+      status: cors.allowed ? 204 : 403,
+      headers: cors.headers,
+    })
   }
 
-
+  let responseCorsHeaders = corsHeaders
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -651,6 +670,36 @@ Deno.serve(async (req) => {
     )
 
     const { action, token: legacyBodyToken, ...params } = await req.json()
+    const scannerRequest = requestsScannerContract(req)
+    const requestsScannerContractV1 =
+      params?.scanner_contract_version === 'scanner_contract_v1' ||
+      params?.includeScannerContractV1 === true
+    if (requestsScannerContractV1 !== scannerRequest) {
+      const cors = scannerCorsHeaders(
+        req.headers.get('Origin'),
+        Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
+        false,
+      )
+      return new Response(
+        JSON.stringify({
+          error: 'Scanner contract header and body version must match',
+          debugCode: 'SCANNER_CONTRACT_VERSION_MISMATCH',
+        }),
+        { status: 400, headers: { ...cors.headers, 'Content-Type': 'application/json' } },
+      )
+    }
+    const cors = scannerCorsHeaders(
+      req.headers.get('Origin'),
+      Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
+      !requestsScannerContractV1,
+    )
+    responseCorsHeaders = cors.headers
+    if (!cors.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Scanner origin is not allowed', debugCode: 'SCANNER_ORIGIN_DENIED' }),
+        { status: 403, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
 
     const tokenTransport = resolveScannerTokenTransport(
       req.headers.get('Authorization'),
@@ -662,7 +711,7 @@ Deno.serve(async (req) => {
           error: tokenTransport.error,
           debugCode: `AUTH_${tokenTransport.reason.toUpperCase()}`,
         }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 401, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
       )
     }
     if (tokenTransport.source === 'legacy_body') {
@@ -683,20 +732,26 @@ Deno.serve(async (req) => {
           error: authErr.message || 'Unauthorized',
           debugCode: `AUTH_${(authErr.reason || 'unknown').toUpperCase()}`,
         }),
-        { status: authErr.status || 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: authErr.status || 401, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const requestsScannerContractV1 =
-      params?.scanner_contract_version === 'scanner_contract_v1' ||
-      params?.includeScannerContractV1 === true
     if (requestsScannerContractV1 && auth.credentialKind !== 'signed_v2') {
       return new Response(
         JSON.stringify({
           error: 'Signed Scanner credential required',
           debugCode: 'AUTH_SIGNED_SCANNER_TOKEN_REQUIRED',
         }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 401, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    if (requestsScannerContractV1 && !SCANNER_CONTRACT_READ_ACTIONS.has(action)) {
+      return new Response(
+        JSON.stringify({
+          error: 'Scanner contract is read-only in Planning',
+          debugCode: 'SCANNER_PLANNING_MUTATION_FORBIDDEN',
+        }),
+        { status: 403, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
@@ -832,7 +887,7 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (revError) {
               console.error('[scanner_contract_v1] booking evidence read failed', revError?.code)
-              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }), { status: 502, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
             }
             ;(revRows || []).forEach((b: any) => revisionMap.set(b.id, b.last_applied_source_revision ?? null))
 
@@ -843,7 +898,7 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (calError) {
               console.error('[scanner_contract_v1] calendar evidence read failed', calError?.code)
-              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }), { status: 502, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
             }
             ;(calRows || []).forEach((e: any) => {
               const list = calendarMap.get(e.booking_id) || []
@@ -889,10 +944,10 @@ Deno.serve(async (req) => {
             }
           })
 
-          return new Response(JSON.stringify(enriched), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+          return new Response(JSON.stringify(enriched), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
         }
 
-        return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify(filtered), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
       }
 
       case 'get_packing': {
@@ -942,7 +997,7 @@ Deno.serve(async (req) => {
               }),
               {
                 status: 404,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
               }
             );
           }
@@ -970,7 +1025,7 @@ Deno.serve(async (req) => {
                 lines: [],
               }),
               {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
               }
             );
           }
@@ -1000,7 +1055,7 @@ Deno.serve(async (req) => {
                 source: line.source,
               })),
             }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: { ...responseCorsHeaders, "Content-Type": "application/json" } }
           );
         }
 
@@ -3666,15 +3721,14 @@ Deno.serve(async (req) => {
           error: err.message,
           code: err.code,
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 500, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
       )
     }
     console.error('Scanner API error:', err)
-    return new Response(JSON.stringify({ error: err?.message ?? String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: err?.message ?? String(err) }), { status: 500, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
   }
 })
 
 function json(data: any) {
   return new Response(JSON.stringify(data), { headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
 }
-
