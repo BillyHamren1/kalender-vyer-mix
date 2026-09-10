@@ -3,6 +3,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
+import {
+  SCANNER_CONTRACT_WMS_CONCURRENCY,
+  buildScannerContractV1,
+  mapWithConcurrency,
+} from '../_shared/scannerReadContractV1.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -751,6 +756,84 @@ Deno.serve(async (req) => {
           }
           return false
         }).slice(0, 300)
+
+        // ---- scanner-read-contract-v1 (OPT-IN, additivt) ----------------------
+        // Utan params.includeScannerContractV1 === true är svarsformen och det
+        // externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
+        if (params?.includeScannerContractV1 === true) {
+          const contractBookingIds = Array.from(new Set(
+            filtered.map((p: any) => p.booking_id).filter(Boolean),
+          )) as string[]
+
+          const revisionMap = new Map<string, any>()
+          const calendarMap = new Map<string, any[]>()
+
+          if (contractBookingIds.length > 0) {
+            const { data: revRows, error: revError } = await supabase
+              .from('bookings')
+              .select('id, last_applied_source_revision')
+              .in('id', contractBookingIds)
+              .eq('organization_id', ORG_ID)
+            if (revError) {
+              console.error('[scanner_contract_v1] booking evidence read failed', revError?.code)
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            ;(revRows || []).forEach((b: any) => revisionMap.set(b.id, b.last_applied_source_revision ?? null))
+
+            const { data: calRows, error: calError } = await supabase
+              .from('calendar_events')
+              .select('id, booking_id, organization_id, event_type, start_time, end_time')
+              .in('booking_id', contractBookingIds)
+              .eq('organization_id', ORG_ID)
+            if (calError) {
+              console.error('[scanner_contract_v1] calendar evidence read failed', calError?.code)
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            ;(calRows || []).forEach((e: any) => {
+              const list = calendarMap.get(e.booking_id) || []
+              list.push(e)
+              calendarMap.set(e.booking_id, list)
+            })
+          }
+
+          const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+          const wmsResults = await mapWithConcurrency(
+            filtered,
+            SCANNER_CONTRACT_WMS_CONCURRENCY,
+            async (p: any) => {
+              const bookingNumber = p.booking?.booking_number
+              if (!PRICELIST_API_KEY || !bookingNumber) {
+                return { ok: false, code: PRICELIST_API_KEY ? 'wms_reservation_not_found' : 'wms_not_configured' }
+              }
+              try {
+                return await resolveWmsReservation(bookingNumber, {
+                  apiKey: PRICELIST_API_KEY,
+                  organizationId: ORG_ID,
+                })
+              } catch (_err) {
+                return { ok: false, code: 'wms_unavailable' }
+              }
+            },
+          )
+
+          const enriched = filtered.map((p: any, i: number) => {
+            const wms = wmsResults[i]
+            const contract = buildScannerContractV1({
+              bookingId: p.booking_id ?? null,
+              lastAppliedSourceRevision: p.booking_id ? revisionMap.get(p.booking_id) ?? null : null,
+              calendarRows: p.booking_id ? calendarMap.get(p.booking_id) ?? [] : [],
+              jobId: p.id ?? null,
+              wms,
+            })
+            return {
+              ...p,
+              wms_reservation_id: contract.wms.reservation_id,
+              scanner_contract_v1: contract,
+            }
+          })
+
+          return new Response(JSON.stringify(enriched), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
 
         return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
