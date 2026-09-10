@@ -98,7 +98,15 @@ export async function resolveWmsReservation(
   if (!reservationId) {
     return { ok: false, code: 'wms_bad_response', error: 'Reservationssvar saknar id' };
   }
-  return { ok: true, reservationId, externalId: bookingNumber };
+  const reservation = body?.data?.reservation ?? body?.reservation ?? null;
+  return {
+    ok: true,
+    reservationId,
+    externalId: bookingNumber,
+    status: typeof reservation?.status === 'string' ? reservation.status : null,
+    updatedAt: typeof reservation?.updated_at === 'string' ? reservation.updated_at : null,
+    syncedAt: typeof reservation?.synced_at === 'string' ? reservation.synced_at : null,
+  };
 }
 
 export interface WmsPackingRow {
