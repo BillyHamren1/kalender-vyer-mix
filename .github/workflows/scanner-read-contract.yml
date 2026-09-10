@@ -6,6 +6,7 @@ on:
     paths:
       - package.json
       - package-lock.json
+      - bun.lock
       - src/__tests__/scannerReadContractV1.test.ts
       - src/__tests__/wmsPackingListSync.test.ts
       - src/__tests__/scannerLegacyAuth.test.ts
@@ -13,6 +14,9 @@ on:
       - src/__tests__/scannerCors.test.ts
       - src/__tests__/scannerWmsPackingProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
+      - src/__tests__/scannerDeployPreflight.test.ts
+      - src/__tests__/scannerContractResponse.test.ts
+      - src/__tests__/scannerDependencyPin.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
@@ -20,11 +24,14 @@ on:
       - supabase/functions/_shared/scannerWmsPackingProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
+      - scripts/scanner-deploy-preflight.mjs
+      - supabase/scanner-read-pilot-release-v1.json
       - .github/workflows/scanner-read-contract.yml
   pull_request:
     paths:
       - package.json
       - package-lock.json
+      - bun.lock
       - src/__tests__/scannerReadContractV1.test.ts
       - src/__tests__/wmsPackingListSync.test.ts
       - src/__tests__/scannerLegacyAuth.test.ts
@@ -32,6 +39,9 @@ on:
       - src/__tests__/scannerCors.test.ts
       - src/__tests__/scannerWmsPackingProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
+      - src/__tests__/scannerDeployPreflight.test.ts
+      - src/__tests__/scannerContractResponse.test.ts
+      - src/__tests__/scannerDependencyPin.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
@@ -39,6 +49,8 @@ on:
       - supabase/functions/_shared/scannerWmsPackingProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
+      - scripts/scanner-deploy-preflight.mjs
+      - supabase/scanner-read-pilot-release-v1.json
       - .github/workflows/scanner-read-contract.yml
 
 permissions:
@@ -56,6 +68,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Critical production dependency audit
+        run: npm run scanner:production-audit
       - name: Contract tests
         run: >-
           npx vitest run --environment node
@@ -66,6 +80,9 @@ jobs:
           src/__tests__/scannerCors.test.ts
           src/__tests__/scannerWmsPackingProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
+          src/__tests__/scannerDeployPreflight.test.ts
+          src/__tests__/scannerContractResponse.test.ts
+          src/__tests__/scannerDependencyPin.test.ts
       - name: Contract lint
         run: >-
           npx eslint
@@ -80,5 +97,9 @@ jobs:
           src/__tests__/scannerCors.test.ts
           src/__tests__/scannerWmsPackingProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
+          src/__tests__/scannerDeployPreflight.test.ts
+          src/__tests__/scannerContractResponse.test.ts
+          src/__tests__/scannerDependencyPin.test.ts
+          scripts/scanner-deploy-preflight.mjs
       - name: Production build
         run: npm run build

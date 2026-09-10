@@ -58,6 +58,8 @@ describe("fetchScannerWmsPackingProjection", () => {
       code: null,
       lines: [
         {
+          identityKind: "reservation_line_item_type",
+          physicalKind: "direct_item",
           reservationLineId: "rl-1",
           inventoryTypeId: "it-1",
           displayName: "Lampa",
@@ -123,7 +125,7 @@ describe("fetchScannerWmsPackingProjection", () => {
     });
   });
 
-  it("blockerar paketkomponenter som saknar egna kanoniska reservationsrad-ID:n", async () => {
+  it("bevarar paketkomponenter som kanoniska reservationsrad/artikeltyp-tupler", async () => {
     const result = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
@@ -135,8 +137,56 @@ describe("fetchScannerWmsPackingProjection", () => {
               type: "package",
               package_id: "pkg-1",
               required_qty: 3,
-              packed_count: 0,
-              components: [{ item_type_id: "it-component", required_qty: 3 }],
+              packed_count: 1,
+              components: [
+                {
+                  item_type_id: "it-component",
+                  name_sv: "Paketdel",
+                  required_qty: 3,
+                  packed_count: 1,
+                },
+              ],
+            },
+          ],
+        })
+      )
+    );
+    expect(result).toEqual({
+      ok: true,
+      reservationId: "res-1",
+      code: null,
+      lines: [
+        {
+          identityKind: "reservation_line_item_type",
+          physicalKind: "package_component",
+          reservationLineId: "rl-package",
+          inventoryTypeId: "it-component",
+          displayName: "Paketdel",
+          quantityReserved: 3,
+          quantityPicked: 1,
+          quantityReturned: null,
+          parentReservationLineId: null,
+          source: "bundle_wms",
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("rl-package::it-component");
+  });
+
+  it("blockerar dubbla paketkomponenttupler", async () => {
+    const result = await fetchScannerWmsPackingProjection(
+      "B-100",
+      deps(
+        fakeFetch(reservation, {
+          reservation: { id: "res-1" },
+          lines: [
+            {
+              line_id: "rl-package",
+              type: "package",
+              components: [
+                { item_type_id: "it-1", required_qty: 1, packed_count: 0 },
+                { item_type_id: "it-1", required_qty: 1, packed_count: 0 },
+              ],
             },
           ],
         })
@@ -144,10 +194,9 @@ describe("fetchScannerWmsPackingProjection", () => {
     );
     expect(result).toMatchObject({
       ok: false,
-      code: "wms_package_component_identity_missing",
+      code: "wms_duplicate_physical_identity",
       lines: [],
     });
-    expect(JSON.stringify(result)).not.toContain("rl-package::it-component");
   });
 
   it("blockerar dubbletter och ofullständig WMS-identitet", async () => {

@@ -12,6 +12,12 @@ import {
 } from "./wmsPackingList.ts";
 
 export interface ScannerWmsPackingLine {
+  /**
+   * A physical line is identified by the canonical WMS tuple below. Package
+   * components intentionally share the package reservation-line ID.
+   */
+  identityKind: "reservation_line_item_type";
+  physicalKind: "direct_item" | "package_component";
   reservationLineId: string;
   inventoryTypeId: string;
   displayName: string;
@@ -27,9 +33,9 @@ export type ScannerWmsPackingFailureCode =
   | WmsFailureCode
   | "wms_reservation_mismatch"
   | "wms_duplicate_line_id"
+  | "wms_duplicate_physical_identity"
   | "wms_incomplete_line_identity"
-  | "wms_invalid_quantity"
-  | "wms_package_component_identity_missing";
+  | "wms_invalid_quantity";
 
 export type ScannerWmsPackingProjection =
   | {
@@ -179,11 +185,14 @@ export async function fetchScannerWmsPackingProjection(
     }
     sourceLineIds.add(lineId);
     if (line.type === "package") {
-      return failure(
-        reservationId,
-        "wms_package_component_identity_missing",
-        `Package line ${lineId} has no canonical reservation_line_id per physical component`
-      );
+      if (!Array.isArray(line.components) || line.components.length === 0) {
+        return failure(
+          reservationId,
+          "wms_incomplete_line_identity",
+          `WMS package line ${lineId} has no physical components`
+        );
+      }
+      continue;
     }
     if (line.type !== "item_type" || !exactOwnerId(line.item_type_id)) {
       return failure(
@@ -195,12 +204,26 @@ export async function fetchScannerWmsPackingProjection(
   }
 
   const lines: ScannerWmsPackingLine[] = [];
-  for (const value of rawLines) {
-    const line = record(value)!;
-    const reservationLineId = exactOwnerId(line.line_id)!;
-    const inventoryTypeId = exactOwnerId(line.item_type_id)!;
-    const quantityReserved = nonNegativeInteger(line.required_qty);
-    const quantityPicked = nonNegativeInteger(line.packed_count);
+  const physicalIdentities = new Set<string>();
+  const appendPhysicalLine = (
+    source: JsonRecord,
+    reservationLineId: string,
+    inventoryTypeId: string,
+    displayName: string,
+    parentReservationLineId: string | null,
+    physicalKind: "direct_item" | "package_component"
+  ): ScannerWmsPackingProjection | null => {
+    const identity = JSON.stringify([reservationLineId, inventoryTypeId]);
+    if (physicalIdentities.has(identity)) {
+      return failure(
+        reservationId,
+        "wms_duplicate_physical_identity",
+        `WMS contains duplicate physical identity (${reservationLineId}, ${inventoryTypeId})`
+      );
+    }
+    physicalIdentities.add(identity);
+    const quantityReserved = nonNegativeInteger(source.required_qty);
+    const quantityPicked = nonNegativeInteger(source.packed_count);
     if (
       quantityReserved == null ||
       quantityPicked == null ||
@@ -209,10 +232,27 @@ export async function fetchScannerWmsPackingProjection(
       return failure(
         reservationId,
         "wms_invalid_quantity",
-        `WMS line ${reservationLineId} has invalid physical quantities`
+        `WMS physical line (${reservationLineId}, ${inventoryTypeId}) has invalid quantities`
       );
     }
+    lines.push({
+      identityKind: "reservation_line_item_type",
+      physicalKind,
+      reservationLineId,
+      inventoryTypeId,
+      displayName,
+      quantityReserved,
+      quantityPicked,
+      quantityReturned: null,
+      parentReservationLineId,
+      source: "bundle_wms",
+    });
+    return null;
+  };
 
+  for (const value of rawLines) {
+    const line = record(value)!;
+    const reservationLineId = exactOwnerId(line.line_id)!;
     const parentReservationLineId =
       line.parent_line_id == null ? null : exactOwnerId(line.parent_line_id);
     if (
@@ -228,16 +268,39 @@ export async function fetchScannerWmsPackingProjection(
       );
     }
 
-    lines.push({
+    if (line.type === "package") {
+      for (const componentValue of line.components as unknown[]) {
+        const component = record(componentValue);
+        const inventoryTypeId = exactOwnerId(component?.item_type_id);
+        if (!component || !inventoryTypeId) {
+          return failure(
+            reservationId,
+            "wms_incomplete_line_identity",
+            `WMS package line ${reservationLineId} has a component without inventory_type_id`
+          );
+        }
+        const failed = appendPhysicalLine(
+          component,
+          reservationLineId,
+          inventoryTypeId,
+          typeof component.name_sv === "string" ? component.name_sv : "",
+          null,
+          "package_component"
+        );
+        if (failed) return failed;
+      }
+      continue;
+    }
+
+    const failed = appendPhysicalLine(
+      line,
       reservationLineId,
-      inventoryTypeId,
-      displayName: typeof line.name === "string" ? line.name : "",
-      quantityReserved,
-      quantityPicked,
-      quantityReturned: null,
+      exactOwnerId(line.item_type_id)!,
+      typeof line.name === "string" ? line.name : "",
       parentReservationLineId,
-      source: "bundle_wms",
-    });
+      "direct_item"
+    );
+    if (failed) return failed;
   }
 
   if (lines.length === 0) {

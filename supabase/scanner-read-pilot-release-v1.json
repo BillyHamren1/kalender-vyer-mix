@@ -1,0 +1,24 @@
+{
+  "release_contract": "scanner_read_pilot_release_v1",
+  "mode": "read_only",
+  "planning_project_ref": "pihrhltinhewhoxefjxv",
+  "bundle_wms_project_ref": "pnvvnvywphfvmwdmqqzs",
+  "release_binding": "git_sha",
+  "functions": [
+    {
+      "name": "scanner-api",
+      "order": 1,
+      "verify_jwt": false
+    },
+    {
+      "name": "mobile-app-auth",
+      "order": 2,
+      "verify_jwt": false
+    }
+  ],
+  "forbidden_functions": [
+    "scanner-operation-v2"
+  ],
+  "migrations": "forbidden",
+  "physical_mutations": "forbidden"
+}

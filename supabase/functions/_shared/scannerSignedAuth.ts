@@ -18,9 +18,26 @@ export type ScannerSignedClaims = {
   staffId: string;
   organizationId: string;
   sessionId: string;
+  releaseSha: string;
   issuedAt: number;
   expiresAt: number;
 };
+
+const SCANNER_RELEASE_SHA_PATTERN = /^[0-9a-f]{40}$/u;
+
+export function scannerReleaseShaReady(value: string | undefined): value is string {
+  return Boolean(value && SCANNER_RELEASE_SHA_PATTERN.test(value));
+}
+
+export function scannerReleaseMatches(
+  claims: Pick<ScannerSignedClaims, "releaseSha">,
+  configuredReleaseSha: string | undefined,
+): boolean {
+  return (
+    scannerReleaseShaReady(configuredReleaseSha) &&
+    claims.releaseSha === configuredReleaseSha
+  );
+}
 
 export type ScannerSignedTokenResult =
   | { valid: true; claims: ScannerSignedClaims }
@@ -32,10 +49,22 @@ function validOpaqueId(value: unknown): value is string {
   );
 }
 
+export const MIN_SCANNER_SIGNING_SECRET_BYTES = 32;
+
+export function scannerSigningSecretReady(
+  secret: string | undefined
+): secret is string {
+  return Boolean(
+    secret &&
+      new TextEncoder().encode(secret).length >=
+        MIN_SCANNER_SIGNING_SECRET_BYTES
+  );
+}
+
 function assertSigningSecret(secret: string): void {
-  if (new TextEncoder().encode(secret).length < 32) {
+  if (!scannerSigningSecretReady(secret)) {
     throw new Error(
-      "SCANNER_TOKEN_SIGNING_SECRET must contain at least 32 bytes"
+      `SCANNER_TOKEN_SIGNING_SECRET must contain at least ${MIN_SCANNER_SIGNING_SECRET_BYTES} bytes`
     );
   }
 }
@@ -74,7 +103,10 @@ async function importHmacKey(
 }
 
 export async function createScannerSignedToken(
-  input: Pick<ScannerSignedClaims, "staffId" | "organizationId" | "sessionId">,
+  input: Pick<
+    ScannerSignedClaims,
+    "staffId" | "organizationId" | "sessionId" | "releaseSha"
+  >,
   secret: string,
   nowMs = Date.now(),
   ttlMs = SCANNER_SIGNED_TOKEN_TTL_MS
@@ -82,7 +114,8 @@ export async function createScannerSignedToken(
   if (
     !validOpaqueId(input.staffId) ||
     !validOpaqueId(input.organizationId) ||
-    !validOpaqueId(input.sessionId)
+    !validOpaqueId(input.sessionId) ||
+    !scannerReleaseShaReady(input.releaseSha)
   ) {
     throw new Error("Scanner token claims require canonical owner-system IDs");
   }
@@ -101,6 +134,7 @@ export async function createScannerSignedToken(
     staffId: input.staffId,
     organizationId: input.organizationId,
     sessionId: input.sessionId,
+    releaseSha: input.releaseSha,
     issuedAt: nowMs,
     expiresAt: nowMs + ttlMs,
   };
@@ -155,6 +189,9 @@ export async function verifyScannerSignedToken(
       !validOpaqueId(claims.staffId) ||
       !validOpaqueId(claims.organizationId) ||
       !validOpaqueId(claims.sessionId) ||
+      !scannerReleaseShaReady(
+        typeof claims.releaseSha === "string" ? claims.releaseSha : undefined
+      ) ||
       typeof claims.issuedAt !== "number" ||
       typeof claims.expiresAt !== "number" ||
       claims.expiresAt <= claims.issuedAt ||
