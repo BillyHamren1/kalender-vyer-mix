@@ -8,6 +8,8 @@ import {
   buildWmsEvidence,
   mapCalendarPhase,
   mapWithConcurrency,
+  normalizeTimestamp,
+
 } from '../../supabase/functions/_shared/scannerReadContractV1';
 
 const scannerApi = readFileSync('supabase/functions/scanner-api/index.ts', 'utf8');
