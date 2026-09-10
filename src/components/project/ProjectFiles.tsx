@@ -93,12 +93,14 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
     return File;
   };
 
-  // Deduplicate and filter to images only
+  // Deduplicate and filter to images only. Images that no longer exist in the
+  // booking system (dead URLs) are hidden as soon as they fail to load.
   const imageAttachments = bookingAttachments
     .filter((a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx)
     .filter(a =>
       a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
-    );
+    )
+    .filter(a => !brokenImageUrls.has(a.url));
 
   return (
     <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
