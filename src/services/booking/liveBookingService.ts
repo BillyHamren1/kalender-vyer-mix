@@ -8,6 +8,28 @@ import {
 } from '@/lib/booking/canonicalBooking';
 import type { Booking } from '@/types/booking';
 
+export interface ProjectBookingAttachment {
+  id: string;
+  booking_id: string;
+  url: string;
+  file_name: string | null;
+  file_type: string | null;
+  uploaded_at: string;
+}
+
+/** Adapts only the current attachment snapshot returned by Booking for project views. */
+export const toProjectBookingAttachments = (
+  bookingId: string,
+  booking: Pick<Booking, 'attachments'>,
+): ProjectBookingAttachment[] => (booking.attachments ?? []).map((attachment) => ({
+  id: attachment.id,
+  booking_id: bookingId,
+  url: attachment.url,
+  file_name: attachment.fileName || null,
+  file_type: attachment.fileType || null,
+  uploaded_at: '',
+}));
+
 /**
  * Live-läsning av en bokning direkt från Bookings export_bookings-kontrakt.
  * Den lokala Planning-kopian används INTE som källa för bokningsfält här —
@@ -26,6 +48,14 @@ export const fetchLiveBookingById = async (bookingId: string): Promise<Booking> 
   const canonical = (data as any).booking as CanonicalBooking;
   const local = (data as any).planning_local as PlanningLocalBookingFields | null;
   return applyPlanningLocalFields(mapCanonicalBookingToPlanning(canonical), local);
+};
+
+/** Project views must show Bookings current attachment snapshot, never the stale local mirror. */
+export const fetchLiveBookingAttachments = async (
+  bookingId: string,
+): Promise<ProjectBookingAttachment[]> => {
+  const booking = await fetchLiveBookingById(bookingId);
+  return toProjectBookingAttachments(bookingId, booking);
 };
 
 /**
