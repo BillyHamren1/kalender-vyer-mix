@@ -820,6 +820,7 @@ Deno.serve(async (req) => {
             const wms = wmsResults[i]
             const contract = buildScannerContractV1({
               bookingId: p.booking_id ?? null,
+              organizationId: ORG_ID,
               lastAppliedSourceRevision: p.booking_id ? revisionMap.get(p.booking_id) ?? null : null,
               calendarRows: p.booking_id ? calendarMap.get(p.booking_id) ?? [] : [],
               jobId: p.id ?? null,
