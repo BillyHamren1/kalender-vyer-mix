@@ -230,11 +230,11 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
         const fields = PHASE_BOOKING_FIELDS[eventType];
         const { error: bkErr } = await supabase
           .from('bookings')
-          .update({
+          .update(({
             [fields.date]: spec.date,
             [fields.start]: spec.startISO,
             [fields.end]: spec.endISO,
-          })
+          }) as never)
           .eq('id', bookingId);
         if (bkErr) throw bkErr;
       }

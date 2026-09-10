@@ -288,7 +288,7 @@ export const createWarehouseProjectFromInbox = async (
       if (!existingAny[sourceField]) {
         await supabase
           .from('warehouse_projects')
-          .update({ [sourceField]: inboxItem.source_id })
+          .update(({ [sourceField]: inboxItem.source_id }) as never)
           .eq('id', existing.id);
       }
 
