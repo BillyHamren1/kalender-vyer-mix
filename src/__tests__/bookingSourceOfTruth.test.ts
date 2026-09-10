@@ -9,7 +9,7 @@ import {
   EVENT_TIME_UNSUPPORTED_MESSAGE,
   type CanonicalBooking,
 } from '@/lib/booking/canonicalBooking';
-import { assertBookingAttachmentWriteUnavailable } from '@/services/booking/liveBookingService';
+import { assertBookingAttachmentWriteUnavailable, toProjectBookingAttachments } from '@/services/booking/liveBookingService';
 
 /** Exakta fältnamn enligt Bookings verifierade export_bookings-kontrakt. */
 const canonical: CanonicalBooking = {
@@ -133,6 +133,22 @@ describe('kanonisk läsväg från Booking', () => {
       attachments: [{ file_name: 'a.pdf', public_url: 'https://cdn/a.pdf' }],
     });
     expect(onlyUrl.attachments?.[0].id).toBe('https://cdn/a.pdf');
+  });
+
+  it('projektvyn visar exakt Bookings aktuella bilagesnapshot utan gamla lokala rader', () => {
+    const current = mapCanonicalBookingToPlanning({
+      ...canonical,
+      attachments: [{ id: 'current-1', file_name: 'kvar.jpg', mime_type: 'image/jpeg', public_url: 'https://cdn/kvar.jpg' }],
+    });
+
+    expect(toProjectBookingAttachments('b1', current)).toEqual([{
+      id: 'current-1',
+      booking_id: 'b1',
+      url: 'https://cdn/kvar.jpg',
+      file_name: 'kvar.jpg',
+      file_type: 'image/jpeg',
+      uploaded_at: '',
+    }]);
   });
 
   it('lägger Planning-lokala fält ovanpå utan att ersätta Booking-data', () => {

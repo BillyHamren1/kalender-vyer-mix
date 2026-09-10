@@ -4,11 +4,9 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 interface ImageThumbnailProps {
   url: string;
   name?: string | null;
-  /** Called when the image can't be loaded (e.g. removed in the booking system). */
-  onLoadError?: (url: string) => void;
 }
 
-export const ImageThumbnail = ({ url, name, onLoadError }: ImageThumbnailProps) => {
+export const ImageThumbnail = ({ url, name }: ImageThumbnailProps) => {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -27,7 +25,6 @@ export const ImageThumbnail = ({ url, name, onLoadError }: ImageThumbnailProps) 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
           onError={() => {
             setFailed(true);
-            onLoadError?.(url);
           }}
         />
       </button>

@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Project, ProjectTask, ProjectComment, ProjectFile, ProjectStatus, ProjectWithBooking } from "@/types/project";
 import { recordJobCompletion } from "@/services/jobCompletionAnalyticsService";
 import { recomputeBookingAssignment } from "@/services/bookingAssignmentService";
+import { fetchLiveBookingAttachments } from "@/services/booking/liveBookingService";
 
 // Projects
 export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
@@ -380,11 +381,5 @@ export const deleteProjectFile = async (id: string, url: string): Promise<void> 
 };
 
 export const fetchBookingAttachments = async (bookingId: string) => {
-  const { data, error } = await supabase
-    .from('booking_attachments')
-    .select('*')
-    .eq('booking_id', bookingId)
-    .order('uploaded_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  return fetchLiveBookingAttachments(bookingId);
 };
