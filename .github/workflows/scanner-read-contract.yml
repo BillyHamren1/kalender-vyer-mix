@@ -1,0 +1,50 @@
+name: Scanner read contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - src/__tests__/scannerReadContractV1.test.ts
+      - src/__tests__/wmsPackingListSync.test.ts
+      - supabase/functions/_shared/scannerReadContractV1.ts
+      - supabase/functions/scanner-api/index.ts
+      - .github/workflows/scanner-read-contract.yml
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - src/__tests__/scannerReadContractV1.test.ts
+      - src/__tests__/wmsPackingListSync.test.ts
+      - supabase/functions/_shared/scannerReadContractV1.ts
+      - supabase/functions/scanner-api/index.ts
+      - .github/workflows/scanner-read-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Planning → Scanner read contract v1
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Contract tests
+        run: >-
+          npx vitest run --environment node
+          src/__tests__/scannerReadContractV1.test.ts
+          src/__tests__/wmsPackingListSync.test.ts
+      - name: Contract lint
+        run: >-
+          npx eslint
+          supabase/functions/_shared/scannerReadContractV1.ts
+          src/__tests__/scannerReadContractV1.test.ts
+      - name: Production build
+        run: npm run build
