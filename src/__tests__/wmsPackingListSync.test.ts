@@ -125,6 +125,47 @@ describe('resolveWmsReservation', () => {
     expect(res).toMatchObject({ ok: true, reservationId: 'uuid-1' });
   });
 
+  it('bevarar exakt status/updated_at/synced_at och tolkar aldrig till is_released/is_active', async () => {
+    const res = await resolveWmsReservation('2609-9', {
+      apiKey: 'k',
+      organizationId: 'org1',
+      fetchImpl: fakeFetch({
+        'get-reservation?': {
+          body: {
+            data: {
+              reservation: {
+                id: 'uuid-42',
+                status: 'ÅTERLÄMNAD_X',
+                updated_at: '2026-09-01T10:00:00Z',
+                synced_at: '2026-09-01T10:05:00Z',
+                is_released: true,
+                is_active: false,
+              },
+            },
+          },
+        },
+      }),
+    });
+    expect(res).toEqual({
+      ok: true,
+      reservationId: 'uuid-42',
+      externalId: '2609-9',
+      status: 'ÅTERLÄMNAD_X',
+      updatedAt: '2026-09-01T10:00:00Z',
+      syncedAt: '2026-09-01T10:05:00Z',
+    });
+    expect(JSON.stringify(res)).not.toMatch(/is_released|is_active/);
+  });
+
+  it('saknade fält blir null utan fallback', async () => {
+    const res = await resolveWmsReservation('2609-9', {
+      apiKey: 'k',
+      organizationId: 'org1',
+      fetchImpl: fakeFetch({ 'get-reservation?': { body: { reservation: { id: 'uuid-2' } } } }),
+    });
+    expect(res).toMatchObject({ ok: true, status: null, updatedAt: null, syncedAt: null });
+  });
+
   it('döljer inte saknad reservation', async () => {
     const res = await resolveWmsReservation('X', {
       apiKey: 'k',
@@ -135,6 +176,7 @@ describe('resolveWmsReservation', () => {
     expect(res.code).toBe('wms_reservation_not_found');
   });
 });
+
 
 describe('syncPackingListFromWms', () => {
   function fakeClient(existing: any[]) {
