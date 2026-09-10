@@ -73,7 +73,8 @@ const RFC3339_INSTANT =
 /** Returnerar en giltig RFC3339-instant, annars null. Ingen gissning. */
 export function normalizeTimestamp(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
+  // Ingen trim: omgivande whitespace är ogiltig data, inte något vi städar bort.
+  const trimmed = value;
   const m = RFC3339_INSTANT.exec(trimmed);
   if (!m) return null;
 
@@ -122,6 +123,15 @@ export function normalizeRevision(value: unknown): number | null {
   return value;
 }
 
+/**
+ * Ägarsystemets ID/status bevaras BYTE-FÖR-BYTE. Trim används endast för att
+ * avgöra om strängen är tom/whitespace — originalvärdet returneras alltid.
+ */
+function exactOwnerValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return value.trim().length > 0 ? value : null;
+}
+
 function normalizeText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -141,8 +151,8 @@ export function buildBookingEvidence(
     : null;
 
   return {
-    booking_id: typeof bookingId === 'string' && bookingId.length > 0 ? bookingId : null,
-    source_status: rev ? normalizeText(rev.source_status) : null,
+    booking_id: exactOwnerValue(bookingId),
+    source_status: rev ? exactOwnerValue(rev.source_status) : null,
     source_revision: rev
       ? (normalizeRevision(rev.source_version) ?? normalizeRevision(rev.revision))
       : null,
@@ -197,14 +207,14 @@ export function buildCalendarEvents(
   rows: RawCalendarEventRow[] | null | undefined,
   expected: ScannerCalendarExpectation,
 ): ScannerCalendarEvent[] {
-  const expectedBookingId = normalizeText(expected?.bookingId);
-  const expectedOrgId = normalizeText(expected?.organizationId);
-  const jobId = normalizeText(expected?.jobId);
+  const expectedBookingId = exactOwnerValue(expected?.bookingId);
+  const expectedOrgId = exactOwnerValue(expected?.organizationId);
+  const jobId = exactOwnerValue(expected?.jobId);
   if (!expectedBookingId || !expectedOrgId || !jobId) return [];
 
   const out: ScannerCalendarEvent[] = [];
   for (const row of rows || []) {
-    const eventId = typeof row?.id === 'string' ? row.id.trim() : '';
+    const eventId = exactOwnerValue(row?.id);
     if (!eventId) continue;
 
     const rowBookingId = typeof row?.booking_id === 'string' ? row.booking_id : null;
@@ -260,8 +270,8 @@ export function buildWmsEvidence(result: WmsResolutionLike | null | undefined): 
     };
   }
   return {
-    reservation_id: normalizeText(result.reservationId),
-    raw_status: normalizeText(result.status),
+    reservation_id: exactOwnerValue(result.reservationId),
+    raw_status: exactOwnerValue(result.status),
     updated_at: normalizeTimestamp(result.updatedAt),
     synced_at: normalizeTimestamp(result.syncedAt),
     resolution_code: null,
