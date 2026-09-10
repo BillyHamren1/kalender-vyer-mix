@@ -3,6 +3,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
+import {
+  SCANNER_CONTRACT_WMS_CONCURRENCY,
+  buildScannerContractV1,
+  mapWithConcurrency,
+} from '../_shared/scannerReadContractV1.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -771,7 +776,7 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (revError) {
               console.error('[scanner_contract_v1] booking evidence read failed', revError?.code)
-              return json({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }, 502)
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             ;(revRows || []).forEach((b: any) => revisionMap.set(b.id, b.last_applied_source_revision ?? null))
 
@@ -782,7 +787,7 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (calError) {
               console.error('[scanner_contract_v1] calendar evidence read failed', calError?.code)
-              return json({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }, 502)
+              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             ;(calRows || []).forEach((e: any) => {
               const list = calendarMap.get(e.booking_id) || []
