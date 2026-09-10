@@ -237,7 +237,7 @@ describe('byte-för-byte bevarande av ägarsystemets ID/status', () => {
     const ev = buildWmsEvidence({ ok: true, reservationId: ' res-1 ', status: ' Släppt/ÅÄÖ ', updatedAt: '2026-09-01T10:00:00Z', syncedAt: null });
     expect(ev.reservation_id).toBe(' res-1 ');
     expect(ev.raw_status).toBe(' Släppt/ÅÄÖ ');
-    expect((ev as Record<string, unknown>).is_released).toBeUndefined();
+    expect((ev as unknown as Record<string, unknown>).is_released).toBeUndefined();
   });
 
   it('normalizeTimestamp avvisar omgivande whitespace istället för att trimma', () => {
