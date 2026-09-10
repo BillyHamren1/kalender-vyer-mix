@@ -8,7 +8,9 @@ on:
       - package-lock.json
       - src/__tests__/scannerReadContractV1.test.ts
       - src/__tests__/wmsPackingListSync.test.ts
+      - src/__tests__/scannerLegacyAuth.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
+      - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/scanner-api/index.ts
       - .github/workflows/scanner-read-contract.yml
   pull_request:
@@ -17,7 +19,9 @@ on:
       - package-lock.json
       - src/__tests__/scannerReadContractV1.test.ts
       - src/__tests__/wmsPackingListSync.test.ts
+      - src/__tests__/scannerLegacyAuth.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
+      - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/scanner-api/index.ts
       - .github/workflows/scanner-read-contract.yml
 
@@ -41,10 +45,13 @@ jobs:
           npx vitest run --environment node
           src/__tests__/scannerReadContractV1.test.ts
           src/__tests__/wmsPackingListSync.test.ts
+          src/__tests__/scannerLegacyAuth.test.ts
       - name: Contract lint
         run: >-
           npx eslint
           supabase/functions/_shared/scannerReadContractV1.ts
+          supabase/functions/_shared/scannerLegacyAuth.ts
           src/__tests__/scannerReadContractV1.test.ts
+          src/__tests__/scannerLegacyAuth.test.ts
       - name: Production build
         run: npm run build

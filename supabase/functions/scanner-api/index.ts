@@ -4,6 +4,11 @@ import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
 import {
+  activeScannerSessionMatches,
+  resolveScannerTokenTransport,
+  verifyScannerLegacyToken,
+} from '../_shared/scannerLegacyAuth.ts'
+import {
   SCANNER_CONTRACT_WMS_CONCURRENCY,
   buildScannerContractV1,
   mapWithConcurrency,
@@ -14,25 +19,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Verify base64 token (same format as mobile-app-api)
-// Scanner sessions live in warehouse where users rarely log out — give them 30 days.
-const TOKEN_EXPIRY_HOURS = 24 * 30
-
-function verifyToken(token: string): { valid: boolean; staffId?: string; error?: string; reason?: string } {
-  try {
-    const payload = JSON.parse(atob(token))
-    if (!payload.staffId || !payload.expiresAt) {
-      return { valid: false, error: 'Invalid token format', reason: 'bad_format' }
-    }
-    if (Date.now() > payload.expiresAt) {
-      return { valid: false, error: 'Token expired', reason: 'expired' }
-    }
-    return { valid: true, staffId: payload.staffId }
-  } catch {
-    return { valid: false, error: 'Invalid token', reason: 'parse_error' }
-  }
-}
-
 // Verify token and return staff record with organization_id
 async function authenticateRequest(supabase: any, token: string | undefined) {
   if (!token) {
@@ -40,24 +26,29 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
     throw { status: 401, message: 'Token required', reason: 'missing_token' }
   }
 
-  const tokenResult = verifyToken(token)
+  const tokenResult = verifyScannerLegacyToken(token)
   if (!tokenResult.valid) {
     console.warn(`[scanner-api auth] 401 reason=${tokenResult.reason} tokenLen=${token.length}`)
     throw { status: 401, message: tokenResult.error || 'Invalid or expired token', reason: tokenResult.reason }
   }
 
-  const staffId = tokenResult.staffId!
+  const { staffId, sessionId } = tokenResult.claims
 
   // Get staff member info and organization_id
   const { data: staffMember, error } = await supabase
     .from('staff_members')
-    .select('id, name, organization_id')
+    .select('id, name, organization_id, active_mobile_session_id')
     .eq('id', staffId)
     .single()
 
   if (error || !staffMember) {
     console.warn(`[scanner-api auth] 401 reason=staff_not_found staffId=${staffId} dbError=${error?.message ?? 'none'}`)
     throw { status: 401, message: 'Staff member not found', reason: 'staff_not_found' }
+  }
+
+  if (!activeScannerSessionMatches(staffMember.active_mobile_session_id, sessionId)) {
+    console.warn(`[scanner-api auth] 401 reason=token_revoked staffId=${staffId}`)
+    throw { status: 401, message: 'Session revoked', reason: 'token_revoked' }
   }
 
   return {
@@ -628,12 +619,29 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { action, token, ...params } = await req.json()
+    const { action, token: legacyBodyToken, ...params } = await req.json()
+
+    const tokenTransport = resolveScannerTokenTransport(
+      req.headers.get('Authorization'),
+      legacyBodyToken,
+    )
+    if (!tokenTransport.valid) {
+      return new Response(
+        JSON.stringify({
+          error: tokenTransport.error,
+          debugCode: `AUTH_${tokenTransport.reason.toUpperCase()}`,
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    if (tokenTransport.source === 'legacy_body') {
+      console.warn('[scanner-api auth] legacy body-token transport used')
+    }
 
     // Authenticate and get organization_id
     let auth: { staffId: string; organizationId: string; staffName: string }
     try {
-      auth = await authenticateRequest(supabase, token)
+      auth = await authenticateRequest(supabase, tokenTransport.token)
     } catch (authErr: any) {
       return new Response(
         JSON.stringify({
