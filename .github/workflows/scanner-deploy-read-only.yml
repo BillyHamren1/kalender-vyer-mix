@@ -1,0 +1,94 @@
+name: Deploy Scanner read-only pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/scanner-deploy-read-only.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-read-only-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy signed read-only Scanner API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_PROJECT_REF: pihrhltinhewhoxefjxv
+      SCANNER_ALLOWED_ORIGINS: https://scanner.eventflow.se
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require deployment credential
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN"
+
+      - name: Generate isolated Scanner signing secret
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner_signing_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$scanner_signing_secret"
+          echo "secret=$scanner_signing_secret" >> "$GITHUB_OUTPUT"
+
+      - name: Set fail-closed Scanner secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SCANNER_TOKEN_SIGNING_SECRET: ${{ steps.signing.outputs.secret }}
+          SCANNER_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.117.0 secrets set \
+            "SCANNER_TOKEN_SIGNING_SECRET=$SCANNER_TOKEN_SIGNING_SECRET" \
+            "SCANNER_ALLOWED_ORIGINS=$SCANNER_ALLOWED_ORIGINS" \
+            "SCANNER_RELEASE_SHA=$SCANNER_RELEASE_SHA" \
+            --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy read API before token issuer
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.117.0 functions deploy scanner-api \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --no-verify-jwt
+          npx --yes supabase@2.117.0 functions deploy mobile-app-auth \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --no-verify-jwt
+
+      - name: Verify production fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/scanner-api"
+          allowed_headers="$(mktemp)"
+          denied_headers="$(mktemp)"
+          trap 'rm -f "$allowed_headers" "$denied_headers"' EXIT
+
+          allowed_status="$(curl --silent --show-error --output /dev/null \
+            --dump-header "$allowed_headers" --request OPTIONS \
+            --header "Origin: $SCANNER_ALLOWED_ORIGINS" "$endpoint" \
+            --write-out '%{http_code}')"
+          test "$allowed_status" = "204"
+          grep -Fqi "access-control-allow-origin: $SCANNER_ALLOWED_ORIGINS" "$allowed_headers"
+          ! grep -Fqi "access-control-allow-origin: *" "$allowed_headers"
+
+          denied_status="$(curl --silent --show-error --output /dev/null \
+            --dump-header "$denied_headers" --request OPTIONS \
+            --header "Origin: https://not-eventflow.example" "$endpoint" \
+            --write-out '%{http_code}')"
+          test "$denied_status" = "403"
+
+          unauthenticated_status="$(curl --silent --show-error --output /dev/null \
+            --request POST --header 'content-type: application/json' \
+            --data '{"action":"list_active_packings"}' "$endpoint" \
+            --write-out '%{http_code}')"
+          test "$unauthenticated_status" = "401"
