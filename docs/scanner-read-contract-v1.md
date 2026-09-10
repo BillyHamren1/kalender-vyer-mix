@@ -25,12 +25,12 @@ externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
     "planning": {
       "calendar_events": [{
         "event_id": "calendar_events.id exakt",
-        "booking_id": "…|null",
-        "organization_id": "…|null",
+        "booking_id": "canonical booking_id (måste matcha packningens)",
+        "organization_id": "tenant (måste matcha anropets ORG_ID)",
         "job_id": "packing_projects.id (endast lokal Scanner-jobbidentitet)",
         "phase": "rigg|event|riggner",
-        "start_time": "ISO|null",
-        "end_time": "ISO|null",
+        "starts_at": "RFC3339-instant med offset",
+        "ends_at": "RFC3339-instant med offset, >= starts_at",
         "updated_at": null,
         "time_zone": "Europe/Stockholm",
         "all_day": false,
@@ -40,8 +40,8 @@ externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
     "wms": {
       "reservation_id": "…|null",
       "raw_status": "…|null",             // aldrig tolkat till is_released/is_active
-      "updated_at": "ISO|null",
-      "synced_at": "ISO|null",
+      "updated_at": "RFC3339|null",
+      "synced_at": "RFC3339|null",
       "resolution_code": "typed failure|null"
     }
   }
@@ -55,6 +55,15 @@ externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
 - Kalenderbevis läses batchat från `calendar_events`, alltid `organization_id`-scopat.
   Endast `rig|rigg → rigg`, `event → event`, `rigDown|rigdown|rig_down|riggner → riggner`
   mappas; andra typer ignoreras.
+- **Strikta kalenderregler.** En rad tas endast med när event_id, booking_id,
+  organization_id och job_id är icke-tomma strängar, radens booking_id och
+  organization_id är exakt de förväntade, `starts_at`/`ends_at` är fullständiga
+  RFC3339-instants med explicit `Z` eller numerisk offset (sekunder/fraktion
+  valfria) och `ends_at >= starts_at`. Datum utan tid, lokal tid utan offset och
+  omöjliga datum/tider avvisas. Rader som inte uppfyller detta **utelämnas** —
+  Scanner fail-closar då på saknat kalenderbevis. Inget kanoniskt event får ha
+  null-identitet eller null-tider.
+
 - WMS-bevis kommer enbart från ett lyckat `get-reservation`-svar via befintlig
   `resolveWmsReservation`, med max 6 samtidiga resolutioner.
 - Saknad/ogiltig upstreamdata → `null` eller typed kod. Aldrig gissning, aldrig `success: true`.
