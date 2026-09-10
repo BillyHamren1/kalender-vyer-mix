@@ -270,6 +270,7 @@ export function buildWmsEvidence(result: WmsResolutionLike | null | undefined): 
 
 export function buildScannerContractV1(input: {
   bookingId: string | null | undefined;
+  organizationId: string | null | undefined;
   lastAppliedSourceRevision: unknown;
   calendarRows: RawCalendarEventRow[] | null | undefined;
   jobId: string | null;
@@ -278,7 +279,13 @@ export function buildScannerContractV1(input: {
   return {
     contract_version: SCANNER_READ_CONTRACT_VERSION,
     booking: buildBookingEvidence(input.bookingId, input.lastAppliedSourceRevision),
-    planning: { calendar_events: buildCalendarEvents(input.calendarRows, input.jobId) },
+    planning: {
+      calendar_events: buildCalendarEvents(input.calendarRows, {
+        bookingId: input.bookingId,
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+      }),
+    },
     wms: buildWmsEvidence(input.wms),
   };
 }
