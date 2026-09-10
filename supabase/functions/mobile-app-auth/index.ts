@@ -12,11 +12,16 @@
 // mobile-app-api, and mobile-app-api still handles `login` as a fallback
 // so existing clients keep working during rollout.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
-import { createScannerSignedToken } from '../_shared/scannerSignedAuth.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
+import {
+  createScannerSignedToken,
+  scannerReleaseShaReady,
+  scannerSigningSecretReady,
+} from '../_shared/scannerSignedAuth.ts'
 import {
   preflightsScannerContract,
   requestsScannerContract,
+  scannerContractResponseHeaders,
   scannerCorsHeaders,
 } from '../_shared/scannerCors.ts'
 
@@ -75,8 +80,10 @@ async function handleLogin(
   supabase: any,
   data: { username?: string; password?: string; email?: string },
   responseHeaders: Record<string, string>,
-  issueScannerCredential: boolean,
+  scannerSigningSecret: string | undefined,
+  scannerReleaseSha: string | undefined,
 ) {
+  const issueScannerCredential = scannerSigningSecret != null && scannerReleaseSha != null
   const password = data?.password
   const rawIdentifier = data?.email || data?.username
   if (!rawIdentifier || !password) {
@@ -168,10 +175,31 @@ async function handleLogin(
 
   const enriched = await enrichStaffWithRoles(supabase, staffMember)
 
-  // Single-device-per-staff: rotera active_mobile_session_id vid varje login.
-  // Alla tidigare mobil-tokens (med annan/saknad sessionId) avvisas av
-  // mobile-app-api/staff-auth med 401 token_revoked.
   const sessionId = crypto.randomUUID()
+  let scannerToken: string | undefined
+  if (issueScannerCredential) {
+    if (!staffMember.organization_id) {
+      return json({ error: 'Scanner organization is unavailable' }, 403, responseHeaders)
+    }
+    try {
+      scannerToken = await createScannerSignedToken(
+        {
+          staffId: account.staff_id,
+          organizationId: staffMember.organization_id,
+          sessionId,
+          releaseSha: scannerReleaseSha,
+        },
+        scannerSigningSecret,
+      )
+    } catch (error) {
+      console.error('[mobile-app-auth] signed scanner credential unavailable:', String(error))
+      return json({ error: 'Scanner authentication unavailable' }, 503, responseHeaders)
+    }
+  }
+
+  // Single-device-per-staff: rotera active_mobile_session_id först när en
+  // efterfrågad Scanner-credential faktiskt har signerats. En konfigurations-
+  // eller kryptofail får aldrig logga ut en fungerande enhet.
   const { error: sessionUpdateError } = await supabase
     .from('staff_members')
     .update({
@@ -185,26 +213,6 @@ async function handleLogin(
   }
 
   const token = generateToken(account.staff_id, sessionId)
-  let scannerToken: string | null = null
-  const scannerSigningSecret = issueScannerCredential
-    ? Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')
-    : undefined
-  if (issueScannerCredential && scannerSigningSecret && staffMember.organization_id) {
-    try {
-      scannerToken = await createScannerSignedToken(
-        {
-          staffId: account.staff_id,
-          organizationId: staffMember.organization_id,
-          sessionId,
-        },
-        scannerSigningSecret,
-      )
-    } catch (error) {
-      console.error('[mobile-app-auth] signed scanner credential unavailable:', String(error))
-    }
-  } else if (issueScannerCredential) {
-    console.warn('[mobile-app-auth] signed scanner credential not configured')
-  }
   console.log(
     `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`,
   )
@@ -237,8 +245,28 @@ Deno.serve(async (req) => {
   if (!cors.allowed) {
     return json({ error: 'Scanner origin is not allowed' }, 403, cors.headers)
   }
+  const scannerSigningSecret = scannerRequest
+    ? Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')
+    : undefined
+  const scannerReleaseSha = scannerRequest
+    ? Deno.env.get('SCANNER_RELEASE_SHA')
+    : undefined
+  const responseHeaders = scannerRequest
+    ? scannerContractResponseHeaders(
+        cors.headers,
+        scannerReleaseShaReady(scannerReleaseSha) ? scannerReleaseSha : undefined,
+      )
+    : cors.headers
+  if (
+    scannerRequest &&
+    (!scannerSigningSecretReady(scannerSigningSecret) ||
+      !scannerReleaseShaReady(scannerReleaseSha))
+  ) {
+    console.error('[mobile-app-auth] signed scanner credential release is not configured')
+    return json({ error: 'Scanner authentication unavailable' }, 503, responseHeaders)
+  }
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405, cors.headers)
+    return json({ error: 'Method not allowed' }, 405, responseHeaders)
   }
 
   const supabase = createClient(
@@ -250,7 +278,7 @@ Deno.serve(async (req) => {
   try {
     body = await req.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400, cors.headers)
+    return json({ error: 'Invalid JSON body' }, 400, responseHeaders)
   }
 
   // Accept either `{ action: 'login', data: {...} }` (mobile-app-api shape)
@@ -258,13 +286,19 @@ Deno.serve(async (req) => {
   // drop-in replacement.
   const action = body?.action ?? 'login'
   if (action !== 'login') {
-    return json({ error: 'Only login is supported on this endpoint' }, 400, cors.headers)
+    return json({ error: 'Only login is supported on this endpoint' }, 400, responseHeaders)
   }
   const data = body?.data ?? body ?? {}
   try {
-    return await handleLogin(supabase, data, cors.headers, scannerRequest)
+    return await handleLogin(
+      supabase,
+      data,
+      responseHeaders,
+      scannerSigningSecret,
+      scannerReleaseSha,
+    )
   } catch (err) {
     console.error('[mobile-app-auth] uncaught error:', err)
-    return json({ error: 'Internal server error' }, 500, cors.headers)
+    return json({ error: 'Internal server error' }, 500, responseHeaders)
   }
 })

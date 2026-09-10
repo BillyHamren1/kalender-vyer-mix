@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  MIN_SCANNER_SIGNING_SECRET_BYTES,
   SCANNER_SIGNED_TOKEN_TTL_MS,
   createScannerSignedToken,
+  scannerReleaseMatches,
+  scannerSigningSecretReady,
   verifyScannerSignedToken,
 } from "../../supabase/functions/_shared/scannerSignedAuth";
 
@@ -13,6 +16,7 @@ const CLAIMS = {
   staffId: "staff-1",
   organizationId: "org-1",
   sessionId: "session-1",
+  releaseSha: "a".repeat(40),
 };
 
 describe("Scanner signed credential v2", () => {
@@ -75,6 +79,15 @@ describe("Scanner signed credential v2", () => {
   });
 
   it("kräver separat stark secret och exakta ID:n", async () => {
+    expect(scannerSigningSecretReady(undefined)).toBe(false);
+    expect(
+      scannerSigningSecretReady(
+        "x".repeat(MIN_SCANNER_SIGNING_SECRET_BYTES - 1)
+      )
+    ).toBe(false);
+    expect(
+      scannerSigningSecretReady("x".repeat(MIN_SCANNER_SIGNING_SECRET_BYTES))
+    ).toBe(true);
     await expect(
       createScannerSignedToken(CLAIMS, "kort", 1_000)
     ).rejects.toThrow(/32 bytes/u);
@@ -93,6 +106,24 @@ describe("Scanner signed credential v2", () => {
     ).rejects.toThrow(/lifetime/u);
   });
 
+  it("avvisar token utan kanonisk release-SHA", async () => {
+    await expect(
+      createScannerSignedToken(
+        { ...CLAIMS, releaseSha: "main" },
+        SECRET,
+        1_000,
+      ),
+    ).rejects.toThrow(/canonical/u);
+  });
+
+  it("binder credentialen till exakt driftsatt release", async () => {
+    const releaseSha = "a".repeat(40);
+    expect(scannerReleaseMatches({ releaseSha }, releaseSha)).toBe(true);
+    expect(scannerReleaseMatches({ releaseSha }, "b".repeat(40))).toBe(false);
+    expect(scannerReleaseMatches({ releaseSha }, "main")).toBe(false);
+    expect(scannerReleaseMatches({ releaseSha }, undefined)).toBe(false);
+  });
+
   it("är additivt inkopplad utan service-role som nyckelfallback", () => {
     const login = readFileSync(
       "supabase/functions/mobile-app-auth/index.ts",
@@ -106,11 +137,20 @@ describe("Scanner signed credential v2", () => {
     expect(login).toContain("Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')");
     expect(login).toContain("scanner_token: scannerToken");
     expect(login).toContain("token, scanner_token");
+    expect(login).toContain("scannerSigningSecretReady(scannerSigningSecret)");
+    expect(login).toContain("Scanner authentication unavailable");
+    expect(
+      login.indexOf("scannerToken = await createScannerSignedToken(")
+    ).toBeLessThan(login.indexOf("active_mobile_session_id: sessionId"));
+    expect(login).not.toContain("scanner_token: null");
     expect(login).not.toMatch(
       /SCANNER_TOKEN_SIGNING_SECRET[^\n]*SUPABASE_SERVICE_ROLE_KEY/u
     );
     expect(scannerApi).toContain("verifyScannerSignedToken(");
     expect(scannerApi).toContain("AUTH_SIGNED_SCANNER_TOKEN_REQUIRED");
     expect(scannerApi).toContain("tenant_mismatch");
+    expect(scannerApi).toContain("SCANNER_RELEASE_SHA");
+    expect(login).toContain("SCANNER_RELEASE_SHA");
+    expect(scannerApi).toContain("release_mismatch");
   });
 });

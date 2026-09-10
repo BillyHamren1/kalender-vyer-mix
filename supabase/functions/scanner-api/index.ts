@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
@@ -11,11 +11,15 @@ import {
 } from '../_shared/scannerLegacyAuth.ts'
 import {
   SCANNER_SIGNED_TOKEN_PREFIX,
+  scannerReleaseMatches,
+  scannerReleaseShaReady,
+  scannerSigningSecretReady,
   verifyScannerSignedToken,
 } from '../_shared/scannerSignedAuth.ts'
 import {
   preflightsScannerContract,
   requestsScannerContract,
+  scannerContractResponseHeaders,
   scannerCorsHeaders,
 } from '../_shared/scannerCors.ts'
 import {
@@ -47,6 +51,7 @@ async function authenticateRequest(
   supabase: any,
   token: string | undefined,
   scannerSigningSecret: string | undefined,
+  scannerReleaseSha: string | undefined,
 ): Promise<ScannerAuth> {
   if (!token) {
     console.warn('[scanner-api auth] 401 reason=missing_token')
@@ -54,7 +59,7 @@ async function authenticateRequest(
   }
 
   const signed = token.startsWith(`${SCANNER_SIGNED_TOKEN_PREFIX}.`)
-  if (signed && !scannerSigningSecret) {
+  if (signed && !scannerSigningSecretReady(scannerSigningSecret)) {
     console.error('[scanner-api auth] signed credential verifier is not configured')
     throw { status: 503, message: 'Scanner authentication unavailable', reason: 'signing_unavailable' }
   }
@@ -68,6 +73,14 @@ async function authenticateRequest(
 
   const { staffId, sessionId } = tokenResult.claims
   const signedOrganizationId = signed ? tokenResult.claims.organizationId : undefined
+  if (signed && !scannerReleaseShaReady(scannerReleaseSha)) {
+    console.error('[scanner-api auth] scanner release verifier is not configured')
+    throw { status: 503, message: 'Scanner authentication unavailable', reason: 'release_unavailable' }
+  }
+  if (signed && !scannerReleaseMatches(tokenResult.claims, scannerReleaseSha)) {
+    console.warn(`[scanner-api auth] 401 reason=release_mismatch staffId=${staffId}`)
+    throw { status: 401, message: 'Scanner release mismatch', reason: 'release_mismatch' }
+  }
 
   // Get staff member info and organization_id
   const { data: staffMember, error } = await supabase
@@ -693,7 +706,15 @@ Deno.serve(async (req) => {
       Deno.env.get('SCANNER_ALLOWED_ORIGINS'),
       !requestsScannerContractV1,
     )
-    responseCorsHeaders = cors.headers
+    const scannerReleaseSha = scannerRequest
+      ? Deno.env.get('SCANNER_RELEASE_SHA')
+      : undefined
+    responseCorsHeaders = scannerRequest
+      ? scannerContractResponseHeaders(
+          cors.headers,
+          scannerReleaseShaReady(scannerReleaseSha) ? scannerReleaseSha : undefined,
+        )
+      : cors.headers
     if (!cors.allowed) {
       return new Response(
         JSON.stringify({ error: 'Scanner origin is not allowed', debugCode: 'SCANNER_ORIGIN_DENIED' }),
@@ -725,6 +746,7 @@ Deno.serve(async (req) => {
         supabase,
         tokenTransport.token,
         Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET'),
+        scannerReleaseSha,
       )
     } catch (authErr: any) {
       return new Response(
@@ -1054,6 +1076,8 @@ Deno.serve(async (req) => {
               reservation_id: projection.reservationId,
               resolution_code: projection.code,
               lines: projection.lines.map((line) => ({
+                identity_kind: line.identityKind,
+                physical_kind: line.physicalKind,
                 reservation_line_id: line.reservationLineId,
                 inventory_type_id: line.inventoryTypeId,
                 display_name: line.displayName,

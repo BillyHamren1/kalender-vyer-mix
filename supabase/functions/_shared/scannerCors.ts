@@ -9,12 +9,32 @@
 
 export const SCANNER_CONTRACT_HEADER = "x-eventflow-scanner-contract";
 export const SCANNER_CONTRACT_VERSION = "scanner_contract_v1";
+export const SCANNER_RELEASE_HEADER = "x-eventflow-scanner-release";
 
 const BASE_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-eventflow-scanner-contract",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+/**
+ * Echoes the negotiated Scanner contract on every versioned response. The
+ * client uses this as a fail-closed deployment compatibility proof; an older
+ * function deployment cannot silently be mistaken for contract v1.
+ */
+export function scannerContractResponseHeaders(
+  headers: Record<string, string>,
+  releaseSha?: string,
+): Record<string, string> {
+  return {
+    ...headers,
+    "Access-Control-Expose-Headers": releaseSha
+      ? `${SCANNER_CONTRACT_HEADER}, ${SCANNER_RELEASE_HEADER}`
+      : SCANNER_CONTRACT_HEADER,
+    [SCANNER_CONTRACT_HEADER]: SCANNER_CONTRACT_VERSION,
+    ...(releaseSha ? { [SCANNER_RELEASE_HEADER]: releaseSha } : {}),
+  };
+}
 
 export type ScannerCorsDecision = {
   allowed: boolean;

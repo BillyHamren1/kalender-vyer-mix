@@ -71,3 +71,9 @@ Release = **NOT GREEN** om ett obligatoriskt scenario saknar exekverad evidens.
 - `npm ci` kunde inte slutföras i arbetsmiljön och därför har full Vitest/Vite-build **inte** deklarerats som PASS här.
 - Zip-integritet ska verifieras separat vid paketering.
 - Detta ändrar inte release-regeln: V2 är fortsatt OFF som default och får inte aktiveras i produktion utan 15A/15B GREEN.
+
+# Reproducerbara Edge Function-beroenden
+
+Scanner-funktionerna använder exakt `@supabase/supabase-js@2.116.0` från esm.sh.
+Flytande huvudversioner är inte tillåtna i deployartefakten. Både kontraktstestet
+och deploy-preflighten blockerar release om versionen saknas eller flyter.

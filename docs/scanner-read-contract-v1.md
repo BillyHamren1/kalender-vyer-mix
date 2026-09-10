@@ -9,6 +9,11 @@ separat godkänd deployment och autentiserad E2E-verifiering.
 `params.includeScannerContractV1 === true`. Utan flaggan är svarsformen och det
 externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
 
+Varje versionerat svar från både `mobile-app-auth` och `scanner-api` ekar
+`x-eventflow-scanner-contract: scanner_contract_v1`. Scanner avvisar svar som
+saknar huvudet eller annonserar en annan version. Därmed kan en äldre live
+Edge Function inte tyst behandlas som den verifierade kontraktsversionen.
+
 ## Kontrakt (per packning)
 
 ```jsonc
@@ -72,9 +77,41 @@ externa anropsmönstret exakt oförändrat (noll extra WMS-anrop).
 
 ## Kända blockerare
 
-- **Auth är fortfarande legacy**: osignerad base64-token, `verify_jwt = false` och `CORS *`
-  i `scanner-api`. Inget i detta kontrakt förbättrar det.
+- Scanner-trafik kräver signerad `efs2`-credential, exakt kontraktshuvud och
+  `SCANNER_ALLOWED_ORIGINS` utan wildcard. `verify_jwt = false` är explicit
+  eftersom gränsen verifierar den separata, kortlivade Scanner-credentialen;
+  det är inte ett undantag från autentisering. Planning-mobilens legacytrafik
+  är fortsatt separat under övergången.
 - **Mutation receipt / idempotency saknas** — kontraktet är läsning enbart.
 - `calendar_events` saknar `updated_at` i schemat; fältet är därför alltid `null`
   och får inte fabriceras från `created_at`.
 - Kalenderrevision saknas i källan → `revision: null`.
+
+## Read-pilot: deployförberedelse
+
+Kör `npm run scanner:deploy-preflight` i den granskade deploymiljön. Grinden
+skriver bara nyckelnamn och status, aldrig värden. Den kräver:
+
+- Planning-ref `pihrhltinhewhoxefjxv` och Bundle/WMS-ref
+  `pnvvnvywphfvmwdmqqzs`;
+- separat `SCANNER_TOKEN_SIGNING_SECRET` på minst 32 byte;
+- exakt `SCANNER_APP_URL` i `SCANNER_ALLOWED_ORIGINS`, utan wildcard;
+- separat server-side `PRICELIST_API_KEY` för read-only Bundle/WMS-anrop;
+- `SCANNER_RELEASE_MODE=read_only`;
+- `SCANNER_RELEASE_SHA` exakt lika med verifierad, utcheckad Git-commit;
+- exakt `SCANNER_DEPLOY_FUNCTIONS=scanner-api,mobile-app-auth` i denna ordning;
+- båda funktionspaketen och deras delade kontraktsmoduler.
+
+Releasemanifestet är
+`supabase/scanner-read-pilot-release-v1.json`. Det förbjuder migrationer,
+fysiska mutationer och deployment av `scanner-operation-v2`. Scanner-token
+innehåller samma release-SHA som API:t verifierar. Delvis deployment eller en
+gammal token blockeras därför med `release_mismatch`. API:t driftsätts före
+credential-utgivaren så att mellanläget blir stängt. Kör aldrig ett
+generellt ”deploy all functions” för read-piloten. Den äldre mutationsfunktionen
+finns kvar för legacy/rollback men ingår inte i detta releasepaket.
+
+Efter uttryckligt godkännande driftsätts `scanner-api` och `mobile-app-auth`
+från **samma verifierade commit**. En autentiserad smoke-E2E måste därefter
+bevisa login, framtida jobb, kanoniska ID:n, blockerade mutationer och logout.
+Detta är fortfarande inte en fysisk pilot eller ett TC22/RFD4030-bevis.
