@@ -187,11 +187,17 @@ describe('full contract', () => {
   it('bygger versionerat block utan fabricerade värden', () => {
     const contract = buildScannerContractV1({
       bookingId: 'bk-1',
+      organizationId: 'org-1',
       lastAppliedSourceRevision: { source_status: 'confirmed', revision: 3, source_updated_at: '2026-09-01T10:00:00Z' },
-      calendarRows: [{ id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rigdown', start_time: '2026-09-03T08:00:00Z' }],
+      calendarRows: [
+        { id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rigdown', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+        { id: 'ev-2', booking_id: 'bk-1', organization_id: 'org-2', event_type: 'rig', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+      ],
       jobId: 'pk-1',
       wms: { ok: false, code: 'wms_reservation_not_found' },
     });
+    expect(contract.planning.calendar_events).toHaveLength(1);
+
     expect(contract.contract_version).toBe('scanner_contract_v1');
     expect(contract.booking.source_revision).toBe(3);
     expect(contract.planning.calendar_events[0].phase).toBe('riggner');
