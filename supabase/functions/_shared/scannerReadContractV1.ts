@@ -179,29 +179,57 @@ export interface RawCalendarEventRow {
   updated_at?: unknown;
 }
 
+export interface ScannerCalendarExpectation {
+  /** Canonical booking-id som raden MÅSTE tillhöra. */
+  bookingId: string | null | undefined;
+  /** Tenant som raden MÅSTE tillhöra. */
+  organizationId: string | null | undefined;
+  /** packing_projects.id — lokal Scanner-jobbidentitet, aldrig canonical. */
+  jobId: string | null | undefined;
+}
+
 /**
- * Kanoniserar calendar_events-rader. `jobId` är packing_projects.id och används
- * ENBART som lokal Scanner-jobbidentitet — aldrig som canonical bokningsidentitet.
+ * Kanoniserar calendar_events-rader. En rad tas ENDAST med om identitet, tenant
+ * och tider är fullständiga och konsistenta — annars utelämnas den så att
+ * Scanner fail-closar på saknat kalenderbevis. Inget fabriceras.
  */
 export function buildCalendarEvents(
   rows: RawCalendarEventRow[] | null | undefined,
-  jobId: string | null,
+  expected: ScannerCalendarExpectation,
 ): ScannerCalendarEvent[] {
+  const expectedBookingId = normalizeText(expected?.bookingId);
+  const expectedOrgId = normalizeText(expected?.organizationId);
+  const jobId = normalizeText(expected?.jobId);
+  if (!expectedBookingId || !expectedOrgId || !jobId) return [];
+
   const out: ScannerCalendarEvent[] = [];
   for (const row of rows || []) {
-    const eventId = typeof row?.id === 'string' ? row.id : null;
+    const eventId = typeof row?.id === 'string' ? row.id.trim() : '';
     if (!eventId) continue;
+
+    const rowBookingId = typeof row?.booking_id === 'string' ? row.booking_id : null;
+    const rowOrgId = typeof row?.organization_id === 'string' ? row.organization_id : null;
+    if (!rowBookingId || rowBookingId !== expectedBookingId) continue;
+    if (!rowOrgId || rowOrgId !== expectedOrgId) continue;
+
     const phase = mapCalendarPhase(row?.event_type);
     if (!phase) continue;
+
+    const startsAt = normalizeTimestamp(row?.start_time);
+    const endsAt = normalizeTimestamp(row?.end_time);
+    if (!startsAt || !endsAt) continue;
+    if (instantMs(endsAt) < instantMs(startsAt)) continue;
+
     out.push({
       event_id: eventId,
-      booking_id: typeof row?.booking_id === 'string' ? row.booking_id : null,
-      organization_id: typeof row?.organization_id === 'string' ? row.organization_id : null,
+      booking_id: rowBookingId,
+      organization_id: rowOrgId,
       job_id: jobId,
       phase,
-      start_time: normalizeTimestamp(row?.start_time),
-      end_time: normalizeTimestamp(row?.end_time),
-      updated_at: normalizeTimestamp(row?.updated_at),
+      starts_at: startsAt,
+      ends_at: endsAt,
+      // Live-schemat saknar calendar_events.updated_at → alltid null, aldrig fabricerad.
+      updated_at: null,
       time_zone: SCANNER_CONTRACT_TIME_ZONE,
       all_day: false,
       revision: null,
@@ -209,6 +237,7 @@ export function buildCalendarEvents(
   }
   return out;
 }
+
 
 export interface WmsResolutionLike {
   ok?: boolean;
