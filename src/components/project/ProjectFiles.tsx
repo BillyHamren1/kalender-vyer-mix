@@ -34,6 +34,9 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
   const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
   const [openingPdfId, setOpeningPdfId] = useState<string | null>(null);
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
+  const markImageBroken = (url: string) =>
+    setBrokenImageUrls((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
   
 
   const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
@@ -93,12 +96,14 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
     return File;
   };
 
-  // Deduplicate and filter to images only
+  // Deduplicate and filter to images only. Images that no longer exist in the
+  // booking system (dead URLs) are hidden as soon as they fail to load.
   const imageAttachments = bookingAttachments
     .filter((a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx)
     .filter(a =>
       a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
-    );
+    )
+    .filter(a => !brokenImageUrls.has(a.url));
 
   return (
     <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
@@ -227,7 +232,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
             </div>
             <div className="flex flex-wrap gap-2">
               {imageAttachments.map(img => (
-                <ImageThumbnail key={img.id} url={img.url} name={img.file_name} />
+                <ImageThumbnail key={img.id} url={img.url} name={img.file_name} onLoadError={markImageBroken} />
               ))}
             </div>
           </div>
