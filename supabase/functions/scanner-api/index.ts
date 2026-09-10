@@ -745,7 +745,16 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
       )
     }
-    if (requestsScannerContractV1 && !SCANNER_CONTRACT_READ_ACTIONS.has(action)) {
+    if (auth.credentialKind === 'signed_v2' && !requestsScannerContractV1) {
+      return new Response(
+        JSON.stringify({
+          error: 'Signed Scanner credential requires the versioned Scanner contract',
+          debugCode: 'SCANNER_CONTRACT_VERSION_REQUIRED',
+        }),
+        { status: 400, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    if (auth.credentialKind === 'signed_v2' && !SCANNER_CONTRACT_READ_ACTIONS.has(action)) {
       return new Response(
         JSON.stringify({
           error: 'Scanner contract is read-only in Planning',

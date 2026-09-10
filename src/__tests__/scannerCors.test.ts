@@ -84,6 +84,10 @@ describe("Scanner v2 CORS boundary", () => {
     expect(api).toContain("SCANNER_CONTRACT_READ_ACTIONS");
     expect(api).toContain("SCANNER_PLANNING_MUTATION_FORBIDDEN");
     expect(api).toContain("SCANNER_CONTRACT_VERSION_MISMATCH");
+    expect(api).toContain("SCANNER_CONTRACT_VERSION_REQUIRED");
+    expect(api).toMatch(
+      /auth\.credentialKind === 'signed_v2' && !SCANNER_CONTRACT_READ_ACTIONS\.has\(action\)/,
+    );
     expect(api).toContain("SCANNER_ALLOWED_ORIGINS");
   });
 });
