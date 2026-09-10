@@ -206,3 +206,52 @@ describe('full contract', () => {
     expect(contract.wms.reservation_id).toBeNull();
   });
 });
+
+describe('byte-för-byte bevarande av ägarsystemets ID/status', () => {
+  it('buildBookingEvidence bevarar booking_id och source_status exakt', () => {
+    const ev = buildBookingEvidence(' bk-1 ', { source_status: '  Bekräftad/OK  ' });
+    expect(ev.booking_id).toBe(' bk-1 ');
+    expect(ev.source_status).toBe('  Bekräftad/OK  ');
+  });
+
+  it('buildBookingEvidence ger null för whitespace-only', () => {
+    const ev = buildBookingEvidence('   ', { source_status: '   ' });
+    expect(ev.booking_id).toBeNull();
+    expect(ev.source_status).toBeNull();
+  });
+
+  it('buildCalendarEvents bevarar id/booking/org/job exakt och kräver exakt match', () => {
+    const rows = [
+      { id: ' ev-1 ', booking_id: ' bk-1 ', organization_id: ' org-1 ', event_type: 'rig', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+      { id: 'ev-2', booking_id: 'bk-1', organization_id: ' org-1 ', event_type: 'rig', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+    ];
+    const out = buildCalendarEvents(rows, { bookingId: ' bk-1 ', organizationId: ' org-1 ', jobId: ' pk-1 ' });
+    expect(out).toHaveLength(1);
+    expect(out[0].event_id).toBe(' ev-1 ');
+    expect(out[0].booking_id).toBe(' bk-1 ');
+    expect(out[0].organization_id).toBe(' org-1 ');
+    expect(out[0].job_id).toBe(' pk-1 ');
+  });
+
+  it('buildWmsEvidence bevarar reservation_id och raw_status exakt', () => {
+    const ev = buildWmsEvidence({ ok: true, reservationId: ' res-1 ', status: ' Släppt/ÅÄÖ ', updatedAt: '2026-09-01T10:00:00Z', syncedAt: null });
+    expect(ev.reservation_id).toBe(' res-1 ');
+    expect(ev.raw_status).toBe(' Släppt/ÅÄÖ ');
+    expect((ev as unknown as Record<string, unknown>).is_released).toBeUndefined();
+  });
+
+  it('normalizeTimestamp avvisar omgivande whitespace istället för att trimma', () => {
+    expect(normalizeTimestamp(' 2026-09-01T10:00:00Z')).toBeNull();
+    expect(normalizeTimestamp('2026-09-01T10:00:00Z ')).toBeNull();
+    expect(normalizeTimestamp('\n2026-09-01T10:00:00Z\n')).toBeNull();
+    expect(normalizeTimestamp('2026-09-01T10:00:00Z')).toBe('2026-09-01T10:00:00Z');
+  });
+
+  it('timestamp med whitespace i kalenderrad utelämnas', () => {
+    const out = buildCalendarEvents(
+      [{ id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rig', start_time: ' 2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' }],
+      { bookingId: 'bk-1', organizationId: 'org-1', jobId: 'pk-1' },
+    );
+    expect(out).toHaveLength(0);
+  });
+});
