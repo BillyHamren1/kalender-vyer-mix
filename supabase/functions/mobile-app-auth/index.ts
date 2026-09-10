@@ -15,6 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import {
   createScannerSignedToken,
+  SCANNER_SIGNED_TOKEN_TTL_MS,
   scannerReleaseShaReady,
   scannerSigningSecretReady,
 } from '../_shared/scannerSignedAuth.ts'
@@ -177,11 +178,13 @@ async function handleLogin(
 
   const sessionId = crypto.randomUUID()
   let scannerToken: string | undefined
+  let scannerTokenExpiresAt: string | undefined
   if (issueScannerCredential) {
     if (!staffMember.organization_id) {
       return json({ error: 'Scanner organization is unavailable' }, 403, responseHeaders)
     }
     try {
+      const scannerIssuedAt = Date.now()
       scannerToken = await createScannerSignedToken(
         {
           staffId: account.staff_id,
@@ -190,7 +193,11 @@ async function handleLogin(
           releaseSha: scannerReleaseSha,
         },
         scannerSigningSecret,
+        scannerIssuedAt,
       )
+      scannerTokenExpiresAt = new Date(
+        scannerIssuedAt + SCANNER_SIGNED_TOKEN_TTL_MS,
+      ).toISOString()
     } catch (error) {
       console.error('[mobile-app-auth] signed scanner credential unavailable:', String(error))
       return json({ error: 'Scanner authentication unavailable' }, 503, responseHeaders)
@@ -219,7 +226,17 @@ async function handleLogin(
   // `token` behålls oförändrad för Planning-mobilen. Endast den fristående
   // Scannern använder den separata, kortlivade och signerade credentialen.
   return issueScannerCredential
-    ? json({ success: true, token, scanner_token: scannerToken, staff: enriched }, 200, responseHeaders)
+    ? json(
+        {
+          success: true,
+          token,
+          scanner_token: scannerToken,
+          scanner_token_expires_at: scannerTokenExpiresAt,
+          staff: enriched,
+        },
+        200,
+        responseHeaders,
+      )
     : json({ success: true, token, staff: enriched }, 200, responseHeaders)
 }
 
