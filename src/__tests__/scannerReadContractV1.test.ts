@@ -8,6 +8,8 @@ import {
   buildWmsEvidence,
   mapCalendarPhase,
   mapWithConcurrency,
+  normalizeTimestamp,
+
 } from '../../supabase/functions/_shared/scannerReadContractV1';
 
 const scannerApi = readFileSync('supabase/functions/scanner-api/index.ts', 'utf8');
@@ -48,6 +50,12 @@ describe('booking evidence', () => {
 });
 
 describe('calendar evidence', () => {
+  const EXPECTED = { bookingId: 'bk-1', organizationId: 'org-1', jobId: 'pk-1' };
+  const ok = {
+    id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rig',
+    start_time: '2026-09-01T06:00:00Z', end_time: '2026-09-01T10:00:00Z',
+  };
+
   it('mappar endast stödda faser', () => {
     expect(mapCalendarPhase('rig')).toBe('rigg');
     expect(mapCalendarPhase('rigg')).toBe('rigg');
@@ -56,18 +64,52 @@ describe('calendar evidence', () => {
     ([ 'transport', 'todo', '', null, 42 ] as unknown[]).forEach((t) => expect(mapCalendarPhase(t)).toBeNull());
   });
 
-  it('bevarar event.id exakt och sätter kanoniska fält', () => {
-    const events = buildCalendarEvents([
-      { id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rig', start_time: '2026-09-01T06:00:00Z', end_time: '2026-09-01T10:00:00Z' },
-      { id: 'ev-2', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'transport' },
-      { booking_id: 'bk-1', event_type: 'event' },
-    ], 'pk-1');
+  it('bevarar event.id/tider exakt och sätter kanoniska fält', () => {
+    const events = buildCalendarEvents([ok], EXPECTED);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      event_id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1',
-      job_id: 'pk-1', phase: 'rigg', time_zone: 'Europe/Stockholm', all_day: false, revision: null,
-      updated_at: null,
+    expect(events[0]).toEqual({
+      event_id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', job_id: 'pk-1',
+      phase: 'rigg', starts_at: '2026-09-01T06:00:00Z', ends_at: '2026-09-01T10:00:00Z',
+      updated_at: null, time_zone: 'Europe/Stockholm', all_day: false, revision: null,
     });
+    expect(Object.keys(events[0])).not.toContain('start_time');
+    expect(Object.keys(events[0])).not.toContain('end_time');
+  });
+
+  it('utelämnar rader som inte uppfyller kontraktet', () => {
+    const bad = [
+      { ...ok, organization_id: 'org-2' },              // cross-tenant
+      { ...ok, booking_id: 'bk-2' },                    // fel booking
+      { ...ok, id: '' },                                // saknat event_id
+      { ...ok, id: undefined },
+      { ...ok, booking_id: null },
+      { ...ok, organization_id: null },
+      { ...ok, event_type: 'transport' },               // okänd fas
+      { ...ok, start_time: '2026-09-01T06:00:00' },     // tid utan offset
+      { ...ok, end_time: '2026-09-01' },                // datum utan tid
+      { ...ok, start_time: '2026-02-31T06:00:00Z' },    // omöjligt datum
+      { ...ok, start_time: '2026-09-01T25:00:00Z' },    // omöjlig tid
+      { ...ok, start_time: '2026-09-01T10:00:00Z', end_time: '2026-09-01T06:00:00Z' }, // end före start
+      { ...ok, start_time: null },
+      { ...ok, end_time: undefined },
+    ];
+    expect(buildCalendarEvents(bad, EXPECTED)).toEqual([]);
+    // Blandat: endast den giltiga raden tas med.
+    expect(buildCalendarEvents([...bad, ok], EXPECTED).map((e) => e.event_id)).toEqual(['ev-1']);
+  });
+
+  it('kräver förväntad identitet — inget fabriceras', () => {
+    expect(buildCalendarEvents([ok], { ...EXPECTED, jobId: null })).toEqual([]);
+    expect(buildCalendarEvents([ok], { ...EXPECTED, organizationId: '' })).toEqual([]);
+    expect(buildCalendarEvents([ok], { ...EXPECTED, bookingId: undefined })).toEqual([]);
+  });
+
+  it('normalizeTimestamp accepterar endast RFC3339-instants', () => {
+    ['2026-09-01T06:00:00Z', '2026-09-01T06:00Z', '2026-09-01T06:00:00.123+02:00', '2026-09-01T06:00:00-05:00']
+      .forEach((v) => expect(normalizeTimestamp(v)).toBe(v));
+    ['2026-09-01', '2026-09-01T06:00:00', '2026-09-01 06:00:00+00', '2026-02-30T06:00:00Z',
+      '2026-13-01T06:00:00Z', '2026-09-01T06:60:00Z', 'igår', '', null, 42]
+      .forEach((v) => expect(normalizeTimestamp(v as unknown)).toBeNull());
   });
 
   it('kalenderläsningen är tenant-scopad i wiringen', () => {
@@ -75,8 +117,10 @@ describe('calendar evidence', () => {
     expect(cal.slice(0, 400)).toMatch(/\.eq\('organization_id', ORG_ID\)/);
     const bookingsRead = listBlock.slice(listBlock.indexOf("select('id, last_applied_source_revision')"));
     expect(bookingsRead.slice(0, 300)).toMatch(/\.eq\('organization_id', ORG_ID\)/);
+    expect(listBlock).toMatch(/organizationId: ORG_ID/);
   });
 });
+
 
 describe('wms evidence', () => {
   it('returnerar okänd status rått, aldrig tolkad', () => {
@@ -143,11 +187,17 @@ describe('full contract', () => {
   it('bygger versionerat block utan fabricerade värden', () => {
     const contract = buildScannerContractV1({
       bookingId: 'bk-1',
+      organizationId: 'org-1',
       lastAppliedSourceRevision: { source_status: 'confirmed', revision: 3, source_updated_at: '2026-09-01T10:00:00Z' },
-      calendarRows: [{ id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rigdown', start_time: '2026-09-03T08:00:00Z' }],
+      calendarRows: [
+        { id: 'ev-1', booking_id: 'bk-1', organization_id: 'org-1', event_type: 'rigdown', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+        { id: 'ev-2', booking_id: 'bk-1', organization_id: 'org-2', event_type: 'rig', start_time: '2026-09-03T08:00:00Z', end_time: '2026-09-03T12:00:00Z' },
+      ],
       jobId: 'pk-1',
       wms: { ok: false, code: 'wms_reservation_not_found' },
     });
+    expect(contract.planning.calendar_events).toHaveLength(1);
+
     expect(contract.contract_version).toBe('scanner_contract_v1');
     expect(contract.booking.source_revision).toBe(3);
     expect(contract.planning.calendar_events[0].phase).toBe('riggner');

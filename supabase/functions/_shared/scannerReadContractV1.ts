@@ -35,13 +35,13 @@ export type ScannerCalendarPhase = 'rigg' | 'event' | 'riggner';
 
 export interface ScannerCalendarEvent {
   event_id: string;
-  booking_id: string | null;
-  organization_id: string | null;
-  job_id: string | null;
+  booking_id: string;
+  organization_id: string;
+  job_id: string;
   phase: ScannerCalendarPhase;
-  start_time: string | null;
-  end_time: string | null;
-  updated_at: string | null;
+  starts_at: string;
+  ends_at: string;
+  updated_at: null;
   time_zone: typeof SCANNER_CONTRACT_TIME_ZONE;
   all_day: false;
   revision: null;
@@ -62,17 +62,58 @@ export interface ScannerContractV1 {
   wms: ScannerWmsEvidence;
 }
 
-const ISO_LIKE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+/**
+ * Strikt RFC3339-instant: datum + tid MED explicit zon (Z eller ±HH:MM).
+ * Sekunder och fraktion är valfria. Lokal tid utan offset, datum utan tid
+ * och omöjliga datum avvisas.
+ */
+const RFC3339_INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))$/;
 
-/** Returnerar en giltig timestamp-sträng, annars null. Ingen gissning. */
+/** Returnerar en giltig RFC3339-instant, annars null. Ingen gissning. */
 export function normalizeTimestamp(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!ISO_LIKE.test(trimmed)) return null;
-  const parsed = Date.parse(trimmed);
-  if (Number.isNaN(parsed)) return null;
+  const m = RFC3339_INSTANT.exec(trimmed);
+  if (!m) return null;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = m[6] === undefined ? 0 : Number(m[6]);
+
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+
+  // Omöjliga datum (t.ex. 2026-02-31) avvisas via kalenderkontroll i UTC.
+  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
+  const probe = new Date(utc);
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  if (m[7] !== 'Z') {
+    const offsetHours = Number(m[8]);
+    const offsetMinutes = Number(m[9]);
+    if (offsetHours > 23 || offsetMinutes > 59) return null;
+  }
+
+  if (Number.isNaN(Date.parse(trimmed))) return null;
   return trimmed;
 }
+
+/** Millisekunder sedan epoch för en redan validerad instant. */
+function instantMs(value: string): number {
+  return Date.parse(value);
+}
+
 
 /** Endast icke-negativt heltal accepteras som revision. */
 export function normalizeRevision(value: unknown): number | null {
@@ -138,29 +179,57 @@ export interface RawCalendarEventRow {
   updated_at?: unknown;
 }
 
+export interface ScannerCalendarExpectation {
+  /** Canonical booking-id som raden MÅSTE tillhöra. */
+  bookingId: string | null | undefined;
+  /** Tenant som raden MÅSTE tillhöra. */
+  organizationId: string | null | undefined;
+  /** packing_projects.id — lokal Scanner-jobbidentitet, aldrig canonical. */
+  jobId: string | null | undefined;
+}
+
 /**
- * Kanoniserar calendar_events-rader. `jobId` är packing_projects.id och används
- * ENBART som lokal Scanner-jobbidentitet — aldrig som canonical bokningsidentitet.
+ * Kanoniserar calendar_events-rader. En rad tas ENDAST med om identitet, tenant
+ * och tider är fullständiga och konsistenta — annars utelämnas den så att
+ * Scanner fail-closar på saknat kalenderbevis. Inget fabriceras.
  */
 export function buildCalendarEvents(
   rows: RawCalendarEventRow[] | null | undefined,
-  jobId: string | null,
+  expected: ScannerCalendarExpectation,
 ): ScannerCalendarEvent[] {
+  const expectedBookingId = normalizeText(expected?.bookingId);
+  const expectedOrgId = normalizeText(expected?.organizationId);
+  const jobId = normalizeText(expected?.jobId);
+  if (!expectedBookingId || !expectedOrgId || !jobId) return [];
+
   const out: ScannerCalendarEvent[] = [];
   for (const row of rows || []) {
-    const eventId = typeof row?.id === 'string' ? row.id : null;
+    const eventId = typeof row?.id === 'string' ? row.id.trim() : '';
     if (!eventId) continue;
+
+    const rowBookingId = typeof row?.booking_id === 'string' ? row.booking_id : null;
+    const rowOrgId = typeof row?.organization_id === 'string' ? row.organization_id : null;
+    if (!rowBookingId || rowBookingId !== expectedBookingId) continue;
+    if (!rowOrgId || rowOrgId !== expectedOrgId) continue;
+
     const phase = mapCalendarPhase(row?.event_type);
     if (!phase) continue;
+
+    const startsAt = normalizeTimestamp(row?.start_time);
+    const endsAt = normalizeTimestamp(row?.end_time);
+    if (!startsAt || !endsAt) continue;
+    if (instantMs(endsAt) < instantMs(startsAt)) continue;
+
     out.push({
       event_id: eventId,
-      booking_id: typeof row?.booking_id === 'string' ? row.booking_id : null,
-      organization_id: typeof row?.organization_id === 'string' ? row.organization_id : null,
+      booking_id: rowBookingId,
+      organization_id: rowOrgId,
       job_id: jobId,
       phase,
-      start_time: normalizeTimestamp(row?.start_time),
-      end_time: normalizeTimestamp(row?.end_time),
-      updated_at: normalizeTimestamp(row?.updated_at),
+      starts_at: startsAt,
+      ends_at: endsAt,
+      // Live-schemat saknar calendar_events.updated_at → alltid null, aldrig fabricerad.
+      updated_at: null,
       time_zone: SCANNER_CONTRACT_TIME_ZONE,
       all_day: false,
       revision: null,
@@ -168,6 +237,7 @@ export function buildCalendarEvents(
   }
   return out;
 }
+
 
 export interface WmsResolutionLike {
   ok?: boolean;
@@ -200,6 +270,7 @@ export function buildWmsEvidence(result: WmsResolutionLike | null | undefined): 
 
 export function buildScannerContractV1(input: {
   bookingId: string | null | undefined;
+  organizationId: string | null | undefined;
   lastAppliedSourceRevision: unknown;
   calendarRows: RawCalendarEventRow[] | null | undefined;
   jobId: string | null;
@@ -208,7 +279,13 @@ export function buildScannerContractV1(input: {
   return {
     contract_version: SCANNER_READ_CONTRACT_VERSION,
     booking: buildBookingEvidence(input.bookingId, input.lastAppliedSourceRevision),
-    planning: { calendar_events: buildCalendarEvents(input.calendarRows, input.jobId) },
+    planning: {
+      calendar_events: buildCalendarEvents(input.calendarRows, {
+        bookingId: input.bookingId,
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+      }),
+    },
     wms: buildWmsEvidence(input.wms),
   };
 }
