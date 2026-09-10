@@ -53,7 +53,7 @@ describe('calendar evidence', () => {
     expect(mapCalendarPhase('rigg')).toBe('rigg');
     expect(mapCalendarPhase('event')).toBe('event');
     ['rigDown', 'rigdown', 'rig_down', 'riggner'].forEach((t) => expect(mapCalendarPhase(t)).toBe('riggner'));
-    ['transport', 'todo', '', null, 42].forEach((t) => expect(mapCalendarPhase(t as any)).toBeNull());
+    ([ 'transport', 'todo', '', null, 42 ] as unknown[]).forEach((t) => expect(mapCalendarPhase(t)).toBeNull());
   });
 
   it('bevarar event.id exakt och sätter kanoniska fält', () => {
