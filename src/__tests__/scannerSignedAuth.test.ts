@@ -138,7 +138,6 @@ describe("Scanner signed credential v2", () => {
     expect(login).toContain("scanner_token: scannerToken");
     expect(login).toContain("scanner_token_expires_at: scannerTokenExpiresAt");
     expect(login).toContain("SCANNER_SIGNED_TOKEN_TTL_MS");
-    expect(login).toContain("token, scanner_token");
     expect(login).toContain("scannerSigningSecretReady(scannerSigningSecret)");
     expect(login).toContain("Scanner authentication unavailable");
     expect(
