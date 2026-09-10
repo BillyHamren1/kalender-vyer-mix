@@ -35,13 +35,13 @@ export type ScannerCalendarPhase = 'rigg' | 'event' | 'riggner';
 
 export interface ScannerCalendarEvent {
   event_id: string;
-  booking_id: string | null;
-  organization_id: string | null;
-  job_id: string | null;
+  booking_id: string;
+  organization_id: string;
+  job_id: string;
   phase: ScannerCalendarPhase;
-  start_time: string | null;
-  end_time: string | null;
-  updated_at: string | null;
+  starts_at: string;
+  ends_at: string;
+  updated_at: null;
   time_zone: typeof SCANNER_CONTRACT_TIME_ZONE;
   all_day: false;
   revision: null;
@@ -62,17 +62,58 @@ export interface ScannerContractV1 {
   wms: ScannerWmsEvidence;
 }
 
-const ISO_LIKE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+/**
+ * Strikt RFC3339-instant: datum + tid MED explicit zon (Z eller ±HH:MM).
+ * Sekunder och fraktion är valfria. Lokal tid utan offset, datum utan tid
+ * och omöjliga datum avvisas.
+ */
+const RFC3339_INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))$/;
 
-/** Returnerar en giltig timestamp-sträng, annars null. Ingen gissning. */
+/** Returnerar en giltig RFC3339-instant, annars null. Ingen gissning. */
 export function normalizeTimestamp(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!ISO_LIKE.test(trimmed)) return null;
-  const parsed = Date.parse(trimmed);
-  if (Number.isNaN(parsed)) return null;
+  const m = RFC3339_INSTANT.exec(trimmed);
+  if (!m) return null;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = m[6] === undefined ? 0 : Number(m[6]);
+
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+
+  // Omöjliga datum (t.ex. 2026-02-31) avvisas via kalenderkontroll i UTC.
+  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
+  const probe = new Date(utc);
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  if (m[7] !== 'Z') {
+    const offsetHours = Number(m[8]);
+    const offsetMinutes = Number(m[9]);
+    if (offsetHours > 23 || offsetMinutes > 59) return null;
+  }
+
+  if (Number.isNaN(Date.parse(trimmed))) return null;
   return trimmed;
 }
+
+/** Millisekunder sedan epoch för en redan validerad instant. */
+function instantMs(value: string): number {
+  return Date.parse(value);
+}
+
 
 /** Endast icke-negativt heltal accepteras som revision. */
 export function normalizeRevision(value: unknown): number | null {
