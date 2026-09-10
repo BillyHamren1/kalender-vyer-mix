@@ -41,6 +41,13 @@ export interface WmsReservationResult {
   externalId?: string;
   code?: WmsFailureCode;
   error?: string;
+  /**
+   * ADDITIVT (scanner-read-contract-v1): exakta värden från WMS get-reservation.
+   * Aldrig tolkade, aldrig fallback — saknas de i svaret blir de null.
+   */
+  status?: string | null;
+  updatedAt?: string | null;
+  syncedAt?: string | null;
 }
 
 function headers(deps: WmsCallDeps) {
