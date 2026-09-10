@@ -9,6 +9,10 @@ import {
   verifyScannerLegacyToken,
 } from '../_shared/scannerLegacyAuth.ts'
 import {
+  SCANNER_SIGNED_TOKEN_PREFIX,
+  verifyScannerSignedToken,
+} from '../_shared/scannerSignedAuth.ts'
+import {
   SCANNER_CONTRACT_WMS_CONCURRENCY,
   buildScannerContractV1,
   mapWithConcurrency,
@@ -19,20 +23,40 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Verify token and return staff record with organization_id
-async function authenticateRequest(supabase: any, token: string | undefined) {
+type ScannerAuth = {
+  staffId: string
+  organizationId: string
+  staffName: string
+  credentialKind: 'legacy_unsigned' | 'signed_v2'
+}
+
+// Verify credential and return staff record with organization_id.
+// Legacy verifiern finns kvar endast för Planning-klienter under övergången.
+async function authenticateRequest(
+  supabase: any,
+  token: string | undefined,
+  scannerSigningSecret: string | undefined,
+): Promise<ScannerAuth> {
   if (!token) {
     console.warn('[scanner-api auth] 401 reason=missing_token')
     throw { status: 401, message: 'Token required', reason: 'missing_token' }
   }
 
-  const tokenResult = verifyScannerLegacyToken(token)
+  const signed = token.startsWith(`${SCANNER_SIGNED_TOKEN_PREFIX}.`)
+  if (signed && !scannerSigningSecret) {
+    console.error('[scanner-api auth] signed credential verifier is not configured')
+    throw { status: 503, message: 'Scanner authentication unavailable', reason: 'signing_unavailable' }
+  }
+  const tokenResult = signed
+    ? await verifyScannerSignedToken(token, scannerSigningSecret!)
+    : verifyScannerLegacyToken(token)
   if (!tokenResult.valid) {
     console.warn(`[scanner-api auth] 401 reason=${tokenResult.reason} tokenLen=${token.length}`)
     throw { status: 401, message: tokenResult.error || 'Invalid or expired token', reason: tokenResult.reason }
   }
 
   const { staffId, sessionId } = tokenResult.claims
+  const signedOrganizationId = signed ? tokenResult.claims.organizationId : undefined
 
   // Get staff member info and organization_id
   const { data: staffMember, error } = await supabase
@@ -46,6 +70,11 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
     throw { status: 401, message: 'Staff member not found', reason: 'staff_not_found' }
   }
 
+  if (signedOrganizationId && signedOrganizationId !== staffMember.organization_id) {
+    console.warn(`[scanner-api auth] 401 reason=tenant_mismatch staffId=${staffId}`)
+    throw { status: 401, message: 'Invalid Scanner organization', reason: 'tenant_mismatch' }
+  }
+
   if (!activeScannerSessionMatches(staffMember.active_mobile_session_id, sessionId)) {
     console.warn(`[scanner-api auth] 401 reason=token_revoked staffId=${staffId}`)
     throw { status: 401, message: 'Session revoked', reason: 'token_revoked' }
@@ -54,7 +83,8 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
   return {
     staffId: staffMember.id,
     organizationId: staffMember.organization_id,
-    staffName: staffMember.name || 'Unknown'
+    staffName: staffMember.name || 'Unknown',
+    credentialKind: signed ? 'signed_v2' : 'legacy_unsigned',
   }
 }
 
@@ -639,9 +669,13 @@ Deno.serve(async (req) => {
     }
 
     // Authenticate and get organization_id
-    let auth: { staffId: string; organizationId: string; staffName: string }
+    let auth: ScannerAuth
     try {
-      auth = await authenticateRequest(supabase, tokenTransport.token)
+      auth = await authenticateRequest(
+        supabase,
+        tokenTransport.token,
+        Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET'),
+      )
     } catch (authErr: any) {
       return new Response(
         JSON.stringify({
@@ -649,6 +683,19 @@ Deno.serve(async (req) => {
           debugCode: `AUTH_${(authErr.reason || 'unknown').toUpperCase()}`,
         }),
         { status: authErr.status || 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const requestsScannerContractV1 =
+      params?.scanner_contract_version === 'scanner_contract_v1' ||
+      params?.includeScannerContractV1 === true
+    if (requestsScannerContractV1 && auth.credentialKind !== 'signed_v2') {
+      return new Response(
+        JSON.stringify({
+          error: 'Signed Scanner credential required',
+          debugCode: 'AUTH_SIGNED_SCANNER_TOKEN_REQUIRED',
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 

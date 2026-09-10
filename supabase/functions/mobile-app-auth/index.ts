@@ -13,6 +13,7 @@
 // so existing clients keep working during rollout.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
+import { createScannerSignedToken } from '../_shared/scannerSignedAuth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -149,7 +150,7 @@ async function handleLogin(
 
   const { data: staffMember, error: staffError } = await supabase
     .from('staff_members')
-    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id')
+    .select('id, name, email, phone, role, department, hourly_rate, overtime_rate, user_id, organization_id')
     .eq('id', account.staff_id)
     .single()
   if (staffError || !staffMember) {
@@ -176,10 +177,30 @@ async function handleLogin(
   }
 
   const token = generateToken(account.staff_id, sessionId)
+  let scannerToken: string | null = null
+  const scannerSigningSecret = Deno.env.get('SCANNER_TOKEN_SIGNING_SECRET')
+  if (scannerSigningSecret && staffMember.organization_id) {
+    try {
+      scannerToken = await createScannerSignedToken(
+        {
+          staffId: account.staff_id,
+          organizationId: staffMember.organization_id,
+          sessionId,
+        },
+        scannerSigningSecret,
+      )
+    } catch (error) {
+      console.error('[mobile-app-auth] signed scanner credential unavailable:', String(error))
+    }
+  } else {
+    console.warn('[mobile-app-auth] signed scanner credential not configured')
+  }
   console.log(
     `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`,
   )
-  return json({ success: true, token, staff: enriched })
+  // `token` behålls oförändrad för Planning-mobilen. Endast den fristående
+  // Scannern använder den separata, kortlivade och signerade credentialen.
+  return json({ success: true, token, scanner_token: scannerToken, staff: enriched })
 }
 
 Deno.serve(async (req) => {
