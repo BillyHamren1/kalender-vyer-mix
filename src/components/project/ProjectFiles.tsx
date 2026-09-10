@@ -232,7 +232,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
             </div>
             <div className="flex flex-wrap gap-2">
               {imageAttachments.map(img => (
-                <ImageThumbnail key={img.id} url={img.url} name={img.file_name} />
+                <ImageThumbnail key={img.id} url={img.url} name={img.file_name} onLoadError={markImageBroken} />
               ))}
             </div>
           </div>
