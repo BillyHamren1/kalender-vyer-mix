@@ -34,6 +34,9 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
   const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
   const [openingPdfId, setOpeningPdfId] = useState<string | null>(null);
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
+  const markImageBroken = (url: string) =>
+    setBrokenImageUrls((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
   
 
   const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
