@@ -253,8 +253,8 @@ const ProjectLayout = () => {
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header — mirrors LargeProjectLayout */}
         <div
-          className="px-6 py-5 rounded-2xl text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)] mb-5"
-          style={{ background: "var(--gradient-planner)" }}
+          className="px-6 py-5 rounded-2xl text-white mb-5"
+          style={{ background: "var(--gradient-planner)", boxShadow: "var(--shadow-planner)" }}
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
