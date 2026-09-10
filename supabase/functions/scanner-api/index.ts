@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
+import { fetchScannerWmsPackingProjection } from '../_shared/scannerWmsPackingProjection.ts'
 import {
   activeScannerSessionMatches,
   resolveScannerTokenTransport,
@@ -919,15 +920,89 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      case 'get_packing_items': {
-        const { packingId } = params
+      case "get_packing_items": {
+        const { packingId } = params;
 
-        const { data: packing } = await supabase
-          .from('packing_projects')
-          .select('booking_id')
-          .eq('id', packingId)
-          .eq('organization_id', ORG_ID)
-          .single()
+        const { data: packing, error: packingError } = await supabase
+          .from("packing_projects")
+          .select("booking_id")
+          .eq("id", packingId)
+          .eq("organization_id", ORG_ID)
+          .single();
+
+        if (requestsScannerContractV1) {
+          if (packingError || !packing) {
+            return new Response(
+              JSON.stringify({
+                contract_version: "scanner_packing_items_v1",
+                packing_id: packingId,
+                reservation_id: null,
+                resolution_code: "planning_packing_not_found",
+                lines: [],
+              }),
+              {
+                status: 404,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+
+          const { data: booking, error: bookingError } = packing.booking_id
+            ? await supabase
+                .from("bookings")
+                .select("booking_number")
+                .eq("id", packing.booking_id)
+                .eq("organization_id", ORG_ID)
+                .single()
+            : { data: null, error: null };
+
+          const bookingNumber =
+            typeof booking?.booking_number === "string"
+              ? booking.booking_number
+              : "";
+          if (bookingError || !bookingNumber) {
+            return new Response(
+              JSON.stringify({
+                contract_version: "scanner_packing_items_v1",
+                packing_id: packingId,
+                reservation_id: null,
+                resolution_code: "planning_booking_number_missing",
+                lines: [],
+              }),
+              {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+
+          const projection = await fetchScannerWmsPackingProjection(
+            bookingNumber,
+            {
+              apiKey: Deno.env.get("PRICELIST_API_KEY") || "",
+              organizationId: ORG_ID,
+            }
+          );
+
+          return new Response(
+            JSON.stringify({
+              contract_version: "scanner_packing_items_v1",
+              packing_id: packingId,
+              reservation_id: projection.reservationId,
+              resolution_code: projection.code,
+              lines: projection.lines.map((line) => ({
+                reservation_line_id: line.reservationLineId,
+                inventory_type_id: line.inventoryTypeId,
+                display_name: line.displayName,
+                quantity_reserved: line.quantityReserved,
+                quantity_picked: line.quantityPicked,
+                quantity_returned: line.quantityReturned,
+                parent_reservation_line_id: line.parentReservationLineId,
+                source: line.source,
+              })),
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
         // Validation only — get_packing_items MUST stay read-only.
         // Do not rewrite quantity_to_pack / insert / delete here because that can
@@ -3602,3 +3677,4 @@ Deno.serve(async (req) => {
 function json(data: any) {
   return new Response(JSON.stringify(data), { headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
 }
+

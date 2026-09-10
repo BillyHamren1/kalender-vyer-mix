@@ -10,9 +10,12 @@ on:
       - src/__tests__/wmsPackingListSync.test.ts
       - src/__tests__/scannerLegacyAuth.test.ts
       - src/__tests__/scannerSignedAuth.test.ts
+      - src/__tests__/scannerWmsPackingProjection.test.ts
+      - src/__tests__/scannerWmsProjectionWiring.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
+      - supabase/functions/_shared/scannerWmsPackingProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
       - .github/workflows/scanner-read-contract.yml
@@ -24,9 +27,12 @@ on:
       - src/__tests__/wmsPackingListSync.test.ts
       - src/__tests__/scannerLegacyAuth.test.ts
       - src/__tests__/scannerSignedAuth.test.ts
+      - src/__tests__/scannerWmsPackingProjection.test.ts
+      - src/__tests__/scannerWmsProjectionWiring.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
+      - supabase/functions/_shared/scannerWmsPackingProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
       - .github/workflows/scanner-read-contract.yml
@@ -53,14 +59,19 @@ jobs:
           src/__tests__/wmsPackingListSync.test.ts
           src/__tests__/scannerLegacyAuth.test.ts
           src/__tests__/scannerSignedAuth.test.ts
+          src/__tests__/scannerWmsPackingProjection.test.ts
+          src/__tests__/scannerWmsProjectionWiring.test.ts
       - name: Contract lint
         run: >-
           npx eslint
           supabase/functions/_shared/scannerReadContractV1.ts
           supabase/functions/_shared/scannerLegacyAuth.ts
           supabase/functions/_shared/scannerSignedAuth.ts
+          supabase/functions/_shared/scannerWmsPackingProjection.ts
           src/__tests__/scannerReadContractV1.test.ts
           src/__tests__/scannerLegacyAuth.test.ts
           src/__tests__/scannerSignedAuth.test.ts
+          src/__tests__/scannerWmsPackingProjection.test.ts
+          src/__tests__/scannerWmsProjectionWiring.test.ts
       - name: Production build
         run: npm run build
