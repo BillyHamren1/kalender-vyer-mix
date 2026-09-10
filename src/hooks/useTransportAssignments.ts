@@ -207,7 +207,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
       const existing = assignments.find(a => a.id === id);
       const { error } = await supabase
         .from('transport_assignments')
-        .update(updates)
+        .update((updates) as never)
         .eq('id', id);
 
       if (error) throw error;

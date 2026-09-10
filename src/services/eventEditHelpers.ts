@@ -181,11 +181,11 @@ export async function moveEventToDate({ event, newDateStr }: DateMoveParams): Pr
       if (fields && fields.date) {
         await supabase
           .from('bookings')
-          .update({
+          .update(({
             [fields.date]: newDateStr,
             [fields.start]: newStartISO,
             [fields.end]: newEndISO,
-          })
+          }) as never)
           .eq('id', event.bookingId);
       }
     }
@@ -216,9 +216,9 @@ async function syncBookingTimes(
 
   await supabase
     .from('bookings')
-    .update({
+    .update(({
       [fields.start]: newStartISO,
       [fields.end]: newEndISO,
-    })
+    }) as never)
     .eq('id', bookingId);
 }

@@ -347,11 +347,11 @@ export const useEventDragDrop = (
           Promise.resolve(
             supabase
               .from('bookings')
-              .update({
+              .update(({
                 [fields.date]: targetDateStr,
                 [fields.start]: newStartISO,
                 [fields.end]: newEndISO,
-              })
+              }) as never)
               .eq('id', eventData.bookingId)
           ).then(({ error: bkErr }: any) => {
             if (bkErr) {

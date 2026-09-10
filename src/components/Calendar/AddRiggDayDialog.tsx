@@ -251,11 +251,11 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
               if (fields) {
                 const { error: bkErr } = await supabase
                   .from('bookings')
-                  .update({
+                  .update(({
                     [fields.date]: dateStr,
                     [fields.start]: startDateTime,
                     [fields.end]: endDateTime,
-                  })
+                  }) as never)
                   .eq('id', event.bookingId);
                 if (bkErr) throw bkErr;
               }

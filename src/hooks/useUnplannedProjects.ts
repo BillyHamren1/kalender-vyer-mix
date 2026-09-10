@@ -78,7 +78,7 @@ export function useUnplannedProjects() {
   useEffect(() => {
     if (!organizationId) return;
     const channel = supabase
-      .channel('unplanned-projects-rt')
+      .channel(`unplanned-projects-rt-${organizationId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         qc.invalidateQueries({ queryKey: ['unplanned-projects', organizationId] });
       })

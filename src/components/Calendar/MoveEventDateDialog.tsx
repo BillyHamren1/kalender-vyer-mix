@@ -326,7 +326,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               };
               const { error: bkErr } = await supabase
                 .from('bookings')
-                .update(bkUpdate)
+                .update((bkUpdate) as never)
                 .eq('id', event.bookingId);
               if (bkErr) {
                 traceError('bookings update FAILED', { bkErr, bkUpdate });

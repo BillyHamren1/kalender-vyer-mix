@@ -150,18 +150,18 @@ export async function syncBookingPhaseDays(params: {
   if (dates.length === 0) {
     const { error } = await supabase
       .from('bookings')
-      .update({ [fields.date]: null, [fields.start]: null, [fields.end]: null })
+      .update(({ [fields.date]: null, [fields.start]: null, [fields.end]: null }) as never)
       .eq('id', bookingId);
     if (error) throw error;
   } else {
     const first = dates[0];
     const { error } = await supabase
       .from('bookings')
-      .update({
+      .update(({
         [fields.date]: first,
         [fields.start]: `${first}T${startTime}:00Z`,
         [fields.end]: `${first}T${endTime}:00Z`,
-      })
+      }) as never)
       .eq('id', bookingId);
     if (error) throw error;
   }

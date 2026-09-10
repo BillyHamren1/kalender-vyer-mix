@@ -140,7 +140,7 @@ export async function syncProjectTaskToExecution(
 
     const { error } = await supabase
       .from('establishment_tasks')
-      .update(patch)
+      .update((patch) as never)
       .eq('id', executionTaskId);
 
     if (error) {

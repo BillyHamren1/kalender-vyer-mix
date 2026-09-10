@@ -73,16 +73,16 @@ function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
+    .replace(/\+/gu, "-")
+    .replace(/\//gu, "_")
     .replace(/=+$/u, "");
 }
 
 function fromBase64Url(value: string): Uint8Array {
   if (!/^[A-Za-z0-9_-]+$/u.test(value)) throw new Error("Invalid base64url");
   const padded = value
-    .replaceAll("-", "+")
-    .replaceAll("_", "/")
+    .replace(/-/gu, "+")
+    .replace(/_/gu, "/")
     .padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(padded);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
@@ -169,7 +169,7 @@ export async function verifyScannerSignedToken(
     const authentic = await crypto.subtle.verify(
       "HMAC",
       key,
-      signature,
+      signature as unknown as BufferSource,
       new TextEncoder().encode(`${SCANNER_SIGNED_TOKEN_PREFIX}.${payloadPart}`)
     );
     if (!authentic) {

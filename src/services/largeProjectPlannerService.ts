@@ -123,7 +123,7 @@ export async function moveLargeProjectDay({
 
     const { error: updErr } = await supabase
       .from('large_projects')
-      .update({ [dateColumn]: finalDates })
+      .update(({ [dateColumn]: finalDates }) as never)
       .eq('id', largeProjectId);
     if (updErr) throw updErr;
   }
@@ -180,11 +180,11 @@ export async function moveLargeProjectDay({
   if (bookingIds.length > 0) {
     const { data: bookData, error: bookErr } = await supabase
       .from('bookings')
-      .update({
+      .update(({
         [bookingDateCol]: toDate,
         [bookingTimes.start]: newStartISO,
         [bookingTimes.end]: newEndISO,
-      })
+      }) as never)
       .in('id', bookingIds)
       .eq(bookingDateCol, fromDate)
       .select('id');

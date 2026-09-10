@@ -74,7 +74,7 @@ async function applyToBooking(
   };
   const { error: bErr } = await supabase
     .from('bookings')
-    .update(bookingPatch)
+    .update((bookingPatch) as never)
     .eq('id', bookingId);
   if (bErr) {
     console.warn('[timeSync] booking update failed', bookingId, phase, bErr);
@@ -304,7 +304,7 @@ export async function setPhaseLock(
   if (locked && !extStart && liveStart) patch[f.startExt] = liveStart;
   if (locked && !extEnd && liveEnd) patch[f.endExt] = liveEnd;
 
-  const { error: uErr } = await supabase.from('bookings').update(patch).eq('id', bookingId);
+  const { error: uErr } = await supabase.from('bookings').update((patch) as never).eq('id', bookingId);
   if (uErr) {
     console.warn('[setPhaseLock] primary update failed', bookingId, uErr);
     return { bookingsUpdated: 0, syncedSiblings: 0, largeProjectId: null };
@@ -331,7 +331,7 @@ export async function setPhaseLock(
         if (locked && !(sib as any)[f.endExt] && (sib as any)[f.end]) {
           sibPatch[f.endExt] = (sib as any)[f.end];
         }
-        const { error: sErr } = await supabase.from('bookings').update(sibPatch).eq('id', (sib as any).id);
+        const { error: sErr } = await supabase.from('bookings').update((sibPatch) as never).eq('id', (sib as any).id);
         if (!sErr) {
           bookingsUpdated += 1;
           syncedSiblings += 1;
