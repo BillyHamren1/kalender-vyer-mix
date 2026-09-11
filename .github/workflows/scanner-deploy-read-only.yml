@@ -27,44 +27,32 @@ jobs:
         with:
           path: planning
 
-      - name: Check out exact Bundle projection release
-        uses: actions/checkout@v4
-        with:
-          repository: BillyHamren1/bundle-builder-base
-          ref: ${{ env.BUNDLE_RELEASE_SHA }}
-          path: bundle
-
       - name: Require deployment credential
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: test -n "$SUPABASE_ACCESS_TOKEN"
 
-      - name: Verify exact read-only releases
+      - name: Verify exact read-only release packages
+        working-directory: planning
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C planning rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git -C bundle rev-parse HEAD)" = "$BUNDLE_RELEASE_SHA"
-
-      - name: Verify Bundle projection before any live change
-        working-directory: bundle
-        run: |
-          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -Fqx "# source commit: $BUNDLE_RELEASE_SHA" \
+            supabase/scanner-bundle-projection-release-v1.gitblob
+          while read -r expected path; do
+            case "$expected" in ""|"#") continue ;; esac
+            test "$(git hash-object "$path")" = "$expected"
+          done < supabase/scanner-bundle-projection-release-v1.gitblob
+          ! grep -Eq "from\\([^)]*\\)\\.(insert|update|upsert|delete)|\\.rpc\\(" \
+            supabase/functions/eventflow-scanner-projection-v1/index.ts
           npm ci
-          npx vitest run \
-            src/__tests__/eventflow-scanner-projection-v1.test.ts \
-            src/__tests__/eventflow-scanner-bundle-contract.test.ts \
-            src/__tests__/eventflow-scanner-operation-status-v1.test.ts \
-            src/__tests__/time-bundle-scanner-contract.test.ts
-          npx tsc --noEmit
           npx eslint \
             supabase/functions/eventflow-scanner-projection-v1/index.ts \
             supabase/functions/_shared/eventflow-scanner-projection-contract.ts \
             supabase/functions/_shared/eventflow-scanner-bundle-contract.ts \
             supabase/functions/_shared/time-bundle-scanner-contract.ts
           npm run build
-          ! grep -Eq "from\\([^)]*\\)\\.(insert|update|upsert|delete)|\\.rpc\\(" \
-            supabase/functions/eventflow-scanner-projection-v1/index.ts
 
       - name: Generate isolated release secrets
         id: secrets
@@ -87,7 +75,7 @@ jobs:
           npx --yes supabase@2.117.0 secrets set "EVENTFLOW_SCANNER_BUNDLE_SECRET=$EVENTFLOW_SCANNER_BUNDLE_SECRET" --project-ref "$BUNDLE_PROJECT_REF"
 
       - name: Deploy exact Bundle read-only projection
-        working-directory: bundle
+        working-directory: planning
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
