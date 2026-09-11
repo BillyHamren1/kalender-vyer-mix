@@ -14,6 +14,7 @@ on:
       - src/__tests__/scannerSignedAuth.test.ts
       - src/__tests__/scannerCors.test.ts
       - src/__tests__/scannerWmsPackingProjection.test.ts
+      - src/__tests__/scannerBundleProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
       - src/__tests__/scannerDeployPreflight.test.ts
       - src/__tests__/scannerContractResponse.test.ts
@@ -23,6 +24,7 @@ on:
       - supabase/functions/_shared/scannerSignedAuth.ts
       - supabase/functions/_shared/scannerCors.ts
       - supabase/functions/_shared/scannerWmsPackingProjection.ts
+      - supabase/functions/_shared/scannerBundleProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
       - scripts/scanner-deploy-preflight.mjs
@@ -40,6 +42,7 @@ on:
       - src/__tests__/scannerSignedAuth.test.ts
       - src/__tests__/scannerCors.test.ts
       - src/__tests__/scannerWmsPackingProjection.test.ts
+      - src/__tests__/scannerBundleProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
       - src/__tests__/scannerDeployPreflight.test.ts
       - src/__tests__/scannerContractResponse.test.ts
@@ -49,6 +52,7 @@ on:
       - supabase/functions/_shared/scannerSignedAuth.ts
       - supabase/functions/_shared/scannerCors.ts
       - supabase/functions/_shared/scannerWmsPackingProjection.ts
+      - supabase/functions/_shared/scannerBundleProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
       - scripts/scanner-deploy-preflight.mjs
@@ -82,6 +86,7 @@ jobs:
           src/__tests__/scannerSignedAuth.test.ts
           src/__tests__/scannerCors.test.ts
           src/__tests__/scannerWmsPackingProjection.test.ts
+          src/__tests__/scannerBundleProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
           src/__tests__/scannerDeployPreflight.test.ts
           src/__tests__/scannerContractResponse.test.ts
@@ -94,11 +99,13 @@ jobs:
           supabase/functions/_shared/scannerSignedAuth.ts
           supabase/functions/_shared/scannerCors.ts
           supabase/functions/_shared/scannerWmsPackingProjection.ts
+          supabase/functions/_shared/scannerBundleProjection.ts
           src/__tests__/scannerReadContractV1.test.ts
           src/__tests__/scannerLegacyAuth.test.ts
           src/__tests__/scannerSignedAuth.test.ts
           src/__tests__/scannerCors.test.ts
           src/__tests__/scannerWmsPackingProjection.test.ts
+          src/__tests__/scannerBundleProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
           src/__tests__/scannerDeployPreflight.test.ts
           src/__tests__/scannerContractResponse.test.ts
