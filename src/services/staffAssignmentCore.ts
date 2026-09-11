@@ -15,6 +15,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { notifyTimeWorkerAssignments } from "@/services/time/timeWorkerSync";
 
 export async function assignStaffToTeamCore(
   staffId: string,
@@ -29,6 +30,7 @@ export async function assignStaffToTeamCore(
       { onConflict: "staff_id,team_id,assignment_date" },
     );
   if (error) throw error;
+  notifyTimeWorkerAssignments({ staffIds: [staffId], reason: "staff_assignment_changed" });
 }
 
 export async function removeStaffAssignmentCore(
@@ -45,4 +47,8 @@ export async function removeStaffAssignmentCore(
   if (teamId) q = q.eq("team_id", teamId);
   const { error } = await q;
   if (error) throw error;
+  // Personen ska INTE längre se uppdraget — projektionen skickas ändå (nu utan
+  // raden) så Time kan flytta head och markera bort uppdraget.
+  notifyTimeWorkerAssignments({ staffIds: [staffId], reason: "assignment_removed" });
 }
+

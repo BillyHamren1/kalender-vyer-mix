@@ -26,6 +26,8 @@ import {
 } from '../_shared/timeServiceProof.ts';
 import { handleLagerContextImport } from './lagerImport.ts';
 import { handleWorkerAssignmentSync } from './workerAssignmentSync.ts';
+import { handleWorkerAssignmentPush } from './workerAssignmentPush.ts';
+
 import { EXPENSE_PROXY_OPERATIONS, handleExpenseOperation } from './expenseHandlers.ts';
 
 
@@ -147,12 +149,47 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Planning-initiated projection push after a relevant mutation.
+  // Two accepted callers, both server-verified:
+  //  1. an internal Planning Edge Function presenting the service role key,
+  //  2. a signed-in Planning user with planning access.
+  if (operation === 'worker.assignments.push') {
+    if (!adapterUrl || !signingSeed) {
+      const missingPush = [!adapterUrl ? 'TIME_ADAPTER_URL' : null, !signingSeed ? 'TIME_ADAPTER_SIGNING_SEED' : null]
+        .filter(Boolean).join(', ');
+      return fail(503, 'not_configured', `Planning→Time uppdragspush är inte konfigurerad. Saknad servernyckel: ${missingPush}.`, true);
+    }
+    const internalKey = req.headers.get('x-planning-internal-key') ?? '';
+    const isInternal = internalKey.length > 0 && internalKey === serviceKey;
+    let pushOrganizationId: string | null = null;
+    if (isInternal) {
+      const requested = typeof body.organizationId === 'string' ? body.organizationId.trim() : '';
+      if (!requested) return fail(400, 'invalid_request', 'organizationId krävs för intern push.');
+      pushOrganizationId = requested;
+    } else {
+      const { data: pushUser, error: pushUserError } = await admin.auth.getUser(authorization.slice(7));
+      if (pushUserError || !pushUser?.user) return fail(401, 'unauthorized', 'Invalid session');
+      const pushAccess = await assertPlanningAccess(admin as unknown as never, pushUser.user.id);
+      if (!pushAccess.ok) return fail(pushAccess.status, pushAccess.error, pushAccess.message);
+      pushOrganizationId = pushAccess.organizationId;
+    }
+    return handleWorkerAssignmentPush({
+      admin,
+      organizationId: pushOrganizationId,
+      adapterUrl,
+      anonKey,
+      signingSeed,
+      body,
+    });
+  }
+
 
   const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice(7));
   if (userError || !userData?.user) return fail(401, 'unauthorized', 'Invalid session');
 
   const access = await assertPlanningAccess(admin as unknown as never, userData.user.id);
   if (!access.ok) return fail(access.status, access.error, access.message);
+
 
   // ONLY signing path: ES256 key derived at runtime from the secret seed.
   // The legacy TIME_ADAPTER_SIGNING_PRIVATE_JWK secret is intentionally never
