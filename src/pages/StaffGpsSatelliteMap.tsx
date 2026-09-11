@@ -24,13 +24,13 @@ export default function StaffGpsSatelliteMapPage() {
         variant="purple"
       />
 
-      <div className="mb-4 inline-flex rounded-lg border border-[hsl(270_20%_88%)] bg-white p-1 shadow-sm">
+      <div className="mb-4 inline-flex rounded-lg border border-[hsl(var(--module-accent-base) / 0.30)] bg-white p-1 shadow-sm">
         <button
           type="button"
           onClick={() => setTab('history')}
           className={`inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition ${
             tab === 'history'
-              ? 'bg-[hsl(270_50%_96%)] text-foreground shadow-sm'
+              ? 'bg-[hsl(var(--module-accent-soft))] text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
@@ -41,7 +41,7 @@ export default function StaffGpsSatelliteMapPage() {
           onClick={() => setTab('live')}
           className={`inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition ${
             tab === 'live'
-              ? 'bg-[hsl(270_50%_96%)] text-foreground shadow-sm'
+              ? 'bg-[hsl(var(--module-accent-soft))] text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
