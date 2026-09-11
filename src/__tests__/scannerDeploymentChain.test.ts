@@ -5,6 +5,7 @@ const source = readFileSync(
   ".github/workflows/scanner-deploy-read-only.yml",
   "utf8",
 );
+const supabaseConfig = readFileSync("supabase/config.toml", "utf8");
 
 describe("Scanner read-only deployment chain", () => {
   it("deploys Planning reader before token issuer", () => {
@@ -44,6 +45,12 @@ describe("Scanner read-only deployment chain", () => {
     expect(source).not.toMatch(/functions deploy scanner-operation-v2/u);
     expect(source).not.toMatch(/db push|migration up|functions deploy --/u);
     expect(source).not.toContain("packlist-flow-scanner");
+  });
+
+  it("lets the signed Scanner token reach the custom-auth MVP gateway", () => {
+    expect(supabaseConfig).toMatch(
+      /\[functions\.scanner-command-api\]\s+verify_jwt\s*=\s*false/u,
+    );
   });
 
   it("requires explicit manual dispatch", () => {
