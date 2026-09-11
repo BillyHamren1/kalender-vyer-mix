@@ -621,6 +621,7 @@ export interface PreflightItem {
   reason: string;
   suggestedFix?: string | null;
   wmsMatches: PreflightWmsMatch[];
+  resolvedItemTypeId?: string | null;
 }
 
 export interface PreflightResult {
@@ -681,4 +682,3 @@ export const getReservationAllocations = async (
 ): Promise<ReservationAllocationsResponse> => {
   return callScannerApi('get_reservation_allocations', { packingId });
 };
-
