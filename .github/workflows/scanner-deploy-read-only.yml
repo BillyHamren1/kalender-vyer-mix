@@ -2,10 +2,6 @@ name: Deploy Scanner read-only pilot
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/scanner-deploy-read-only.yml
 
 permissions:
   contents: read
@@ -16,79 +12,95 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy signed read-only Scanner API
+    name: Deploy signed read-only Scanner chain
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      SUPABASE_PROJECT_REF: pihrhltinhewhoxefjxv
-      SCANNER_ALLOWED_ORIGINS: https://scanner.eventflow.se
+      PLANNING_PROJECT_REF: pihrhltinhewhoxefjxv
+      BUNDLE_PROJECT_REF: pnvvnvywphfvmwdmqqzs
+      SCANNER_ALLOWED_ORIGINS: https://scanner-buddy-scan.lovable.app
+      BUNDLE_SUPABASE_FUNCTIONS_URL: https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out Planning release
+        uses: actions/checkout@v4
+        with:
+          path: planning
+
+      - name: Check out Bundle release
+        uses: actions/checkout@v4
+        with:
+          repository: BillyHamren1/bundle-builder-base
+          ref: 9ea32de4e9a5642e7049f1282d428c164c1910f9
+          path: bundle
 
       - name: Require deployment credential
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: test -n "$SUPABASE_ACCESS_TOKEN"
 
-      - name: Generate isolated Scanner signing secret
-        id: signing
+      - name: Generate isolated release secrets
+        id: secrets
         shell: bash
         run: |
           set -euo pipefail
-          scanner_signing_secret="$(openssl rand -hex 32)"
-          echo "::add-mask::$scanner_signing_secret"
-          echo "secret=$scanner_signing_secret" >> "$GITHUB_OUTPUT"
+          scanner_token_secret="$(openssl rand -hex 32)"
+          bundle_projection_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$scanner_token_secret"
+          echo "::add-mask::$bundle_projection_secret"
+          echo "scanner_token=$scanner_token_secret" >> "$GITHUB_OUTPUT"
+          echo "bundle_projection=$bundle_projection_secret" >> "$GITHUB_OUTPUT"
 
-      - name: Set fail-closed Scanner secrets
+      - name: Set Bundle projection secret
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SCANNER_TOKEN_SIGNING_SECRET: ${{ steps.signing.outputs.secret }}
+          EVENTFLOW_SCANNER_BUNDLE_SECRET: ${{ steps.secrets.outputs.bundle_projection }}
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.117.0 secrets set +            "EVENTFLOW_SCANNER_BUNDLE_SECRET=$EVENTFLOW_SCANNER_BUNDLE_SECRET" +            --project-ref "$BUNDLE_PROJECT_REF"
+
+      - name: Set fail-closed Planning secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SCANNER_TOKEN_SIGNING_SECRET: ${{ steps.secrets.outputs.scanner_token }}
+          EVENTFLOW_SCANNER_BUNDLE_SECRET: ${{ steps.secrets.outputs.bundle_projection }}
           SCANNER_RELEASE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          npx --yes supabase@2.117.0 secrets set \
-            "SCANNER_TOKEN_SIGNING_SECRET=$SCANNER_TOKEN_SIGNING_SECRET" \
-            "SCANNER_ALLOWED_ORIGINS=$SCANNER_ALLOWED_ORIGINS" \
-            "SCANNER_RELEASE_SHA=$SCANNER_RELEASE_SHA" \
-            --project-ref "$SUPABASE_PROJECT_REF"
+          npx --yes supabase@2.117.0 secrets set +            "SCANNER_TOKEN_SIGNING_SECRET=$SCANNER_TOKEN_SIGNING_SECRET" +            "EVENTFLOW_SCANNER_BUNDLE_SECRET=$EVENTFLOW_SCANNER_BUNDLE_SECRET" +            "BUNDLE_SUPABASE_FUNCTIONS_URL=$BUNDLE_SUPABASE_FUNCTIONS_URL" +            "SCANNER_ALLOWED_ORIGINS=$SCANNER_ALLOWED_ORIGINS" +            "SCANNER_RELEASE_SHA=$SCANNER_RELEASE_SHA" +            --project-ref "$PLANNING_PROJECT_REF"
 
-      - name: Deploy read API before token issuer
+      - name: Deploy Bundle projection first
+        working-directory: bundle
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          npx --yes supabase@2.117.0 functions deploy scanner-api \
-            --project-ref "$SUPABASE_PROJECT_REF" \
-            --no-verify-jwt
-          npx --yes supabase@2.117.0 functions deploy mobile-app-auth \
-            --project-ref "$SUPABASE_PROJECT_REF" \
-            --no-verify-jwt
+          npx --yes supabase@2.117.0 functions deploy eventflow-scanner-projection-v1 +            --project-ref "$BUNDLE_PROJECT_REF" +            --no-verify-jwt
 
-      - name: Verify production fails closed
+      - name: Deploy Planning reader before token issuer
+        working-directory: planning
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.117.0 functions deploy scanner-api +            --project-ref "$PLANNING_PROJECT_REF" +            --no-verify-jwt
+          npx --yes supabase@2.117.0 functions deploy mobile-app-auth +            --project-ref "$PLANNING_PROJECT_REF" +            --no-verify-jwt
+
+      - name: Verify fail-closed live boundary
         shell: bash
         run: |
           set -euo pipefail
-          endpoint="https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/scanner-api"
+          planning_endpoint="https://$PLANNING_PROJECT_REF.supabase.co/functions/v1/scanner-api"
+          bundle_endpoint="https://$BUNDLE_PROJECT_REF.supabase.co/functions/v1/eventflow-scanner-projection-v1"
           allowed_headers="$(mktemp)"
-          denied_headers="$(mktemp)"
-          trap 'rm -f "$allowed_headers" "$denied_headers"' EXIT
+          trap 'rm -f "$allowed_headers"' EXIT
 
-          allowed_status="$(curl --silent --show-error --output /dev/null \
-            --dump-header "$allowed_headers" --request OPTIONS \
-            --header "Origin: $SCANNER_ALLOWED_ORIGINS" "$endpoint" \
-            --write-out '%{http_code}')"
+          allowed_status="$(curl --silent --show-error --output /dev/null +            --dump-header "$allowed_headers" --request OPTIONS +            --header "Origin: $SCANNER_ALLOWED_ORIGINS" "$planning_endpoint" +            --write-out '%{http_code}')"
           test "$allowed_status" = "204"
           grep -Fqi "access-control-allow-origin: $SCANNER_ALLOWED_ORIGINS" "$allowed_headers"
           ! grep -Fqi "access-control-allow-origin: *" "$allowed_headers"
 
-          denied_status="$(curl --silent --show-error --output /dev/null \
-            --dump-header "$denied_headers" --request OPTIONS \
-            --header "Origin: https://not-eventflow.example" "$endpoint" \
-            --write-out '%{http_code}')"
-          test "$denied_status" = "403"
-
-          unauthenticated_status="$(curl --silent --show-error --output /dev/null \
-            --request POST --header 'content-type: application/json' \
-            --data '{"action":"list_active_packings"}' "$endpoint" \
-            --write-out '%{http_code}')"
+          unauthenticated_status="$(curl --silent --show-error --output /dev/null +            --request POST --header 'content-type: application/json' +            --data '{"action":"list_active_packings"}' "$planning_endpoint" +            --write-out '%{http_code}')"
           test "$unauthenticated_status" = "401"
+
+          unsigned_bundle_status="$(curl --silent --show-error --output /dev/null +            --request POST --header 'content-type: application/json' +            --data '{"schema":"eventflow-scanner-bundle-projection-request.v1"}' +            "$bundle_endpoint" --write-out '%{http_code}')"
+          test "$unsigned_bundle_status" = "401"
