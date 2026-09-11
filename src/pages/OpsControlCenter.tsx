@@ -21,7 +21,6 @@ import {
   MapPin,
   Activity as ActivityIcon,
   Sparkles,
-  CalendarDays,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
