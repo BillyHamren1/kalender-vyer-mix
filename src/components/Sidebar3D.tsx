@@ -538,7 +538,7 @@ export function Sidebar3D() {
                     color={
                       active
                         ? "hsl(var(--primary))"
-                        : "hsl(270 14% 45%)"
+                        : "hsl(var(--module-accent))"
                     }
                     strokeWidth={active ? 2.1 : 1.8}
                   />
@@ -549,7 +549,7 @@ export function Sidebar3D() {
                       fontWeight: active ? 600 : 500,
                       color: active
                         ? "hsl(var(--primary))"
-                        : "hsl(270 14% 45%)",
+                        : "hsl(var(--module-accent))",
                     }}
                   >
                     {item.title}
@@ -600,8 +600,8 @@ function MySidebarProjectsBlock({
               style={
                 active
                   ? {
-                      background: "hsl(270 55% 96%)",
-                      color: "hsl(280 50% 28%)",
+                      background: "hsl(var(--module-accent-soft))",
+                      color: "hsl(var(--module-accent))",
                       fontWeight: 600,
                     }
                   : { color: "hsl(240 8% 38%)" }
@@ -624,7 +624,7 @@ function MySidebarProjectsBlock({
                     background: active
                       ? "hsl(var(--primary))"
                       : p.type === "large"
-                        ? "hsl(265 60% 60%)"
+                        ? "hsl(var(--module-accent-base))"
                         : "hsl(240 6% 70%)",
                   }}
                 />
@@ -634,8 +634,8 @@ function MySidebarProjectsBlock({
                 <span
                   className="text-[9px] font-bold px-1 rounded shrink-0"
                   style={{
-                    background: "hsl(270 55% 92%)",
-                    color: "hsl(280 50% 35%)",
+                    background: "hsl(var(--module-accent-soft))",
+                    color: "hsl(var(--module-accent))",
                   }}
                 >
                   PL
@@ -645,8 +645,8 @@ function MySidebarProjectsBlock({
                 <span
                   className="text-[9px] font-semibold px-1 rounded shrink-0"
                   style={{
-                    background: "hsl(265 60% 95%)",
-                    color: "hsl(265 60% 40%)",
+                    background: "hsl(var(--module-accent-soft))",
+                    color: "hsl(var(--module-accent))",
                   }}
                 >
                   Stor
