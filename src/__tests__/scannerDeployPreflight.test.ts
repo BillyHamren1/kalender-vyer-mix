@@ -8,7 +8,10 @@ const values = {
   SCANNER_APP_URL: "https://scanner.eventflow.se",
   SCANNER_ALLOWED_ORIGINS: "https://scanner.eventflow.se/",
   SCANNER_TOKEN_SIGNING_SECRET: "scanner-signing-secret-32-bytes-minimum",
-  PRICELIST_API_KEY: "synthetic-wms-server-key",
+  BUNDLE_SUPABASE_FUNCTIONS_URL:
+    "https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1",
+  EVENTFLOW_SCANNER_BUNDLE_SECRET:
+    "scanner-bundle-secret-32-bytes-minimum",
   SCANNER_RELEASE_MODE: "read_only",
   SCANNER_DEPLOY_FUNCTIONS: "scanner-api,mobile-app-auth",
   SCANNER_RELEASE_SHA: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -37,12 +40,22 @@ describe("Planning Scanner deploy-preflight", () => {
     const result = run({
       BUNDLE_WMS_PROJECT_REF: "fel-wms",
       SCANNER_ALLOWED_ORIGINS: "*",
-      PRICELIST_API_KEY: values.SCANNER_TOKEN_SIGNING_SECRET,
+      EVENTFLOW_SCANNER_BUNDLE_SECRET: values.SCANNER_TOKEN_SIGNING_SECRET,
     });
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("BLOCKED BUNDLE_WMS_PROJECT_REF");
     expect(result.stdout).toContain("BLOCKED SCANNER_ALLOWED_ORIGINS");
     expect(result.stdout).toContain("BLOCKED SCANNER_SECRET_ISOLATION");
+  });
+
+  it("spärrar fel Bundle-URL eller för kort delad hemlighet", () => {
+    const result = run({
+      BUNDLE_SUPABASE_FUNCTIONS_URL: "https://wrong.example/functions/v1",
+      EVENTFLOW_SCANNER_BUNDLE_SECRET: "short",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("BLOCKED BUNDLE_SUPABASE_FUNCTIONS_URL");
+    expect(result.stdout).toContain("BLOCKED EVENTFLOW_SCANNER_BUNDLE_SECRET");
   });
 
   it("spärrar hela originlistan om en enda post är ogiltig", () => {
