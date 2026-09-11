@@ -297,9 +297,9 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
               className={cn(
                 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-semibold transition-colors border',
                 isActive
-                  ? 'bg-[hsl(var(--module-accent-soft))] text-[hsl(var(--module-accent))] border-[hsl(var(--module-accent-base) / 0.30)]'
+                  ? 'bg-[hsl(var(--module-accent-soft))] text-[hsl(var(--module-accent))] border-[hsl(var(--module-accent-base)_/_0.30)]'
                   : count > 0
-                    ? 'bg-white text-foreground/80 border-[hsl(var(--module-accent-base) / 0.30)] hover:bg-[hsl(var(--module-accent-soft))] hover:border-[hsl(var(--module-accent-base) / 0.30)]'
+                    ? 'bg-white text-foreground/80 border-[hsl(var(--module-accent-base)_/_0.30)] hover:bg-[hsl(var(--module-accent-soft))] hover:border-[hsl(var(--module-accent-base)_/_0.30)]'
                     : 'bg-transparent text-muted-foreground/50 border-transparent hover:bg-[hsl(var(--module-accent-soft))]'
               )}
             >
@@ -327,7 +327,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
       {/* Action cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
         {nonEmpty.map(section => (
-          <Card key={section.id} className="planning-card border-[hsl(var(--module-accent-base) / 0.30)]/70 hover:border-[hsl(var(--module-accent-base) / 0.30)] transition-colors">
+          <Card key={section.id} className="planning-card border-[hsl(var(--module-accent-base)_/_0.30)]/70 hover:border-[hsl(var(--module-accent-base)_/_0.30)] transition-colors">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className={cn('p-1.5 rounded-lg bg-muted/60', section.colorClass)}>
