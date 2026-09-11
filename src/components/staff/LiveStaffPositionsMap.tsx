@@ -238,7 +238,7 @@ export default function LiveStaffPositionsMap() {
     <div className="flex flex-col md:flex-row gap-4 h-full">
       {/* Vänster: lista */}
       <div className="md:w-80 shrink-0 planning-card overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))]">
+        <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base)_/_0.30)] bg-[hsl(var(--module-accent-soft))]">
           <div className="flex items-center justify-between mb-2">
             <span className="planning-section-title">Live-positioner</span>
             <button
