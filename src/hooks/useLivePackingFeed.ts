@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
-import { uniqueChannelName } from '@/lib/realtime/channelName';
   fetchLivePackingProjects,
   fetchActivityCounts,
   LivePackingItem,
   LivePackingActivityCounts,
 } from '@/services/livePackingFeedService';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
+
 
 const SEEN_KEY_PREFIX = 'opsLivePackingSeen.';
 
