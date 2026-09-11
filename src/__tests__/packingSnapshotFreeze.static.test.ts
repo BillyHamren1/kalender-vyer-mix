@@ -51,10 +51,18 @@ describe('packing snapshot — fail closed', () => {
   it('WMS preflight blockerar endast på blocked (identitetsvarningar stoppar inte packning)', () => {
     const single = read('supabase/functions/packing-preflight-check/index.ts');
     const batch = read('supabase/functions/packing-preflight-batch/index.ts');
+    const shared = read('supabase/functions/_shared/packingPreflight.ts');
     expect(single).toContain('canStartScanning: summary.blocked === 0');
     expect(single).not.toContain('summary.blocked === 0 && summary.warning === 0');
     expect(batch).toContain('canStartScanning: blocked === 0');
     expect(batch).not.toContain('blocked === 0 && warning === 0');
+    expect(single).toContain('classifyPackingPreflightRow');
+    expect(batch).toContain('classifyPackingPreflightRow');
+    expect(single).toContain('isPackingPreflightTarget');
+    expect(batch).toContain('isPackingPreflightTarget');
+    expect(shared).toContain("status: 'WARNING'");
+    expect(shared).toContain("reason: 'SKU matchar flera WMS item_types");
+    expect(single).not.toContain("reason: 'inventory_item_type_id finns men matchar inget item_type i WMS.'");
   });
 
   it('packlisteutskrift har en enda automatisk print-trigger', () => {

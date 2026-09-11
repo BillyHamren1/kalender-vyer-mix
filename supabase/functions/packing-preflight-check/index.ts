@@ -18,6 +18,13 @@
 // ============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  classifyPackingPreflightRow,
+  collectPackingPackageHeaderIds,
+  isPackingPreflightTarget,
+  type PackingPreflightStatus,
+  type PackingPreflightWmsMatch,
+} from '../_shared/packingPreflight.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,15 +37,6 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-type RowStatus = 'PASS' | 'WARNING' | 'BLOCKED'
-
-interface WmsItemType {
-  id: string | null
-  sku: string | null
-  name: string | null
-  matchedBy: 'item_type_id' | 'sku' | 'name' | string
-}
-
 interface PreflightRow {
   packingItemId: string
   bookingProductId: string | null
@@ -46,10 +44,11 @@ interface PreflightRow {
   sku: string | null
   inventoryItemTypeId: string | null
   quantityToPack: number
-  status: RowStatus
+  status: PackingPreflightStatus
   reason: string
   suggestedFix: string | null
-  wmsMatches: WmsItemType[]
+  wmsMatches: PackingPreflightWmsMatch[]
+  resolvedItemTypeId: string | null
 }
 
 // ------------------------------------------------------------
@@ -66,7 +65,7 @@ async function wmsLookup(
   body: Record<string, unknown>,
   apiKey: string,
   orgId: string,
-): Promise<any | null> {
+): Promise<any> {
   try {
     const res = await fetch(`${WMS_BASE_URL}/item-type-lookup`, {
       method: 'POST',
@@ -80,16 +79,16 @@ async function wmsLookup(
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       console.warn(`[preflight] WMS item-type-lookup failed status=${res.status} body=${text}`)
-      return null
+      throw new Error(`WMS item-type-lookup failed (${res.status})`)
     }
     return await res.json()
   } catch (e: any) {
     console.warn('[preflight] WMS item-type-lookup network error:', e?.message)
-    return null
+    throw e
   }
 }
 
-const toMatch = (m: any, matchedBy: string): WmsItemType => ({
+const toMatch = (m: any, matchedBy: string): PackingPreflightWmsMatch => ({
   id: m?.id ?? null,
   sku: m?.sku ?? null,
   name: m?.name_sv || m?.name_en || null,
@@ -100,7 +99,7 @@ async function wmsLookupByItemTypeId(
   itemTypeId: string,
   apiKey: string,
   orgId: string,
-): Promise<WmsItemType[]> {
+): Promise<PackingPreflightWmsMatch[]> {
   const data = await wmsLookup({ item_type_id: itemTypeId }, apiKey, orgId)
   const m = data?.exactItemTypeMatch
   return m ? [toMatch(m, 'item_type_id')] : []
@@ -110,7 +109,7 @@ async function wmsLookupBySku(
   sku: string,
   apiKey: string,
   orgId: string,
-): Promise<WmsItemType[]> {
+): Promise<PackingPreflightWmsMatch[]> {
   const data = await wmsLookup({ sku }, apiKey, orgId)
   const arr = Array.isArray(data?.skuMatches) ? data.skuMatches : []
   return arr.map((m: any) => toMatch(m, 'sku'))
@@ -120,122 +119,10 @@ async function wmsLookupByName(
   name: string,
   apiKey: string,
   orgId: string,
-): Promise<WmsItemType[]> {
+): Promise<PackingPreflightWmsMatch[]> {
   const data = await wmsLookup({ name }, apiKey, orgId)
   const arr = Array.isArray(data?.nameMatches) ? data.nameMatches : []
   return arr.map((m: any) => toMatch(m, 'name'))
-}
-
-// ------------------------------------------------------------
-// Per-row classification
-// ------------------------------------------------------------
-function classifyRow(args: {
-  inventoryItemTypeId: string | null
-  sku: string | null
-  name: string | null
-  byItemTypeId: WmsItemType[]
-  bySku: WmsItemType[]
-  byName: WmsItemType[]
-}): { status: RowStatus; reason: string; suggestedFix: string | null; wmsMatches: WmsItemType[] } {
-  const { inventoryItemTypeId, sku, name, byItemTypeId, bySku, byName } = args
-
-  // Aggregate WMS matches (deduped by id)
-  const seen = new Set<string>()
-  const wmsMatches: WmsItemType[] = []
-  for (const m of [...byItemTypeId, ...bySku, ...byName]) {
-    const key = `${m.id ?? ''}|${m.sku ?? ''}|${m.name ?? ''}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    wmsMatches.push(m)
-  }
-
-  // 1. inventory_item_type_id present → require WMS confirmation by id
-  if (inventoryItemTypeId) {
-    if (byItemTypeId.length === 1) {
-      const m = byItemTypeId[0]
-      // Optional sku/name sanity
-      if (sku && m.sku && m.sku.toLowerCase() !== sku.toLowerCase()) {
-        return {
-          status: 'WARNING',
-          reason: `WMS sku (${m.sku}) skiljer sig från booking sku (${sku})`,
-          suggestedFix: 'Verifiera att rätt item_type_id är kopplad till produkten.',
-          wmsMatches,
-        }
-      }
-      return {
-        status: 'PASS',
-        reason: 'WMS bekräftar item_type_id.',
-        suggestedFix: null,
-        wmsMatches,
-      }
-    }
-    if (byItemTypeId.length > 1) {
-      return {
-        status: 'BLOCKED',
-        reason: 'WMS returnerade flera item_types för detta inventory_item_type_id.',
-        suggestedFix: 'Rensa duplicerade item_types i WMS innan scanning.',
-        wmsMatches,
-      }
-    }
-    // No WMS match for the id we have on file
-    return {
-      status: 'BLOCKED',
-      reason: 'inventory_item_type_id finns men matchar inget item_type i WMS.',
-      suggestedFix: 'Ompara produkten mot rätt WMS item_type eller rensa felaktigt id.',
-      wmsMatches,
-    }
-  }
-
-  // 2. No inventory_item_type_id → fall back to sku
-  if (sku) {
-    if (bySku.length === 1) {
-      return {
-        status: 'WARNING',
-        reason: 'inventory_item_type_id saknas men sku matchar exakt en WMS item_type.',
-        suggestedFix: `Sätt inventory_item_type_id = ${bySku[0].id ?? '<wms-id>'} på booking_products-raden.`,
-        wmsMatches,
-      }
-    }
-    if (bySku.length > 1) {
-      return {
-        status: 'BLOCKED',
-        reason: 'sku matchar flera WMS item_types — kan inte avgöra rätt produkt.',
-        suggestedFix: 'Manuell mappning krävs: välj rätt WMS item_type och sätt inventory_item_type_id.',
-        wmsMatches,
-      }
-    }
-    // Sku didn't match — try name as last resort, but never PASS on name alone
-    if (name && byName.length >= 1) {
-      return {
-        status: 'BLOCKED',
-        reason: 'inventory_item_type_id och sku saknar match — endast namnmatch finns (otillförlitligt).',
-        suggestedFix: 'Mappa produkten manuellt mot rätt WMS item_type.',
-        wmsMatches,
-      }
-    }
-    return {
-      status: 'BLOCKED',
-      reason: 'Ingen WMS item_type hittades för sku.',
-      suggestedFix: 'Skapa/koppla rätt WMS item_type och sätt inventory_item_type_id.',
-      wmsMatches,
-    }
-  }
-
-  // 3. No id and no sku
-  if (name && byName.length >= 1) {
-    return {
-      status: 'BLOCKED',
-      reason: 'Saknar både inventory_item_type_id och sku — endast osäker namnmatch finns.',
-      suggestedFix: 'Lägg in sku och inventory_item_type_id på produkten.',
-      wmsMatches,
-    }
-  }
-  return {
-    status: 'BLOCKED',
-    reason: 'Saknar både inventory_item_type_id och sku.',
-    suggestedFix: 'Lägg till sku och inventory_item_type_id, eller koppla rätt WMS item_type.',
-    wmsMatches,
-  }
 }
 
 // ------------------------------------------------------------
@@ -321,7 +208,9 @@ Deno.serve(async (req) => {
         name,
         sku,
         inventory_item_type_id,
-        quantity
+        quantity,
+        parent_product_id,
+        source_missing_since
       )
     `)
     .eq('packing_id', packingId)
@@ -338,8 +227,9 @@ Deno.serve(async (req) => {
 
   // 3. Per-row verification
   const rows: PreflightRow[] = []
+  const packageHeaderIds = collectPackingPackageHeaderIds(items || [])
   for (const it of items || []) {
-    if (it.excluded) continue
+    if (!isPackingPreflightTarget(it, packageHeaderIds)) continue
     const bp = (it as any).booking_products || null
     const inventoryItemTypeId: string | null = (it as any).wms_item_type_id ?? bp?.inventory_item_type_id ?? null
     const sku: string | null = (it as any).wms_sku ?? bp?.sku ?? null
@@ -348,15 +238,14 @@ Deno.serve(async (req) => {
     const [byItemTypeId, bySku, byName] = await Promise.all([
       inventoryItemTypeId
         ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId)
-        : Promise.resolve([] as WmsItemType[]),
-      sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId) : Promise.resolve([] as WmsItemType[]),
-      name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId) : Promise.resolve([] as WmsItemType[]),
+        : Promise.resolve([] as PackingPreflightWmsMatch[]),
+      sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId) : Promise.resolve([] as PackingPreflightWmsMatch[]),
+      name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId) : Promise.resolve([] as PackingPreflightWmsMatch[]),
     ])
 
-    const verdict = classifyRow({
+    const verdict = classifyPackingPreflightRow({
       inventoryItemTypeId,
       sku,
-      name,
       byItemTypeId,
       bySku,
       byName,
@@ -373,6 +262,7 @@ Deno.serve(async (req) => {
       reason: verdict.reason,
       suggestedFix: verdict.suggestedFix,
       wmsMatches: verdict.wmsMatches,
+      resolvedItemTypeId: verdict.resolvedItemTypeId,
     })
   }
 
@@ -401,4 +291,3 @@ Deno.serve(async (req) => {
     items: rows,
   })
 })
-

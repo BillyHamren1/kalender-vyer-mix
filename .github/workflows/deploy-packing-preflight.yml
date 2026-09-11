@@ -1,0 +1,63 @@
+name: Deploy packing WMS preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - supabase/functions/packing-preflight-check/**
+      - supabase/functions/packing-preflight-batch/**
+      - supabase/functions/_shared/packingPreflight.ts
+      - supabase/functions/_shared/packingPreflight.test.ts
+      - src/__tests__/packingSnapshotFreeze.static.test.ts
+      - .github/workflows/deploy-packing-preflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packing-wms-preflight-production
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLANNING_PROJECT_REF: pihrhltinhewhoxefjxv
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify packing preflight behavior
+        run: |
+          set -euo pipefail
+          npm ci
+          deno test supabase/functions/_shared/packingPreflight.test.ts
+          npx vitest run \
+            src/__tests__/packingSnapshotFreeze.static.test.ts \
+            src/__tests__/packing-wms-identity.static.test.ts
+          npx tsc --noEmit
+
+      - name: Require deployment credential
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN"
+
+      - name: Deploy both preflight endpoints
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.117.0 functions deploy packing-preflight-check \
+            --project-ref "$PLANNING_PROJECT_REF"
+          npx --yes supabase@2.117.0 functions deploy packing-preflight-batch \
+            --project-ref "$PLANNING_PROJECT_REF"
