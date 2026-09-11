@@ -10,7 +10,6 @@ import {
   UserPlus,
   MoreHorizontal,
   Clock,
-  Sparkles,
   KeyRound,
   UserX,
   CheckCircle2,
@@ -18,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,133 +211,59 @@ const StaffManagement: React.FC = () => {
 
   return (
     <PageContainer theme="purple">
-      {/* ── PREMIUM HEADER ── */}
-      <header
-        className="relative rounded-2xl overflow-hidden mb-6"
-        style={{
-          background:
-            'linear-gradient(135deg, hsl(var(--module-accent-soft)) 0%, hsl(var(--module-accent-soft)) 50%, hsl(var(--module-accent-soft)) 100%)',
-          border: '1px solid hsl(var(--module-accent-base) / 0.6)',
-          boxShadow:
-            '0 1px 3px hsl(var(--module-accent) / 0.04), inset 0 1px 0 hsl(0 0% 100% / 0.6)',
-        }}
+      <PageHeader
+        icon={Users}
+        title="Personal"
+        subtitle="Hantera personal och konton"
+        variant="purple"
       >
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(ellipse 60% 60% at 15% -20%, hsl(var(--module-accent-base) / 0.10), transparent 70%)',
-          }}
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-xl"
+          onClick={() => navigate('/staff-management/time-reports')}
+        >
+          <Clock className="mr-1.5 h-4 w-4" />
+          Tidrapporter
+        </Button>
+        <Button size="sm" className="rounded-xl" onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4" strokeWidth={2.2} />
+          Lägg till
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="rounded-xl">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-card">
+            <DropdownMenuItem onClick={handleStaffImport} disabled={isImportingStaff}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Importera
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportera
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRefresh} disabled={isLoading}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Uppdatera
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PageHeader>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard icon={Users} label="Antal personer" value={kpis.total} />
+        <KpiCard icon={CheckCircle2} label="Aktiva" value={kpis.active} tone="success" />
+        <KpiCard icon={KeyRound} label="Med konto" value={kpis.withAccount} />
+        <KpiCard
+          icon={UserX}
+          label="Utan konto"
+          value={kpis.withoutAccount}
+          tone={kpis.withoutAccount > 0 ? 'warning' : 'default'}
         />
-
-        <div className="relative px-5 py-5">
-          {/* Title row */}
-          <div className="flex items-start gap-4 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div
-                className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-                style={{
-                  background:
-                    'linear-gradient(135deg, hsl(var(--module-accent-base)) 0%, hsl(var(--module-accent)) 100%)',
-                  boxShadow:
-                    '0 2px 6px hsl(var(--module-accent) / 0.25), inset 0 1px 0 hsl(0 0% 100% / 0.25)',
-                }}
-              >
-                <Sparkles className="w-5 h-5 text-white" strokeWidth={2} />
-              </div>
-              <div className="flex flex-col leading-tight min-w-0">
-                <h1
-                  className="text-[20px] font-bold tracking-tight truncate"
-                  style={{ color: 'hsl(var(--module-accent))' }}
-                >
-                  Personal
-                </h1>
-                <span
-                  className="text-[12px] font-medium"
-                  style={{ color: 'hsl(var(--module-accent))' }}
-                >
-                  Hantera personal och konton
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl border-[hsl(var(--module-accent-base)_/_0.30)] bg-white/70 backdrop-blur hover:bg-white"
-                onClick={() => navigate('/staff-management/time-reports')}
-              >
-                <Clock className="h-4 w-4 mr-1.5" />
-                Tidrapporter
-              </Button>
-
-              <button
-                onClick={() => setIsAddDialogOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold text-white transition-all duration-150 hover:brightness-110"
-                style={{
-                  background:
-                    'linear-gradient(180deg, hsl(var(--module-accent-base)) 0%, hsl(var(--module-accent)) 100%)',
-                  boxShadow:
-                    '0 1px 0 hsl(0 0% 100% / 0.2) inset, 0 2px 6px hsl(var(--module-accent) / 0.28)',
-                }}
-              >
-                <Plus className="h-4 w-4" strokeWidth={2.2} />
-                Lägg till
-              </button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-xl border-[hsl(var(--module-accent-base)_/_0.30)] bg-white/70 backdrop-blur hover:bg-white"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-card">
-                  <DropdownMenuItem onClick={handleStaffImport} disabled={isImportingStaff}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Importera
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Exportera
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleRefresh} disabled={isLoading}>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Uppdatera
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* KPI grid */}
-          <div className="relative mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard icon={Users} label="Antal personer" value={kpis.total} />
-            <KpiCard
-              icon={CheckCircle2}
-              label="Aktiva"
-              value={kpis.active}
-              tone="success"
-            />
-            <KpiCard
-              icon={KeyRound}
-              label="Med konto"
-              value={kpis.withAccount}
-            />
-            <KpiCard
-              icon={UserX}
-              label="Utan konto"
-              value={kpis.withoutAccount}
-              tone={kpis.withoutAccount > 0 ? 'warning' : 'default'}
-            />
-          </div>
-        </div>
-      </header>
+      </div>
 
       {/* ── MAIN GRID ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
