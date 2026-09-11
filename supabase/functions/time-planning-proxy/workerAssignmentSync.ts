@@ -33,10 +33,11 @@ export interface WorkerAssignmentSyncContext {
  * assignments into Time. No Planning source row is modified.
  */
 export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContext): Promise<Response> {
-  const gatewayKey = resolveGatewayKey(ctx.adapterUrl, ctx.anonKey);
-  if (!gatewayKey) {
-    return fail(503, 'not_configured', 'Time Auth-nyckeln saknas för uppdragssynken.', true);
-  }
+  // Konfigurerad nyckel först, därefter värdpinnad publik nyckel, sist
+  // arbetarens egen Time-token. Ingen route gate på valfri anon-nyckel.
+  const gatewayKey = resolveGatewayKey(ctx.adapterUrl, ctx.anonKey)
+    ?? ctx.anonKey ?? ctx.authorization.replace(/^Bearer\s+/i, '').trim();
+
 
   const userResponse = await fetch(`${timeProjectRoot(ctx.adapterUrl)}/auth/v1/user`, {
     headers: { authorization: ctx.authorization, apikey: gatewayKey },
