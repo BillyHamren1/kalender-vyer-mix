@@ -5254,11 +5254,19 @@ serve(async (req) => {
                 packingResult.packingId,
                 organizationId,
               );
-              if (!repairResult.ok) {
+              if (!repairResult.ok && repairResult.code === 'status_frozen') {
+                // Förväntat no-op: en avslutad/fryst packning får aldrig skrivas
+                // om av normal sync. Detta är INTE ett importfel.
+                console.log(
+                  `[Packing] skipping empty packing repair for ${bookingData.id} ` +
+                  `(packing status=${repairResult.status || 'unknown'} is frozen)`,
+                );
+              } else if (!repairResult.ok) {
                 const message = repairResult.error || repairResult.code || 'unknown_error';
                 console.error(`[Packing] empty packing repair failed for ${bookingData.id}: ${message}`);
                 results.errors.push({ booking_id: bookingData.id, error: `packing_row_creation_failed:${message}` });
                 results.failed++;
+
               } else {
                 console.log(
                   `[Packing] ensured ${repairResult.total || 0} packing rows for ${bookingData.id} ` +
