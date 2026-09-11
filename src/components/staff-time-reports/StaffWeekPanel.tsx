@@ -19,7 +19,7 @@ const PROJECT_COLORS = [
   'hsl(var(--primary))',
   'hsl(220 70% 55%)',
   'hsl(160 60% 45%)',
-  'hsl(280 60% 55%)',
+  'hsl(var(--module-accent-base))',
   'hsl(35 85% 55%)',
   'hsl(0 70% 55%)',
 ];
