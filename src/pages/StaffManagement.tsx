@@ -266,7 +266,7 @@ const StaffManagement: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-xl border-[hsl(var(--module-accent-base) / 0.30)] bg-white/70 backdrop-blur hover:bg-white"
+                className="rounded-xl border-[hsl(var(--module-accent-base)_/_0.30)] bg-white/70 backdrop-blur hover:bg-white"
                 onClick={() => navigate('/staff-management/time-reports')}
               >
                 <Clock className="h-4 w-4 mr-1.5" />
@@ -292,7 +292,7 @@ const StaffManagement: React.FC = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="rounded-xl border-[hsl(var(--module-accent-base) / 0.30)] bg-white/70 backdrop-blur hover:bg-white"
+                    className="rounded-xl border-[hsl(var(--module-accent-base)_/_0.30)] bg-white/70 backdrop-blur hover:bg-white"
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
