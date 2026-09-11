@@ -26,6 +26,8 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
+import { notifyTimeWorkerAssignments } from '@/services/time/timeWorkerSync';
+
 import {
   findExistingDayRow,
   getStickyTeamForBooking,
@@ -253,5 +255,11 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
     }
   }
 
+  if (successCount > 0) {
+    // Tider/dagar ändrade → hela worker-projektionen till Time direkt.
+    notifyTimeWorkerAssignments({ bookingIds: [bookingId], reason: 'booking_dates_changed' });
+  }
+
   return { successCount, failures, totalDays: specs.length };
 }
+

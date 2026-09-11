@@ -128,7 +128,9 @@ describe('worker.assignments.sync — work-order.v1 is additive on the unchanged
 describe('worker.assignments.sync — Planning reads exclude cost/price/internal columns at the query', () => {
   const root = resolve(__dirname, '../../../../supabase/functions/time-planning-proxy');
   const reads = readFileSync(resolve(root, 'workOrderReads.ts'), 'utf8');
-  const sync = readFileSync(resolve(root, 'workerAssignmentSync.ts'), 'utf8');
+  // Kolumnlistorna ligger i den delade projektionen (pull + push använder samma).
+  const sync = readFileSync(resolve(root, 'workerProjection.ts'), 'utf8');
+
   const FORBIDDEN_COLUMNS = [
     'unit_price', 'total_price', 'labor_cost', 'material_cost', 'external_cost', 'assembly_cost', 'handling_cost',
     'purchase_cost', 'cost_notes', 'discount', 'vat_rate', 'economics_data', 'internalnotes', 'salary', 'hourly_rate', 'overtime_rate',

@@ -19,6 +19,8 @@ import {
   CANCELLATION_REQUIRES_EXPLICIT_APPLY,
 } from '../_shared/destructiveSyncFlag.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
+import { notifyTimeWorkerAssignments } from '../_shared/time-v2/notifyWorkerAssignments.ts'
+
 import {
   normalizeIncomingRevision,
   reserveCanonicalRevision,
@@ -5323,6 +5325,27 @@ serve(async (req) => {
       mode: isHistoricalImport ? 'HISTORICAL' : syncMode,
       errors: results.errors.length > 0 ? results.errors : undefined,
     }))
+
+    // ── Planning → Time: skicka om worker-projektionen direkt ────────────
+    // Produkter, filer/bilder, tider och plats ägs av Booking och landar här.
+    // Time ska inte behöva vänta på nästa pull.
+    if (organizationId) {
+      const timeAffectedBookings = [...new Set([
+        ...results.new_bookings,
+        ...results.updated_bookings,
+        ...results.products_updated_bookings,
+        ...(normalizedSingleBookingId ? [normalizedSingleBookingId] : []),
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      if (timeAffectedBookings.length > 0) {
+        await notifyTimeWorkerAssignments({
+          organizationId,
+          bookingIds: timeAffectedBookings,
+          reason: 'booking_import_applied',
+        })
+      }
+    }
+
+
 
     // ── Kort-varsel-notiser för nya bokningar (fire-and-forget) ──────────
     // Inom-app-meddelande + mejl till admin/projekt/forsaljning om

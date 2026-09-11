@@ -7,6 +7,8 @@ import {
   type PlanningLocalBookingFields,
 } from '@/lib/booking/canonicalBooking';
 import type { Booking } from '@/types/booking';
+import { notifyTimeWorkerAssignments } from '@/services/time/timeWorkerSync';
+
 
 export interface ProjectBookingAttachment {
   id: string;
@@ -73,7 +75,11 @@ export const updateBookingFieldsViaSource = async (
   });
   if (error) throw new Error(error.message || 'Kunde inte spara mot Booking');
   if ((data as any)?.error) throw new Error((data as any).error);
+  // Uppdraget kan ha ändrat kund, tider, plats eller noteringar → skicka hela
+  // den aktuella worker-projektionen till Time direkt (fire-and-forget).
+  notifyTimeWorkerAssignments({ bookingIds: [bookingId], reason: 'booking_fields_changed' });
 };
+
 
 /** Produktändringar från Planning är fail-closed tills Booking har en central skrivväg. */
 export const BOOKING_PRODUCT_WRITE_DISABLED_MESSAGE =
