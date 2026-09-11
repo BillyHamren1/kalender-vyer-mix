@@ -634,14 +634,45 @@ export interface PreflightResult {
   error?: string;
 }
 
+// FunctionsFetchError betyder att nätverksanropet aldrig nådde funktionen
+// (tillfälligt nätverksfel/kallstart). Vi gör ett automatiskt omförsök och
+// visar ett begripligt svenskt felmeddelande istället för rå engelsk text.
+const PREFLIGHT_NETWORK_ERROR_MESSAGE =
+  'Kunde inte nå servern. Kontrollera din internetanslutning och försök igen.';
+
+const isFunctionsFetchError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  (error as { name?: unknown }).name === 'FunctionsFetchError';
+
+const invokePreflightWithRetry = async (
+  functionName: 'packing-preflight-check',
+  body: Record<string, unknown>,
+): Promise<unknown> => {
+  let lastFetchError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, error } = await supabase.functions.invoke(functionName, { body });
+    if (!error) return data;
+    if (!isFunctionsFetchError(error)) {
+      throw new Error(error.message || 'Preflight failed');
+    }
+    lastFetchError = error;
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+  void lastFetchError;
+  throw new Error(PREFLIGHT_NETWORK_ERROR_MESSAGE);
+};
+
 export const runPackingPreflightCheck = async (
   packingId: string,
   bookingNumber?: string | null,
 ): Promise<PreflightResult> => {
-  const { data, error } = await supabase.functions.invoke('packing-preflight-check', {
-    body: { packing_id: packingId, booking_number: bookingNumber ?? undefined },
+  const data = await invokePreflightWithRetry('packing-preflight-check', {
+    packing_id: packingId,
+    booking_number: bookingNumber ?? undefined,
   });
-  if (error) throw new Error(error.message || 'Preflight failed');
   return data as PreflightResult;
 };
 
