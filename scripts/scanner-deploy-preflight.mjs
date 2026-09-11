@@ -34,7 +34,8 @@ const rawAllowedOrigins = value("SCANNER_ALLOWED_ORIGINS")
   .filter(Boolean);
 const allowedOrigins = rawAllowedOrigins.map(exactHttpsOrigin);
 const signingSecret = value("SCANNER_TOKEN_SIGNING_SECRET");
-const wmsKey = value("PRICELIST_API_KEY");
+const bundleFunctionsUrl = value("BUNDLE_SUPABASE_FUNCTIONS_URL");
+const bundleSecret = value("EVENTFLOW_SCANNER_BUNDLE_SECRET");
 const serviceRole = value("SUPABASE_SERVICE_ROLE_KEY");
 const requestedDeployFunctions = value("SCANNER_DEPLOY_FUNCTIONS")
   .split(",")
@@ -97,15 +98,23 @@ add(
   "SCANNER_TOKEN_SIGNING_SECRET",
   new TextEncoder().encode(signingSecret).length >= 32
 );
-add("PRICELIST_API_KEY", wmsKey.length > 0);
+add(
+  "BUNDLE_SUPABASE_FUNCTIONS_URL",
+  bundleFunctionsUrl ===
+    `https://${BUNDLE_PROJECT_REF}.supabase.co/functions/v1`
+);
+add(
+  "EVENTFLOW_SCANNER_BUNDLE_SECRET",
+  new TextEncoder().encode(bundleSecret).length >= 32
+);
 add(
   "SCANNER_SECRET_ISOLATION",
   Boolean(
     signingSecret &&
-      wmsKey &&
-      signingSecret !== wmsKey &&
+      bundleSecret &&
+      signingSecret !== bundleSecret &&
       (!serviceRole ||
-        (signingSecret !== serviceRole && wmsKey !== serviceRole))
+        (signingSecret !== serviceRole && bundleSecret !== serviceRole))
   )
 );
 add(
@@ -157,7 +166,7 @@ const requiredFiles = [
   "supabase/functions/_shared/scannerSignedAuth.ts",
   "supabase/functions/_shared/scannerCors.ts",
   "supabase/functions/_shared/scannerReadContractV1.ts",
-  "supabase/functions/_shared/scannerWmsPackingProjection.ts",
+  "supabase/functions/_shared/scannerBundleProjection.ts",
 ];
 add(
   "SCANNER_FUNCTION_BUNDLE",
