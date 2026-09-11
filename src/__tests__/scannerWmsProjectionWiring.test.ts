@@ -11,24 +11,48 @@ const getItems = source.slice(
 );
 const versioned = getItems.slice(0, getItems.indexOf("// Validation only"));
 
-describe("scanner get_packing_items v1 wiring", () => {
-  it("hämtar versionerade rader direkt från Bundle/WMS", () => {
+describe("scanner get_packing_items v2 wiring", () => {
+  it("hämtar signerad projektion med kanoniskt Booking-ID", () => {
     expect(versioned).toMatch(/if \(requestsScannerContractV1\)/);
     expect(versioned).toMatch(
-      /fetchScannerWmsPackingProjection\(\s*bookingNumber/
+      /fetchScannerBundleProjection\(\s*packing\.booking_id/
     );
-    expect(versioned).toMatch(/Deno\.env\.get\(["']PRICELIST_API_KEY["']\)/);
     expect(versioned).toMatch(
-      /contract_version: ["']scanner_packing_items_v1["']/
+      /Deno\.env\.get\(["']EVENTFLOW_SCANNER_BUNDLE_SECRET["']\)/
     );
-    expect(versioned).toMatch(/reservation_line_id: line\.reservationLineId/);
-    expect(versioned).toMatch(/inventory_type_id: line\.inventoryTypeId/);
+    expect(versioned).toMatch(
+      /Deno\.env\.get\(["']BUNDLE_SUPABASE_FUNCTIONS_URL["']\)/
+    );
+    expect(versioned).not.toMatch(/PRICELIST_API_KEY|booking_number/);
+    expect(versioned).toMatch(
+      /contract_version: ["']scanner_packing_items_v2["']/
+    );
   });
 
-  it("tenant-scopear både packning och bokning före WMS-anrop", () => {
-    const scopes =
-      versioned.match(/\.eq\(["']organization_id["'], ORG_ID\)/g) ?? [];
-    expect(scopes.length).toBeGreaterThanOrEqual(2);
+  it("bevarar komponentidentitet utan fabricerat reservationsrad-ID", () => {
+    expect(versioned).toMatch(/reservation_line_id: line\.reservationLineId/);
+    expect(versioned).toMatch(
+      /parent_reservation_line_id: line\.parentReservationLineId/
+    );
+    expect(versioned).toMatch(
+      /package_component_id: line\.packageComponentId/
+    );
+    expect(versioned).toMatch(/inventory_type_id: line\.inventoryTypeId/);
+    expect(versioned).toMatch(/allocated_instance_ids: line\.allocatedInstanceIds/);
+  });
+
+  it("förmedlar okänd WMS-status, returbevis och icke-monoton fingerprint", () => {
+    expect(versioned).toMatch(/wms_snapshot:/);
+    expect(versioned).toMatch(/wms_operational_status: projection\.operationalStatus/);
+    expect(versioned).toMatch(/wms_return_state: projection\.returnState/);
+    expect(versioned).toMatch(/wms_projection_blocked/);
+    expect(versioned).not.toMatch(/active:\s*true|released:\s*true/);
+  });
+
+  it("tenant-scopear Planning-packningen före Bundle-anrop", () => {
+    expect(versioned).toMatch(
+      /\.eq\(["']organization_id["'], ORG_ID\)/
+    );
   });
 
   it("versionerad läsning muterar aldrig Planning och använder inga lokala rader", () => {
