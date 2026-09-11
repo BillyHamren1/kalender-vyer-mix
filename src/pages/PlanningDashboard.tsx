@@ -71,7 +71,7 @@ const PlanningDashboard = () => {
         <PageContainer theme="purple">
           <PageHeader
             icon={LayoutDashboard}
-            title="Planeringsdashboard"
+            title="Operations"
             variant="purple"
             subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
           >

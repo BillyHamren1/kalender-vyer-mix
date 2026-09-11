@@ -156,17 +156,17 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="min-h-screen flex items-center justify-center p-4 theme-purple" style={{ background: 'hsl(210 20% 96%)' }}>
+      <Card className="w-full max-w-md rounded-[18px] border-border/70 bg-white shadow-[0_18px_50px_hsl(215_20%_30%/0.10)]">
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
-            <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Calendar className="h-8 w-8 text-primary" />
+            <div className="operations-accent-gradient operations-gradient-shadow h-16 w-16 rounded-2xl flex items-center justify-center text-white">
+              <Calendar className="h-9 w-9" strokeWidth={2} />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">EventFlow Planering</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">EventFlow Operations</CardTitle>
           <CardDescription>
-            {mode === 'password' && 'Logga in för att fortsätta till planeringsverktyget'}
+            {mode === 'password' && 'Logga in för att fortsätta till Operations'}
             {mode === 'magic-link' && 'Få en inloggningslänk skickad till din e-post'}
             {mode === 'reset-request' && 'Återställ ditt lösenord'}
           </CardDescription>

@@ -102,8 +102,8 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffName, onC
         'group relative w-full text-left px-3 py-2.5 transition-all',
         'border-l-[3px]',
         selected
-          ? 'border-[hsl(270_50%_55%)] bg-[hsl(270_45%_96%)]'
-          : 'border-transparent hover:bg-[hsl(270_35%_97%)]',
+          ? 'border-[hsl(var(--module-accent-base))] bg-[hsl(var(--module-accent-soft))]'
+          : 'border-transparent hover:bg-[hsl(var(--module-accent-soft))]',
       )}
     >
       <div className="flex items-baseline justify-between gap-3">

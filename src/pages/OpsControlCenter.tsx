@@ -21,7 +21,6 @@ import {
   MapPin,
   Activity as ActivityIcon,
   Sparkles,
-  CalendarDays,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -29,6 +28,8 @@ import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/Logisti
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/button';
 
 /** Wrapper so useLivePackingFeed only runs when the panel is actually mounted. */
 function LiveProjectsPanelBody({ enabled }: { enabled: boolean }) {
@@ -97,12 +98,12 @@ function KpiChip({
         background:
           tone === 'live'
             ? 'linear-gradient(180deg, hsl(150 60% 96%) 0%, hsl(150 50% 93%) 100%)'
-            : 'linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(270 30% 98%) 100%)',
+            : 'linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(var(--module-accent-soft)) 100%)',
         border:
           tone === 'live'
             ? '1px solid hsl(150 40% 78%)'
-            : '1px solid hsl(270 25% 88% / 0.8)',
-        boxShadow: '0 1px 2px hsl(270 30% 25% / 0.04)',
+            : '1px solid hsl(var(--module-accent-base) / 0.8)',
+        boxShadow: '0 1px 2px hsl(var(--module-accent) / 0.04)',
       }}
     >
       <div
@@ -127,13 +128,13 @@ function KpiChip({
       <div className="flex flex-col leading-tight">
         <span
           className="text-[16px] font-semibold tabular-nums"
-          style={{ color: 'hsl(280 40% 18%)' }}
+          style={{ color: 'hsl(var(--module-accent))' }}
         >
           {value}
         </span>
         <span
           className="text-[10px] font-medium uppercase tracking-wider"
-          style={{ color: 'hsl(270 14% 48%)' }}
+          style={{ color: 'hsl(var(--module-accent))' }}
         >
           {label}
         </span>
@@ -226,108 +227,40 @@ const OpsControlCenter = () => {
     <div className="flex h-screen overflow-hidden theme-purple"
       style={{
         background:
-          'linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(275 25% 97%) 100%)',
+          'linear-gradient(180deg, hsl(var(--module-accent-soft)) 0%, hsl(var(--module-accent-soft)) 100%)',
       }}
     >
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
 
-        {/* ── PREMIUM HEADER ── */}
-        <header
-          className="shrink-0 relative px-5 pt-4 pb-3"
-          style={{
-            background:
-              'linear-gradient(135deg, hsl(270 50% 96%) 0%, hsl(280 45% 94%) 50%, hsl(265 40% 96%) 100%)',
-            borderBottom: '1px solid hsl(270 25% 86% / 0.6)',
-            boxShadow:
-              'inset 0 1px 0 hsl(0 0% 100% / 0.6), 0 1px 0 hsl(270 30% 25% / 0.03)',
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(ellipse 60% 50% at 20% -20%, hsl(270 60% 60% / 0.10), transparent 70%)',
-            }}
-          />
-
-          <div className="relative flex items-start gap-4">
-            {/* Title block */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-                style={{
-                  background:
-                    'linear-gradient(135deg, hsl(270 55% 60%) 0%, hsl(285 55% 45%) 100%)',
-                  boxShadow:
-                    '0 2px 6px hsl(270 50% 35% / 0.25), inset 0 1px 0 hsl(0 0% 100% / 0.25)',
-                }}
-              >
-                <Sparkles className="w-5 h-5 text-white" strokeWidth={2} />
-              </div>
-              <div className="flex flex-col leading-tight">
-                <h1
-                  className="text-[18px] font-bold tracking-tight"
-                  style={{ color: 'hsl(280 45% 18%)' }}
-                >
-                  Logistikplanering
-                </h1>
-                <span
-                  className="text-[11px] font-medium flex items-center gap-1.5"
-                  style={{ color: 'hsl(270 18% 42%)' }}
-                >
-                  <CalendarDays className="w-3 h-3" strokeWidth={2} />
-                  <span className="capitalize">{dateLabel}</span>
-                </span>
-              </div>
-            </div>
-
-            {/* KPI Chips */}
-            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto pb-0.5 hide-scrollbar">
-              <KpiChip
-                icon={Users}
-                label="Personal"
-                value={kpis.staffOnDuty}
-              />
-              <KpiChip
-                icon={ActivityIcon}
-                label="På plats"
-                value={kpis.staffOnSite}
-                tone={kpis.staffOnSite > 0 ? 'live' : 'default'}
-              />
-              <KpiChip
-                icon={Briefcase}
-                label="Jobb"
-                value={kpis.jobsToday}
-              />
-              <KpiChip
-                icon={MapPin}
-                label="Platser"
-                value={kpis.sitesCount}
-              />
-            </div>
-
-            {/* Broadcast CTA */}
-            <button
-              onClick={() => setBroadcastOpen(true)}
-              className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white transition-all duration-150 hover:brightness-110"
-              style={{
-                background:
-                  'linear-gradient(180deg, hsl(270 55% 58%) 0%, hsl(282 55% 48%) 100%)',
-                boxShadow:
-                  '0 1px 0 hsl(0 0% 100% / 0.2) inset, 0 2px 6px hsl(280 50% 35% / 0.28)',
-              }}
-            >
-              <Radio className="w-3.5 h-3.5" strokeWidth={2.2} />
+        <div className="shrink-0 px-3 pt-3">
+          <PageHeader
+            icon={Sparkles}
+            title="Logistikplanering"
+            subtitle={dateLabel}
+            variant="purple"
+          >
+            <Button size="sm" className="rounded-xl" onClick={() => setBroadcastOpen(true)}>
+              <Radio className="h-4 w-4" strokeWidth={2.2} />
               Broadcast
-            </button>
-          </div>
+            </Button>
+          </PageHeader>
 
-          {/* Weather period strip */}
-          <div className="relative mt-3">
-            <LogisticsWeeklyWeatherWidget />
+          <div className="planning-card mb-3 flex flex-wrap items-center gap-2 px-3 py-2.5">
+            <KpiChip icon={Users} label="Personal" value={kpis.staffOnDuty} />
+            <KpiChip
+              icon={ActivityIcon}
+              label="På plats"
+              value={kpis.staffOnSite}
+              tone={kpis.staffOnSite > 0 ? 'live' : 'default'}
+            />
+            <KpiChip icon={Briefcase} label="Jobb" value={kpis.jobsToday} />
+            <KpiChip icon={MapPin} label="Platser" value={kpis.sitesCount} />
+            <div className="min-w-[280px] flex-1">
+              <LogisticsWeeklyWeatherWidget />
+            </div>
           </div>
-        </header>
+        </div>
 
         {/* ── MAIN AREA: map-first, full width ── */}
         <div className="flex-1 min-h-0 overflow-y-auto">

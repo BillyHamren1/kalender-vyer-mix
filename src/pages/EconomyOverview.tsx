@@ -94,12 +94,12 @@ const ProjectEconomyDashboard: React.FC = () => {
       {/* A. Quick summary counters — Planning premium KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="planning-stat-card">
-          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Aktiva projekt</p>
+          <p className="text-[10px] font-bold text-[hsl(var(--module-accent))] uppercase tracking-[0.08em]">Aktiva projekt</p>
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{s.ongoingCount + s.upcomingCount}</p>
           <p className="text-[10.5px] text-muted-foreground mt-0.5">{s.ongoingCount} pågående · {s.upcomingCount} kommande</p>
         </div>
         <div className="planning-stat-card">
-          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Snittmarginal</p>
+          <p className="text-[10px] font-bold text-[hsl(var(--module-accent))] uppercase tracking-[0.08em]">Snittmarginal</p>
           <p className={cn(
             'text-2xl font-bold mt-1 tabular-nums',
             s.projectedMarginPercent >= 15 ? 'text-emerald-600' :
@@ -110,7 +110,7 @@ const ProjectEconomyDashboard: React.FC = () => {
           <p className="text-[10.5px] text-muted-foreground mt-0.5">över alla projekt</p>
         </div>
         <div className="planning-stat-card">
-          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Redo att fakturera</p>
+          <p className="text-[10px] font-bold text-[hsl(var(--module-accent))] uppercase tracking-[0.08em]">Redo att fakturera</p>
           <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{formatCurrency(s.readyToInvoiceAmount)}</p>
           <p className="text-[10.5px] text-muted-foreground mt-0.5">{s.readyForInvoicingCount} projekt</p>
         </div>
@@ -122,7 +122,7 @@ const ProjectEconomyDashboard: React.FC = () => {
         >
           <p className={cn(
             'text-[10px] font-bold uppercase tracking-[0.08em]',
-            s.riskProjectCount > 0 ? 'text-destructive' : 'text-[hsl(280_45%_38%)]',
+            s.riskProjectCount > 0 ? 'text-destructive' : 'text-[hsl(var(--module-accent))]',
           )}>Riskprojekt</p>
           <p className={cn('text-2xl font-bold mt-1 tabular-nums', s.riskProjectCount > 0 ? 'text-destructive' : 'text-foreground')}>
             {s.riskProjectCount}
@@ -180,9 +180,9 @@ const ProjectEconomyDashboard: React.FC = () => {
 
 const tabTriggerClass =
   "relative px-4 py-3 rounded-none border-b-2 border-transparent " +
-  "data-[state=active]:border-[hsl(270_50%_55%)] data-[state=active]:bg-transparent data-[state=active]:shadow-none " +
-  "bg-transparent text-muted-foreground data-[state=active]:text-[hsl(280_55%_30%)] " +
-  "font-semibold text-[13px] tracking-tight transition-colors hover:text-[hsl(280_45%_35%)]";
+  "data-[state=active]:border-[hsl(var(--module-accent-base))] data-[state=active]:bg-transparent data-[state=active]:shadow-none " +
+  "bg-transparent text-muted-foreground data-[state=active]:text-[hsl(var(--module-accent))] " +
+  "font-semibold text-[13px] tracking-tight transition-colors hover:text-[hsl(var(--module-accent))]";
 
 const EconomyOverview: React.FC = () => {
   return (

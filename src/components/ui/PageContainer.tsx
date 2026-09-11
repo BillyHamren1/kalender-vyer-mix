@@ -14,7 +14,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({ children, classNam
       className={cn('min-h-screen relative', isPurple && 'theme-purple')}
       style={{ background: 'var(--gradient-page)' }}
     >
-      {/* Mjuk radial-overlay — lila för Planning, teal för Booking */}
+      {/* Mjuk radial-overlay — Operations-accent för Operations, teal för Booking */}
       <div
         className={cn(
           'absolute inset-0 pointer-events-none',
