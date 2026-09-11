@@ -147,17 +147,17 @@ const OpsTodayJobsPanel = ({
               onClick={() => setFilter(f.key)}
               className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all"
               style={{
-                background: active ? 'hsl(270 55% 58%)' : 'hsl(270 30% 96%)',
-                color: active ? 'white' : 'hsl(270 18% 36%)',
-                border: active ? '1px solid hsl(270 55% 50%)' : '1px solid hsl(270 25% 88%)',
+                background: active ? 'hsl(var(--module-accent-soft))' : 'hsl(var(--card))',
+                color: active ? 'hsl(var(--module-accent))' : 'hsl(var(--muted-foreground))',
+                border: active ? '1px solid hsl(var(--module-accent-base) / 0.38)' : '1px solid hsl(var(--border))',
               }}
             >
               {f.label}
               <span
                 className="tabular-nums text-[10px] px-1 rounded"
                 style={{
-                  background: active ? 'hsl(0 0% 100% / 0.22)' : 'hsl(270 20% 90%)',
-                  color: active ? 'white' : 'hsl(270 18% 42%)',
+                  background: active ? 'hsl(var(--module-accent-base) / 0.16)' : 'hsl(var(--muted))',
+                  color: active ? 'hsl(var(--module-accent))' : 'hsl(var(--muted-foreground))',
                 }}
               >
                 {c}
@@ -186,14 +186,14 @@ const OpsTodayJobsPanel = ({
                     className="w-full text-left rounded-lg px-3 py-2 transition-all hover:brightness-[0.99]"
                     style={{
                       background: isSelected
-                        ? 'linear-gradient(180deg, hsl(270 55% 96%) 0%, hsl(275 50% 94%) 100%)'
-                        : 'linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(270 30% 99%) 100%)',
+                        ? 'hsl(var(--module-accent-soft) / 0.62)'
+                        : 'hsl(var(--card))',
                       border: isSelected
-                        ? '1px solid hsl(270 55% 70%)'
-                        : '1px solid hsl(270 22% 90%)',
+                        ? '1px solid hsl(var(--module-accent-base) / 0.40)'
+                        : '1px solid hsl(var(--border))',
                       boxShadow: isSelected
-                        ? '0 1px 3px hsl(270 50% 35% / 0.18)'
-                        : '0 1px 2px hsl(270 30% 25% / 0.04)',
+                        ? 'inset 3px 0 0 hsl(var(--module-accent)), 0 1px 3px hsl(var(--module-accent) / 0.10)'
+                        : '0 1px 2px hsl(215 20% 30% / 0.04)',
                     }}
                   >
                     <div className="flex items-start gap-2">
@@ -201,13 +201,13 @@ const OpsTodayJobsPanel = ({
                         <div className="flex items-center gap-2 mb-0.5">
                           <span
                             className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider shrink-0"
-                            style={{ background: 'hsl(270 30% 94%)', color: 'hsl(270 30% 30%)' }}
+                            style={{ background: 'hsl(var(--module-accent-soft))', color: 'hsl(var(--module-accent))' }}
                           >
                             {eventTypeLabel(job.eventType)}
                           </span>
                           <span
                             className="text-[12.5px] font-semibold truncate"
-                            style={{ color: 'hsl(280 35% 18%)' }}
+                            style={{ color: 'hsl(var(--heading))' }}
                             title={job.client}
                           >
                             {job.client || '—'}
@@ -245,7 +245,7 @@ const OpsTodayJobsPanel = ({
                     {/* Progress bar */}
                     <div
                       className="mt-1.5 h-1 rounded-full overflow-hidden"
-                      style={{ background: 'hsl(270 20% 92%)' }}
+                      style={{ background: 'hsl(var(--muted))' }}
                     >
                       <div
                         className="h-full rounded-full transition-all"
@@ -256,7 +256,7 @@ const OpsTodayJobsPanel = ({
                               ? 'linear-gradient(90deg, hsl(150 55% 50%), hsl(150 55% 40%))'
                               : status === 'missing_staff' || status === 'late_start'
                               ? 'linear-gradient(90deg, hsl(0 70% 60%), hsl(15 75% 50%))'
-                              : 'linear-gradient(90deg, hsl(270 50% 60%), hsl(282 50% 50%))',
+                              : 'linear-gradient(90deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))',
                         }}
                       />
                     </div>
