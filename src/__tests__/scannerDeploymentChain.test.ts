@@ -22,18 +22,21 @@ describe("Scanner read-only deployment chain", () => {
     expect(source).not.toContain("PRICELIST_API_KEY");
   });
 
-  it("deploys the exact owner-repo Bundle projection before Planning", () => {
-    const bundleCheckout = source.indexOf(
-      "repository: BillyHamren1/bundle-builder-base",
+  it("deploys a hash-bound owner-repo Bundle snapshot before Planning", () => {
+    const snapshotCheck = source.indexOf(
+      "scanner-bundle-projection-release-v1.gitblob",
     );
     const bundleDeploy = source.indexOf(
       "functions deploy eventflow-scanner-projection-v1",
     );
     const scannerDeploy = source.indexOf("functions deploy scanner-api");
     expect(source).toMatch(/BUNDLE_RELEASE_SHA: [0-9a-f]{40}/u);
-    expect(source).toContain("ref: ${{ env.BUNDLE_RELEASE_SHA }}");
-    expect(bundleCheckout).toBeGreaterThan(0);
-    expect(bundleDeploy).toBeGreaterThan(bundleCheckout);
+    expect(source).toContain('git hash-object "$path"');
+    expect(source).not.toContain(
+      "repository: BillyHamren1/bundle-builder-base",
+    );
+    expect(snapshotCheck).toBeGreaterThan(0);
+    expect(bundleDeploy).toBeGreaterThan(snapshotCheck);
     expect(scannerDeploy).toBeGreaterThan(bundleDeploy);
   });
 
