@@ -14,7 +14,7 @@ interface PageHeaderProps {
   };
   children?: React.ReactNode;
   className?: string;
-  /** Visual variant: default (Booking teal), warehouse (amber), purple (Planning lila) */
+  /** Internal variant name is retained for compatibility; purple means Operations. */
   variant?: 'default' | 'warehouse' | 'purple';
 }
 
@@ -25,71 +25,77 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   action,
   children,
   className,
-  variant = 'default'
+  variant = 'default',
 }) => {
   const isWarehouse = variant === 'warehouse';
-  const isPurple = variant === 'purple';
+  const isOperations = variant === 'purple';
 
-  // Purple banner-style header (matches Booking teal banner UI, but in lila)
-  if (isPurple) {
+  if (isOperations) {
     return (
-      <div className={cn('mb-4', className)}>
+      <header
+        className={cn(
+          'relative mb-4 min-h-[98px] overflow-hidden rounded-[18px] border px-[22px] py-[19px] pl-[39px]',
+          'flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between',
+          className,
+        )}
+        style={{
+          borderColor: 'hsl(var(--module-accent-base) / 0.20)',
+          background:
+            'radial-gradient(circle at 91% 0%, hsl(var(--module-accent-base) / 0.11), transparent 37%), linear-gradient(105deg, hsl(var(--card)) 0%, hsl(var(--card)) 66%, hsl(var(--module-accent-soft) / 0.46) 100%)',
+          boxShadow:
+            '0 16px 38px hsl(215 20% 30% / 0.09), inset 0 1px 0 hsl(0 0% 100% / 0.95)',
+        }}
+      >
         <div
-          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-6 py-5 rounded-2xl text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)]"
-          style={{ background: 'var(--gradient-planner)' }}
-        >
-          {/* Left: icon tile + title block */}
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm shrink-0">
-              <Icon
-                className="text-[hsl(var(--planner-deep))]"
-                style={{ width: 26, height: 26 }}
-              />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-white leading-tight truncate">
-                {title}
-              </h1>
-              {subtitle && (
-                <p className="text-white/85 text-sm mt-0.5 leading-tight truncate">
-                  {subtitle}
-                </p>
-              )}
-            </div>
+          className="absolute bottom-[17px] left-0 top-[17px] w-1 rounded-r"
+          style={{
+            background: 'linear-gradient(180deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))',
+            boxShadow: '0 0 16px hsl(var(--module-accent-base) / 0.34)',
+          }}
+        />
+
+        <div className="flex min-w-0 items-center gap-4">
+          <div
+            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-white"
+            style={{
+              background:
+                'radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))',
+              boxShadow:
+                '0 13px 27px hsl(var(--module-accent) / 0.27), inset 0 1px 0 hsl(0 0% 100% / 0.22)',
+            }}
+          >
+            <Icon className="relative z-10 h-[30px] w-[30px]" strokeWidth={2} />
+            <span className="absolute -bottom-4 -right-2 h-[30px] w-[43px] -rotate-[13deg] rounded-full bg-white/[0.09]" />
           </div>
 
-          {/* Right: extra children + primary action */}
-          <div className="flex items-center gap-2 shrink-0 [&_button]:rounded-xl">
-            {children && (
-              <div className="flex items-center gap-2 [&_button]:bg-white/15 [&_button]:text-white [&_button]:border-white/25 [&_button:hover]:bg-white/25 [&_button]:shadow-none">
-                {children}
-              </div>
-            )}
-            {action && (
-              <Button
-                onClick={action.onClick}
-                size="sm"
-                className="font-semibold rounded-xl px-4 h-10 bg-white text-[hsl(var(--planner-deep))] hover:bg-white/90 shadow-sm"
-              >
-                {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
-                {action.label}
-              </Button>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold tracking-[-0.035em] text-[hsl(var(--heading))]">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-1 truncate text-sm leading-relaxed text-muted-foreground">
+                {subtitle}
+              </p>
             )}
           </div>
         </div>
-      </div>
+
+        <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center">
+          {children}
+          {action && (
+            <Button onClick={action.onClick} size="sm" className="h-10 rounded-xl px-4 font-semibold">
+              {action.icon && <action.icon className="mr-1.5 h-4 w-4" />}
+              {action.label}
+            </Button>
+          )}
+        </div>
+      </header>
     );
   }
 
-  // Default & warehouse: untouched card style
   const getIconBackground = () => {
     if (isWarehouse) return 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)';
     return 'var(--gradient-icon)';
-  };
-
-  const getShadowClass = () => {
-    if (isWarehouse) return 'shadow-warehouse/15';
-    return 'shadow-primary/15';
   };
 
   return (
@@ -97,26 +103,16 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm">
         <div className="flex items-center gap-3">
           <div
-            className={cn(
-              'w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0',
-              getShadowClass()
-            )}
+            className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0"
             style={{ background: getIconBackground() }}
           >
-            <Icon className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+            <Icon className="text-white" style={{ width: 18, height: 18 }} />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--heading))] leading-none">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="text-muted-foreground mt-0.5 text-xs leading-none">
-                {subtitle}
-              </p>
-            )}
+            <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--heading))] leading-none">{title}</h1>
+            {subtitle && <p className="text-muted-foreground mt-0.5 text-xs leading-none">{subtitle}</p>}
           </div>
         </div>
-
         <div className="flex items-center gap-3">
           {children}
           {action && (
@@ -125,9 +121,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
               size="sm"
               className={cn(
                 'font-medium rounded-lg px-4 h-8',
-                isWarehouse
-                  ? 'bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20'
-                  : 'bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20'
+                isWarehouse && 'bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20',
               )}
             >
               {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
