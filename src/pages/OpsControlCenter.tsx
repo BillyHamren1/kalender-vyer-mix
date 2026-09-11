@@ -97,12 +97,12 @@ function KpiChip({
         background:
           tone === 'live'
             ? 'linear-gradient(180deg, hsl(150 60% 96%) 0%, hsl(150 50% 93%) 100%)'
-            : 'linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(270 30% 98%) 100%)',
+            : 'linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(var(--module-accent-soft)) 100%)',
         border:
           tone === 'live'
             ? '1px solid hsl(150 40% 78%)'
-            : '1px solid hsl(270 25% 88% / 0.8)',
-        boxShadow: '0 1px 2px hsl(270 30% 25% / 0.04)',
+            : '1px solid hsl(var(--module-accent-base) / 0.8)',
+        boxShadow: '0 1px 2px hsl(var(--module-accent) / 0.04)',
       }}
     >
       <div
@@ -127,13 +127,13 @@ function KpiChip({
       <div className="flex flex-col leading-tight">
         <span
           className="text-[16px] font-semibold tabular-nums"
-          style={{ color: 'hsl(280 40% 18%)' }}
+          style={{ color: 'hsl(var(--module-accent))' }}
         >
           {value}
         </span>
         <span
           className="text-[10px] font-medium uppercase tracking-wider"
-          style={{ color: 'hsl(270 14% 48%)' }}
+          style={{ color: 'hsl(var(--module-accent))' }}
         >
           {label}
         </span>
@@ -226,7 +226,7 @@ const OpsControlCenter = () => {
     <div className="flex h-screen overflow-hidden theme-purple"
       style={{
         background:
-          'linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(275 25% 97%) 100%)',
+          'linear-gradient(180deg, hsl(var(--module-accent-soft)) 0%, hsl(var(--module-accent-soft)) 100%)',
       }}
     >
       {/* Main content */}
@@ -237,17 +237,17 @@ const OpsControlCenter = () => {
           className="shrink-0 relative px-5 pt-4 pb-3"
           style={{
             background:
-              'linear-gradient(135deg, hsl(270 50% 96%) 0%, hsl(280 45% 94%) 50%, hsl(265 40% 96%) 100%)',
-            borderBottom: '1px solid hsl(270 25% 86% / 0.6)',
+              'linear-gradient(135deg, hsl(var(--module-accent-soft)) 0%, hsl(var(--module-accent-soft)) 50%, hsl(var(--module-accent-soft)) 100%)',
+            borderBottom: '1px solid hsl(var(--module-accent-base) / 0.6)',
             boxShadow:
-              'inset 0 1px 0 hsl(0 0% 100% / 0.6), 0 1px 0 hsl(270 30% 25% / 0.03)',
+              'inset 0 1px 0 hsl(0 0% 100% / 0.6), 0 1px 0 hsl(var(--module-accent) / 0.03)',
           }}
         >
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                'radial-gradient(ellipse 60% 50% at 20% -20%, hsl(270 60% 60% / 0.10), transparent 70%)',
+                'radial-gradient(ellipse 60% 50% at 20% -20%, hsl(var(--module-accent-base) / 0.10), transparent 70%)',
             }}
           />
 
@@ -258,9 +258,9 @@ const OpsControlCenter = () => {
                 className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
                 style={{
                   background:
-                    'linear-gradient(135deg, hsl(270 55% 60%) 0%, hsl(285 55% 45%) 100%)',
+                    'linear-gradient(135deg, hsl(var(--module-accent-base)) 0%, hsl(var(--module-accent)) 100%)',
                   boxShadow:
-                    '0 2px 6px hsl(270 50% 35% / 0.25), inset 0 1px 0 hsl(0 0% 100% / 0.25)',
+                    '0 2px 6px hsl(var(--module-accent) / 0.25), inset 0 1px 0 hsl(0 0% 100% / 0.25)',
                 }}
               >
                 <Sparkles className="w-5 h-5 text-white" strokeWidth={2} />
@@ -268,13 +268,13 @@ const OpsControlCenter = () => {
               <div className="flex flex-col leading-tight">
                 <h1
                   className="text-[18px] font-bold tracking-tight"
-                  style={{ color: 'hsl(280 45% 18%)' }}
+                  style={{ color: 'hsl(var(--module-accent))' }}
                 >
                   Logistikplanering
                 </h1>
                 <span
                   className="text-[11px] font-medium flex items-center gap-1.5"
-                  style={{ color: 'hsl(270 18% 42%)' }}
+                  style={{ color: 'hsl(var(--module-accent))' }}
                 >
                   <CalendarDays className="w-3 h-3" strokeWidth={2} />
                   <span className="capitalize">{dateLabel}</span>
@@ -313,9 +313,9 @@ const OpsControlCenter = () => {
               className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white transition-all duration-150 hover:brightness-110"
               style={{
                 background:
-                  'linear-gradient(180deg, hsl(270 55% 58%) 0%, hsl(282 55% 48%) 100%)',
+                  'linear-gradient(180deg, hsl(var(--module-accent-base)) 0%, hsl(var(--module-accent)) 100%)',
                 boxShadow:
-                  '0 1px 0 hsl(0 0% 100% / 0.2) inset, 0 2px 6px hsl(280 50% 35% / 0.28)',
+                  '0 1px 0 hsl(0 0% 100% / 0.2) inset, 0 2px 6px hsl(var(--module-accent) / 0.28)',
               }}
             >
               <Radio className="w-3.5 h-3.5" strokeWidth={2.2} />
