@@ -31,7 +31,8 @@ import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, subDays, format } from 'date-fns';
 import { resetCalendarViewStorage, getTransportEventType } from '@/components/Calendar/ResourceData';
 
-import { ListChecks, RotateCcw } from 'lucide-react';
+import { CalendarDays, ListChecks, RotateCcw } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -466,6 +467,15 @@ const CustomCalendarPage = () => {
           {!isMobile && <NewBookingsPopup />}
 
           
+
+          <div className="px-2 pt-3">
+            <PageHeader
+              icon={CalendarDays}
+              title="Kalender"
+              subtitle="Team, månad och personal"
+              variant="purple"
+            />
+          </div>
 
           {/* Task overlay toggle + Navigation */}
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-0.5">
