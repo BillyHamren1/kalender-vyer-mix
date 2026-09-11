@@ -49,9 +49,9 @@ export function PinnedTabsRail() {
               style={
                 active
                   ? {
-                      background: "hsl(270 55% 96%)",
-                      borderColor: "hsl(270 40% 85%)",
-                      color: "hsl(280 50% 28%)",
+                      background: "hsl(var(--module-accent-soft))",
+                      borderColor: "hsl(var(--module-accent-base) / 0.34)",
+                      color: "hsl(var(--module-accent))",
                     }
                   : {
                       background: "hsl(0 0% 100%)",
