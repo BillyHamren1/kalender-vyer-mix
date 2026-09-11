@@ -91,7 +91,7 @@ export class GlobalErrorBoundary extends React.Component<GlobalErrorBoundaryProp
             <p className="mt-2 text-sm text-muted-foreground">
               {isModuleError
                 ? 'Previewn verkar ha en gammal version cachad. Töm cachen och ladda om för att hämta senaste versionen.'
-                : 'Felet har sparats. Kopiera felinfon och skicka den till supporten så kan vi se exakt vad som hände.'}
+                : 'Felet har rapporterats automatiskt till oss. Du behöver inte skicka något — ladda om och fortsätt.'}
             </p>
 
             {(code || reference) && (
