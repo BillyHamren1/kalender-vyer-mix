@@ -88,6 +88,7 @@ export interface ProjectionFailure {
   readonly code: string;
   readonly message: string;
   readonly retryable: boolean;
+  readonly assignments?: undefined;
 }
 
 export interface ProjectionSuccess {
@@ -96,7 +97,9 @@ export interface ProjectionSuccess {
   readonly from: string;
   readonly to: string;
   readonly workOrder: unknown;
+  readonly code?: undefined;
 }
+
 
 const readFailed = (message: string): ProjectionFailure => ({
   ok: false, status: 500, code: 'planning_read_failed', message, retryable: true,
