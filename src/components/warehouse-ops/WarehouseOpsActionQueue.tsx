@@ -8,13 +8,18 @@ import {
   ChevronRight,
   Inbox,
   PackageOpen,
+  RefreshCw,
   UserRoundPlus,
 } from "lucide-react";
+import { addDays, format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ConvertInboxDialog } from "@/components/warehouse/ConvertInboxDialog";
+import { useChangedPackings } from "@/components/packing/PackingChangedList";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
 import { cn } from "@/lib/utils";
 import { fetchInbox } from "@/services/warehouseProjectService";
+import { useSyncJobs, type SyncJob } from "@/hooks/useSyncJobs";
+import { supabase } from "@/integrations/supabase/client";
 import type { OpsAttention, OpsJob } from "@/hooks/useWarehouseOpsRange";
 import type { WarehouseProjectInboxItem } from "@/types/warehouseProject";
 
@@ -26,23 +31,71 @@ interface Props {
 type QueueItem =
   | { id: string; priority: 0 | 1 | 2; kind: "inbox"; inbox: WarehouseProjectInboxItem }
   | { id: string; priority: 0 | 1 | 2; kind: "attention"; attention: OpsAttention }
+  | { id: string; priority: 0 | 1 | 2; kind: "changed"; changed: ChangedPacking }
+  | { id: string; priority: 0 | 1 | 2; kind: "wms-blocked"; preflight: PreflightBooking }
+  | { id: string; priority: 0 | 1 | 2; kind: "sync-failed"; syncJob: SyncJob; job: OpsJob | null }
   | { id: string; priority: 0 | 1 | 2; kind: "unstaffed" | "no-time"; job: OpsJob };
+
+interface ChangedPacking {
+  id: string;
+  name: string;
+  client_name: string | null;
+  start_date: string | null;
+  needs_packing_review_reason?: string | null;
+}
+
+interface PreflightBooking {
+  packingId: string;
+  bookingNumber: string | null;
+  customerName: string | null;
+  eventDate: string | null;
+  blocked: number;
+  worstStatus: "BLOCKED" | "ERROR" | string;
+  error?: string;
+}
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
 
-function queueItems(
+const datePart = (value: string | null | undefined) => value?.slice(0, 10) || null;
+
+const isDueBy = (value: string | null | undefined, horizon: string) => {
+  const date = datePart(value);
+  return !!date && date <= horizon;
+};
+
+const isWithin = (value: string | null | undefined, from: string, through: string) => {
+  const date = datePart(value);
+  return !!date && date >= from && date <= through;
+};
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function queueItems(
   inbox: WarehouseProjectInboxItem[],
   attention: OpsAttention[],
   jobs: OpsJob[],
+  changedPackings: ChangedPacking[] = [],
+  preflightBookings: PreflightBooking[] = [],
+  syncJobs: SyncJob[] = [],
+  today = format(new Date(), "yyyy-MM-dd"),
 ): QueueItem[] {
   const items: QueueItem[] = [];
+  const todayAtNoon = new Date(`${today}T12:00:00`);
+  const horizon = format(addDays(todayAtNoon, 2), "yyyy-MM-dd");
+  const syncWindowStart = format(addDays(todayAtNoon, -2), "yyyy-MM-dd");
+  const jobByBookingId = new Map(
+    jobs.filter((job) => job.bookingId).map((job) => [job.bookingId as string, job]),
+  );
 
-  inbox.forEach((item) => items.push({
-    id: `inbox-${item.id}`,
-    priority: 1,
-    kind: "inbox",
-    inbox: item,
-  }));
+  // Nya framtida bokningar hör hemma i planeringsinkorgen. Här visas de bara
+  // när eventet är högst 48 timmar bort. Odaterade rader stannar också där.
+  inbox
+    .filter((item) => isWithin(item.event_date, today, horizon))
+    .forEach((item) => items.push({
+      id: `inbox-${item.id}`,
+      priority: isDueBy(item.event_date, today) ? 0 : 1,
+      kind: "inbox",
+      inbox: item,
+    }));
 
   attention.forEach((item) => items.push({
     id: `attention-${item.id}`,
@@ -51,7 +104,41 @@ function queueItems(
     attention: item,
   }));
 
-  jobs.filter((job) => !DONE.has(job.status)).forEach((job) => {
+  changedPackings
+    .filter((packing) => isDueBy(packing.start_date, horizon))
+    .forEach((packing) => items.push({
+      id: `changed-${packing.id}`,
+      priority: isDueBy(packing.start_date, today) ? 0 : 1,
+      kind: "changed",
+      changed: packing,
+    }));
+
+  preflightBookings
+    .filter((booking) => booking.worstStatus === "BLOCKED" || booking.worstStatus === "ERROR" || booking.blocked > 0)
+    .forEach((booking) => items.push({
+      id: `wms-${booking.packingId}`,
+      priority: 0,
+      kind: "wms-blocked",
+      preflight: booking,
+    }));
+
+  // Bara det senaste synkjobbet per bokning avgör om felet fortfarande är öppet.
+  const seenBookings = new Set<string>();
+  syncJobs.forEach((syncJob) => {
+    if (seenBookings.has(syncJob.booking_id)) return;
+    seenBookings.add(syncJob.booking_id);
+    if (syncJob.status !== "failed") return;
+    if (!isWithin(syncJob.received_at, syncWindowStart, horizon)) return;
+    items.push({
+      id: `sync-${syncJob.id}`,
+      priority: 0,
+      kind: "sync-failed",
+      syncJob,
+      job: jobByBookingId.get(syncJob.booking_id) || null,
+    });
+  });
+
+  jobs.filter((job) => !DONE.has(job.status) && isWithin(job.anchorDate, today, horizon)).forEach((job) => {
     const hasPeople = job.assignedStaff.length > 0 || job.workers.length > 0;
     if (!hasPeople) {
       items.push({ id: `unstaffed-${job.id}`, priority: 1, kind: "unstaffed", job });
@@ -82,7 +169,50 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
     queryFn: () => fetchInbox("new"),
     retry: 1,
   });
-  const items = useMemo(() => queueItems(inbox, attention, jobs), [inbox, attention, jobs]);
+  const { data: changedPackings = [] } = useChangedPackings();
+  const { data: syncJobs = [], isError: syncJobsError } = useSyncJobs();
+  const today = format(new Date(), "yyyy-MM-dd");
+  const horizon = format(addDays(new Date(), 2), "yyyy-MM-dd");
+  const { data: preflightData, isError: preflightError } = useQuery({
+    queryKey: ["packing-preflight-batch", today, horizon, "action-queue"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("packing-preflight-batch", {
+        body: { from_date: today, to_date: horizon, status: "confirmed" },
+      });
+      if (error) throw error;
+      return data as { bookings?: PreflightBooking[] };
+    },
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: 1,
+  });
+  const systemAttention = useMemo<OpsAttention[]>(() => [
+    ...attention,
+    ...(preflightError ? [{
+      id: "wms-preflight-unavailable",
+      level: "critical" as const,
+      title: "WMS-kontroll misslyckades",
+      detail: "Blockerande packfel kunde inte kontrolleras.",
+    }] : []),
+    ...(syncJobsError ? [{
+      id: "sync-status-unavailable",
+      level: "warning" as const,
+      title: "Synkstatus kunde inte hämtas",
+      detail: "Kontrollera systemövervakningen.",
+    }] : []),
+  ], [attention, preflightError, syncJobsError]);
+  const items = useMemo(
+    () => queueItems(
+      inbox,
+      systemAttention,
+      jobs,
+      changedPackings as ChangedPacking[],
+      preflightData?.bookings || [],
+      syncJobs,
+      today,
+    ),
+    [changedPackings, inbox, jobs, preflightData?.bookings, syncJobs, systemAttention, today],
+  );
 
   return (
     <section className="h-full min-h-0 rounded-lg border border-border/60 bg-card flex flex-col overflow-hidden">
@@ -113,7 +243,7 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
               <div key={item.id} className="min-h-[58px] px-3 py-2 flex items-center gap-2.5 hover:bg-accent/25">
                 <Inbox className="h-4 w-4 shrink-0 text-amber-600" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-amber-800">NYTT · ATT PLANERA</div>
+                  <div className="text-[11px] font-bold text-amber-800">AKUT · ATT PLANERA</div>
                   <div className="text-xs font-semibold truncate">{row.source_project_number || "Nytt lagerbehov"}</div>
                   <div className="text-[11px] text-muted-foreground truncate">{row.client_name || "Kund saknas"}</div>
                 </div>
@@ -139,6 +269,69 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
                   <div className="text-[11px] text-muted-foreground truncate">{row.detail}</div>
                 </div>
                 {row.jobId && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+              </button>
+            );
+          }
+
+          if (item.kind === "changed") {
+            const row = item.changed;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full min-h-[58px] px-3 py-2 flex items-center gap-2.5 text-left hover:bg-accent/35"
+                onClick={() => navigate(`/warehouse/packing/${row.id}`)}
+              >
+                <RefreshCw className="h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-bold text-amber-800">SEN ÄNDRING</div>
+                  <div className="text-xs font-semibold truncate">{row.client_name || row.name}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">Packningen måste granskas</div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            );
+          }
+
+          if (item.kind === "wms-blocked") {
+            const row = item.preflight;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full min-h-[58px] px-3 py-2 flex items-center gap-2.5 text-left hover:bg-accent/35"
+                onClick={() => navigate(`/warehouse/packing/${row.packingId}`)}
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-bold text-red-700">WMS BLOCKERAR</div>
+                  <div className="text-xs font-semibold truncate">{row.bookingNumber || row.customerName || "Packlista"}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {row.worstStatus === "ERROR" ? "Kontrollen misslyckades" : `${row.blocked} blockerande ${row.blocked === 1 ? "rad" : "rader"}`}
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            );
+          }
+
+          if (item.kind === "sync-failed") {
+            const row = item.syncJob;
+            const linkedJob = item.job;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full min-h-[58px] px-3 py-2 flex items-center gap-2.5 text-left hover:bg-accent/35"
+                onClick={() => navigate(linkedJob ? `/warehouse/packing/${linkedJob.packingId}` : "/admin/sync")}
+              >
+                <RefreshCw className="h-4 w-4 shrink-0 text-red-600" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-bold text-red-700">SYNK MISSLYCKAD</div>
+                  <div className="text-xs font-semibold truncate">{linkedJob?.bookingNumber || linkedJob?.name || "Bokningssynk"}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{row.error_message || "Kräver ny synkronisering"}</div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             );
           }
@@ -182,7 +375,7 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
 
       <footer className="h-8 shrink-0 px-3 border-t border-border/60 bg-muted/15 flex items-center text-[10px] text-muted-foreground">
         <PackageOpen className="h-3.5 w-3.5 mr-1.5" />
-        Actions ligger här tills de är lösta
+        Åtgärder ligger här tills de är lösta
       </footer>
 
       <ConvertInboxDialog
