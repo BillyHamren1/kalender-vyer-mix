@@ -1422,6 +1422,54 @@ export type Database = {
           },
         ]
       }
+      client_diagnostics: {
+        Row: {
+          app_mode: string | null
+          code: string
+          created_at: string
+          fingerprint: string | null
+          id: string
+          message: string
+          metadata: Json
+          organization_id: string | null
+          platform: string | null
+          route: string | null
+          severity: string
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          app_mode?: string | null
+          code: string
+          created_at?: string
+          fingerprint?: string | null
+          id?: string
+          message: string
+          metadata?: Json
+          organization_id?: string | null
+          platform?: string | null
+          route?: string | null
+          severity?: string
+          source: string
+          user_id?: string | null
+        }
+        Update: {
+          app_mode?: string | null
+          code?: string
+          created_at?: string
+          fingerprint?: string | null
+          id?: string
+          message?: string
+          metadata?: Json
+          organization_id?: string | null
+          platform?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       completion_deviations: {
         Row: {
           completion_id: string

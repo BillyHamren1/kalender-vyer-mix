@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subDays, addDays } from 'date-fns';
 import { useEffect } from 'react';
 import { assignStaffToTeamCore, removeStaffAssignmentCore } from '@/services/staffAssignmentCore';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 // Datum-scope: vi hämtar INTE hela staff_assignments-tabellen (kan vara
 // tiotusentals rader genom åren). Vi laddar ett rullande fönster runt idag.
@@ -112,7 +113,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
   // Realtime: invalidate only when something actually changes in DB
   useEffect(() => {
     const channel = supabase
-      .channel('unified-staff-assignments-rt')
+      .channel(uniqueChannelName('unified-staff-assignments-rt'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_assignments' }, () => {
         queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
       })

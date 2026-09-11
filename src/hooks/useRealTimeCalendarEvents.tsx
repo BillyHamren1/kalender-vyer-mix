@@ -8,6 +8,7 @@ import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface UseRealTimeCalendarEventsOptions {
   /**
@@ -291,7 +292,7 @@ export const useRealTimeCalendarEvents = (
 
     // Set up real-time subscription for calendar events (read-only reactions to backend changes)
     const calendarChannel = supabase
-      .channel('calendar_events_realtime')
+      .channel(uniqueChannelName('calendar_events_realtime'))
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'calendar_events' },
         handleCalendarEventChange)

@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useIsMobile } from '@/hooks/use-mobile';
 import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 const FloatingInbox = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,7 +34,7 @@ const FloatingInbox = () => {
   useEffect(() => {
     if (allIds.length === 0) return;
     const channel = supabase
-      .channel('floating-inbox-badge')
+      .channel(uniqueChannelName('floating-inbox-badge'))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
         queryClient.invalidateQueries({ queryKey: ['dm-inbox-grouped', ...allIds] });
       })

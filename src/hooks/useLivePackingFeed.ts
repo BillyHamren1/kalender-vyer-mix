@@ -7,6 +7,8 @@ import {
   LivePackingItem,
   LivePackingActivityCounts,
 } from '@/services/livePackingFeedService';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
+
 
 const SEEN_KEY_PREFIX = 'opsLivePackingSeen.';
 
@@ -73,7 +75,7 @@ export function useLivePackingFeed(options?: UseLivePackingFeedOptions): UseLive
   // Realtime subscription — only when enabled
   useEffect(() => {
     if (!enabled) return;
-    const channel = supabase.channel('ops-live-packing-realtime');
+    const channel = supabase.channel(uniqueChannelName('ops-live-packing-realtime'));
 
     const tables = [
       'packing_projects',

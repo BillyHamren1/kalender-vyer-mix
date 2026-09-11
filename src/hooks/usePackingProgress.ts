@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toMap } from '@/lib/query/mapCache';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface PackingProgress {
   packingId: string;
@@ -83,7 +84,7 @@ export function usePackingProgressBatch(bookingIds: string[]) {
     if (dedupedIds.length === 0) return;
 
     const channel = supabase
-      .channel('packing-progress-realtime')
+      .channel(uniqueChannelName('packing-progress-realtime'))
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

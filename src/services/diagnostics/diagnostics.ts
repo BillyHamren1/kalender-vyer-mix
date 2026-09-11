@@ -284,8 +284,17 @@ export function reportDiagnostic(input: ReportDiagnosticInput): DiagnosticEvent 
   diagnostics = [event, ...diagnostics].slice(0, MAX_EVENTS);
   persistDiagnostics();
   notifySubscribers();
+
+  if (event.severity === 'critical' && typeof window !== 'undefined') {
+    // Fire-and-forget: crashes must be readable centrally, not only locally.
+    void import('./remoteSink')
+      .then((mod) => mod.shipCriticalDiagnostic(event))
+      .catch(() => undefined);
+  }
+
   return event;
 }
+
 
 export function getDiagnostics() {
   return diagnostics;

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from './useCurrentOrg';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface CancellationCandidate {
   booking_id: string;
@@ -42,7 +43,7 @@ export function useCancellationCandidates() {
   useEffect(() => {
     if (!organizationId) return;
     const channel = supabase
-      .channel('cancellation-candidates-rt')
+      .channel(uniqueChannelName('cancellation-candidates-rt'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'booking_cancellation_candidates' },

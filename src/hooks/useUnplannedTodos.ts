@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from './useCurrentOrg';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface UnplannedTodoRow {
   id: string;
@@ -53,7 +54,7 @@ export function useUnplannedTodos() {
   useEffect(() => {
     if (!organizationId) return;
     const ch = supabase
-      .channel('unplanned-todos-rt')
+      .channel(uniqueChannelName('unplanned-todos-rt'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
         qc.invalidateQueries({ queryKey: ['unplanned-todos', organizationId] });
       })
