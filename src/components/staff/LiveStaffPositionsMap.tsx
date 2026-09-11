@@ -238,7 +238,7 @@ export default function LiveStaffPositionsMap() {
     <div className="flex flex-col md:flex-row gap-4 h-full">
       {/* Vänster: lista */}
       <div className="md:w-80 shrink-0 planning-card overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] bg-[hsl(270_35%_98%)]">
+        <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))]">
           <div className="flex items-center justify-between mb-2">
             <span className="planning-section-title">Live-positioner</span>
             <button
@@ -278,7 +278,7 @@ export default function LiveStaffPositionsMap() {
               Ingen personal har skickat GPS de senaste {LOOKBACK_HOURS}h.
             </div>
           )}
-          <ul className="divide-y divide-[hsl(270_18%_94%)]">
+          <ul className="divide-y divide-[hsl(var(--module-accent-soft))]">
             {positions.map((p) => {
               const isSelected = p.staff_id === selectedStaffId;
               const live = p.ageMinutes <= STALE_AFTER_MIN;
@@ -286,8 +286,8 @@ export default function LiveStaffPositionsMap() {
                 <li key={p.staff_id}>
                   <button
                     onClick={() => setSelectedStaffId(p.staff_id)}
-                    className={`w-full text-left px-4 py-2.5 hover:bg-[hsl(270_35%_98%)] transition ${
-                      isSelected ? 'bg-[hsl(270_50%_96%)]' : ''
+                    className={`w-full text-left px-4 py-2.5 hover:bg-[hsl(var(--module-accent-soft))] transition ${
+                      isSelected ? 'bg-[hsl(var(--module-accent-soft))]' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
