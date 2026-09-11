@@ -24,7 +24,7 @@ export default function StaffGpsSatelliteMapPage() {
         variant="purple"
       />
 
-      <div className="mb-4 inline-flex rounded-lg border border-[hsl(var(--module-accent-base) / 0.30)] bg-white p-1 shadow-sm">
+      <div className="mb-4 inline-flex rounded-lg border border-[hsl(var(--module-accent-base)_/_0.30)] bg-white p-1 shadow-sm">
         <button
           type="button"
           onClick={() => setTab('history')}
