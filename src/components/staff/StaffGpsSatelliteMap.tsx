@@ -287,7 +287,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 className={`absolute top-3 left-3 z-10 text-[11px] px-2.5 py-1.5 rounded-md border font-medium shadow-md transition-colors ${
                   showAllRawPings
                     ? 'bg-yellow-300 border-yellow-500 text-slate-900 hover:bg-yellow-200'
-                    : 'bg-white/95 border-[hsl(270_25%_85%)] text-foreground/80 hover:bg-[hsl(270_45%_96%)]'
+                    : 'bg-white/95 border-[hsl(var(--module-accent-base) / 0.30)] text-foreground/80 hover:bg-[hsl(var(--module-accent-soft))]'
                 }`}
                 title={`${pings.length} råpings för dagen`}
               >
@@ -321,7 +321,7 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
   );
   return (
     <div className="planning-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] flex items-center justify-between bg-[hsl(270_35%_98%)]">
+      <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base) / 0.30)] flex items-center justify-between bg-[hsl(var(--module-accent-soft))]">
         <div className="flex items-center gap-2">
           <span className="planning-section-title">Geofence-besök</span>
           <span className="planning-badge">{sorted.length}</span>
@@ -331,20 +331,20 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
           <button
             type="button"
             onClick={() => setShowAllPings(v => !v)}
-            className="text-[11px] px-2.5 py-1 rounded border border-[hsl(270_25%_85%)] bg-white hover:bg-[hsl(270_45%_96%)] transition-colors font-medium text-foreground/80"
+            className="text-[11px] px-2.5 py-1 rounded border border-[hsl(var(--module-accent-base) / 0.30)] bg-white hover:bg-[hsl(var(--module-accent-soft))] transition-colors font-medium text-foreground/80"
           >
             {showAllPings ? 'Dölj' : 'Visa'} alla pings för dagen ({sortedAllPings.length})
           </button>
         </div>
       </div>
       {showAllPings && (
-        <div className="border-b border-[hsl(270_20%_90%)] bg-[hsl(270_45%_98%)]">
+        <div className="border-b border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))]">
           <PingsTable pings={sortedAllPings} />
         </div>
       )}
       <div className="max-h-[60vh] overflow-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(270_18%_92%)]">
+          <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(var(--module-accent-soft))]">
             <tr className="text-left text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
               <th className="px-3 py-2 font-semibold w-6"></th>
               <th className="px-3 py-2 font-semibold">Plats</th>
@@ -373,7 +373,7 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
                 <Fragment key={rowKey}>
                   <tr
                     onClick={() => setExpandedKey(isOpen ? null : rowKey)}
-                    className={`border-t border-[hsl(270_18%_94%)] cursor-pointer transition-colors ${isOpen ? 'bg-[hsl(270_45%_96%)]' : 'hover:bg-[hsl(270_35%_98%)]'}`}
+                    className={`border-t border-[hsl(var(--module-accent-soft))] cursor-pointer transition-colors ${isOpen ? 'bg-[hsl(var(--module-accent-soft))]' : 'hover:bg-[hsl(var(--module-accent-soft))]'}`}
                   >
                     <td className="px-3 py-2 text-muted-foreground tabular-nums select-none">
                       {isOpen ? '▾' : '▸'}
@@ -391,9 +391,9 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{v.pingCount}</td>
                   </tr>
                   {isOpen && (
-                    <tr className="bg-[hsl(270_45%_98%)]">
+                    <tr className="bg-[hsl(var(--module-accent-soft))]">
                       <td colSpan={7} className="px-0 py-0">
-                        <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
+                        <div className="px-6 py-3 border-t border-[hsl(var(--module-accent-base) / 0.30)]">
                           <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
                             <span>Alla pings för detta besök</span>
                             <span className="planning-badge">{v.pings?.length ?? 0}</span>
@@ -419,9 +419,9 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
 function PingsTable({ pings }: { pings: PingRow[] }) {
   return (
     <div className="px-6 py-3">
-      <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(270_20%_92%)] bg-white">
+      <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(var(--module-accent-soft))] bg-white">
         <table className="w-full text-[11px]">
-          <thead className="sticky top-0 bg-[hsl(270_35%_97%)] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
+          <thead className="sticky top-0 bg-[hsl(var(--module-accent-soft))] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
             <tr>
               <th className="px-3 py-1.5 font-semibold w-10">#</th>
               <th className="px-3 py-1.5 font-semibold">Tid</th>
@@ -433,7 +433,7 @@ function PingsTable({ pings }: { pings: PingRow[] }) {
           </thead>
           <tbody>
             {pings.map((p, idx) => (
-              <tr key={`${p.recorded_at}-${idx}`} className="border-t border-[hsl(270_18%_95%)] hover:bg-[hsl(270_35%_98%)]">
+              <tr key={`${p.recorded_at}-${idx}`} className="border-t border-[hsl(var(--module-accent-soft))] hover:bg-[hsl(var(--module-accent-soft))]">
                 <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{idx + 1}</td>
                 <td className="px-3 py-1.5 font-mono tabular-nums">{formatStockholmHms(p.recorded_at)}</td>
                 <td className="px-3 py-1.5 font-mono tabular-nums">{p.lat.toFixed(6)}</td>
