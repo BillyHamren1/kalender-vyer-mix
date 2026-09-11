@@ -180,19 +180,37 @@ export async function buildEventFlowScannerProjection(input: {
     }
 
     const componentRows = sortById(rows.components.filter((row) => row.package_id === packageId))
-    const packageItemTypeIds = new Set(componentRows.map((component) => uuid(component.item_type_id)).filter(Boolean) as string[])
-    const physicalLines = componentRows.flatMap((component) => {
+    const seenComponentIds = new Set<string>()
+    const componentIdByItemType = new Map<string, string>()
+    const validatedComponents = componentRows.flatMap((component) => {
       const componentId = uuid(component.id)
       const componentOrg = uuid(component.organization_id)
       const componentTypeId = uuid(component.item_type_id)
       const perPackage = integer(component.quantity)
+      const requiredQuantity = perPackage === null || quantity === null
+        ? null : perPackage * quantity
       if (!componentId || componentOrg !== request.organizationId || !componentTypeId ||
-          perPackage === null || quantity === null) {
+          perPackage === null || quantity === null || !Number.isSafeInteger(requiredQuantity)) {
         blockers.push({ code: 'INVALID_PACKAGE_COMPONENT', entityId: componentId ?? packageId })
         return []
       }
-      return [physical(componentTypeId, perPackage * quantity, componentId, packageItemTypeIds)]
+      if (seenComponentIds.has(componentId)) throw new Error('duplicate_package_component_identity')
+      seenComponentIds.add(componentId)
+      const previousComponentId = componentIdByItemType.get(componentTypeId)
+      if (previousComponentId && previousComponentId !== componentId) {
+        throw new Error('ambiguous_package_component_item_type')
+      }
+      componentIdByItemType.set(componentTypeId, componentId)
+      return [{ componentId, componentTypeId, requiredQuantity }]
     })
+    const packageItemTypeIds = new Set(validatedComponents.map((component) => component.componentTypeId))
+    const physicalLines = validatedComponents.map((component) =>
+      physical(
+        component.componentTypeId,
+        component.requiredQuantity,
+        component.componentId,
+        packageItemTypeIds,
+      ))
     if (componentRows.length === 0) blockers.push({ code: 'PACKAGE_COMPONENTS_UNAVAILABLE', entityId: packageId })
     return { reservationLineId: lineId, packageId, physicalLines }
   })
