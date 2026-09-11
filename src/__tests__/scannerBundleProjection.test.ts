@@ -43,10 +43,10 @@ const deps = (fetchImpl: typeof fetch) => ({
 
 describe("Planning -> Bundle Scanner projection", () => {
   it("signerar det kanoniska Booking-ID:t och bevarar paketkomponentens blockerade identitet", async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(response), { status: 200 }));
-    const result = await fetchScannerBundleProjection(BOOKING, deps(fetchImpl as typeof fetch));
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response), { status: 200 }));
+    const result = await fetchScannerBundleProjection(BOOKING, deps(fetchImpl));
     expect(result).toMatchObject({ ok: true, reservationId: RESERVATION, bookingId: BOOKING });
-    if (!result.ok) throw new Error(result.error);
+    if (result.ok === false) throw new Error(result.error);
     expect(result.lines[0]).toMatchObject({
       reservationLineId: null,
       parentReservationLineId: LINE,
