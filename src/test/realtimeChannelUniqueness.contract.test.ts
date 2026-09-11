@@ -10,7 +10,7 @@ import { uniqueChannelName } from '@/lib/realtime/channelName';
  */
 
 const ROOT = resolve(process.cwd(), 'src');
-const LITERAL_CHANNEL = /\.channel\(\s*['"`][^'"`]+['"`]\s*\)/;
+const LITERAL_CHANNEL = /\.channel\(\s*['"][^'"]+['"]\s*\)/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
