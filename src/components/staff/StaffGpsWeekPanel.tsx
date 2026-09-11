@@ -32,7 +32,7 @@ export function StaffGpsWeekPanel({
   return (
     <aside className="planning-card w-full md:w-[460px] lg:w-[520px] shrink-0 flex flex-col overflow-hidden p-0">
       {/* Person */}
-      <div className="p-3.5 border-b border-[hsl(var(--module-accent-base) / 0.30)] space-y-1.5 bg-[hsl(var(--module-accent-soft))]">
+      <div className="p-3.5 border-b border-[hsl(var(--module-accent-base)_/_0.30)] space-y-1.5 bg-[hsl(var(--module-accent-soft))]">
         <label className="planning-section-title">Person</label>
         <Select value={staffId ?? ''} onValueChange={onStaffChange}>
           <SelectTrigger className="w-full h-9 text-sm planning-input">
@@ -60,7 +60,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Vecka */}
-      <div className="px-2.5 py-2 border-b border-[hsl(var(--module-accent-base) / 0.30)] flex items-center gap-1">
+      <div className="px-2.5 py-2 border-b border-[hsl(var(--module-accent-base)_/_0.30)] flex items-center gap-1">
         <Button
           variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(var(--module-accent-soft))]"
           onClick={() => onDateChange(addWeeks(weekStart, -1))}
@@ -111,7 +111,7 @@ export function StaffGpsWeekPanel({
         })}
       </div>
 
-      <div className="px-3 py-2 border-t border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))] text-[10.5px] text-muted-foreground tracking-tight">
+      <div className="px-3 py-2 border-t border-[hsl(var(--module-accent-base)_/_0.30)] bg-[hsl(var(--module-accent-soft))] text-[10.5px] text-muted-foreground tracking-tight">
         Tidrapport-underlag (filtrerat från GPS). Råa pings &amp; glapp visas i kartan.
       </div>
     </aside>
