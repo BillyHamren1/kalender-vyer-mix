@@ -230,3 +230,23 @@
   --accent-foreground: 255 30% 90%;
   --ring: 255 60% 70%;
 }
+
+
+/* ── Canonical strong fill shared by Operations icons and primary actions ── */
+.operations-accent-gradient {
+  background-image:
+    radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%),
+    linear-gradient(145deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)));
+}
+
+.operations-gradient-shadow {
+  box-shadow:
+    0 6px 18px hsl(var(--module-accent) / 0.24),
+    inset 0 1px 0 hsl(0 0% 100% / 0.20);
+}
+
+.operations-gradient-shadow:hover {
+  box-shadow:
+    0 8px 22px hsl(var(--module-accent) / 0.30),
+    inset 0 1px 0 hsl(0 0% 100% / 0.22);
+}
