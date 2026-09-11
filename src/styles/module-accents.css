@@ -42,21 +42,23 @@ html[data-module='planning'] {
 
 html[data-module='warehouse'] {
   --module-accent: 32 71% 46%;         /* #C77922 */
+  --module-accent-base: 32 71% 46%;
   --module-accent-dark: 30 76% 34%;    /* #9A5715 */
   --module-accent-soft: 32 80% 96%;
   --module-accent-border: 32 55% 84%;
+  --module-accent-foreground: 0 0% 100%;
 
-  --primary: var(--module-accent-dark);
+  --primary: var(--module-accent);
   --primary-hover: var(--module-accent-dark);
   --primary-dark: var(--module-accent-dark);
   --primary-soft: var(--module-accent-soft);
   --primary-soft-foreground: var(--module-accent-dark);
-  --ring: var(--module-accent-base);
+  --ring: var(--module-accent);
 
-  --sidebar-primary: var(--module-accent-dark);
+  --sidebar-primary: var(--module-accent);
   --sidebar-accent: var(--module-accent-soft);
   --sidebar-accent-foreground: var(--module-accent-dark);
-  --sidebar-ring: var(--module-accent-base);
+  --sidebar-ring: var(--module-accent);
 
   /* Warm orange warehouse family aligned to the canonical HUB values. */
   --warehouse: 32 71% 46%;
