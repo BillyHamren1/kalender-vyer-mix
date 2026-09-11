@@ -67,24 +67,30 @@ describe("Planning -> Bundle Scanner projection", () => {
     for (const invalid of [
       { ...response, canonicalIdentity: { ...response.canonicalIdentity, bookingId: RESERVATION } },
       { ...response, snapshot: { ...response.snapshot, monotonic: true } },
-      {
-        ...response,
-        lines: [{
-          ...response.lines[0],
-          physicalLines: [{
-            ...response.lines[0].physicalLines[0],
-            allocatedInstanceIds: [
-              "88888888-8888-4888-8888-888888888888",
-              "88888888-8888-4888-8888-888888888888",
-            ],
-          }],
-        }],
-      },
     ]) {
       const result = await fetchScannerBundleProjection(BOOKING, deps(async () =>
         new Response(JSON.stringify(invalid), { status: 200 })));
       expect(result).toMatchObject({ ok: false, code: "bundle_bad_response" });
     }
+  });
+
+  it("avvisar duplicerad fysisk individ från Bundle med specifik blockerarkod", async () => {
+    const invalid = {
+      ...response,
+      lines: [{
+        ...response.lines[0],
+        physicalLines: [{
+          ...response.lines[0].physicalLines[0],
+          allocatedInstanceIds: [
+            "88888888-8888-4888-8888-888888888888",
+            "88888888-8888-4888-8888-888888888888",
+          ],
+        }],
+      }],
+    };
+    await expect(fetchScannerBundleProjection(BOOKING, deps(async () =>
+      new Response(JSON.stringify(invalid), { status: 200 }))))
+      .resolves.toMatchObject({ ok: false, code: "bundle_duplicate_allocation_evidence" });
   });
 
   it("stoppar före nätverk när secret eller kanoniskt ID saknas", async () => {
