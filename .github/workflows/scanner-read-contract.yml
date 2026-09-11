@@ -20,14 +20,17 @@ on:
       - src/__tests__/scannerDeploymentChain.test.ts
       - src/__tests__/scannerContractResponse.test.ts
       - src/__tests__/scannerDependencyPin.test.ts
+      - src/__tests__/scannerCommandGateway.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
       - supabase/functions/_shared/scannerCors.ts
       - supabase/functions/_shared/scannerWmsPackingProjection.ts
+      - supabase/functions/_shared/scannerCommandGateway.ts
       - supabase/functions/_shared/scannerBundleProjection.ts
       - supabase/functions/mobile-app-auth/index.ts
       - supabase/functions/scanner-api/index.ts
+      - supabase/functions/scanner-command-api/index.ts
       - scripts/scanner-deploy-preflight.mjs
       - supabase/scanner-read-pilot-release-v1.json
       - .github/workflows/scanner-read-contract.yml
@@ -94,6 +97,7 @@ jobs:
           src/__tests__/scannerDeploymentChain.test.ts
           src/__tests__/scannerContractResponse.test.ts
           src/__tests__/scannerDependencyPin.test.ts
+          src/__tests__/scannerCommandGateway.test.ts
       - name: Contract lint
         run: >-
           npx eslint
@@ -102,6 +106,7 @@ jobs:
           supabase/functions/_shared/scannerSignedAuth.ts
           supabase/functions/_shared/scannerCors.ts
           supabase/functions/_shared/scannerWmsPackingProjection.ts
+          supabase/functions/_shared/scannerCommandGateway.ts
           supabase/functions/_shared/scannerBundleProjection.ts
           src/__tests__/scannerReadContractV1.test.ts
           src/__tests__/scannerLegacyAuth.test.ts
@@ -115,5 +120,7 @@ jobs:
           src/__tests__/scannerContractResponse.test.ts
           src/__tests__/scannerDependencyPin.test.ts
           scripts/scanner-deploy-preflight.mjs
+          supabase/functions/scanner-command-api/index.ts
+          src/__tests__/scannerCommandGateway.test.ts
       - name: Production build
         run: npm run build
