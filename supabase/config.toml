@@ -203,3 +203,6 @@ verify_jwt = true
 
 [functions.receive-supplier-reply]
 verify_jwt = false
+
+[functions.scanner-command-api]
+verify_jwt = false
