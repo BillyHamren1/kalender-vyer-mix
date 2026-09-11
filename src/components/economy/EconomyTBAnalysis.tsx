@@ -150,7 +150,7 @@ const YOY_COLORS = [
   'hsl(var(--muted-foreground))',
   'hsl(var(--primary))',
   'hsl(142 71% 45%)',
-  'hsl(280 70% 50%)',
+  'hsl(var(--module-accent-base))',
 ];
 
 const YoYTooltip = ({ active, payload, label }: any) => {
