@@ -7,15 +7,10 @@ const source = readFileSync(
 );
 
 describe("Scanner read-only deployment chain", () => {
-  it("pins Bundle source and deploys Bundle before Planning", () => {
-    expect(source).toContain(
-      "ref: 9ea32de4e9a5642e7049f1282d428c164c1910f9",
-    );
-    const bundle = source.indexOf("functions deploy eventflow-scanner-projection-v1");
+  it("deploys Planning reader before token issuer", () => {
     const scanner = source.indexOf("functions deploy scanner-api");
     const auth = source.indexOf("functions deploy mobile-app-auth");
-    expect(bundle).toBeGreaterThan(0);
-    expect(scanner).toBeGreaterThan(bundle);
+    expect(scanner).toBeGreaterThan(0);
     expect(auth).toBeGreaterThan(scanner);
   });
 
@@ -29,6 +24,7 @@ describe("Scanner read-only deployment chain", () => {
 
   it("cannot deploy mutation, migration or legacy", () => {
     expect(source).not.toMatch(/functions deploy scanner-operation-v2/u);
+    expect(source).not.toMatch(/repository: BillyHamren1\/bundle-builder-base/u);
     expect(source).not.toMatch(/db push|migration up|functions deploy --/u);
     expect(source).not.toContain("packlist-flow-scanner");
   });
