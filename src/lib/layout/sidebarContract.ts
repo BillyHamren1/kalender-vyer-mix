@@ -70,7 +70,7 @@ export interface SidebarAccent {
   ring: string;
 }
 
-/** Planering — canonical HUB purple (#7357C8). */
+/** Operations — internal key planning, canonical violet (#9672BE / #5E428B). */
 export const PLANNING_ACCENT: SidebarAccent = {
   base: MODULE_PALETTE.planning.base,
   soft: MODULE_PALETTE.planning.soft,
