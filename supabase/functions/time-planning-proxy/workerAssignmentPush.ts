@@ -50,6 +50,18 @@ export const parseWorkerPushRequest = (body: Json): WorkerPushRequest => ({
   reason: text(body.reason) ?? 'planning_mutation',
 });
 
+export interface AffectedWorkersOk {
+  readonly ok: true;
+  readonly staffIds: string[];
+  readonly message?: undefined;
+}
+
+export interface AffectedWorkersFailed {
+  readonly ok: false;
+  readonly staffIds?: undefined;
+  readonly message: string;
+}
+
 /**
  * Resolve every worker whose projection can be affected by the mutation:
  * explicit staff ids + everyone assigned to a team/date that the touched
@@ -61,7 +73,8 @@ export async function resolveAffectedWorkerIds(input: {
   organizationId: string;
   bookingIds: readonly string[];
   staffIds: readonly string[];
-}): Promise<{ ok: true; staffIds: string[] } | { ok: false; message: string }> {
+}): Promise<AffectedWorkersOk | AffectedWorkersFailed> {
+
   const ids = new Set<string>(input.staffIds);
   if (input.bookingIds.length) {
     const { data: events, error: eventError } = await input.admin
