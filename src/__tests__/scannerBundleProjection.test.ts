@@ -67,6 +67,19 @@ describe("Planning -> Bundle Scanner projection", () => {
     for (const invalid of [
       { ...response, canonicalIdentity: { ...response.canonicalIdentity, bookingId: RESERVATION } },
       { ...response, snapshot: { ...response.snapshot, monotonic: true } },
+      {
+        ...response,
+        lines: [{
+          ...response.lines[0],
+          physicalLines: [{
+            ...response.lines[0].physicalLines[0],
+            allocatedInstanceIds: [
+              "88888888-8888-4888-8888-888888888888",
+              "88888888-8888-4888-8888-888888888888",
+            ],
+          }],
+        }],
+      },
     ]) {
       const result = await fetchScannerBundleProjection(BOOKING, deps(async () =>
         new Response(JSON.stringify(invalid), { status: 200 })));

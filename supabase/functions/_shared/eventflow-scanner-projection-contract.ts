@@ -65,6 +65,20 @@ export async function buildEventFlowScannerProjection(input: {
 }) {
   const { request, rows } = input
   const blockers: Blocker[] = []
+  const allocationLineIdsByInstance = new Map<string, Set<string>>()
+  for (const allocation of rows.allocations) {
+    const allocationId = uuid(allocation.id)
+    const allocationOrg = uuid(allocation.organization_id)
+    const allocationLineId = uuid(allocation.reservation_line_id)
+    const instanceId = uuid(allocation.item_instance_id)
+    if (!allocationId || allocationOrg !== request.organizationId || !allocationLineId || !instanceId) {
+      blockers.push({ code: 'INVALID_PHYSICAL_EVIDENCE', entityId: null })
+      continue
+    }
+    const lineIds = allocationLineIdsByInstance.get(instanceId) ?? new Set<string>()
+    lineIds.add(allocationLineId)
+    allocationLineIdsByInstance.set(instanceId, lineIds)
+  }
   const reservationId = uuid(rows.reservation.id)
   const reservationOrg = uuid(rows.reservation.organization_id)
   if (!reservationId || reservationOrg !== request.organizationId) {
@@ -92,18 +106,30 @@ export async function buildEventFlowScannerProjection(input: {
     const physical = (canonicalItemTypeId: string, requiredQuantity: number,
       packageComponentId: string | null, allowedItemTypeIds: ReadonlySet<string>) => {
       const allocatedInstanceIds: string[] = []
+      const seenAllocationIds = new Set<string>()
+      const seenInstanceIds = new Set<string>()
       let invalidPhysicalEvidence = false
       for (const allocation of allocations) {
         const allocationId = uuid(allocation.id)
+        const allocationLineId = uuid(allocation.reservation_line_id)
         const instanceId = uuid(allocation.item_instance_id)
         const instance = instanceById.get(instanceId ?? '')
         const instanceTypeId = instance ? uuid(instance.item_type_id) : null
-        if (!allocationId || uuid(allocation.organization_id) !== request.organizationId || !instanceId ||
+        if (!allocationId || allocationLineId !== lineId ||
+            uuid(allocation.organization_id) !== request.organizationId || !instanceId ||
             !instance || uuid(instance.organization_id) !== request.organizationId ||
             !instanceTypeId || !allowedItemTypeIds.has(instanceTypeId)) {
           invalidPhysicalEvidence = true
           continue
         }
+        const instanceLineIds = allocationLineIdsByInstance.get(instanceId)
+        if (!instanceLineIds || instanceLineIds.size !== 1 || !instanceLineIds.has(lineId) ||
+            seenAllocationIds.has(allocationId) || seenInstanceIds.has(instanceId)) {
+          invalidPhysicalEvidence = true
+          continue
+        }
+        seenAllocationIds.add(allocationId)
+        seenInstanceIds.add(instanceId)
         if (instanceTypeId === canonicalItemTypeId) allocatedInstanceIds.push(instanceId)
       }
       const manualPacked = manual.reduce((sum, movement) => {
@@ -122,6 +148,9 @@ export async function buildEventFlowScannerProjection(input: {
         blockers.push({ code: 'INVALID_PHYSICAL_EVIDENCE', entityId: packageComponentId ?? lineId })
       }
       const packedQuantity = allocatedInstanceIds.length + manualPacked
+      if (packedQuantity > requiredQuantity) {
+        blockers.push({ code: 'PACKED_QUANTITY_EXCEEDS_REQUIRED', entityId: packageComponentId ?? lineId })
+      }
       return {
         packageComponentId,
         inventoryTypeId: canonicalItemTypeId,

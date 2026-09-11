@@ -1,5 +1,5 @@
 /** Signed, tenant-scoped, read-only Bundle/WMS snapshot for EventFlow Scanner. */
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.112.4'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { verifyScannerSignature } from '../_shared/eventflow-scanner-bundle-contract.ts'
 import {
   buildEventFlowScannerProjection,

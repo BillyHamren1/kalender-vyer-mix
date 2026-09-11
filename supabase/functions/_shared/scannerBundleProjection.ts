@@ -150,7 +150,9 @@ export async function fetchScannerBundleProjection(
         return failure("bundle_bad_response", "Invalid Bundle physical line");
       }
       const instanceIds = physical.allocatedInstanceIds.map(uuid);
-      if (instanceIds.some((id) => !id)) return failure("bundle_bad_response", "Invalid allocated instance identity");
+      if (instanceIds.some((id) => !id) || new Set(instanceIds).size !== instanceIds.length) {
+        return failure("bundle_duplicate_allocation_evidence", "Duplicate or invalid allocated instance identity");
+      }
       const reservationLineId = componentId === null ? parentReservationLineId : null;
       const key = JSON.stringify([parentReservationLineId, componentId, inventoryTypeId]);
       if (seen.has(key)) return failure("bundle_duplicate_physical_identity", "Duplicate Bundle physical identity");

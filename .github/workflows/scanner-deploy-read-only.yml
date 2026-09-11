@@ -18,7 +18,7 @@ jobs:
     env:
       PLANNING_PROJECT_REF: pihrhltinhewhoxefjxv
       BUNDLE_PROJECT_REF: pnvvnvywphfvmwdmqqzs
-      BUNDLE_RELEASE_SHA: 9d91603b68fc0b67ab1ff2aa208f2957dfb72e7c
+      BUNDLE_RELEASE_SHA: 529e6fb9cce5930e7dbb02bfe6eb7b6341f0f2a4
       SCANNER_ALLOWED_ORIGINS: https://scanner-buddy-scan.lovable.app
       BUNDLE_SUPABASE_FUNCTIONS_URL: https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1
     steps:
@@ -112,12 +112,21 @@ jobs:
           allowed_headers="$(mktemp)"
           trap 'rm -f "$allowed_headers"' EXIT
 
-          allowed_status="$(curl --silent --show-error --output /dev/null --dump-header "$allowed_headers" --request OPTIONS --header "Origin: $SCANNER_ALLOWED_ORIGINS" "$planning_endpoint" --write-out '%{http_code}')"
+          allowed_status="$(curl --silent --show-error --output /dev/null --dump-header "$allowed_headers" --request OPTIONS \
+            --header "Origin: $SCANNER_ALLOWED_ORIGINS" \
+            --header 'Access-Control-Request-Method: POST' \
+            --header 'Access-Control-Request-Headers: content-type,x-eventflow-scanner-contract' \
+            "$planning_endpoint" --write-out '%{http_code}')"
           test "$allowed_status" = "204"
           grep -Fqi "access-control-allow-origin: $SCANNER_ALLOWED_ORIGINS" "$allowed_headers"
           ! grep -Fqi "access-control-allow-origin: *" "$allowed_headers"
 
-          unauthenticated_status="$(curl --silent --show-error --output /dev/null --request POST --header 'content-type: application/json' --data '{"action":"list_active_packings"}' "$planning_endpoint" --write-out '%{http_code}')"
+          unauthenticated_status="$(curl --silent --show-error --output /dev/null --request POST \
+            --header "Origin: $SCANNER_ALLOWED_ORIGINS" \
+            --header 'content-type: application/json' \
+            --header 'x-eventflow-scanner-contract: scanner_contract_v1' \
+            --data '{"action":"list_active_packings","scanner_contract_version":"scanner_contract_v1"}' \
+            "$planning_endpoint" --write-out '%{http_code}')"
           test "$unauthenticated_status" = "401"
 
           unsigned_bundle_status="$(curl --silent --show-error --output /dev/null --request POST --header 'content-type: application/json' --data '{"schema":"eventflow-scanner-bundle-projection-request.v1"}' "$bundle_endpoint" --write-out '%{http_code}')"
