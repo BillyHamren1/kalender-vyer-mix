@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyncService';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 interface SupplierContactData {
   id?: string;
@@ -302,7 +303,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
 
     // Real-time subscription
     const channel = supabase
-      .channel('transport-assignments-realtime')
+      .channel(uniqueChannelName('transport-assignments-realtime'))
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

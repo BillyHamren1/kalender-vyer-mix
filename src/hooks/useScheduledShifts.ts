@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { mobileApi, ScheduledShift } from '@/services/mobileApiService';
 import { supabase } from '@/integrations/supabase/client';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 const STALE_TIME = 60 * 1000; // 1 minute
 
@@ -33,7 +34,7 @@ export function useScheduledShifts() {
     };
 
     const channel = supabase
-      .channel('mobile-shifts-live')
+      .channel(uniqueChannelName('mobile-shifts-live'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'calendar_events' },

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface BookingProduct {
   id: string;
@@ -171,7 +172,7 @@ export const useBookingsForTransport = () => {
 
     // Subscribe to real-time changes on transport_assignments (e.g. partner_response updates)
     const channel = supabase
-      .channel('transport-assignments-changes')
+      .channel(uniqueChannelName('transport-assignments-changes'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transport_assignments' },

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useVehicles, type Vehicle } from '@/hooks/useVehicles';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 interface AssignmentRow {
   id: string;
@@ -25,7 +26,7 @@ function ensureTvaRealtime(onChange: (date: string | null) => void) {
   tvaSubscribers += 1;
   if (!tvaChannel) {
     tvaChannel = supabase
-      .channel('team-vehicle-assignments-realtime')
+      .channel(uniqueChannelName('team-vehicle-assignments-realtime'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_vehicle_assignments' },

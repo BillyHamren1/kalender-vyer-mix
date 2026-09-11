@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 
 export interface VehicleTypeRate {
@@ -81,7 +82,7 @@ function ensureVehiclesRealtime(invalidate: () => void) {
   vehiclesSubscribers += 1;
   if (!vehiclesChannel) {
     vehiclesChannel = supabase
-      .channel('vehicles-realtime')
+      .channel(uniqueChannelName('vehicles-realtime'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vehicles' },

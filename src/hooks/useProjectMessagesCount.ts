@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from './useCurrentOrg';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentStaffId } from './useCurrentStaffId';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 const LOOKBACK_DAYS = 30;
 
@@ -55,7 +56,7 @@ export function useProjectMessagesCount(): number {
       timer = setTimeout(() => { timer = null; refetch(); }, 500);
     };
     const channel = supabase
-      .channel('project-messages-badge')
+      .channel(uniqueChannelName('project-messages-badge'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_messages' }, schedule)
       .subscribe();
     return () => {

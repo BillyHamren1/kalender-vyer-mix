@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect } from 'react';
 import { useCurrentOrg } from './useCurrentOrg';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 /**
  * Canonical query for "new bookings awaiting project assignment".
@@ -64,7 +65,7 @@ export function useProjectInboxCount(): number {
       timer = setTimeout(() => { timer = null; refetch(); }, 400);
     };
     const channel = supabase
-      .channel('project-inbox-badge')
+      .channel(uniqueChannelName('project-inbox-badge'))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, schedule)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, schedule)
       .subscribe();

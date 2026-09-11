@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toMap } from '@/lib/query/mapCache';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface WarehousePackingStat {
   bookingId: string;
@@ -108,7 +109,7 @@ export function useWarehouseEventCrew(eventIds: string[]) {
 
   useEffect(() => {
     const channel = supabase
-      .channel('warehouse-card-event-crew')
+      .channel(uniqueChannelName('warehouse-card-event-crew'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'warehouse_assignments' },

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
+import { uniqueChannelName } from '@/lib/realtime/channelName';
   fetchLivePackingProjects,
   fetchActivityCounts,
   LivePackingItem,
@@ -73,7 +74,7 @@ export function useLivePackingFeed(options?: UseLivePackingFeedOptions): UseLive
   // Realtime subscription — only when enabled
   useEffect(() => {
     if (!enabled) return;
-    const channel = supabase.channel('ops-live-packing-realtime');
+    const channel = supabase.channel(uniqueChannelName('ops-live-packing-realtime'));
 
     const tables = [
       'packing_projects',

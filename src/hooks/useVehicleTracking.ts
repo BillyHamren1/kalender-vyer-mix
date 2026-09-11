@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Vehicle } from './useVehicles';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface VehiclePosition {
   id: string;
@@ -53,7 +54,7 @@ export const useVehicleTracking = () => {
 
     // Real-time subscription for position updates
     const channel = supabase
-      .channel('vehicle-tracking')
+      .channel(uniqueChannelName('vehicle-tracking'))
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',

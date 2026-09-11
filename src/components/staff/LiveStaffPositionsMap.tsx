@@ -15,6 +15,7 @@ import { Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { fetchStaffMembers } from '@/services/staffService';
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 interface LivePosition {
   staff_id: string;
@@ -154,7 +155,7 @@ export default function LiveStaffPositionsMap() {
   // Realtime: invalidate on new pings
   useEffect(() => {
     const ch = supabase
-      .channel('live-staff-positions')
+      .channel(uniqueChannelName('live-staff-positions'))
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'staff_location_history' },

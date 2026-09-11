@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { JobsListItem, JobsListFilters } from "@/types/jobsList";
 import { format } from "date-fns";
+import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 // Team mapping function to convert single letters to team-X format
 const mapTeamId = (teamId: string): string => {
@@ -252,17 +253,17 @@ export const getTeamsForFilter = async (): Promise<string[]> => {
 // New function to get real-time updates
 export const subscribeToJobsListUpdates = (callback: () => void) => {
   const bookingsChannel = supabase
-    .channel('jobs_list_bookings')
+    .channel(uniqueChannelName('jobs_list_bookings'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, callback)
     .subscribe();
 
   const eventsChannel = supabase
-    .channel('jobs_list_events')
+    .channel(uniqueChannelName('jobs_list_events'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, callback)
     .subscribe();
 
   const staffChannel = supabase
-    .channel('jobs_list_staff')
+    .channel(uniqueChannelName('jobs_list_staff'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_assignments' }, callback)
     .subscribe();
 
