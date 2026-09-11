@@ -22,9 +22,23 @@ describe("Scanner read-only deployment chain", () => {
     expect(source).not.toContain("PRICELIST_API_KEY");
   });
 
+  it("deploys the exact owner-repo Bundle projection before Planning", () => {
+    const bundleCheckout = source.indexOf(
+      "repository: BillyHamren1/bundle-builder-base",
+    );
+    const bundleDeploy = source.indexOf(
+      "functions deploy eventflow-scanner-projection-v1",
+    );
+    const scannerDeploy = source.indexOf("functions deploy scanner-api");
+    expect(source).toMatch(/BUNDLE_RELEASE_SHA: [0-9a-f]{40}/u);
+    expect(source).toContain("ref: ${{ env.BUNDLE_RELEASE_SHA }}");
+    expect(bundleCheckout).toBeGreaterThan(0);
+    expect(bundleDeploy).toBeGreaterThan(bundleCheckout);
+    expect(scannerDeploy).toBeGreaterThan(bundleDeploy);
+  });
+
   it("cannot deploy mutation, migration or legacy", () => {
     expect(source).not.toMatch(/functions deploy scanner-operation-v2/u);
-    expect(source).not.toMatch(/repository: BillyHamren1\/bundle-builder-base/u);
     expect(source).not.toMatch(/db push|migration up|functions deploy --/u);
     expect(source).not.toContain("packlist-flow-scanner");
   });
