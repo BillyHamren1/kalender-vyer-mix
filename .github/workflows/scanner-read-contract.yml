@@ -17,6 +17,7 @@ on:
       - src/__tests__/scannerBundleProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
       - src/__tests__/scannerDeployPreflight.test.ts
+      - src/__tests__/scannerDeploymentChain.test.ts
       - src/__tests__/scannerContractResponse.test.ts
       - src/__tests__/scannerDependencyPin.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
@@ -45,6 +46,7 @@ on:
       - src/__tests__/scannerBundleProjection.test.ts
       - src/__tests__/scannerWmsProjectionWiring.test.ts
       - src/__tests__/scannerDeployPreflight.test.ts
+      - src/__tests__/scannerDeploymentChain.test.ts
       - src/__tests__/scannerContractResponse.test.ts
       - src/__tests__/scannerDependencyPin.test.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
@@ -89,6 +91,7 @@ jobs:
           src/__tests__/scannerBundleProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
           src/__tests__/scannerDeployPreflight.test.ts
+          src/__tests__/scannerDeploymentChain.test.ts
           src/__tests__/scannerContractResponse.test.ts
           src/__tests__/scannerDependencyPin.test.ts
       - name: Contract lint
@@ -108,6 +111,7 @@ jobs:
           src/__tests__/scannerBundleProjection.test.ts
           src/__tests__/scannerWmsProjectionWiring.test.ts
           src/__tests__/scannerDeployPreflight.test.ts
+          src/__tests__/scannerDeploymentChain.test.ts
           src/__tests__/scannerContractResponse.test.ts
           src/__tests__/scannerDependencyPin.test.ts
           scripts/scanner-deploy-preflight.mjs
