@@ -287,7 +287,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 className={`absolute top-3 left-3 z-10 text-[11px] px-2.5 py-1.5 rounded-md border font-medium shadow-md transition-colors ${
                   showAllRawPings
                     ? 'bg-yellow-300 border-yellow-500 text-slate-900 hover:bg-yellow-200'
-                    : 'bg-white/95 border-[hsl(var(--module-accent-base) / 0.30)] text-foreground/80 hover:bg-[hsl(var(--module-accent-soft))]'
+                    : 'bg-white/95 border-[hsl(var(--module-accent-base)_/_0.30)] text-foreground/80 hover:bg-[hsl(var(--module-accent-soft))]'
                 }`}
                 title={`${pings.length} råpings för dagen`}
               >
@@ -321,7 +321,7 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
   );
   return (
     <div className="planning-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base) / 0.30)] flex items-center justify-between bg-[hsl(var(--module-accent-soft))]">
+      <div className="px-4 py-3 border-b border-[hsl(var(--module-accent-base)_/_0.30)] flex items-center justify-between bg-[hsl(var(--module-accent-soft))]">
         <div className="flex items-center gap-2">
           <span className="planning-section-title">Geofence-besök</span>
           <span className="planning-badge">{sorted.length}</span>
@@ -331,14 +331,14 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
           <button
             type="button"
             onClick={() => setShowAllPings(v => !v)}
-            className="text-[11px] px-2.5 py-1 rounded border border-[hsl(var(--module-accent-base) / 0.30)] bg-white hover:bg-[hsl(var(--module-accent-soft))] transition-colors font-medium text-foreground/80"
+            className="text-[11px] px-2.5 py-1 rounded border border-[hsl(var(--module-accent-base)_/_0.30)] bg-white hover:bg-[hsl(var(--module-accent-soft))] transition-colors font-medium text-foreground/80"
           >
             {showAllPings ? 'Dölj' : 'Visa'} alla pings för dagen ({sortedAllPings.length})
           </button>
         </div>
       </div>
       {showAllPings && (
-        <div className="border-b border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))]">
+        <div className="border-b border-[hsl(var(--module-accent-base)_/_0.30)] bg-[hsl(var(--module-accent-soft))]">
           <PingsTable pings={sortedAllPings} />
         </div>
       )}
@@ -393,7 +393,7 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
                   {isOpen && (
                     <tr className="bg-[hsl(var(--module-accent-soft))]">
                       <td colSpan={7} className="px-0 py-0">
-                        <div className="px-6 py-3 border-t border-[hsl(var(--module-accent-base) / 0.30)]">
+                        <div className="px-6 py-3 border-t border-[hsl(var(--module-accent-base)_/_0.30)]">
                           <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
                             <span>Alla pings för detta besök</span>
                             <span className="planning-badge">{v.pings?.length ?? 0}</span>
