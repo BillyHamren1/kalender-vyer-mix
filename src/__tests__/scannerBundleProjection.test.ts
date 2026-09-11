@@ -17,7 +17,10 @@ const response = {
   snapshot: { kind: "CONTENT_SHA256", fingerprint: "a".repeat(64), monotonic: false },
   operationalStatus: { rawReservationStatus: "confirmed", active: null, released: null },
   returnState: { authoritative: false, returnedQuantity: null },
-  blockers: [{ code: "PACKAGE_COMPONENT_HAS_NO_RESERVATION_LINE_ID", entityId: COMPONENT }],
+  blockers: [
+    { code: "WMS_OPERATIONAL_STATUS_UNAVAILABLE", entityId: RESERVATION },
+    { code: "AUTHORITATIVE_RETURN_QUANTITY_UNAVAILABLE", entityId: RESERVATION },
+  ],
   lines: [{
     reservationLineId: LINE,
     packageId: "77777777-7777-4777-8777-777777777777",
@@ -42,13 +45,13 @@ const deps = (fetchImpl: typeof fetch) => ({
 });
 
 describe("Planning -> Bundle Scanner projection", () => {
-  it("signerar det kanoniska Booking-ID:t och bevarar paketkomponentens blockerade identitet", async () => {
+  it("signerar det kanoniska Booking-ID:t och bevarar paketkomponentens kanoniska ID-tupel", async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response), { status: 200 }));
     const result = await fetchScannerBundleProjection(BOOKING, deps(fetchImpl));
     expect(result).toMatchObject({ ok: true, reservationId: RESERVATION, bookingId: BOOKING });
     if (result.ok === false) throw new Error(result.error);
     expect(result.lines[0]).toMatchObject({
-      reservationLineId: null,
+      reservationLineId: LINE,
       parentReservationLineId: LINE,
       packageComponentId: COMPONENT,
       inventoryTypeId: TYPE,
@@ -61,6 +64,26 @@ describe("Planning -> Bundle Scanner projection", () => {
       bookingId: BOOKING,
     });
     expect((init?.headers as Record<string, string>)["x-scanner-signature"]).toMatch(/^v1=[0-9a-f]{64}$/);
+  });
+
+  it("avvisar paket- och komponentidentitet som inte bildar samma Bundle-tupel", async () => {
+    for (const invalid of [
+      {
+        ...response,
+        lines: [{ ...response.lines[0], packageId: null }],
+      },
+      {
+        ...response,
+        lines: [{
+          ...response.lines[0],
+          physicalLines: [{ ...response.lines[0].physicalLines[0], packageComponentId: null }],
+        }],
+      },
+    ]) {
+      await expect(fetchScannerBundleProjection(BOOKING, deps(async () =>
+        new Response(JSON.stringify(invalid), { status: 200 }))))
+        .resolves.toMatchObject({ ok: false, code: "bundle_bad_response" });
+    }
   });
 
   it("avvisar korskopplat tenant-/Booking-svar och påhittad monoton revision", async () => {

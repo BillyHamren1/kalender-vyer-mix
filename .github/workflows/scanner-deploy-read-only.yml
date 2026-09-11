@@ -18,7 +18,7 @@ jobs:
     env:
       PLANNING_PROJECT_REF: pihrhltinhewhoxefjxv
       BUNDLE_PROJECT_REF: pnvvnvywphfvmwdmqqzs
-      BUNDLE_RELEASE_SHA: 529e6fb9cce5930e7dbb02bfe6eb7b6341f0f2a4
+      BUNDLE_RELEASE_SHA: 29949c1b7b2426aaa2227d1522e9cda0a14493de
       SCANNER_ALLOWED_ORIGINS: https://scanner-buddy-scan.lovable.app
       BUNDLE_SUPABASE_FUNCTIONS_URL: https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1
     steps:

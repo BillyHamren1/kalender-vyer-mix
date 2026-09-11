@@ -47,7 +47,7 @@ export type ScannerBundleProjection =
       returnState: { authoritative: false; returnedQuantity: null };
       blockers: Array<{ code: string; entityId: string | null }>;
       lines: Array<{
-        reservationLineId: string | null;
+        reservationLineId: string;
         parentReservationLineId: string;
         packageId: string | null;
         packageComponentId: string | null;
@@ -153,7 +153,10 @@ export async function fetchScannerBundleProjection(
       if (instanceIds.some((id) => !id) || new Set(instanceIds).size !== instanceIds.length) {
         return failure("bundle_duplicate_allocation_evidence", "Duplicate or invalid allocated instance identity");
       }
-      const reservationLineId = componentId === null ? parentReservationLineId : null;
+      if ((packageId === null) !== (componentId === null)) {
+        return failure("bundle_bad_response", "Bundle package/component identity mismatch");
+      }
+      const reservationLineId = parentReservationLineId;
       const key = JSON.stringify([parentReservationLineId, componentId, inventoryTypeId]);
       if (seen.has(key)) return failure("bundle_duplicate_physical_identity", "Duplicate Bundle physical identity");
       seen.add(key);

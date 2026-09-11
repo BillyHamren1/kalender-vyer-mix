@@ -181,7 +181,6 @@ export async function buildEventFlowScannerProjection(input: {
         blockers.push({ code: 'INVALID_PACKAGE_COMPONENT', entityId: componentId ?? packageId })
         return []
       }
-      blockers.push({ code: 'PACKAGE_COMPONENT_HAS_NO_RESERVATION_LINE_ID', entityId: componentId })
       return [physical(componentTypeId, perPackage * quantity, componentId, packageItemTypeIds)]
     })
     if (componentRows.length === 0) blockers.push({ code: 'PACKAGE_COMPONENTS_UNAVAILABLE', entityId: packageId })

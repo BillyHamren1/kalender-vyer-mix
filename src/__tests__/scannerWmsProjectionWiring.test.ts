@@ -29,7 +29,7 @@ describe("scanner get_packing_items v2 wiring", () => {
     );
   });
 
-  it("bevarar komponentidentitet utan fabricerat reservationsrad-ID", () => {
+  it("bevarar reservation, komponent och artikeltyp som en exakt kanonisk ID-tupel", () => {
     expect(versioned).toMatch(/reservation_line_id: line\.reservationLineId/);
     expect(versioned).toMatch(
       /parent_reservation_line_id: line\.parentReservationLineId/
