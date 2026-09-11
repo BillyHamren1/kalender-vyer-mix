@@ -32,7 +32,7 @@ export function StaffGpsWeekPanel({
   return (
     <aside className="planning-card w-full md:w-[460px] lg:w-[520px] shrink-0 flex flex-col overflow-hidden p-0">
       {/* Person */}
-      <div className="p-3.5 border-b border-[hsl(270_20%_90%)] space-y-1.5 bg-[hsl(270_35%_98%)]">
+      <div className="p-3.5 border-b border-[hsl(var(--module-accent-base) / 0.30)] space-y-1.5 bg-[hsl(var(--module-accent-soft))]">
         <label className="planning-section-title">Person</label>
         <Select value={staffId ?? ''} onValueChange={onStaffChange}>
           <SelectTrigger className="w-full h-9 text-sm planning-input">
@@ -60,22 +60,22 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Vecka */}
-      <div className="px-2.5 py-2 border-b border-[hsl(270_20%_90%)] flex items-center gap-1">
+      <div className="px-2.5 py-2 border-b border-[hsl(var(--module-accent-base) / 0.30)] flex items-center gap-1">
         <Button
-          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(270_35%_95%)]"
+          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(var(--module-accent-soft))]"
           onClick={() => onDateChange(addWeeks(weekStart, -1))}
           aria-label="Föregående vecka"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 text-center leading-tight">
-          <div className="text-[13px] font-semibold tracking-tight text-[hsl(280_45%_28%)]">Vecka {isoWeek}</div>
+          <div className="text-[13px] font-semibold tracking-tight text-[hsl(var(--module-accent))]">Vecka {isoWeek}</div>
           <div className="text-[10.5px] text-muted-foreground tabular-nums">
             {format(weekStart, 'd MMM', { locale: sv })} – {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: sv })}
           </div>
         </div>
         <Button
-          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(270_35%_95%)]"
+          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(var(--module-accent-soft))]"
           onClick={() => onDateChange(addWeeks(weekStart, 1))}
           aria-label="Nästa vecka"
         >
@@ -83,7 +83,7 @@ export function StaffGpsWeekPanel({
         </Button>
         <Button
           variant="ghost" size="sm"
-          className="h-8 px-2.5 text-[11px] font-semibold text-[hsl(280_45%_38%)] hover:bg-[hsl(270_45%_94%)] hover:text-[hsl(280_55%_28%)] rounded-md"
+          className="h-8 px-2.5 text-[11px] font-semibold text-[hsl(var(--module-accent))] hover:bg-[hsl(var(--module-accent-soft))] hover:text-[hsl(var(--module-accent))] rounded-md"
           onClick={() => onDateChange(new Date())}
         >
           Idag
@@ -91,7 +91,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Dagar — alla 7 synliga */}
-      <div className="divide-y divide-[hsl(270_18%_94%)]">
+      <div className="divide-y divide-[hsl(var(--module-accent-soft))]">
         {weekDays.map((day, i) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const staffName = staff.find(s => s.id === staffId)?.name ?? null;
@@ -111,7 +111,7 @@ export function StaffGpsWeekPanel({
         })}
       </div>
 
-      <div className="px-3 py-2 border-t border-[hsl(270_20%_90%)] bg-[hsl(270_35%_97%)] text-[10.5px] text-muted-foreground tracking-tight">
+      <div className="px-3 py-2 border-t border-[hsl(var(--module-accent-base) / 0.30)] bg-[hsl(var(--module-accent-soft))] text-[10.5px] text-muted-foreground tracking-tight">
         Tidrapport-underlag (filtrerat från GPS). Råa pings &amp; glapp visas i kartan.
       </div>
     </aside>
