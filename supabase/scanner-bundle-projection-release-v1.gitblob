@@ -1,6 +1,6 @@
 # Immutable deploy snapshot from BillyHamren1/bundle-builder-base
-# source commit: 29949c1b7b2426aaa2227d1522e9cda0a14493de
+# source commit: 9e9000326406773de1fcb0a566630ad07ab44ea1
 d9c7841e756362f0f69bd4c8fb21275d2e2904ef  supabase/functions/_shared/eventflow-scanner-bundle-contract.ts
-cfd651a2b61ed4ddf1d9ed2b669ac94552de54c7  supabase/functions/_shared/eventflow-scanner-projection-contract.ts
+5e37915f371ce7e8cb98deafbde63c0b16aa781f  supabase/functions/_shared/eventflow-scanner-projection-contract.ts
 fd18acb5df013a3fc1c2c418dbebd520d1abc4d0  supabase/functions/_shared/time-bundle-scanner-contract.ts
-804ec4a699109c72dbdf9002f4b8b27702db590e  supabase/functions/eventflow-scanner-projection-v1/index.ts
+bd38c98deada1e47d67aa62689b27ba7148270d7  supabase/functions/eventflow-scanner-projection-v1/index.ts

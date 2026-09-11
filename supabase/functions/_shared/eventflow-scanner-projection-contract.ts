@@ -132,22 +132,32 @@ export async function buildEventFlowScannerProjection(input: {
         seenInstanceIds.add(instanceId)
         if (instanceTypeId === canonicalItemTypeId) allocatedInstanceIds.push(instanceId)
       }
-      const manualPacked = manual.reduce((sum, movement) => {
-        const valid = uuid(movement.id) && uuid(movement.organization_id) === request.organizationId &&
-          movement.source_module === 'manual-pack-scan' && movement.action_type === 'manual_pack' &&
-          allowedItemTypeIds.has(uuid(movement.item_type_id) ?? '') && integer(movement.quantity) !== null
+      const seenMovementIds = new Set<string>()
+      const manualNet = manual.reduce((sum, movement) => {
+        const movementId = uuid(movement.id)
+        const movementLineId = uuid(movement.source_id)
+        const movementItemTypeId = uuid(movement.item_type_id)
+        const movementQuantity = integer(movement.quantity)
+        const actionType = movement.action_type
+        const valid = movementId && !seenMovementIds.has(movementId) &&
+          uuid(movement.organization_id) === request.organizationId &&
+          movementLineId === lineId &&
+          (actionType === 'manual_pack' || actionType === 'manual_unpack') &&
+          movementItemTypeId !== null && allowedItemTypeIds.has(movementItemTypeId) &&
+          movementQuantity !== null
         if (!valid) {
           invalidPhysicalEvidence = true
           return sum
         }
-        return uuid(movement.item_type_id) === canonicalItemTypeId
-          ? sum + (integer(movement.quantity) ?? 0)
-          : sum
+        seenMovementIds.add(movementId)
+        if (movementItemTypeId !== canonicalItemTypeId) return sum
+        return sum + (actionType === 'manual_unpack' ? -movementQuantity : movementQuantity)
       }, 0)
       if (invalidPhysicalEvidence) {
         blockers.push({ code: 'INVALID_PHYSICAL_EVIDENCE', entityId: packageComponentId ?? lineId })
       }
-      const packedQuantity = allocatedInstanceIds.length + manualPacked
+      const packedQuantity = allocatedInstanceIds.length + manualNet
+      if (packedQuantity < 0) throw new Error('packed_quantity_below_zero')
       if (packedQuantity > requiredQuantity) {
         blockers.push({ code: 'PACKED_QUANTITY_EXCEEDS_REQUIRED', entityId: packageComponentId ?? lineId })
       }

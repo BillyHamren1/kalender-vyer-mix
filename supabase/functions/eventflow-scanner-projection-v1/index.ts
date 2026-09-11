@@ -57,8 +57,8 @@ export async function handleRequest(request: Request): Promise<Response> {
       .eq('organization_id', org).in('reservation_line_id', lineIds),
     lineIds.length === 0 ? Promise.resolve({ data: [], error: null }) : admin.from('inventory_movements')
       .select('id, organization_id, source_id, source_module, action_type, item_type_id, quantity, created_at')
-      .eq('organization_id', org).eq('source_module', 'manual-pack-scan')
-      .eq('action_type', 'manual_pack').in('source_id', lineIds),
+      .eq('organization_id', org)
+      .in('action_type', ['manual_pack', 'manual_unpack']).in('source_id', lineIds),
   ])
   if (componentsResult.error || allocationsResult.error || movementsResult.error) {
     return json(503, { error: 'physical_projection_lookup_failed' })
