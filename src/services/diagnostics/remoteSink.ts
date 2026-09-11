@@ -1,16 +1,21 @@
 /**
- * Best-effort central sink for critical client crashes.
+ * Best-effort central sink for client errors.
  *
- * Fail-silent by design: a crash report must never cause another crash and
- * must never block the UI. Only `critical` events are shipped, only when a
- * real Supabase session exists, and the payload carries no tokens.
+ * Everything at severity `error` or `critical` is shipped automatically so we
+ * can see why the app crashed without asking the user for a code. Fail-silent
+ * by design: reporting must never cause another crash or block the UI.
+ * No tokens or secrets are included — the edge function redacts as well.
  */
 
 import type { DiagnosticEvent } from './diagnostics';
 
-const MAX_REPORTS_PER_SESSION = 10;
+const MAX_REPORTS_PER_SESSION = 25;
 let sent = 0;
 const sentFingerprints = new Set<string>();
+
+export function shouldShipDiagnostic(event: Pick<DiagnosticEvent, 'severity'>): boolean {
+  return event.severity === 'error' || event.severity === 'critical';
+}
 
 export function resetRemoteSinkForTests() {
   sent = 0;
@@ -18,7 +23,7 @@ export function resetRemoteSinkForTests() {
 }
 
 export async function shipCriticalDiagnostic(event: DiagnosticEvent): Promise<boolean> {
-  if (event.severity !== 'critical') return false;
+  if (!shouldShipDiagnostic(event)) return false;
   if (sent >= MAX_REPORTS_PER_SESSION) return false;
   if (sentFingerprints.has(event.fingerprint)) return false;
 
