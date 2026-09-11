@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
-import { fetchScannerWmsPackingProjection } from '../_shared/scannerWmsPackingProjection.ts'
+import { fetchScannerBundleProjection } from '../_shared/scannerBundleProjection.ts'
 import {
   activeScannerSessionMatches,
   resolveScannerTokenTransport,
@@ -1020,10 +1020,12 @@ Deno.serve(async (req) => {
           if (packingError || !packing) {
             return new Response(
               JSON.stringify({
-                contract_version: "scanner_packing_items_v1",
+                contract_version: "scanner_packing_items_v2",
                 packing_id: packingId,
+                booking_id: null,
                 reservation_id: null,
                 resolution_code: "planning_packing_not_found",
+                blockers: [],
                 lines: [],
               }),
               {
@@ -1033,59 +1035,70 @@ Deno.serve(async (req) => {
             );
           }
 
-          const { data: booking, error: bookingError } = packing.booking_id
-            ? await supabase
-                .from("bookings")
-                .select("booking_number")
-                .eq("id", packing.booking_id)
-                .eq("organization_id", ORG_ID)
-                .single()
-            : { data: null, error: null };
+          const projection = await fetchScannerBundleProjection(
+            packing.booking_id,
+            {
+              baseUrl: Deno.env.get("BUNDLE_SUPABASE_FUNCTIONS_URL") || "",
+              secret: Deno.env.get("EVENTFLOW_SCANNER_BUNDLE_SECRET") || "",
+              organizationId: ORG_ID,
+            }
+          );
 
-          const bookingNumber =
-            typeof booking?.booking_number === "string"
-              ? booking.booking_number
-              : "";
-          if (bookingError || !bookingNumber) {
+          if (!projection.ok) {
             return new Response(
               JSON.stringify({
-                contract_version: "scanner_packing_items_v1",
+                contract_version: "scanner_packing_items_v2",
                 packing_id: packingId,
+                booking_id: packing.booking_id ?? null,
                 reservation_id: null,
-                resolution_code: "planning_booking_number_missing",
+                resolution_code: projection.code,
+                blockers: [{ code: projection.code, entity_id: null }],
                 lines: [],
               }),
               {
+                status: 503,
                 headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
               }
             );
           }
 
-          const projection = await fetchScannerWmsPackingProjection(
-            bookingNumber,
-            {
-              apiKey: Deno.env.get("PRICELIST_API_KEY") || "",
-              organizationId: ORG_ID,
-            }
-          );
-
           return new Response(
             JSON.stringify({
-              contract_version: "scanner_packing_items_v1",
+              contract_version: "scanner_packing_items_v2",
               packing_id: packingId,
+              booking_id: projection.bookingId,
               reservation_id: projection.reservationId,
-              resolution_code: projection.code,
+              wms_snapshot: {
+                kind: "CONTENT_SHA256",
+                fingerprint: projection.snapshotFingerprint,
+                monotonic: projection.snapshotMonotonic,
+              },
+              wms_operational_status: projection.operationalStatus,
+              wms_return_state: projection.returnState,
+              resolution_code: projection.blockers.length > 0
+                ? "wms_projection_blocked"
+                : null,
+              blockers: projection.blockers.map((blocker) => ({
+                code: blocker.code,
+                entity_id: blocker.entityId,
+              })),
               lines: projection.lines.map((line) => ({
-                identity_kind: line.identityKind,
-                physical_kind: line.physicalKind,
+                identity_kind: line.packageComponentId
+                  ? "package_component"
+                  : "reservation_line",
+                physical_kind: line.packageComponentId
+                  ? "package_component"
+                  : "inventory_type",
                 reservation_line_id: line.reservationLineId,
+                parent_reservation_line_id: line.parentReservationLineId,
+                package_id: line.packageId,
+                package_component_id: line.packageComponentId,
                 inventory_type_id: line.inventoryTypeId,
-                display_name: line.displayName,
                 quantity_reserved: line.quantityReserved,
                 quantity_picked: line.quantityPicked,
                 quantity_returned: line.quantityReturned,
-                parent_reservation_line_id: line.parentReservationLineId,
-                source: line.source,
+                allocated_instance_ids: line.allocatedInstanceIds,
+                source: "bundle_wms_projection_v1",
               })),
             }),
             { headers: { ...responseCorsHeaders, "Content-Type": "application/json" } }
