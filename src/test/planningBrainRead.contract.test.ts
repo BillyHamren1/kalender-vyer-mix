@@ -39,7 +39,7 @@ const request = {
 };
 
 const MIGRATION_SRC = readFileSync(
-  join(process.cwd(), 'supabase/migrations/20260912000000_planning_brain_read_nonce.sql'),
+  join(process.cwd(), 'supabase/migrations/20260912074415_1653107f-4fd4-43e8-b2fd-5c67cb829808.sql'),
   'utf-8',
 );
 
