@@ -269,7 +269,7 @@ describe('replay primitive (security-only nonce store)', () => {
     const selects = ROUTE_SRC.split('.select(').length - 1;
     const orgFilters = (ROUTE_SRC.match(/\.eq\('organization_id', org\)/g) ?? []).length;
     expect(selects).toBeGreaterThanOrEqual(4);
-    expect(orgFilters).toBe(3);
+    expect(orgFilters).toBe(4);
     expect(ROUTE_SRC).not.toMatch(/openai|anthropic|ai\.gateway|lovable-api-key/i);
   });
 });
