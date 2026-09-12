@@ -44,7 +44,11 @@ describe('Operations premium module contract', () => {
     expect(header).toContain("min-h-[98px] lg:h-[98px] lg:min-h-[98px]");
     expect(header).toContain("h-14 w-14");
     expect(header).toContain("h-[30px] w-[30px]");
-    expect(header).toContain("w-1 rounded-r");
+    expect(header).toContain("w-1 rounded-r-full");
+    expect(header).toContain("rounded-[14px]");
+    expect(header).toContain("text-[24px] font-bold leading-tight tracking-[-0.035em] text-[#172F3A]");
+    expect(header).toContain("text-sm leading-none text-[#7B8D92]");
+    expect(header).not.toContain("pl-[39px]");
     expect(header).not.toContain('text-white leading-tight truncate');
   });
 
