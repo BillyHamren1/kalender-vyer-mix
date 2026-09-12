@@ -112,6 +112,12 @@ export async function verifyPlanningBrainSignature(input: {
 
 export interface PlanningBrainReadRequest {
   readonly schema: typeof PLANNING_BRAIN_READ_REQUEST_SCHEMA
+  /**
+   * Claimed actor. Present in the HMAC-signed RAW BODY, but NEVER authoritative
+   * on its own: the route must prove active Planning membership in exactly
+   * organizationId via Planning-owned auth source before projecting anything.
+   */
+  readonly actorUserId: string
   readonly organizationId: string
   readonly from: string
   readonly to: string
@@ -123,9 +129,11 @@ export type ParsePlanningBrainReadRequest =
 
 export function parsePlanningBrainReadRequest(input: unknown): ParsePlanningBrainReadRequest {
   if (!isObject(input)) return { ok: false, error: 'invalid_body' }
-  const allowed = new Set(['schema', 'organizationId', 'from', 'to'])
+  const allowed = new Set(['schema', 'actorUserId', 'organizationId', 'from', 'to'])
   if (Object.keys(input).some((key) => !allowed.has(key))) return { ok: false, error: 'unexpected_field' }
   if (input.schema !== PLANNING_BRAIN_READ_REQUEST_SCHEMA) return { ok: false, error: 'unsupported_schema' }
+  const actorUserId = uuid(input.actorUserId)
+  if (!actorUserId) return { ok: false, error: 'invalid_actor_user_id' }
   const organizationId = uuid(input.organizationId)
   if (!organizationId) return { ok: false, error: 'invalid_organization_id' }
   const from = isoDate(input.from)
@@ -134,7 +142,41 @@ export function parsePlanningBrainReadRequest(input: unknown): ParsePlanningBrai
   const span = dayDifference(from, to)
   if (span < 0) return { ok: false, error: 'invalid_date_range' }
   if (span + 1 > PLANNING_BRAIN_MAX_RANGE_DAYS) return { ok: false, error: 'range_too_large' }
-  return { ok: true, value: { schema: PLANNING_BRAIN_READ_REQUEST_SCHEMA, organizationId, from, to } }
+  return {
+    ok: true,
+    value: { schema: PLANNING_BRAIN_READ_REQUEST_SCHEMA, actorUserId, organizationId, from, to },
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Actor authorization (Planning-owned auth source, no PII returned)           */
+/* -------------------------------------------------------------------------- */
+
+/** Canonical Planning roles — mirrors public.has_planning_access. */
+export const PLANNING_BRAIN_ACTOR_ROLES = ['admin', 'projekt', 'lager'] as const
+
+export type PlanningBrainActorDecision =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error: 'actor_not_authorized' }
+
+/**
+ * Pure decision over Planning-owned auth rows. Body/mail claims are ignored:
+ * only rows read server-side from user_roles/profiles may grant access.
+ */
+export function decidePlanningBrainActor(input: {
+  readonly organizationId: string
+  readonly profileOrganizationId?: string | null
+  readonly roleRows?: readonly { readonly role?: unknown; readonly organization_id?: unknown }[] | null
+}): PlanningBrainActorDecision {
+  const org = input.organizationId
+  if (!uuid(org)) return { ok: false, error: 'actor_not_authorized' }
+  if (uuid(input.profileOrganizationId) !== org) return { ok: false, error: 'actor_not_authorized' }
+  const allowed = (input.roleRows ?? []).some((row) =>
+    uuid(row?.organization_id) === org &&
+    typeof row?.role === 'string' &&
+    (PLANNING_BRAIN_ACTOR_ROLES as readonly string[]).includes(row.role),
+  )
+  return allowed ? { ok: true } : { ok: false, error: 'actor_not_authorized' }
 }
 
 /* -------------------------------------------------------------------------- */
