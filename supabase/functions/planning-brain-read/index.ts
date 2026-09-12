@@ -46,9 +46,37 @@ export async function handleRequest(request: Request): Promise<Response> {
   const org = parsed.value.organizationId
   const { from, to } = parsed.value
 
+  // Replay safety: server-owned one-time nonce consumption (security primitive,
+  // the ONLY mutating call in this route — never business data).
+  const nonceResult = await admin.rpc('consume_planning_brain_read_nonce', {
+    _nonce: request.headers.get('x-planning-nonce'),
+    _organization_id: org,
+    _ttl_seconds: PLANNING_BRAIN_NONCE_TTL_SECONDS,
+  })
+  if (nonceResult.error) return json(503, { error: 'nonce_store_unavailable' })
+  if (nonceResult.data !== true) return json(401, { error: 'nonce_replayed' })
+
   const orgResult = await admin.from('organizations').select('id').eq('id', org).maybeSingle()
   if (orgResult.error) return json(503, { error: 'organization_lookup_failed' })
   if (!orgResult.data) return json(404, { error: 'organization_not_found' })
+
+  // Actor authority from Planning-owned auth source. No PII is read or returned.
+  const actor = parsed.value.actorUserId
+  const [profileResult, rolesResult] = await Promise.all([
+    admin.from('profiles').select('organization_id').eq('user_id', actor).maybeSingle(),
+    admin.from('user_roles')
+      .select('role, organization_id')
+      .eq('user_id', actor)
+      .eq('organization_id', org)
+      .in('role', PLANNING_BRAIN_ACTOR_ROLES as unknown as string[]),
+  ])
+  if (profileResult.error || rolesResult.error) return json(503, { error: 'actor_lookup_failed' })
+  const actorDecision = decidePlanningBrainActor({
+    organizationId: org,
+    profileOrganizationId: (profileResult.data as { organization_id?: string | null } | null)?.organization_id ?? null,
+    roleRows: rolesResult.data ?? [],
+  })
+  if (!actorDecision.ok) return json(403, { error: actorDecision.error })
 
   const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
     admin.from('projects')
