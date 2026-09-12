@@ -537,6 +537,14 @@ function buildSummaryFromCache(args: {
   const breakMinutes = safeNumber(summary.breakMinutes);
   const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes ?? summary.totalMinutes ?? workMinutes + travelMinutes - breakMinutes));
   const normalMinutes = Math.max(0, totalMinutes - travelMinutes);
+  const cacheWarnings = Array.isArray(summary.warnings)
+    ? summary.warnings.filter((warning): warning is string =>
+      typeof warning === "string" && warning.trim().length > 0
+    )
+    : [];
+  const cacheReviewComment = cacheWarnings.length > 0
+    ? cacheWarnings.join(" ")
+    : null;
 
   // Bygg rader genom samma single-pipeline-mapper som mobil + admin Gantt.
   const picked = selectCacheBlockSource(cache);
@@ -559,7 +567,7 @@ function buildSummaryFromCache(args: {
     normalMinutes,
     overtimeMinutes: 0,
     submissionId: null,
-    reviewComment: null,
+    reviewComment: cacheReviewComment,
     cacheBuiltAt: cache.built_at ?? null,
     engineVersion: cache.engine_version ?? null,
     rows,
