@@ -16,8 +16,10 @@
  * user session cookie that BRAIN cannot own.
  */
 
-export const PLANNING_BRAIN_READ_REQUEST_SCHEMA = 'planning-brain-read-request.v1' as const
+export const PLANNING_BRAIN_READ_REQUEST_SCHEMA = 'planning-brain-read-request.v2' as const
 export const PLANNING_BRAIN_READ_SCHEMA = 'planning-brain-read.v1' as const
+/** Nonce one-time TTL (seconds) used by the server-owned replay primitive. */
+export const PLANNING_BRAIN_NONCE_TTL_SECONDS = 900
 
 export const PLANNING_BRAIN_SIGNATURE_MAX_SKEW_MS = 300_000
 export const PLANNING_BRAIN_MAX_RANGE_DAYS = 31
