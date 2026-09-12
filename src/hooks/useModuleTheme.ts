@@ -15,6 +15,12 @@ export function useModuleTheme(): void {
   useEffect(() => {
     const key = resolveModuleFromPath(pathname);
     document.documentElement.setAttribute('data-module', key);
+
+    // Keep the desktop module identity visible without changing the
+    // standalone mobile Time routes or any internal planning keys.
+    if (key === 'planning' && !pathname.startsWith('/m/')) {
+      document.title = 'EventFlow Operations';
+    }
   }, [pathname]);
 }
 
