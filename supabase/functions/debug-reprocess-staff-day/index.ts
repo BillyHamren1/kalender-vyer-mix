@@ -210,6 +210,115 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
   };
 }
 
+async function loadPlannedBookingLabels(
+  admin: any,
+  orgId: string,
+  staffId: string,
+  date: string,
+): Promise<string[]> {
+  try {
+    const { data: assignments } = await admin
+      .from('booking_staff_assignments')
+      .select('booking_id')
+      .eq('organization_id', orgId)
+      .eq('staff_id', staffId)
+      .eq('assignment_date', date);
+    const ids = Array.from(new Set((assignments ?? []).map((row: any) => row.booking_id).filter(Boolean)));
+    if (ids.length === 0) return [];
+    const { data: bookings } = await admin
+      .from('bookings')
+      .select('id, client, title, booking_number')
+      .in('id', ids);
+    return Array.from(new Set((bookings ?? [])
+      .map((booking: any) => String(booking.client ?? booking.title ?? booking.booking_number ?? '').trim())
+      .filter(Boolean)));
+  } catch {
+    return [];
+  }
+}
+
+function reviewGpsProposal(
+  blocks: any[],
+  plannedBookingLabels: string[],
+  lastPingIso: string | null,
+): { blocks: any[]; warnings: string[]; needsReviewMinutes: number } {
+  const warnings: string[] = [];
+  const add = (message: string) => {
+    if (message && !warnings.includes(message)) warnings.push(message);
+  };
+  let needsReviewMinutes = 0;
+
+  const reviewed = blocks.map((block: any) => {
+    const absorbed = Array.isArray(block.absorbedReasons) ? block.absorbedReasons : [];
+    const isUnlinkedLowConfidenceWork =
+      block.kind === 'work' &&
+      !block.targetId &&
+      String(block.confidence ?? '').toLowerCase() === 'low';
+    const absorbedUnknown = absorbed.includes('unknown_place');
+    const explicitUnknown = block.kind === 'unknown';
+
+    if (!isUnlinkedLowConfidenceWork && !absorbedUnknown && !explicitUnknown) return block;
+
+    const minutes = Number(block.durationMinutes ?? block.minutes ?? 0);
+    needsReviewMinutes += Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
+    const reason = explicitUnknown
+      ? 'Okänd plats behöver granskas.'
+      : isUnlinkedLowConfidenceWork
+      ? 'Möjlig rast eller oplanerat stopp: låg säkerhet och ingen kopplad arbetsplats.'
+      : 'Ett okänt eller oplanerat stopp har absorberats i projektstiden.';
+    add(reason);
+    return {
+      ...block,
+      reviewState: 'needs_review',
+      warningReasons: Array.from(new Set([
+        ...(Array.isArray(block.warningReasons) ? block.warningReasons : []),
+        reason,
+      ])),
+    };
+  });
+
+  const clientKey = (value: string) => value
+    .toLocaleLowerCase('sv-SE')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .find((part) => part.length >= 3 && !['aktiebolag'].includes(part)) ?? '';
+  const visitedLabels = reviewed
+    .filter((block: any) => block.kind === 'work' && block.targetId)
+    .map((block: any) => String(block.label ?? block.targetLabel ?? '').toLocaleLowerCase('sv-SE'));
+  const missingPlanned = plannedBookingLabels.filter((label) => {
+    const needle = label.toLocaleLowerCase('sv-SE');
+    const key = clientKey(label);
+    return !visitedLabels.some((visited) =>
+      visited.includes(needle) ||
+      needle.includes(visited) ||
+      (key.length >= 3 && clientKey(visited) === key)
+    );
+  });
+  if (missingPlanned.length > 0) {
+    add(`Planavvikelse: inget säkert GPS-besök på ${missingPlanned.join(', ')}.`);
+  }
+
+  const workedOnlyAtWarehouse =
+    reviewed.some((block: any) => block.kind === 'work') &&
+    reviewed
+      .filter((block: any) => block.kind === 'work')
+      .every((block: any) => block.targetType === 'warehouse');
+  if (plannedBookingLabels.length > 0 && workedOnlyAtWarehouse) {
+    add('Planavvikelse: personen stannade på lagret trots planerat projektarbete.');
+  }
+
+  if (lastPingIso && plannedBookingLabels.length > 0) {
+    const local = isoToStockholmLocal(lastPingIso);
+    const hour = local ? Number(local.slice(11, 13)) : NaN;
+    if (Number.isFinite(hour) && hour < 12) {
+      add(`GPS-signalen upphörde tidigt (${local?.slice(11, 16)}); tiden efter sista ping får inte antas vara arbete.`);
+    }
+  }
+
+  return { blocks: reviewed, warnings, needsReviewMinutes };
+}
+
 function blockToDebug(b: any) {
   return {
     id: b.id ?? null,
@@ -353,7 +462,10 @@ async function processRun(
         currentLabel: openReg.current_label ?? null,
       } : null;
 
-      const plannedEndOfDayIso = await resolvePlannedEndOfDayIso(admin, orgId, staffId, date);
+      const [plannedEndOfDayIso, plannedBookingLabels] = await Promise.all([
+        resolvePlannedEndOfDayIso(admin, orgId, staffId, date),
+        loadPlannedBookingLabels(admin, orgId, staffId, date),
+      ]);
       const actualWorkStartIso = await resolveActualWorkStartIso(admin, orgId, staffId, startUtc, endUtc);
 
       const report = buildReportCandidateBlocks({
@@ -375,7 +487,12 @@ async function processRun(
         openActiveStartedAtIso: openActiveRegistration?.startedAtIso ?? null,
       });
 
-      const finalBlocks = clamp.blocks;
+      const review = reviewGpsProposal(
+        clamp.blocks,
+        plannedBookingLabels,
+        pings[pings.length - 1]?.ts ?? null,
+      );
+      const finalBlocks = review.blocks;
       let work = 0, unknown = 0, needsReview = 0;
       for (const b of finalBlocks) {
         const dur = Number(b.durationMinutes ?? 0);
@@ -383,6 +500,7 @@ async function processRun(
         else if (b.kind === 'unknown') unknown += dur;
         if (b.reviewState === 'needs_review') needsReview += dur;
       }
+      needsReview = Math.max(needsReview, review.needsReviewMinutes);
 
       result = {
         summary: {
@@ -395,6 +513,7 @@ async function processRun(
           activeRegsCount: activeRegs.length,
           plannedEndOfDayIso,
           actualWorkStartIso,
+          warnings: review.warnings,
         },
         presenceBlocks: (presence.blocks ?? []).map(blockToDebug),
         reportBlocks: finalBlocks.map(blockToDebug),
@@ -404,6 +523,8 @@ async function processRun(
         displayBlocks: [],
         droppedAfterDayEnd: (clamp.dropped ?? []).map(blockToDebug),
         diagnostics: opts.includeDiagnostics ? {
+          warnings: review.warnings,
+          plannedBookingLabels,
           targetWarnings,
           dayEndDecision,
           clamp: clamp.diagnostics,
