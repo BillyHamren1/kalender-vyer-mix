@@ -156,7 +156,7 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 theme-purple" style={{ background: 'hsl(210 20% 96%)' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 theme-purple" style={{ background: '#EDF1F3' }}>
       <Card className="w-full max-w-md rounded-[18px] border-border/70 bg-white shadow-[0_18px_50px_hsl(215_20%_30%/0.10)]">
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
