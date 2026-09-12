@@ -10,7 +10,7 @@
 @layer base {
   :root {
     /* === BACKGROUND LAYERS (Premium Enterprise) === */
-    --background: 200 15% 96%;          /* L0 — kall ljusgrå sida */
+    --background: 200 20% 94.1176%;     /* #EDF1F3 — låst neutral canvas */
     --surface-active: 200 14% 93%;      /* L2 — aktiva kontroller, header */
 
     /* === PRIMARY TEAL (EventFlow Design System) === */
@@ -71,8 +71,8 @@
     --gradient-icon: linear-gradient(135deg, hsl(184 55% 45%) 0%, hsl(184 60% 35%) 100%);
     --gradient-card: hsl(0 0% 100%);
     --gradient-teal: linear-gradient(135deg, hsl(184 55% 42%) 0%, hsl(184 60% 36%) 100%);
-    --gradient-teal-bg: hsl(200 15% 96%);
-    --gradient-page: hsl(200 15% 96%);
+    --gradient-teal-bg: hsl(200 20% 94.1176%); /* #EDF1F3 */
+    --gradient-page: hsl(200 20% 94.1176%); /* #EDF1F3 */
 
     /* === SIDEBAR (Premium Enterprise) === */
     --sidebar-background: 210 17% 98%;

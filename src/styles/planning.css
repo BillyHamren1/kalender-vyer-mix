@@ -27,9 +27,9 @@
 
   /* Sidbakgrund — NEUTRAL premium-grå (matchar Booking-familjen).
      Lila används enbart som accent, inte som basbakgrund. */
-  --background: 240 10% 97%;
-  --gradient-page: hsl(240 10% 97%);
-  --gradient-teal-bg: hsl(240 10% 97%);
+  --background: 200 20% 94.1176%; /* #EDF1F3 — locked shared EventFlow canvas */
+  --gradient-page: hsl(200 20% 94.1176%);
+  --gradient-teal-bg: hsl(200 20% 94.1176%);
 
   /* Accent / hover / focus-ring — lila */
   --accent: 265.7143 43.75% 93.7255%;
