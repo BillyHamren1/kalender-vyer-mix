@@ -64,6 +64,18 @@ describe('Operations premium module contract', () => {
     }
   });
 
+  it('uses the same canonical premium header on authentication and exposes the Operations title', () => {
+    const auth = read('src/pages/Auth.tsx');
+    const theme = read('src/hooks/useModuleTheme.ts');
+
+    expect(auth).toContain('<PageHeader');
+    expect(auth).toContain('variant="purple"');
+    expect(auth).not.toContain('h-16 w-16');
+    expect(auth).not.toContain('h-9 w-9');
+    expect(theme).toContain("document.title = 'EventFlow Operations'");
+    expect(theme).toContain("!pathname.startsWith('/m/')");
+  });
+
   it('renames only the visible module identity and preserves internal contracts', () => {
     const auth = read('src/pages/Auth.tsx');
     const dashboard = read('src/pages/PlanningDashboard.tsx');
