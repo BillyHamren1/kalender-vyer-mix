@@ -41,7 +41,7 @@ describe('Operations premium module contract', () => {
 
   it('locks the shared premium header geometry and larger icon', () => {
     const header = read('src/components/ui/PageHeader.tsx');
-    expect(header).toContain("min-h-[98px]");
+    expect(header).toContain("min-h-[98px] lg:h-[98px] lg:min-h-[98px]");
     expect(header).toContain("h-14 w-14");
     expect(header).toContain("h-[30px] w-[30px]");
     expect(header).toContain("w-1 rounded-r");

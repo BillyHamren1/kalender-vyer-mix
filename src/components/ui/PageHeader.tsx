@@ -34,7 +34,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     return (
       <header
         className={cn(
-          'relative mb-4 min-h-[98px] overflow-hidden rounded-[18px] border px-[22px] py-[19px] pl-[39px]',
+          'relative mb-4 min-h-[98px] lg:h-[98px] lg:min-h-[98px] overflow-hidden rounded-[18px] border px-[22px] py-[19px] pl-[39px]',
           'flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between',
           className,
         )}
