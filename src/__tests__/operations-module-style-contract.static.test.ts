@@ -17,6 +17,18 @@ describe('Operations premium module contract', () => {
     expect(css).toContain('/* #EEE8F6 */');
   });
 
+  it('locks the identical neutral canvas on app pages and authentication', () => {
+    const index = read('src/index.css');
+    const planning = read('src/styles/planning.css');
+    const auth = read('src/pages/Auth.tsx');
+
+    expect(index).toContain('--background: 200 20% 94.1176%');
+    expect(index).toContain('--gradient-page: hsl(200 20% 94.1176%)');
+    expect(planning).toContain('--background: 200 20% 94.1176%');
+    expect(planning).toContain('--gradient-page: hsl(200 20% 94.1176%)');
+    expect(auth).toContain("background: '#EDF1F3'");
+  });
+
   it('uses one identical strong fill for icons and primary actions', () => {
     const css = read('src/styles/planning.css');
     expect(css).toContain('.operations-accent-gradient');
