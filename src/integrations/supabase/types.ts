@@ -5328,6 +5328,33 @@ export type Database = {
           },
         ]
       }
+      planning_brain_read_nonces: {
+        Row: {
+          consumed_at: string
+          created_at: string
+          expires_at: string
+          id: string
+          nonce: string
+          organization_id: string
+        }
+        Insert: {
+          consumed_at?: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          nonce: string
+          organization_id: string
+        }
+        Update: {
+          consumed_at?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          nonce?: string
+          organization_id?: string
+        }
+        Relationships: []
+      }
       product_cost_overrides: {
         Row: {
           assembly_cost: number | null
@@ -11101,6 +11128,14 @@ export type Database = {
       compute_workday_review_status: {
         Args: { p_workday_id: string }
         Returns: Database["public"]["Enums"]["workday_review_status"]
+      }
+      consume_planning_brain_read_nonce: {
+        Args: {
+          _nonce: string
+          _organization_id: string
+          _ttl_seconds?: number
+        }
+        Returns: boolean
       }
       enqueue_booking_sync_job: {
         Args: {
