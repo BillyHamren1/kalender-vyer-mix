@@ -7,10 +7,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  PLANNING_BRAIN_ACTOR_ROLES,
   PLANNING_BRAIN_FORBIDDEN_FIELDS,
   PLANNING_BRAIN_READ_REQUEST_SCHEMA,
   PLANNING_BRAIN_READ_SCHEMA,
   buildPlanningBrainProjection,
+  decidePlanningBrainActor,
   parsePlanningBrainReadRequest,
   planningPhase,
   signPlanningBrainRequest,
@@ -25,7 +27,21 @@ const ASSIGNMENT = '44444444-4444-4444-8444-444444444444';
 const SECRET = 'planning-brain-test-secret-value';
 const NONCE = 'abcdefghijklmnop';
 
-const request = { schema: PLANNING_BRAIN_READ_REQUEST_SCHEMA, organizationId: ORG, from: '2026-09-01', to: '2026-09-07' };
+const ACTOR = '88888888-8888-4888-8888-888888888888';
+const UNKNOWN_ACTOR = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+const request = {
+  schema: PLANNING_BRAIN_READ_REQUEST_SCHEMA,
+  actorUserId: ACTOR,
+  organizationId: ORG,
+  from: '2026-09-01',
+  to: '2026-09-07',
+};
+
+const MIGRATION_SRC = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260912000000_planning_brain_read_nonce.sql'),
+  'utf-8',
+);
 
 const ROUTE_SRC = readFileSync(
   join(process.cwd(), 'supabase/functions/planning-brain-read/index.ts'),
@@ -41,6 +57,8 @@ describe('request contract', () => {
   it.each([
     [{ ...request, schema: 'other.v1' }, 'unsupported_schema'],
     [{ ...request, organizationId: 'not-a-uuid' }, 'invalid_organization_id'],
+    [{ ...request, actorUserId: 'nope' }, 'invalid_actor_user_id'],
+    [(() => { const { actorUserId, ...rest } = request; return rest; })(), 'invalid_actor_user_id'],
     [{ ...request, from: '2026-13-40' }, 'invalid_date_range'],
     [{ ...request, from: '2026-09-08', to: '2026-09-01' }, 'invalid_date_range'],
     [{ ...request, to: '2026-12-31' }, 'range_too_large'],
@@ -146,8 +164,98 @@ describe('projection', () => {
 });
 
 describe('route is strictly read-only and fail-closed', () => {
-  it('contains no mutating database call', () => {
-    expect(ROUTE_SRC).not.toMatch(/\.(insert|update|upsert|delete|rpc)\(/);
+  it('contains no mutating database call except the explicit nonce primitive', () => {
+    expect(ROUTE_SRC).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+    const rpcCalls = ROUTE_SRC.match(/\.rpc\('([a-z_]+)'/g) ?? [];
+    expect(rpcCalls).toEqual(["\.rpc('consume_planning_brain_read_nonce'"]);
+  });
+
+  it('consumes the nonce and enforces actor authority before projecting', () => {
+    expect(ROUTE_SRC).toContain('nonce_replayed');
+    expect(ROUTE_SRC).toContain('nonce_store_unavailable');
+    expect(ROUTE_SRC).toContain('actor_lookup_failed');
+    expect(ROUTE_SRC).toContain('decidePlanningBrainActor');
+    const nonceAt = ROUTE_SRC.indexOf('consume_planning_brain_read_nonce');
+    const actorAt = ROUTE_SRC.indexOf('decidePlanningBrainActor(');
+    const projectionAt = ROUTE_SRC.indexOf('buildPlanningBrainProjection(');
+    expect(nonceAt).toBeGreaterThan(0);
+    expect(nonceAt).toBeLessThan(actorAt);
+    expect(actorAt).toBeLessThan(projectionAt);
+  });
+
+  it('reads actor authority from Planning-owned auth source without PII columns', () => {
+    expect(ROUTE_SRC).toContain("from('user_roles')");
+    expect(ROUTE_SRC).toContain("from('profiles')");
+    expect(ROUTE_SRC).not.toMatch(/select\('[^']*email/);
+    expect(ROUTE_SRC).not.toMatch(/select\('[^']*full_name/);
+  });
+});
+
+describe('actor authorization (no body/mail claims)', () => {
+  it('accepts an actor with an active Planning role in exactly the requested org', () => {
+    for (const role of PLANNING_BRAIN_ACTOR_ROLES) {
+      expect(decidePlanningBrainActor({
+        organizationId: ORG,
+        profileOrganizationId: ORG,
+        roleRows: [{ role, organization_id: ORG }],
+      })).toEqual({ ok: true });
+    }
+  });
+
+  it('rejects a valid actor without Planning membership', () => {
+    expect(decidePlanningBrainActor({
+      organizationId: ORG,
+      profileOrganizationId: ORG,
+      roleRows: [],
+    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+    expect(decidePlanningBrainActor({
+      organizationId: ORG,
+      profileOrganizationId: ORG,
+      roleRows: [{ role: 'forsaljning', organization_id: ORG }],
+    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+  });
+
+  it('rejects an actor belonging to another organization', () => {
+    expect(decidePlanningBrainActor({
+      organizationId: ORG,
+      profileOrganizationId: OTHER_ORG,
+      roleRows: [{ role: 'admin', organization_id: OTHER_ORG }],
+    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+    expect(decidePlanningBrainActor({
+      organizationId: ORG,
+      profileOrganizationId: ORG,
+      roleRows: [{ role: 'admin', organization_id: OTHER_ORG }],
+    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+  });
+
+  it('rejects an unknown actor (no profile row)', () => {
+    expect(decidePlanningBrainActor({
+      organizationId: ORG,
+      profileOrganizationId: null,
+      roleRows: [{ role: 'admin', organization_id: ORG }],
+    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+    expect(UNKNOWN_ACTOR).not.toBe(ACTOR);
+  });
+});
+
+describe('replay primitive (security-only nonce store)', () => {
+  it('is one-time, TTL-bounded and unreachable for clients', () => {
+    expect(MIGRATION_SRC).toContain('planning_brain_read_nonces');
+    expect(MIGRATION_SRC).toContain('CREATE UNIQUE INDEX planning_brain_read_nonces_nonce_key');
+    expect(MIGRATION_SRC).toContain('ON CONFLICT (nonce) DO NOTHING');
+    expect(MIGRATION_SRC).toContain('SECURITY DEFINER');
+    expect(MIGRATION_SRC).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(MIGRATION_SRC).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*anon, authenticated/);
+    expect(MIGRATION_SRC).toContain('GRANT EXECUTE ON FUNCTION public.consume_planning_brain_read_nonce(text, uuid, integer) TO service_role');
+    expect(MIGRATION_SRC).toContain('LIMIT 500');
+  });
+
+  it('models first-use accepted and exact replay rejected', () => {
+    const store = new Set<string>();
+    const consume = (nonce: string) => (store.has(nonce) ? false : (store.add(nonce), true));
+    expect(consume(NONCE)).toBe(true);
+    expect(consume(NONCE)).toBe(false);
+    expect(consume(`${NONCE}-other`)).toBe(true);
   });
 
   it('is POST-only, signature-gated and fails closed without configuration', () => {
