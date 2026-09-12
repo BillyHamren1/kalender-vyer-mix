@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Calendar, AlertCircle, Info, Mail, KeyRound, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
@@ -158,19 +159,18 @@ const Auth: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 theme-purple" style={{ background: '#EDF1F3' }}>
       <Card className="w-full max-w-md rounded-[18px] border-border/70 bg-white shadow-[0_18px_50px_hsl(215_20%_30%/0.10)]">
-        <CardHeader className="space-y-4 text-center">
-          <div className="flex justify-center">
-            <div className="operations-accent-gradient operations-gradient-shadow h-16 w-16 rounded-2xl flex items-center justify-center text-white">
-              <Calendar className="h-9 w-9" strokeWidth={2} />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">EventFlow Operations</CardTitle>
-          <CardDescription>
-            {mode === 'password' && 'Logga in för att fortsätta till Operations'}
-            {mode === 'magic-link' && 'Få en inloggningslänk skickad till din e-post'}
-            {mode === 'reset-request' && 'Återställ ditt lösenord'}
-          </CardDescription>
-        </CardHeader>
+        <PageHeader
+          icon={Calendar}
+          title="EventFlow Operations"
+          variant="purple"
+          subtitle={
+            mode === 'password'
+              ? 'Logga in för att fortsätta till Operations'
+              : mode === 'magic-link'
+                ? 'Få en inloggningslänk skickad till din e-post'
+                : 'Återställ ditt lösenord'
+          }
+        />
 
         <CardContent className="space-y-6">
           {mode === 'password' && (
