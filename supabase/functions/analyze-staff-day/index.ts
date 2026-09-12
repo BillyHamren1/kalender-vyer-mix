@@ -198,6 +198,8 @@ Deno.serve(async (req) => {
       travelRes,
       pingsRes,
       workdayRes,
+      plannedAssignmentsRes,
+      cacheRes,
     ] = await Promise.all([
       admin
         .from("staff_members")
@@ -241,6 +243,21 @@ Deno.serve(async (req) => {
         .eq("organization_id", orgId)
         .gte("started_at", dayStartIso)
         .lt("started_at", dayEndIso),
+      admin
+        .from("booking_staff_assignments")
+        .select("booking_id, team_id, role, assignment_date")
+        .eq("staff_id", staffId)
+        .eq("organization_id", orgId)
+        .eq("assignment_date", dateStr),
+      admin
+        .from("staff_day_report_cache")
+        .select(
+          "engine_version, summary_json, report_candidate_blocks_json, diagnostics_json, built_at, stale, error",
+        )
+        .eq("staff_id", staffId)
+        .eq("organization_id", orgId)
+        .eq("date", dateStr)
+        .maybeSingle(),
     ]);
 
     if (staffRes.error || !staffRes.data) {
@@ -255,6 +272,8 @@ Deno.serve(async (req) => {
     const travels = travelRes.data || [];
     const pings = (pingsRes.data || []) as Ping[];
     const workdays = workdayRes.data || [];
+    const plannedAssignments = plannedAssignmentsRes.data || [];
+    const dayagentCandidate = cacheRes.data || null;
 
     // Day-wide GPS pings via canonical paginated reader (replaces .limit(2000)).
     const pingsFetch = await fetchAllStaffLocationPings({
@@ -276,6 +295,7 @@ Deno.serve(async (req) => {
         ...reports.map((r) => r.booking_id).filter(Boolean),
         ...ltes.map((e) => e.booking_id).filter(Boolean),
         ...travels.map((t) => t.destination_booking_id).filter(Boolean),
+        ...plannedAssignments.map((a) => a.booking_id).filter(Boolean),
       ]),
     ] as string[];
     const lpIds = [
@@ -314,8 +334,24 @@ Deno.serve(async (req) => {
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
-    // Cluster pings + reverse-geocode each unique cluster (cap at 15)
-    const clusters = clusterPings(pings).slice(0, 15);
+    // Prefer stationary locations from the whole day, then add a small route sample.
+    // Taking only the first clusters hid later projects and lunch/deviation stops.
+    const allClusters = clusterPings(pings);
+    const stationaryClusters = allClusters
+      .filter((p) => (p.speed ?? 0) <= 1)
+      .slice(0, 15);
+    const movingClusters = allClusters.filter((p) => (p.speed ?? 0) > 1);
+    const movingIndexes = movingClusters.length
+      ? [0, .25, .5, .75, 1].map((ratio) =>
+        Math.min(
+          movingClusters.length - 1,
+          Math.round((movingClusters.length - 1) * ratio),
+        )
+      )
+      : [];
+    const movingSample = [...new Set(movingIndexes)]
+      .map((index) => movingClusters[index]);
+    const clusters = [...stationaryClusters, ...movingSample].slice(0, 20);
     const geocoded = await Promise.all(
       clusters.map(async (p) => ({
         recorded_at: p.recorded_at,
@@ -332,11 +368,13 @@ Deno.serve(async (req) => {
     const context = {
       staff: { name: staffRes.data.name, role: staffRes.data.role },
       date: dateStr,
-      timezone: "Europe/Stockholm (CEST UTC+2 in April)",
+      timezone: "Europe/Stockholm; convert GPS UTC timestamps using this timezone for the requested date",
       time_reports: reports,
       location_time_entries: ltes,
       travel_logs: travels,
       workdays,
+      planned_assignments: plannedAssignments,
+      dayagent_candidate: dayagentCandidate,
       bookings: bookingsRes.data,
       large_projects: lpsRes.data,
       locations: locsRes.data,
@@ -345,26 +383,31 @@ Deno.serve(async (req) => {
       movement_segments: movement.segments,
     };
 
-    const systemPrompt = `Du är en assistent som hjälper en arbetsledare granska personalens dagrapport.
-Du får data om en specifik personal en specifik dag: tidrapporter, GPS-pings (med adresser), location-checkins, registrerade resor, och bokningar personen kunde ha jobbat på.
+    const systemPrompt = `Du är Dayagentens oberoende kvalitetsgranskare. Du hjälper en arbetsledare förstå vad som faktiskt hände under en personals arbetsdag.
 
-Tider i time_reports/location_time_entries är i lokal tid (Europe/Stockholm).
-GPS-pings (recorded_at) är i UTC. April 2026 = lokal tid är UTC+2.
+Du får dagens planerade tilldelningar och bokningar, Dayagentens byggda rapportkandidat, råa GPS-pings sammanfattade som platser/rörelser, tidrapporter, check-ins, resor och arbetsdagar. Planen är en förväntan, GPS är bevis med varierande kvalitet och Dayagentens kandidat är ett förslag — ingen av dem får behandlas som facit ensam.
 
-Din uppgift:
-1. Skapa en kort, läsbar dagberättelse (3-6 meningar) på svenska som beskriver vad personen faktiskt verkar ha gjort, baserat på BÅDE GPS och rapporter.
-2. Identifiera oklarheter eller fel:
-   - Saknad tidrapport för period med GPS-aktivitet på en jobbplats
-   - Felklassificerad restid (t.ex. "needs_review" som faktiskt var stillastående arbete)
-   - Dubblettrader
-   - Inkonsekvenser mellan GPS och tidrapport
-3. Föreslå konkreta åtgärder (action-typer:
-   - "delete_travel": ta bort en travel_time_log (motivera varför)
-   - "split_travel": dela upp en travel-rad i resa+arbete+resa
-   - "create_time_report": skapa saknad tidrapport
-   - "reclassify_travel": ändra classification eller ta bort needs_review
-   - "manual_review": admin behöver titta — för komplexa fall
-).
+Tidsregler:
+- Tolka alla tider i Europe/Stockholm för det efterfrågade datumet.
+- GPS recorded_at är UTC och ska konverteras till lokal tid.
+- Hitta inte på hemadress eller arbete efter sista tillförlitliga ping.
+
+Granska alltid uttryckligen:
+1. Plan mot faktiskt rörelsemönster: besöktes varje planerat projekt i rimlig ordning och tid?
+2. Oplanerade stationära stopp: håll dem separata från angränsande projekt. Ett stopp får aldrig absorberas som projektarbete bara för att personen återvänder dit.
+3. Rast/lunch: ett kort stationärt stopp mellan två arbetspass är en rastkandidat, inte automatiskt arbete. Om platsens syfte inte kan avgöras ska den markeras som oklar.
+4. Signalbortfall: om pings upphör tydligt före planens eller kandidatens rimliga slut ska det vara en avvikelse med låg säkerhet efter sista ping — inte ett normalt avslut.
+5. Lager mot projektplan: om personen stannar på lagret trots planerat projekt ska det vara en planavvikelse.
+6. Projektbyte: skilj planerat projektbyte från oplanerad leverans/avstickare.
+7. Datakvalitet: flagga saknade pings, långa luckor, dålig noggrannhet, omöjliga hopp och motsägelser.
+8. Kandidatfel: flagga när Dayagentens kandidat använder fel projekt, fel kategori, döljer okänd plats, missar ett planerat projekt eller avslutar dagen utan stöd.
+
+Svarskrav:
+- Skriv 3–6 korta meningar på svenska i kronologisk ordning.
+- Säg uttryckligen "Ingen avvikelse" endast om plan, GPS och kandidat verkligen stämmer överens.
+- Vid varje avvikelse ska suggestions innehålla minst en relevant åtgärd. Använd manual_review när beviset inte räcker eller när avvikelsen gäller plan/signal/plats snarare än en säker automatisk korrigering.
+- Föreslå aldrig create_time_report för en period efter sista tillförlitliga ping utan annat stöd.
+- confidence ska avse analysens säkerhet; signalbortfall eller motstridiga bevis får inte ge high.
 
 Returnera ENDAST via verktyget submit_analysis.`;
 
