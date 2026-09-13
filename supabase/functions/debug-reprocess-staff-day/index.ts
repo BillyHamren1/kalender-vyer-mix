@@ -163,17 +163,21 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
       speedMovingCount: 0,
       pingsInsideAnyGeofence: 0, pingsOutsideGeofences: 0,
       impossibleJumpCount: 0, geofenceFlapBursts: 0,
+      maxSameKnownSiteGapMinutes: 0, maxAmbiguousGapMinutes: 0,
+      ambiguousGapsOver30Min: 0,
     };
   }
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
   let accNull = 0, accOver100 = 0, speedMoving = 0, inside = 0;
   let maxGap = 0, gaps10 = 0, gaps30 = 0;
   let impossibleJumpCount = 0, geofenceFlapBursts = 0;
+  let maxSameKnownSiteGap = 0, maxAmbiguousGap = 0, ambiguousGapsOver30Min = 0;
   const cells = new Set<string>();
   const geofenceTransitionTimes: number[] = [];
   let prevMs: number | null = null;
   let prevPoint: { lat: number; lng: number } | null = null;
   let previousInside: boolean | null = null;
+  let previousTargetKeys: string[] = [];
   for (const p of pings) {
     const lat = Number(p.lat), lng = Number(p.lng);
     if (lat < minLat) minLat = lat;
@@ -184,9 +188,10 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
     if (p.accuracy == null) accNull++;
     else if (Number(p.accuracy) > 100) accOver100++;
     if (p.speed != null && Number(p.speed) > 0.5) speedMoving++;
-    const insideAny = targets.some((t) =>
-      haversineM({ lat, lng }, t.center) <= (t.radiusM ?? 100)
-    );
+    const currentTargetKeys = targets
+      .filter((t) => haversineM({ lat, lng }, t.center) <= (t.radiusM ?? 100))
+      .map((t) => t.key);
+    const insideAny = currentTargetKeys.length > 0;
     if (insideAny) inside++;
 
     const ms = new Date(p.recorded_at ?? p.ts).getTime();
@@ -195,7 +200,18 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
       const gap = elapsedSeconds / 60;
       if (gap > maxGap) maxGap = gap;
       if (gap > 10) gaps10++;
-      if (gap > 30) gaps30++;
+      if (gap > 30) {
+        gaps30++;
+        const sameKnownSite =
+          previousTargetKeys.length > 0 &&
+          currentTargetKeys.some((key) => previousTargetKeys.includes(key));
+        if (sameKnownSite) {
+          if (gap > maxSameKnownSiteGap) maxSameKnownSiteGap = gap;
+        } else {
+          ambiguousGapsOver30Min++;
+          if (gap > maxAmbiguousGap) maxAmbiguousGap = gap;
+        }
+      }
       if (prevPoint && elapsedSeconds > 0 && elapsedSeconds <= 600) {
         const impliedSpeedMps = haversineM(prevPoint, { lat, lng }) / elapsedSeconds;
         if (impliedSpeedMps > 75) impossibleJumpCount++;
@@ -211,6 +227,7 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
     prevMs = ms;
     prevPoint = { lat, lng };
     previousInside = insideAny;
+    previousTargetKeys = currentTargetKeys;
   }
   return {
     pingCount: pings.length,
@@ -230,6 +247,9 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
     pingsOutsideGeofences: pings.length - inside,
     impossibleJumpCount,
     geofenceFlapBursts,
+    maxSameKnownSiteGapMinutes: Math.round(maxSameKnownSiteGap * 10) / 10,
+    maxAmbiguousGapMinutes: Math.round(maxAmbiguousGap * 10) / 10,
+    ambiguousGapsOver30Min,
   };
 }
 
@@ -306,9 +326,13 @@ function reviewGpsProposal(
   if (pingCount > 0 && lowAccuracyCount >= Math.max(3, Math.ceil(pingCount * 0.2))) {
     add(`GPS-noggrannheten var låg för ${lowAccuracyCount} av ${pingCount} punkter; projektbesök och tider behöver granskas.`);
   }
-  const maxGapMinutes = Number(pingDiagnostics?.maxGapMinutes ?? 0);
-  if (maxGapMinutes >= 30) {
-    add(`GPS-signalen hade en lucka på ${Math.round(maxGapMinutes)} minuter; tiden i luckan behöver granskas.`);
+  const maxAmbiguousGapMinutes = Number(pingDiagnostics?.maxAmbiguousGapMinutes ?? 0);
+  if (maxAmbiguousGapMinutes >= 30) {
+    add(`GPS-signalen hade en oklar lucka på ${Math.round(maxAmbiguousGapMinutes)} minuter mellan olika eller okända platser; tiden i luckan behöver granskas.`);
+  }
+  const maxSameKnownSiteGapMinutes = Number(pingDiagnostics?.maxSameKnownSiteGapMinutes ?? 0);
+  if (maxSameKnownSiteGapMinutes >= 180) {
+    add(`GPS-signalen saknades i ${Math.round(maxSameKnownSiteGapMinutes)} minuter, men punkterna före och efter låg på samma arbetsplats; perioden behöver granskas.`);
   }
   if (Number(pingDiagnostics?.impossibleJumpCount ?? 0) > 0) {
     add('GPS-datan innehåller ett eller flera omöjligt snabba hopp; berörda tider behöver granskas.');
@@ -427,13 +451,44 @@ async function processRun(
   let engineError: string | null = null;
 
   if (pings.length === 0) {
+    const plannedBookingLabels = await loadPlannedBookingLabels(admin, orgId, staffId, date);
+    const noGpsWarnings = plannedBookingLabels.length > 0
+      ? ['GPS-data saknas helt för dagen; planerade projekt kan inte verifieras.']
+      : [];
     result = {
-      summary: { pingCount: 0, reportBlocks: 0, workMinutes: 0, unknownMinutes: 0, needsReviewMinutes: 0 },
+      summary: {
+        pingCount: 0, reportBlocks: 0, workMinutes: 0,
+        unknownMinutes: 0, needsReviewMinutes: 0,
+        warnings: noGpsWarnings,
+      },
       reportBlocks: [],
       displayBlocks: [],
       presenceBlocks: [],
-      diagnostics: { reason: 'no_pings' },
+      diagnostics: {
+        reason: 'no_pings',
+        warnings: noGpsWarnings,
+        plannedBookingLabels,
+      },
     };
+    if (!opts.dryRun && opts.engineVersion) {
+      const { error: upErr } = await admin
+        .from('staff_day_report_cache')
+        .upsert(
+          {
+            organization_id: orgId, staff_id: staffId, date,
+            engine_version: opts.engineVersion,
+            summary_json: result.summary,
+            report_candidate_blocks_json: [],
+            diagnostics_json: result.diagnostics,
+            source_watermark: { maxPingTs: null, activeRegsCount: 0 },
+            processed_until: endUtc,
+            built_at: new Date().toISOString(),
+            stale: false, error: null,
+          },
+          { onConflict: 'organization_id,staff_id,date,engine_version' },
+        );
+      if (upErr) engineError = `cache_upsert_failed:${upErr.message}`;
+    }
   } else {
     try {
       let geoAnchors: any[] = [];
