@@ -162,13 +162,18 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
       accuracyNullCount: 0, accuracyOver100m: 0,
       speedMovingCount: 0,
       pingsInsideAnyGeofence: 0, pingsOutsideGeofences: 0,
+      impossibleJumpCount: 0, geofenceFlapBursts: 0,
     };
   }
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
   let accNull = 0, accOver100 = 0, speedMoving = 0, inside = 0;
   let maxGap = 0, gaps10 = 0, gaps30 = 0;
+  let impossibleJumpCount = 0, geofenceFlapBursts = 0;
   const cells = new Set<string>();
+  const geofenceTransitionTimes: number[] = [];
   let prevMs: number | null = null;
+  let prevPoint: { lat: number; lng: number } | null = null;
+  let previousInside: boolean | null = null;
   for (const p of pings) {
     const lat = Number(p.lat), lng = Number(p.lng);
     if (lat < minLat) minLat = lat;
@@ -179,17 +184,33 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
     if (p.accuracy == null) accNull++;
     else if (Number(p.accuracy) > 100) accOver100++;
     if (p.speed != null && Number(p.speed) > 0.5) speedMoving++;
-    if (targets.some((t) => haversineM({ lat, lng }, { lat: t.lat, lng: t.lng }) <= (t.radiusM ?? 100))) {
-      inside++;
-    }
+    const insideAny = targets.some((t) =>
+      haversineM({ lat, lng }, t.center) <= (t.radiusM ?? 100)
+    );
+    if (insideAny) inside++;
+
     const ms = new Date(p.recorded_at ?? p.ts).getTime();
     if (prevMs != null) {
-      const gap = (ms - prevMs) / 60000;
+      const elapsedSeconds = (ms - prevMs) / 1000;
+      const gap = elapsedSeconds / 60;
       if (gap > maxGap) maxGap = gap;
       if (gap > 10) gaps10++;
       if (gap > 30) gaps30++;
+      if (prevPoint && elapsedSeconds > 0 && elapsedSeconds <= 600) {
+        const impliedSpeedMps = haversineM(prevPoint, { lat, lng }) / elapsedSeconds;
+        if (impliedSpeedMps > 75) impossibleJumpCount++;
+      }
+      if (previousInside != null && previousInside !== insideAny) {
+        geofenceTransitionTimes.push(ms);
+        while (geofenceTransitionTimes.length > 0 && geofenceTransitionTimes[0] < ms - 10 * 60_000) {
+          geofenceTransitionTimes.shift();
+        }
+        if (geofenceTransitionTimes.length === 6) geofenceFlapBursts++;
+      }
     }
     prevMs = ms;
+    prevPoint = { lat, lng };
+    previousInside = insideAny;
   }
   return {
     pingCount: pings.length,
@@ -207,6 +228,8 @@ function summarizePings(pings: any[], targets: WorkTarget[]) {
     speedMovingCount: speedMoving,
     pingsInsideAnyGeofence: inside,
     pingsOutsideGeofences: pings.length - inside,
+    impossibleJumpCount,
+    geofenceFlapBursts,
   };
 }
 
@@ -241,6 +264,7 @@ function reviewGpsProposal(
   blocks: any[],
   plannedBookingLabels: string[],
   lastPingIso: string | null,
+  pingDiagnostics: any,
 ): { blocks: any[]; warnings: string[]; needsReviewMinutes: number } {
   const warnings: string[] = [];
   const add = (message: string) => {
@@ -276,6 +300,22 @@ function reviewGpsProposal(
       ])),
     };
   });
+
+  const pingCount = Number(pingDiagnostics?.pingCount ?? 0);
+  const lowAccuracyCount = Number(pingDiagnostics?.accuracyOver100m ?? 0);
+  if (pingCount > 0 && lowAccuracyCount >= Math.max(3, Math.ceil(pingCount * 0.2))) {
+    add(`GPS-noggrannheten var låg för ${lowAccuracyCount} av ${pingCount} punkter; projektbesök och tider behöver granskas.`);
+  }
+  const maxGapMinutes = Number(pingDiagnostics?.maxGapMinutes ?? 0);
+  if (maxGapMinutes >= 30) {
+    add(`GPS-signalen hade en lucka på ${Math.round(maxGapMinutes)} minuter; tiden i luckan behöver granskas.`);
+  }
+  if (Number(pingDiagnostics?.impossibleJumpCount ?? 0) > 0) {
+    add('GPS-datan innehåller ett eller flera omöjligt snabba hopp; berörda tider behöver granskas.');
+  }
+  if (Number(pingDiagnostics?.geofenceFlapBursts ?? 0) > 0) {
+    add('GPS-signalen växlar snabbt in och ut ur en arbetsplats; platskopplingen är osäker.');
+  }
 
   const clientKey = (value: string) => value
     .toLocaleLowerCase('sv-SE')
@@ -491,6 +531,7 @@ async function processRun(
         clamp.blocks,
         plannedBookingLabels,
         pings[pings.length - 1]?.ts ?? null,
+        pingDiagnostics,
       );
       const finalBlocks = review.blocks;
       let work = 0, unknown = 0, needsReview = 0;
@@ -581,7 +622,7 @@ async function processRun(
     localDate: date,
     utcStart: startUtc,
     utcEnd: endUtc,
-    targets: targets.map((t) => ({ key: t.key, label: t.label, lat: t.lat, lng: t.lng, radiusM: t.radiusM })),
+    targets: targets.map((t) => ({ key: t.key, label: t.label, lat: t.center.lat, lng: t.center.lng, radiusM: t.radiusM })),
     input: {
       pingCount: pingRows.length,
       firstPing: pingDiagnostics.firstPingUtc,
