@@ -10,6 +10,14 @@ export const SCANNER_PARCEL_COMMANDS = [
 
 export type ScannerParcelCommand = (typeof SCANNER_PARCEL_COMMANDS)[number]
 
+export type ScannerParcelQuery = {
+  schema: typeof SCANNER_PARCEL_SCHEMA
+  action: 'GET_PROJECTION'
+  packingId: string
+  bookingId: string
+  reservationId: string
+}
+
 export type ScannerParcelRequest = {
   schema: typeof SCANNER_PARCEL_SCHEMA
   operationId: string
@@ -59,6 +67,27 @@ const uuid = (value: unknown) => typeof value === 'string' && UUID_RE.test(value
 const nullableUuid = (value: unknown) => value === null ? null : uuid(value)
 const text = (value: unknown, max: number) =>
   typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= max ? value : null
+
+export type ParseScannerParcelQuery =
+  | { ok: true; value: ScannerParcelQuery }
+  | { ok: false; error: string }
+
+export function parseScannerParcelQuery(input: unknown): ParseScannerParcelQuery {
+  if (!isRecord(input)) return { ok: false, error: 'invalid_body' }
+  const allowed = new Set(['schema', 'action', 'packingId', 'bookingId', 'reservationId'])
+  if (Object.keys(input).some((key) => !allowed.has(key))) return { ok: false, error: 'unexpected_field' }
+  if (input.schema !== SCANNER_PARCEL_SCHEMA || input.action !== 'GET_PROJECTION') {
+    return { ok: false, error: 'unsupported_query' }
+  }
+  const packingId = uuid(input.packingId)
+  const bookingId = uuid(input.bookingId)
+  const reservationId = uuid(input.reservationId)
+  if (!packingId || !bookingId || !reservationId) return { ok: false, error: 'invalid_identity' }
+  return {
+    ok: true,
+    value: { schema: SCANNER_PARCEL_SCHEMA, action: 'GET_PROJECTION', packingId, bookingId, reservationId },
+  }
+}
 
 export type ParseScannerParcelRequest =
   | { ok: true; value: ScannerParcelRequest }
