@@ -49,7 +49,7 @@ ALTER TABLE public.scanner_parcel_operations ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.scanner_parcel_projection_v1(
   p_organization_id uuid,
   p_packing_id uuid,
-  p_booking_id uuid,
+  p_booking_id text,
   p_reservation_id uuid
 )
 RETURNS jsonb
@@ -98,7 +98,7 @@ CREATE OR REPLACE FUNCTION public.scanner_parcel_command_v1(
   p_request_fingerprint text,
   p_command text,
   p_packing_id uuid,
-  p_booking_id uuid,
+  p_booking_id text,
   p_reservation_id uuid,
   p_actor_id text,
   p_device_id text,
@@ -181,7 +181,7 @@ BEGIN
 
   -- Trusted edge gateway must bind every parcel mutation to current Bundle/WMS evidence.
   IF COALESCE((p_bundle_evidence->>'verified')::boolean, false) IS NOT TRUE
-     OR p_bundle_evidence->>'booking_id' IS DISTINCT FROM p_booking_id::text
+     OR p_bundle_evidence->>'booking_id' IS DISTINCT FROM p_booking_id
      OR p_bundle_evidence->>'reservation_id' IS DISTINCT FROM p_reservation_id::text
      OR COALESCE(p_bundle_evidence->>'snapshot_fingerprint', '') !~ '^[0-9a-f]{64}$' THEN
     v_response := jsonb_build_object('outcome', 'REJECTED', 'message', 'wms_evidence_required');
@@ -385,16 +385,10 @@ BEGIN
     SET status='COMMITTED', response=v_response, completed_at=now()
     WHERE organization_id=p_organization_id AND operation_id=lower(p_operation_id);
   RETURN v_response;
-EXCEPTION WHEN unique_violation THEN
-  v_response := jsonb_build_object('outcome', 'UNKNOWN', 'message', 'concurrent_parcel_update');
-  UPDATE public.scanner_parcel_operations
-    SET status='REJECTED', response=v_response, completed_at=now()
-    WHERE organization_id=p_organization_id AND operation_id=lower(p_operation_id);
-  RETURN v_response;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.scanner_parcel_projection_v1(uuid, uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.scanner_parcel_command_v1(uuid, text, text, text, uuid, uuid, uuid, text, text, timestamptz, uuid, uuid, integer, text, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.scanner_parcel_projection_v1(uuid, uuid, uuid, uuid) TO service_role;
-GRANT EXECUTE ON FUNCTION public.scanner_parcel_command_v1(uuid, text, text, text, uuid, uuid, uuid, text, text, timestamptz, uuid, uuid, integer, text, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.scanner_parcel_projection_v1(uuid, uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.scanner_parcel_command_v1(uuid, text, text, text, uuid, text, uuid, text, text, timestamptz, uuid, uuid, integer, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.scanner_parcel_projection_v1(uuid, uuid, text, uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.scanner_parcel_command_v1(uuid, text, text, text, uuid, text, uuid, text, text, timestamptz, uuid, uuid, integer, text, jsonb) TO service_role;
