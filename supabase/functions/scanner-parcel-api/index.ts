@@ -5,6 +5,7 @@ import {
   parseScannerParcelRequest,
   scannerParcelFingerprint,
   SCANNER_PARCEL_SCHEMA,
+  type ScannerParcelItemBinding,
   type ScannerParcelRequest,
 } from '../_shared/scannerParcelContract.ts'
 import { activeScannerSessionMatches, resolveScannerTokenTransport } from '../_shared/scannerLegacyAuth.ts'
@@ -23,6 +24,8 @@ import {
 } from '../_shared/scannerCors.ts'
 
 const canonicalBundleUrl = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1'
+
+type BundleProjection = Extract<Awaited<ReturnType<typeof fetchScannerBundleProjection>>, { ok: true }>
 
 const json = (status: number, body: unknown, headers: Record<string, string>) =>
   new Response(JSON.stringify(body), {
@@ -91,11 +94,54 @@ function bundleEvidenceBase(input: {
   }
 }
 
+function matchBundleLine(
+  wmsLineId: string,
+  itemTypeId: string,
+  bundle: BundleProjection,
+) {
+  const ownerLineId = wmsLineId.split('::')[0]
+  const matches = bundle.lines.filter((line) =>
+    line.parentReservationLineId === ownerLineId && line.inventoryTypeId === itemTypeId,
+  )
+  return matches.length === 1 ? matches[0]! : null
+}
+
+async function loadParcelItemBindings(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+  packingId: string,
+  bundle: BundleProjection,
+): Promise<ScannerParcelItemBinding[] | null> {
+  const { data: items, error } = await admin
+    .from('packing_list_items')
+    .select('id, wms_line_id, wms_item_type_id, excluded')
+    .eq('packing_id', packingId)
+    .eq('organization_id', organizationId)
+    .eq('excluded', false)
+  if (error || !items) return null
+
+  const bindings: ScannerParcelItemBinding[] = []
+  for (const item of items) {
+    const wmsLineId = typeof item.wms_line_id === 'string' ? item.wms_line_id : ''
+    const itemTypeId = typeof item.wms_item_type_id === 'string' ? item.wms_item_type_id : ''
+    if (!wmsLineId || !itemTypeId) continue
+    const line = matchBundleLine(wmsLineId, itemTypeId, bundle)
+    if (!line) continue
+    bindings.push({
+      packingListItemId: String(item.id),
+      parentReservationLineId: line.parentReservationLineId,
+      itemTypeId,
+      quantityPicked: line.quantityPicked,
+    })
+  }
+  return bindings
+}
+
 async function buildBundleEvidence(
   admin: ReturnType<typeof createClient>,
   organizationId: string,
   request: ScannerParcelRequest,
-  bundle: Extract<Awaited<ReturnType<typeof fetchScannerBundleProjection>>, { ok: true }>,
+  bundle: BundleProjection,
 ) {
   const base = bundleEvidenceBase({
     bookingId: request.bookingId,
@@ -114,19 +160,22 @@ async function buildBundleEvidence(
     .maybeSingle()
   if (error || !item || item.excluded === true || !item.wms_line_id || !item.wms_item_type_id) return null
 
-  const ownerLineId = String(item.wms_line_id).split('::')[0]
-  const matches = bundle.lines.filter((line) =>
-    line.parentReservationLineId === ownerLineId &&
-    line.inventoryTypeId === String(item.wms_item_type_id),
-  )
-  if (matches.length !== 1) return null
+  const line = matchBundleLine(String(item.wms_line_id), String(item.wms_item_type_id), bundle)
+  if (!line) return null
   return {
     ...base,
     packing_list_item_id: String(item.id),
     wms_line_id: String(item.wms_line_id),
     item_type_id: String(item.wms_item_type_id),
-    quantity_picked: matches[0]!.quantityPicked,
+    quantity_picked: line.quantityPicked,
   }
+}
+
+function decorateProjection(
+  projection: Record<string, unknown>,
+  itemBindings: ScannerParcelItemBinding[],
+) {
+  return { ...projection, itemBindings }
 }
 
 export async function handleRequest(req: Request): Promise<Response> {
@@ -192,6 +241,9 @@ export async function handleRequest(req: Request): Promise<Response> {
     return json(409, { error: 'wms_reservation_mismatch' }, headers)
   }
 
+  const itemBindings = await loadParcelItemBindings(admin, auth.organizationId, identity.packingId, bundle)
+  if (!itemBindings) return json(503, { error: 'parcel_item_bindings_unavailable' }, headers)
+
   if (query.ok) {
     const { data, error } = await admin.rpc('scanner_parcel_projection_v1', {
       p_organization_id: auth.organizationId,
@@ -200,7 +252,10 @@ export async function handleRequest(req: Request): Promise<Response> {
       p_reservation_id: query.value.reservationId,
     })
     if (error || !isRecord(data)) return json(503, { error: 'parcel_projection_unavailable' }, headers)
-    return json(200, { schema: SCANNER_PARCEL_SCHEMA, projection: data }, headers)
+    return json(200, {
+      schema: SCANNER_PARCEL_SCHEMA,
+      projection: decorateProjection(data, itemBindings),
+    }, headers)
   }
 
   if (!request) return json(400, { error: 'invalid_command' }, headers)
@@ -245,12 +300,15 @@ export async function handleRequest(req: Request): Promise<Response> {
   const outcome = data.outcome === 'APPLIED' || data.outcome === 'REJECTED' || data.outcome === 'UNKNOWN'
     ? data.outcome
     : 'UNKNOWN'
+  const projection = isRecord(data.projection)
+    ? decorateProjection(data.projection, itemBindings)
+    : null
   return json(outcome === 'REJECTED' ? 409 : 200, {
     schema: SCANNER_PARCEL_SCHEMA,
     operationId: request.operationId,
     outcome,
     message: typeof data.message === 'string' ? data.message : null,
-    projection: isRecord(data.projection) ? data.projection : null,
+    projection,
     replay: data.replay === true,
   }, headers)
 }
