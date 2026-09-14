@@ -121,9 +121,6 @@ export async function handleRequest(req: Request): Promise<Response> {
   try { result = await upstream.json() } catch {
     return json(502, { error: 'bundle_invalid_response' }, headers)
   }
-  if (upstream.status === 404 && (result as { error?: string } | null)?.error === undefined) {
-    return json(503, { error: 'bundle_inventory_read_not_deployed' }, headers)
-  }
   return json(upstream.status, result, headers)
 }
 
