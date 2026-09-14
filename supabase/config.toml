@@ -133,8 +133,6 @@ verify_jwt = false
 [functions.scanner-operation-v2]
 verify_jwt = false
 
-
-
 [functions.send-push-notification]
 verify_jwt = false
 
@@ -205,6 +203,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.scanner-command-api]
+verify_jwt = false
+
+[functions.scanner-inventory-command-api]
 verify_jwt = false
 
 [functions.planning-brain-read]
