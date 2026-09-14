@@ -208,5 +208,8 @@ verify_jwt = false
 [functions.scanner-inventory-command-api]
 verify_jwt = false
 
+[functions.scanner-inventory-read-api]
+verify_jwt = false
+
 [functions.planning-brain-read]
 verify_jwt = false
