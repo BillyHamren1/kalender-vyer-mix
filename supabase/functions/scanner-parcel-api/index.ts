@@ -49,7 +49,7 @@ async function authenticateScanner(req: Request, admin: ReturnType<typeof create
   }
   const { data: staff, error } = await admin
     .from('staff_members')
-    .select('id, name, organization_id, active_mobile_session_id')
+    .select('id, organization_id, active_mobile_session_id')
     .eq('id', verified.claims.staffId)
     .eq('organization_id', verified.claims.organizationId)
     .maybeSingle()
@@ -59,7 +59,6 @@ async function authenticateScanner(req: Request, admin: ReturnType<typeof create
   return {
     ok: true as const,
     staffId: String(staff.id),
-    staffName: typeof staff.name === 'string' && staff.name.trim() ? staff.name.trim() : 'EventFlow Scanner',
     organizationId: String(staff.organization_id),
   }
 }
@@ -76,8 +75,7 @@ async function verifyPackingIdentity(
     .eq('id', packingId)
     .eq('organization_id', organizationId)
     .maybeSingle()
-  if (error || !data || data.booking_id !== bookingId) return false
-  return true
+  return !error && data != null && String(data.booking_id ?? '') === bookingId
 }
 
 function bundleEvidenceBase(input: {
@@ -116,7 +114,7 @@ async function buildBundleEvidence(
     .maybeSingle()
   if (error || !item || item.excluded === true || !item.wms_line_id || !item.wms_item_type_id) return null
 
-  const ownerLineId = String(item.wms_line_id).split('::', 1)[0]
+  const ownerLineId = String(item.wms_line_id).split('::')[0]
   const matches = bundle.lines.filter((line) =>
     line.parentReservationLineId === ownerLineId &&
     line.inventoryTypeId === String(item.wms_item_type_id),
@@ -163,9 +161,16 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (!auth.ok) return json(auth.status, { error: auth.error }, headers)
 
   const query = parseScannerParcelQuery(body)
-  const command = query.ok ? null : parseScannerParcelRequest(body)
-  if (!query.ok && !command!.ok) return json(400, { error: command!.error }, headers)
-  const identity = query.ok ? query.value : command!.value
+  let request: ScannerParcelRequest | null = null
+  let identity: { packingId: string; bookingId: string; reservationId: string }
+  if (query.ok) {
+    identity = query.value
+  } else {
+    const parsed = parseScannerParcelRequest(body)
+    if (!parsed.ok) return json(400, { error: parsed.error }, headers)
+    request = parsed.value
+    identity = parsed.value
+  }
 
   const identityOk = await verifyPackingIdentity(
     admin,
@@ -198,7 +203,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     return json(200, { schema: SCANNER_PARCEL_SCHEMA, projection: data }, headers)
   }
 
-  const request = command!.value
+  if (!request) return json(400, { error: 'invalid_command' }, headers)
   if (bundle.blockers.length > 0) {
     return json(409, { error: 'wms_blocked', blockers: bundle.blockers }, headers)
   }
