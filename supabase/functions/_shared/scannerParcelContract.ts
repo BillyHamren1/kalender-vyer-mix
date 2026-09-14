@@ -33,6 +33,15 @@ export type ScannerParcelRequest = {
   reason: string | null
 }
 
+export type ScannerParcelItemBinding = {
+  packingListItemId: string
+  parentReservationLineId: string
+  itemTypeId: string
+  displayName: string
+  quantityPicked: number
+  quantityAllocated: number
+}
+
 export type ScannerParcelProjection = {
   packingId: string
   bookingId: string
@@ -48,6 +57,7 @@ export type ScannerParcelProjection = {
       quantity: number
     }>
   }>
+  itemBindings: ScannerParcelItemBinding[]
 }
 
 export type ScannerParcelReceipt = {
