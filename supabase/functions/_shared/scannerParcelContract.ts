@@ -37,9 +37,7 @@ export type ScannerParcelItemBinding = {
   packingListItemId: string
   parentReservationLineId: string
   itemTypeId: string
-  displayName: string
   quantityPicked: number
-  quantityAllocated: number
 }
 
 export type ScannerParcelProjection = {
