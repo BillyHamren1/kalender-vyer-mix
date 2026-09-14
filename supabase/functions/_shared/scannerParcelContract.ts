@@ -125,7 +125,7 @@ export function parseScannerParcelRequest(input: unknown): ParseScannerParcelReq
   if (quantity !== null && (!Number.isSafeInteger(quantity) || (quantity as number) < 1 || (quantity as number) > 100_000)) {
     return { ok: false, error: 'invalid_quantity' }
   }
-  if (input.reason !== null && reason === null) return { ok: false, error: 'invalid_reason' }
+  if (input.reason !== null && (reason === null || reason.length < 3)) return { ok: false, error: 'invalid_reason' }
 
   if (command === 'CREATE_PARCEL') {
     if (parcelId !== null || packingListItemId !== null || quantity !== null || reason !== null) {
@@ -140,7 +140,7 @@ export function parseScannerParcelRequest(input: unknown): ParseScannerParcelReq
       return { ok: false, error: 'missing_command_value' }
     }
   } else if (command === 'REOPEN_PARCEL') {
-    if (!parcelId || packingListItemId !== null || quantity !== null || !reason || reason.length < 3) {
+    if (!parcelId || packingListItemId !== null || quantity !== null || !reason) {
       return { ok: false, error: 'missing_command_value' }
     }
   }
