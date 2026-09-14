@@ -18,9 +18,16 @@ describe('scanner parcel gateway', () => {
 
   it('maps local packing rows to one exact WMS physical line before parcel allocation', () => {
     expect(edge).toContain(".select('id, packing_id, organization_id, wms_line_id, wms_item_type_id, excluded')")
-    expect(edge).toContain("String(item.wms_line_id).split('::')[0]")
-    expect(edge).toContain('matches.length !== 1')
-    expect(edge).toContain('quantity_picked: matches[0]!.quantityPicked')
+    expect(edge).toContain("wmsLineId.split('::')[0]")
+    expect(edge).toContain('matches.length === 1')
+    expect(edge).toContain('quantity_picked: line.quantityPicked')
+  })
+
+  it('returns the same verified item binding map needed by the Scanner parcel UI', () => {
+    expect(edge).toContain('loadParcelItemBindings')
+    expect(edge).toContain('parentReservationLineId: line.parentReservationLineId')
+    expect(edge).toContain('quantityPicked: line.quantityPicked')
+    expect(edge).toContain('decorateProjection')
   })
 
   it('never routes parcel mutations through legacy scanner-api actions', () => {
