@@ -113,7 +113,32 @@ const ProjectProductsList = ({
     () => allRows.filter((p) => !p.source_missing_since),
     [allRows]
   );
-  const removedCount = allRows.length - products.length;
+  const removedRows = useMemo(
+    () => allRows.filter((p) => !!p.source_missing_since),
+    [allRows]
+  );
+  const removedCount = removedRows.length;
+
+  // Badgen visas tills användaren öppnat den en gång (per bokning).
+  const seenKey = `project-products-removed-seen:${bookingId}`;
+  const [removedSeen, setRemovedSeen] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(seenKey) === String(removedCount);
+    } catch {
+      return false;
+    }
+  });
+  const [removedOpen, setRemovedOpen] = useState(false);
+
+  const openRemoved = () => {
+    setRemovedOpen(true);
+    setRemovedSeen(true);
+    try {
+      window.localStorage.setItem(seenKey, String(removedCount));
+    } catch {
+      /* noop */
+    }
+  };
 
 
   const { grouping, generate, save, clear } = useProductGrouping("booking", bookingId);
