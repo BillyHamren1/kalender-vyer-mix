@@ -328,24 +328,24 @@ async function syncPackingListItems(
 
   // Project metadata may always follow WMS, but completed/cancelled/returned
   // warehouse snapshots are historical records and must never be rewritten.
-  const { data: packingMeta, error: packingMetaError } = await supabase
+  const { data: canonicalPackingMeta, error: packingMetaError } = await supabase
     .from('packing_projects')
     .select('status')
     .eq('id', packingId)
     .eq('organization_id', organizationId)
     .maybeSingle()
 
-  if (packingMetaError || !packingMeta) {
+  if (packingMetaError || !canonicalPackingMeta) {
     throw new Error(
       `packing_status_missing: ${packingMetaError?.message || 'packing project saknas'}`
     )
   }
 
   const mutablePackingStatuses = new Set(['planning', 'in_progress'])
-  const packingStatus = String(packingMeta.status || '').toLowerCase()
-  if (!mutablePackingStatuses.has(packingStatus)) {
+  const canonicalPackingStatus = String(canonicalPackingMeta.status || '').toLowerCase()
+  if (!mutablePackingStatuses.has(canonicalPackingStatus)) {
     console.log(
-      `[sync-booking-to-packing] WMS project projection refreshed, packing ${packingId} left unchanged because status=${packingStatus || 'unknown'}`
+      `[sync-booking-to-packing] WMS project projection refreshed, packing ${packingId} left unchanged because status=${canonicalPackingStatus || 'unknown'}`
     )
     return (
       (projectProjection.inserted || 0) +
