@@ -22,6 +22,15 @@ const wmsBody = {
         { item_type_id: 'it3', sku: 'T2', name: 'Ben', required_qty: 8 },
       ],
     },
+    {
+      line_id: 'l2-accessory',
+      type: 'item_type',
+      name: 'Vikt',
+      quantity: 4,
+      item_type_id: 'it4',
+      is_accessory: true,
+      parent_line_id: 'l2',
+    },
     { line_id: 'l3', type: 'item_type', name: 'Nollrad', required_qty: 0, sku: 'X', item_type_id: 'it9' },
   ],
 };
@@ -29,7 +38,7 @@ const wmsBody = {
 describe('flattenWmsPackingLines', () => {
   it('plattar ut paket till komponenter och hoppar över paketrubriken', () => {
     const rows = flattenWmsPackingLines(wmsBody);
-    expect(rows.map((r) => r.wmsLineId)).toEqual(['l1', 'l2::it2', 'l2::it3']);
+    expect(rows.map((r) => r.wmsLineId)).toEqual(['l1', 'l2::it2', 'l2::it3', 'l2-accessory']);
     expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', itemTypeId: 'it2' });
   });
 
@@ -53,17 +62,84 @@ describe('flattenWmsPackingLines', () => {
 
 
 describe('flattenWmsProjectProducts', () => {
-  it('keeps package headers for the project view but never copies package components', () => {
+  it('bevarar WMS-ordning och kopplar tillbehör samt paketdelar till rätt paket', () => {
     const rows = flattenWmsProjectProducts(wmsBody);
-    expect(rows.map((r) => r.syncKey)).toEqual(['wms:l1', 'wms:l2']);
+    expect(rows.map((r) => r.syncKey)).toEqual([
+      'wms:l1',
+      'wms:l2',
+      'wms:l2-accessory',
+      'wms:l2::it2',
+      'wms:l2::it3',
+    ]);
     expect(rows[1]).toMatchObject({ name: 'Tältpaket', quantity: 2 });
+    expect(rows[2]).toMatchObject({
+      name: 'Vikt',
+      parentSyncKey: 'wms:l2',
+      isPackageComponent: false,
+      sortIndex: 2,
+    });
+    expect(rows[3]).toMatchObject({
+      name: 'Tältduk',
+      parentSyncKey: 'wms:l2',
+      isPackageComponent: true,
+      sortIndex: 3,
+    });
+  });
+
+  it('numrerar upprepade paket utan att slå ihop deras barn', () => {
+    const rows = flattenWmsProjectProducts({
+      lines: [
+        { line_id: 'p1', type: 'package', package_id: 'pkg', name: 'Tält', quantity: 1 },
+        { line_id: 'a1', type: 'item_type', name: 'Vikt', quantity: 4, is_accessory: true, parent_line_id: 'p1' },
+        { line_id: 'p2', type: 'package', package_id: 'pkg', name: 'Tält', quantity: 1 },
+        { line_id: 'a2', type: 'item_type', name: 'Vikt', quantity: 4, is_accessory: true, parent_line_id: 'p2' },
+      ],
+    });
+
+    expect(rows.map((r) => r.name)).toEqual(['Tält (#1)', 'Vikt', 'Tält (#2)', 'Vikt']);
+    expect(rows[1].parentSyncKey).toBe('wms:p1');
+    expect(rows[3].parentSyncKey).toBe('wms:p2');
+  });
+
+  it('använder WMS-lagrad källordning och visningsnamn oberoende av API-radordning', () => {
+    const rows = flattenWmsProjectProducts({
+      lines: [
+        {
+          line_id: 'a2', type: 'item_type', name: 'Vikt från katalog', quantity: 4,
+          is_accessory: true, parent_line_id: 'p2', source_sort_index: 3,
+          source_display_name: 'H MT Vikt',
+        },
+        {
+          line_id: 'p2', type: 'package', package_id: 'pkg', name: 'Tält', quantity: 1,
+          source_sort_index: 2, source_display_name: 'H Mastertent - Squaretent 3x3 (#2)',
+        },
+        {
+          line_id: 'p1', type: 'package', package_id: 'pkg', name: 'Tält', quantity: 1,
+          source_sort_index: 0, source_display_name: 'H Mastertent - Squaretent 3x3 (#1)',
+        },
+        {
+          line_id: 'a1', type: 'item_type', name: 'Vikt från katalog', quantity: 4,
+          is_accessory: true, parent_line_id: 'p1', source_sort_index: 1,
+          source_display_name: 'H MT Vikt',
+        },
+      ],
+    });
+
+    expect(rows.map((row) => row.name)).toEqual([
+      'H Mastertent - Squaretent 3x3 (#1)',
+      'H MT Vikt',
+      'H Mastertent - Squaretent 3x3 (#2)',
+      'H MT Vikt',
+    ]);
+    expect(rows[1].parentSyncKey).toBe('wms:p1');
+    expect(rows[3].parentSyncKey).toBe('wms:p2');
   });
 });
 
 describe('planWmsPackingSync', () => {
   it('skapar rader första gången med WMS-identitet', () => {
     const plan = planWmsPackingSync(flattenWmsPackingLines(wmsBody), [], CTX);
-    expect(plan.inserts).toHaveLength(3);
+    expect(plan.inserts).toHaveLength(4);
     expect(plan.inserts[0]).toMatchObject({
       packing_id: 'pk1',
       organization_id: 'org1',
@@ -230,8 +306,8 @@ describe('syncPackingListFromWms', () => {
         'get-packing-list': { body: wmsBody },
       }),
     });
-    expect(res).toMatchObject({ ok: true, reservationId: 'uuid-1', inserted: 3, total: 3 });
-    expect(client.inserted).toHaveLength(3);
+    expect(res).toMatchObject({ ok: true, reservationId: 'uuid-1', inserted: 4, total: 4 });
+    expect(client.inserted).toHaveLength(4);
   });
 
   it('rapporterar WMS-fel ärligt istället för att skapa lokala rader', async () => {
