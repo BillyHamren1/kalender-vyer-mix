@@ -1,7 +1,7 @@
 /* ================================================================
    EventFlow module accents — canonical HUB palette
    ================================================================
-   Operations #9672BE (bright) / #5E428B (deep text/action)
+   Planning  #7357C8 (base) / HUB text variant for small labels
    Lager     #C77922 (base) / #9A5715 (dark text/action)
 
    Scope is route/context aware: `data-module` is set on <html> by
@@ -11,33 +11,37 @@
    ================================================================ */
 
 :root {
-  --module-accent: 263.0137 35.6098% 40.1961%;
-  --module-accent-base: 268.4211 36.8932% 59.6078%;
-  --module-accent-dark: 263.0137 35.6098% 40.1961%;
-  --module-accent-soft: 265.7143 43.75% 93.7255%;
-  --module-accent-border: 268 28% 84%;
+  --module-accent: 255 51% 56%;
+  --module-accent-base: 255 51% 56%;
+  --module-accent-dark: 256 47% 52%;
+  --module-accent-soft: 255 50% 95%;
+  --module-accent-border: 255 35% 84%;
   --module-accent-foreground: 0 0% 100%;
 }
 
-html[data-module='planning'] {
-  --module-accent: 263.0137 35.6098% 40.1961%; /* #5E428B */
-  --module-accent-base: 268.4211 36.8932% 59.6078%; /* #9672BE */
-  --module-accent-dark: 263.0137 35.6098% 40.1961%;
-  --module-accent-soft: 265.7143 43.75% 93.7255%; /* #EEE8F6 */
-  --module-accent-border: 268 28% 84%;
+html[data-module='planning'],
+.theme-purple {
+  --module-accent: 255 51% 56%; /* #7357C8 */
+  --module-accent-base: 255 51% 56%;
+  --module-accent-dark: 256 47% 52%;
+  --module-accent-soft: 255 50% 95%;
+  --module-accent-border: 255 35% 84%;
   --module-accent-foreground: 0 0% 100%;
 
-  --primary: var(--module-accent-dark);
+  --primary: var(--module-accent);
   --primary-hover: var(--module-accent-dark);
   --primary-dark: var(--module-accent-dark);
   --primary-soft: var(--module-accent-soft);
   --primary-soft-foreground: var(--module-accent-dark);
-  --ring: var(--module-accent-base);
+  --ring: var(--module-accent);
 
-  --sidebar-primary: var(--module-accent-dark);
+  --sidebar-primary: var(--module-accent);
   --sidebar-accent: var(--module-accent-soft);
   --sidebar-accent-foreground: var(--module-accent-dark);
-  --sidebar-ring: var(--module-accent-base);
+  --sidebar-ring: var(--module-accent);
+
+  --gradient-icon: radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(var(--module-accent)), hsl(var(--module-accent-dark)));
+  --gradient-teal: var(--gradient-icon);
 }
 
 html[data-module='warehouse'] {
