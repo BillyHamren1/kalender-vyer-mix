@@ -95,11 +95,19 @@ export async function repairPackingItems(
   }
   const bookingNumber = (bookingRow as any)?.booking_number || null;
 
-  if (apiKey && bookingNumber) {
+  if (!apiKey) {
+    return { ok: false, code: 'wms_not_configured', error: 'PRICELIST_API_KEY saknas', status: packing.status };
+  }
+  if (!bookingNumber) {
+    return { ok: false, code: 'db_error', error: 'Bokningsnummer saknas', status: packing.status };
+  }
+
+  {
     const wms = await syncPackingListFromWms(supabase, {
       packingId,
       organizationId,
       bookingNumber,
+      sourceBookingId: packing.booking_id,
       apiKey,
     });
     if (wms.ok) {
@@ -114,14 +122,13 @@ export async function repairPackingItems(
         status: packing.status,
       };
     }
-    // Endast "reservationen finns inte" får falla tillbaka på lokala rader.
-    if (wms.code !== 'wms_reservation_not_found') {
-      return { ok: false, code: wms.code as any, error: wms.error, status: packing.status };
-    }
-    console.warn('[packingRepair] ingen WMS-reservation, faller tillbaka på booking_products', bookingNumber);
+    // WMS is the only canonical source after cutover. Missing/unavailable
+    // reservations are surfaced and retried; Planning must never invent rows.
+    return { ok: false, code: wms.code as any, error: wms.error, status: packing.status };
   }
 
-  // ── 2) Fallback: lokala booking_products ────────────────────────────────
+  // Legacy local fallback retained as unreachable rollback reference.
+  // ── 2) Legacy local booking_products path ────────────────────────────────
 
 
   const [productsResult, existingItemsResult] = await Promise.all([

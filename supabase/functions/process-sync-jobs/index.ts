@@ -228,6 +228,33 @@ serve(async (req) => {
         `[process-sync-jobs] contract ok booking=${group.booking_id} outcome=${validation.outcome}`
       )
 
+      // Canonical cutover: a Booking sync job is not complete until Planning
+      // has refreshed both its project-product projection and packing rows from
+      // the same WMS reservation. A missing/stale WMS reservation keeps the job
+      // retryable instead of committing a partial Booking-only import.
+      const wmsProjectionResponse = await fetch(
+        `${supabaseUrl}/functions/v1/sync-booking-to-packing`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            booking_id: group.booking_id,
+            organization_id: group.organization_id,
+          }),
+        },
+      )
+      const wmsProjectionText = await wmsProjectionResponse.text().catch(() => '')
+      if (!wmsProjectionResponse.ok) {
+        const err = new Error(
+          `WMS projection failed http=${wmsProjectionResponse.status} body=${wmsProjectionText.substring(0, 500)}`
+        )
+        ;(err as any).permanent = false
+        throw err
+      }
+
       // Token-skyddad commit: en worker som förlorat sin lease kan inte skriva.
       let committed = 0
       for (const jobId of group.jobIds) {

@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   flattenWmsPackingLines,
+  flattenWmsProjectProducts,
   planWmsPackingSync,
   resolveWmsReservation,
   syncPackingListFromWms,
 } from '../../supabase/functions/_shared/wmsPackingList';
 
-const CTX = { packingId: 'pk1', organizationId: 'org1' };
+const CTX = { packingId: 'pk1', organizationId: 'org1', sourceBookingId: 'booking1', claimUnscopedLegacyRows: true };
 
 const wmsBody = {
   lines: [
@@ -50,6 +51,15 @@ describe('flattenWmsPackingLines', () => {
   });
 });
 
+
+describe('flattenWmsProjectProducts', () => {
+  it('keeps package headers for the project view but never copies package components', () => {
+    const rows = flattenWmsProjectProducts(wmsBody);
+    expect(rows.map((r) => r.syncKey)).toEqual(['wms:l1', 'wms:l2']);
+    expect(rows[1]).toMatchObject({ name: 'Tältpaket', quantity: 2 });
+  });
+});
+
 describe('planWmsPackingSync', () => {
   it('skapar rader första gången med WMS-identitet', () => {
     const plan = planWmsPackingSync(flattenWmsPackingLines(wmsBody), [], CTX);
@@ -90,6 +100,13 @@ describe('planWmsPackingSync', () => {
       { id: 'c', wms_line_id: 'l2::it3', quantity_to_pack: 8, quantity_packed: 0, manual_name: 'Ben', excluded: false },
     ], CTX);
     expect(plan.updates).toEqual([{ id: 'a', patch: { quantity_to_pack: 6 } }]);
+  });
+
+  it('retires unscoped legacy rows on cutover and flags packed rows as conflicts', () => {
+    const plan = planWmsPackingSync(flattenWmsPackingLines(wmsBody), [
+      { id: 'legacy', wms_line_id: null, booking_product_id: 'old', quantity_to_pack: 1, quantity_packed: 0, manual_name: 'Gammal rad', excluded: false },
+    ], CTX);
+    expect(plan.staleIds).toEqual(['legacy']);
   });
 
   it('markerar borttagna rader som exkluderade, aldrig raderade, och flaggar packade som konflikt', () => {
@@ -206,6 +223,7 @@ describe('syncPackingListFromWms', () => {
       packingId: 'pk1',
       organizationId: 'org1',
       bookingNumber: '2609-9',
+      sourceBookingId: 'booking1',
       apiKey: 'k',
       fetchImpl: fakeFetch({
         'get-reservation?': { body: { data: { reservation: { id: 'uuid-1' } } } },
@@ -222,6 +240,7 @@ describe('syncPackingListFromWms', () => {
       packingId: 'pk1',
       organizationId: 'org1',
       bookingNumber: '2609-9',
+      sourceBookingId: 'booking1',
       apiKey: 'k',
       fetchImpl: fakeFetch({
         'get-reservation?': { body: { data: { reservation: { id: 'uuid-1' } } } },

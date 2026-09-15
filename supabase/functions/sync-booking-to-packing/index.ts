@@ -5,6 +5,10 @@ import {
   queuePackingChangeRequests,
   requiresWarehouseAcknowledgement,
 } from '../_shared/packingChangeRequests.ts'
+import {
+  syncBookingProductsFromWms,
+  syncPackingListFromWms,
+} from '../_shared/wmsPackingList.ts'
 
 
 const corsHeaders = {
@@ -287,6 +291,76 @@ async function syncPackingListItems(
   bookingId: string,
   organizationId: string
 ): Promise<number> {
+  // WMS-CANONICAL CUTOVER.
+  // Booking writes the complete inventory reservation to WMS. Planning never
+  // rebuilds the operational product or packing truth from its local legacy
+  // booking_products copy. Both projections are refreshed from the same WMS
+  // reservation snapshot, and any WMS error aborts the sync visibly.
+  const apiKey = Deno.env.get('PRICELIST_API_KEY') || ''
+  if (!apiKey) {
+    throw new Error('wms_not_configured: PRICELIST_API_KEY saknas')
+  }
+
+  const { data: canonicalBooking, error: canonicalBookingError } = await supabase
+    .from('bookings')
+    .select('booking_number')
+    .eq('id', bookingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+
+  if (canonicalBookingError || !canonicalBooking?.booking_number) {
+    throw new Error(
+      `wms_booking_identity_missing: ${canonicalBookingError?.message || 'booking_number saknas'}`
+    )
+  }
+
+  const projectProjection = await syncBookingProductsFromWms(supabase, {
+    bookingId,
+    organizationId,
+    bookingNumber: canonicalBooking.booking_number,
+    apiKey,
+  })
+  if (!projectProjection.ok) {
+    throw new Error(
+      `wms_project_projection_failed:${projectProjection.code || 'unknown'}:${projectProjection.error || 'unknown error'}`
+    )
+  }
+
+  const packingProjection = await syncPackingListFromWms(supabase, {
+    packingId,
+    organizationId,
+    bookingNumber: canonicalBooking.booking_number,
+    sourceBookingId: bookingId,
+    apiKey,
+  })
+  if (!packingProjection.ok) {
+    throw new Error(
+      `wms_packing_projection_failed:${packingProjection.code || 'unknown'}:${packingProjection.error || 'unknown error'}`
+    )
+  }
+
+  if ((packingProjection.conflicts || 0) > 0) {
+    await supabase
+      .from('packing_projects')
+      .update({
+        needs_packing_review: true,
+        needs_packing_review_reason: 'wms_change_conflicts_with_packed_work',
+      })
+      .eq('id', packingId)
+      .eq('organization_id', organizationId)
+  }
+
+  return (
+    (projectProjection.inserted || 0) +
+    (projectProjection.updated || 0) +
+    (projectProjection.retired || 0) +
+    (packingProjection.inserted || 0) +
+    (packingProjection.updated || 0) +
+    (packingProjection.excluded || 0)
+  )
+
+  // Legacy implementation retained temporarily as unreachable rollback
+  // reference during the production cutover. No request can enter it.
   // Fetch current booking products (exclude package headers - only actual packable items)
   const { data: products, error: prodError } = await supabase
     .from('booking_products')
