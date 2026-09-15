@@ -24,9 +24,9 @@ describe("isVisibleAccessory", () => {
   it("visar ↳-tillbehör med parent", () => {
     expect(isVisibleAccessory({ name: "↳ Takduk vit 4x4", parent_product_id: "p1" })).toBe(true);
   });
-  it("döljer -- paketkomponenter", () => {
-    expect(isVisibleAccessory({ name: "  -- P Ben", parent_product_id: "p1" })).toBe(false);
-    expect(isVisibleAccessory({ name: "-- P Hatt", parent_product_id: "p1" })).toBe(false);
+  it("visar -- paketkomponenter under paketet", () => {
+    expect(isVisibleAccessory({ name: "  -- P Ben", parent_product_id: "p1" })).toBe(true);
+    expect(isVisibleAccessory({ name: "-- P Hatt", parent_product_id: "p1" })).toBe(true);
   });
   it("inte tillbehör utan parent", () => {
     expect(isVisibleAccessory({ name: "Multiflex 6x9", parent_product_id: null })).toBe(false);

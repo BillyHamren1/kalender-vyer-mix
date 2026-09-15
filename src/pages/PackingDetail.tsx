@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal, CheckCircle2, AlertCircle } from "lucide-react";
 import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +23,7 @@ import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { usePackingList } from "@/hooks/usePackingList";
 import { fetchPackingProducts } from "@/services/packingService";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
+import { refreshPackingFromWms, type PackingWmsRefreshResult } from "@/services/packingWmsRefreshService";
 import { repairPackingItemsDesktop } from "@/services/desktopPackingService";
 import { BookingProduct } from "@/types/booking";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +59,9 @@ const PackingDetail = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingFromWms, setIsRefreshingFromWms] = useState(false);
+  const [wmsRefreshResult, setWmsRefreshResult] = useState<PackingWmsRefreshResult | null>(null);
+  const [wmsRefreshError, setWmsRefreshError] = useState<string | null>(null);
   const [isRepairingPackingList, setIsRepairingPackingList] = useState(false);
   const [isSplitting, setIsSplitting] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
@@ -154,6 +158,38 @@ const PackingDetail = () => {
     } catch (error) {
       toast.error("Kunde inte uppdatera data");
     } finally { setIsRefreshing(false); }
+  };
+
+  const handleRefreshFromWms = async () => {
+    if (!packing) return;
+
+    const bookingIds = isMultiBooking
+      ? linkedBookingIds
+      : packing.booking_id
+        ? [packing.booking_id]
+        : [];
+
+    setIsRefreshingFromWms(true);
+    setWmsRefreshError(null);
+    try {
+      const result = await refreshPackingFromWms(packing.id, bookingIds);
+      await Promise.all([refetchAll(), refetchItems()]);
+      await loadProducts(false);
+      setWmsRefreshResult(result);
+
+      const statusText = packing.status === 'planning' || packing.status === 'in_progress'
+        ? `${result.packingRowCount} packrader verifierade`
+        : `${result.packingRowCount} WMS-rader verifierade; packlistan är låst i status ${PACKING_STATUS_LABELS[packing.status] || packing.status}`;
+      toast.success(`WMS-synken gick igenom – ${statusText}.`);
+    } catch (error) {
+      console.error('[PackingDetail] WMS refresh failed', error);
+      const message = error instanceof Error ? error.message : 'Okänt serverfel';
+      setWmsRefreshResult(null);
+      setWmsRefreshError(message);
+      toast.error(`WMS-synken misslyckades: ${message}`);
+    } finally {
+      setIsRefreshingFromWms(false);
+    }
   };
 
   const handleRepairPackingList = async () => {
@@ -361,6 +397,12 @@ const PackingDetail = () => {
               <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${PACKING_STATUS_COLORS[packing.status] || 'bg-muted text-muted-foreground'}`}>
                 {PACKING_STATUS_LABELS[packing.status] || packing.status}
               </span>
+              {(packing.booking_id || linkedBookingIds.length > 0) && (
+                <Button onClick={() => void handleRefreshFromWms()} disabled={isRefreshingFromWms}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingFromWms ? 'animate-spin' : ''}`} />
+                  {isRefreshingFromWms ? 'Uppdaterar från WMS…' : 'Uppdatera från WMS'}
+                </Button>
+              )}
               <details className="relative">
                 <summary className="list-none cursor-pointer inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
                   <MoreHorizontal className="h-4 w-4 mr-1.5" />
@@ -376,7 +418,7 @@ const PackingDetail = () => {
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="w-full justify-start">
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> Uppdatera
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> Ladda om sidan
                   </Button>
                   {packing.status === 'planning' && packingIntegrity?.sourceAvailable && !packingIntegrity.isExactMatch && (
                     <AlertDialog>
@@ -424,6 +466,20 @@ const PackingDetail = () => {
                   )}
                 </div>
               </details>
+              {wmsRefreshResult && !wmsRefreshError && (
+                <div className="basis-full flex items-center justify-end gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300" role="status">
+                  <CheckCircle2 className="h-4 w-4" />
+                  WMS verifierat {new Date(wmsRefreshResult.completedAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  {' · '}{wmsRefreshResult.productCount} produkter · {wmsRefreshResult.packingRowCount} packrader
+                  {wmsRefreshResult.changedRowCount > 0 ? ` · ${wmsRefreshResult.changedRowCount} ändringar` : ' · redan aktuell'}
+                </div>
+              )}
+              {wmsRefreshError && (
+                <div className="basis-full flex items-center justify-end gap-1.5 text-xs font-medium text-destructive" role="alert">
+                  <AlertCircle className="h-4 w-4" />
+                  WMS kunde inte verifieras: {wmsRefreshError}
+                </div>
+              )}
             </div>
           </div>
 

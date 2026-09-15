@@ -139,7 +139,7 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
       for (const c of components) {
         const key = c?.item_type_id || c?.sku || c?.line_id || c?.id;
         if (!key) continue;
-        const rawName = String(c?.name ?? packageName);
+        const rawName = String(c?.name ?? c?.name_sv ?? packageName);
         // WMS ger ibland komponenten samma namn som paketet — särskilj med SKU
         // så att golvet ser vilken fysisk del raden gäller.
         const displayName = rawName === packageName && c?.sku ? `${rawName} (${c.sku})` : rawName;
@@ -405,34 +405,167 @@ export async function syncPackingListFromWms(
 
 export interface WmsProjectProduct {
   syncKey: string;
+  /** WMS identity for the parent reservation line, resolved to a local UUID during sync. */
+  parentSyncKey: string | null;
   name: string;
   quantity: number;
   itemTypeId: string | null;
   packageId: string | null;
   sku: string | null;
+  isPackageComponent: boolean;
+  sortIndex: number;
 }
 
 /**
- * Project view projection: one row per Booking/WMS reservation line.
- * Package components remain owned by WMS and are deliberately not copied into
- * Planning booking_products; the warehouse projection receives those below.
+ * Project view projection. WMS is canonical, but Planning still needs the
+ * presentation hierarchy: top-level reservation line -> accessories/package
+ * components. The WMS line id is the stable identity for both parent and child.
  */
 export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
   const lines: any[] = body?.lines || body?.data?.lines || [];
-  return lines.flatMap((line: any) => {
+  const rows: WmsProjectProduct[] = [];
+  const childrenByParent = new Map<string, any[]>();
+  const topLevelLines: any[] = [];
+  const responseIndexByLine = new Map<any, number>();
+
+  const sourceOrder = (line: any, fallback: number) => {
+    const value = Number(line?.source_sort_index);
+    return Number.isFinite(value) ? value : fallback;
+  };
+
+  for (const [responseIndex, line] of lines.entries()) {
+    // Keep the response position only as a transition fallback. The durable
+    // contract is source_sort_index stored and returned by WMS.
+    responseIndexByLine.set(line, responseIndex);
+    const parentLineId = String(line?.parent_line_id ?? '');
+    if (line?.is_accessory || parentLineId) {
+      if (parentLineId) {
+        const children = childrenByParent.get(parentLineId) || [];
+        children.push(line);
+        childrenByParent.set(parentLineId, children);
+      } else {
+        // Never hide malformed/orphaned WMS demand.
+        topLevelLines.push(line);
+      }
+    } else {
+      topLevelLines.push(line);
+    }
+  }
+
+  topLevelLines.sort((a, b) =>
+    sourceOrder(a, responseIndexByLine.get(a) ?? 0) - sourceOrder(b, responseIndexByLine.get(b) ?? 0)
+  );
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) =>
+      sourceOrder(a, responseIndexByLine.get(a) ?? 0) - sourceOrder(b, responseIndexByLine.get(b) ?? 0)
+    );
+  }
+
+  const packageCounts = new Map<string, number>();
+  for (const line of topLevelLines) {
+    if (line?.type === 'package' && line?.package_id) {
+      const key = String(line.package_id);
+      packageCounts.set(key, (packageCounts.get(key) || 0) + 1);
+    }
+  }
+  const packageNumbers = new Map<string, number>();
+  let sortIndex = 0;
+
+  for (const line of topLevelLines) {
     const lineId = String(line?.line_id ?? line?.id ?? '');
-    if (!lineId) return [];
+    if (!lineId) continue;
     const quantity = Number(line?.quantity ?? line?.required_qty ?? 0) || 0;
-    if (quantity <= 0) return [];
-    return [{
-      syncKey: `wms:${lineId}`,
-      name: String(line?.name ?? 'Okänd artikel'),
+    if (quantity <= 0) continue;
+
+    const syncKey = `wms:${lineId}`;
+    const packageId = line?.package_id ?? (line?.type === 'package' ? line?.id ?? null : null);
+    let name = String(line?.source_display_name ?? line?.name ?? line?.name_sv ?? 'Okänd artikel');
+    if (
+      line?.type === 'package' &&
+      packageId &&
+      (packageCounts.get(String(packageId)) || 0) > 1 &&
+      !/\(#\d+\)\s*$/.test(name)
+    ) {
+      const occurrence = (packageNumbers.get(String(packageId)) || 0) + 1;
+      packageNumbers.set(String(packageId), occurrence);
+      name = `${name} (#${occurrence})`;
+    }
+
+    rows.push({
+      syncKey,
+      parentSyncKey: null,
+      name,
       quantity,
       itemTypeId: line?.item_type_id ?? null,
-      packageId: line?.package_id ?? (line?.type === 'package' ? line?.id ?? null : null),
+      packageId,
       sku: line?.sku ?? null,
-    }];
-  });
+      isPackageComponent: false,
+      sortIndex: sortIndex++,
+    });
+
+    for (const accessory of childrenByParent.get(lineId) || []) {
+      const childId = String(accessory?.line_id ?? accessory?.id ?? '');
+      const childQuantity = Number(accessory?.quantity ?? accessory?.required_qty ?? 0) || 0;
+      if (!childId || childQuantity <= 0) continue;
+      rows.push({
+        syncKey: `wms:${childId}`,
+        parentSyncKey: syncKey,
+        name: String(accessory?.source_display_name ?? accessory?.name ?? accessory?.name_sv ?? 'Okänt tillbehör'),
+        quantity: childQuantity,
+        itemTypeId: accessory?.item_type_id ?? null,
+        packageId: null,
+        sku: accessory?.sku ?? null,
+        isPackageComponent: false,
+        sortIndex: sortIndex++,
+      });
+    }
+
+    if (line?.type === 'package' && Array.isArray(line?.components)) {
+      const components = [...line.components].sort((a: any, b: any) =>
+        sourceOrder(a, 0) - sourceOrder(b, 0)
+      );
+      for (const component of components) {
+        const key = component?.item_type_id || component?.sku || component?.line_id || component?.id;
+        const componentQuantity = Number(component?.required_qty ?? component?.quantity ?? 0) || 0;
+        if (!key || componentQuantity <= 0) continue;
+        rows.push({
+          syncKey: `${syncKey}::${key}`,
+          parentSyncKey: syncKey,
+          name: String(component?.source_display_name ?? component?.name ?? component?.name_sv ?? component?.sku ?? 'Okänd paketdel'),
+          quantity: componentQuantity,
+          itemTypeId: component?.item_type_id ?? null,
+          packageId,
+          sku: component?.sku ?? null,
+          isPackageComponent: true,
+          sortIndex: sortIndex++,
+        });
+      }
+    }
+  }
+
+  // Keep orphaned accessories visible even if WMS returned a broken parent id.
+  const emittedLineIds = new Set(topLevelLines.map((line) => String(line?.line_id ?? line?.id ?? '')));
+  for (const [parentLineId, orphaned] of childrenByParent) {
+    if (emittedLineIds.has(parentLineId)) continue;
+    for (const accessory of orphaned) {
+      const childId = String(accessory?.line_id ?? accessory?.id ?? '');
+      const quantity = Number(accessory?.quantity ?? accessory?.required_qty ?? 0) || 0;
+      if (!childId || quantity <= 0) continue;
+      rows.push({
+        syncKey: `wms:${childId}`,
+        parentSyncKey: null,
+        name: String(accessory?.source_display_name ?? accessory?.name ?? accessory?.name_sv ?? 'Okänt tillbehör'),
+        quantity,
+        itemTypeId: accessory?.item_type_id ?? null,
+        packageId: null,
+        sku: accessory?.sku ?? null,
+        isPackageComponent: false,
+        sortIndex: sortIndex++,
+      });
+    }
+  }
+
+  return rows;
 }
 
 async function fetchWmsPackingBody(
@@ -506,7 +639,7 @@ export async function syncBookingProductsFromWms(
   const products = flattenWmsProjectProducts(snapshot.body);
   const { data: existing, error: readError } = await supabase
     .from('booking_products')
-    .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, source_missing_since')
+    .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, parent_product_id, is_package_component, sort_index, source_missing_since')
     .eq('booking_id', args.bookingId)
     .eq('organization_id', args.organizationId);
   if (readError) {
@@ -519,20 +652,28 @@ export async function syncBookingProductsFromWms(
   }
 
   const seen = new Set<string>();
+  const localIdBySyncKey = new Map<string, string>();
+  for (const [syncKey, row] of currentByKey) localIdBySyncKey.set(syncKey, row.id);
   let inserted = 0;
   let updated = 0;
   for (const product of products) {
     seen.add(product.syncKey);
     const row = currentByKey.get(product.syncKey);
+    const localId = row?.id ?? crypto.randomUUID();
+    localIdBySyncKey.set(product.syncKey, localId);
+    const parentProductId = product.parentSyncKey
+      ? localIdBySyncKey.get(product.parentSyncKey) ?? null
+      : null;
     const patch = {
       name: product.name,
       quantity: product.quantity,
       sku: product.sku,
       inventory_item_type_id: product.itemTypeId,
       inventory_package_id: product.packageId,
-      is_package_component: false,
-      parent_product_id: null,
+      is_package_component: product.isPackageComponent,
+      parent_product_id: parentProductId,
       parent_package_id: null,
+      sort_index: product.sortIndex,
       source_missing_since: null,
     };
     if (row) {
@@ -545,6 +686,7 @@ export async function syncBookingProductsFromWms(
       updated++;
     } else {
       const { error } = await supabase.from('booking_products').insert({
+        id: localId,
         booking_id: args.bookingId,
         organization_id: args.organizationId,
         sync_key: product.syncKey,

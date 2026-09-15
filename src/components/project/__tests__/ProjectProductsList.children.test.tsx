@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isVisibleAccessory, isPackageMemberRow, cleanName } from "../ProjectProductsList";
 
-describe("ProjectProductsList — barnrader (tillbehör visas, paketkomponenter döljs)", () => {
+describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas", () => {
   it("visar `↳ M Takduk` med parent_product_id", () => {
     expect(
       isVisibleAccessory({
@@ -35,7 +35,7 @@ describe("ProjectProductsList — barnrader (tillbehör visas, paketkomponenter 
     ).toBe(true);
   });
 
-  it("döljer paketkomponent `-- M Ben` (is_package_component=true)", () => {
+  it("visar paketkomponent `-- M Ben` (is_package_component=true)", () => {
     expect(
       isVisibleAccessory({
         name: "  -- M Ben",
@@ -43,10 +43,10 @@ describe("ProjectProductsList — barnrader (tillbehör visas, paketkomponenter 
         parent_package_id: null,
         is_package_component: true,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("döljer rad med parent_package_id (paketmedlem)", () => {
+  it("visar rad med parent_package_id (paketmedlem)", () => {
     expect(
       isVisibleAccessory({
         name: "Någon paketdel",
@@ -54,10 +54,10 @@ describe("ProjectProductsList — barnrader (tillbehör visas, paketkomponenter 
         parent_package_id: "pkg-1",
         is_package_component: false,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("döljer `--`-prefix även utan DB-flaggor", () => {
+  it("visar `--`-prefix även utan DB-flaggor", () => {
     expect(
       isVisibleAccessory({
         name: "-- P Hatt",
@@ -65,7 +65,7 @@ describe("ProjectProductsList — barnrader (tillbehör visas, paketkomponenter 
         parent_package_id: null,
         is_package_component: false,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("räknar `Multiflex 6x6` som huvudprodukt (inte barn)", () => {

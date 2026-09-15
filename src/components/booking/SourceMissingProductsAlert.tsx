@@ -18,7 +18,7 @@ interface SourceMissingProductsAlertProps {
 }
 
 /**
- * Visar produkter som saknas i Bookings produktlista men som inte fick raderas
+ * Visar produkter som saknas i WMS-reservationen men som inte fick raderas
  * automatiskt (Booking skickar inte `products_complete`). Utan denna vy blir
  * blockerade borttagningar osynliga och planeringen visar produkter som inte
  * längre är beställda.
@@ -58,7 +58,7 @@ export const SourceMissingProductsAlert: React.FC<SourceMissingProductsAlertProp
   return (
     <Alert variant="destructive" className="mb-4">
       <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Produkter saknas i Booking men ligger kvar här</AlertTitle>
+      <AlertTitle>Produkter saknas i WMS men ligger kvar här</AlertTitle>
       <AlertDescription className="space-y-2">
         <p className="text-sm">
           Booking skickar inte fältet <code>products_complete</code>, därför tas produkter aldrig bort automatiskt.

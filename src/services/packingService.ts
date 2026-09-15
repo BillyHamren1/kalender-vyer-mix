@@ -222,9 +222,10 @@ export const deletePackingFile = async (id: string, url: string): Promise<void> 
 export const fetchPackingProducts = async (bookingId: string): Promise<BookingProduct[]> => {
   const { data, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, notes, unit_price, total_price, parent_product_id, parent_package_id, is_package_component')
+    .select('id, name, quantity, notes, unit_price, total_price, parent_product_id, parent_package_id, is_package_component, sort_index')
     .eq('booking_id', bookingId)
-    .order('id', { ascending: true });
+    .is('source_missing_since', null)
+    .order('sort_index', { ascending: true, nullsFirst: false });
 
   if (error) throw error;
   
