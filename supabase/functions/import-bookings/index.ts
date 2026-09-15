@@ -4109,7 +4109,7 @@ serve(async (req) => {
             
             
             // Process products with parent-child relationship tracking
-            if (externalBooking.products && Array.isArray(externalBooking.products)) {
+            if (!WMS_CANONICAL_PRODUCT_CUTOVER && externalBooking.products && Array.isArray(externalBooking.products)) {
               console.log(`[Product Recovery] Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
               
               // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
@@ -4695,7 +4695,7 @@ serve(async (req) => {
         }
 
         // Process products with parent-child relationship tracking
-        if (externalBooking.products && Array.isArray(externalBooking.products)) {
+        if (!WMS_CANONICAL_PRODUCT_CUTOVER && externalBooking.products && Array.isArray(externalBooking.products)) {
         // Only re-process products if they have changed (prevents duplicates from parallel imports)
         if (needsProductUpdate || !existingBooking) {
           assertLeaseOwned('product_sync');
