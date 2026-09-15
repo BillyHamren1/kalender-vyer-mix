@@ -60,8 +60,7 @@ const isChildRow = (p: BookingProduct): boolean =>
   NAME_LOOKS_LIKE_CHILD.test(p.name || "");
 
 // Paketmedlem = uppackad komponent ur ett paket (is_package_component,
-// parent_package_id eller `--`-prefix). Dessa är plocklista för lagret och
-// ska INTE visas i projektinfo — Booking visar aldrig dem.
+// parent_package_id eller `--`-prefix).
 export const isPackageMemberRow = (p: {
   name: string;
   parent_package_id?: string | null;
@@ -71,8 +70,8 @@ export const isPackageMemberRow = (p: {
   !!p.parent_package_id ||
   /^\s*--/.test(p.name || "");
 
-// Synlig barnrad = tillbehör (↳/└/L,) som inte är paketmedlem.
-// Samma vy som Booking: huvudprodukter + tillbehör, aldrig paketkomponenter.
+// Alla kopplade barn ska vara synliga. Det är avgörande att projektet visar
+// både tillbehör och vilka fysiska delar som ingår i ett paket.
 export const isVisibleAccessory = (p: {
   name: string;
   parent_product_id: string | null;
@@ -85,7 +84,7 @@ export const isVisibleAccessory = (p: {
     !!p.is_package_component ||
     NAME_LOOKS_LIKE_CHILD.test(p.name || "");
   if (!isChild) return false;
-  return !isPackageMemberRow(p);
+  return true;
 };
 
 const ProjectProductsList = ({
@@ -168,13 +167,11 @@ const ProjectProductsList = ({
     );
   }
 
-  // Huvudprodukter = rader som inte är barnrader och inte paketkomponenter.
-  // Paketkomponenter (PKT) visas aldrig här — samma vy som Booking.
-  // Plocklistan med paketdelar lever kvar i lagret/scannern, orörd.
+  // Huvudprodukter = rader som inte är barnrader eller paketkomponenter.
   const mainProducts = products.filter((p) => !isChildRow(p) && !isPackageMemberRow(p));
   const mainIds = new Set(mainProducts.map((p) => p.id));
-  // Synliga barn = tillbehör (↳/└/L,). Paketkomponenter filtreras alltid bort.
-  const allChildren = products.filter((p) => isChildRow(p) && !isPackageMemberRow(p));
+  // Synliga barn = både tillbehör och paketkomponenter, alltid under sin förälder.
+  const allChildren = products.filter((p) => isChildRow(p));
 
   // Föräldralösa barn där parent saknas i mainProducts → visas separat
   const orphanedChildren = allChildren.filter((c) => {
@@ -248,14 +245,14 @@ const ProjectProductsList = ({
   const toggleCollapsed = (gid: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
-      next.has(gid) ? next.delete(gid) : next.add(gid);
+      if (next.has(gid)) next.delete(gid);
+      else next.add(gid);
       return next;
     });
   };
 
   const renderChildRow = (child: BookingProduct) => {
-    // Endast tillbehör når hit (paketkomponenter är bortfiltrerade) —
-    // samma utseende som i Booking: ↳-markör, indraget under huvudprodukten.
+    const packageMember = isPackageMemberRow(child);
     return (
       <div
         key={child.id}
@@ -265,7 +262,10 @@ const ProjectProductsList = ({
           <span className="shrink-0 text-muted-foreground/50" aria-hidden="true">
             ↳
           </span>
-          {cleanName(child.name)}
+          <span className="truncate">{cleanName(child.name)}</span>
+          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+            {packageMember ? "Paketdel" : "Tillbehör"}
+          </span>
         </span>
         <span />
         <span className="text-right text-xs text-muted-foreground tabular-nums">
@@ -341,7 +341,7 @@ const ProjectProductsList = ({
           <DialogHeader>
             <DialogTitle>Uppdaterat sedan förra visningen</DialogTitle>
             <DialogDescription>
-              {removedCount} {removedCount === 1 ? "produkt" : "produkter"} har tagits bort i Booking
+              {removedCount} {removedCount === 1 ? "produkt" : "produkter"} har tagits bort i WMS
               och visas inte längre i listan.
             </DialogDescription>
           </DialogHeader>
