@@ -321,6 +321,37 @@ async function syncPackingListItems(
     apiKey,
   })
   if (!projectProjection.ok) {
+    // A confirmed Booking with no inventory demand intentionally has no WMS
+    // reservation. Treat that as an authoritative empty projection only when
+    // this booking already has zero active Planning product and pack rows.
+    // Any residual row keeps the failure hard, preventing accidental clearing
+    // when a real WMS reservation is missing or unavailable.
+    if (projectProjection.code === 'wms_reservation_not_found') {
+      const [{ count: activeProductCount, error: productCountError }, { count: activePackCount, error: packCountError }] =
+        await Promise.all([
+          supabase
+            .from('booking_products')
+            .select('id', { count: 'exact', head: true })
+            .eq('booking_id', bookingId)
+            .eq('organization_id', organizationId)
+            .is('source_missing_since', null),
+          supabase
+            .from('packing_list_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('packing_id', packingId)
+            .eq('organization_id', organizationId)
+            .eq('source_booking_id', bookingId)
+            .eq('excluded', false),
+        ])
+
+      if (!productCountError && !packCountError && (activeProductCount ?? 0) === 0 && (activePackCount ?? 0) === 0) {
+        console.log(
+          `[sync-booking-to-packing] Booking ${bookingId} has no WMS reservation and no active inventory projection; accepted as empty demand`
+        )
+        return 0
+      }
+    }
+
     throw new Error(
       `wms_project_projection_failed:${projectProjection.code || 'unknown'}:${projectProjection.error || 'unknown error'}`
     )
