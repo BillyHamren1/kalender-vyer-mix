@@ -344,15 +344,6 @@ export async function syncPackingListFromWms(
   }
 
   const wmsRows = flattenWmsPackingLines(body);
-  if (wmsRows.length === 0) {
-    return {
-      ok: false,
-      code: 'wms_bad_response',
-      error: 'WMS-reservationen har inga packbara rader',
-      reservationId: reservation.reservationId,
-    };
-  }
-
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
     .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at, source_booking_id, booking_product_id, booking_products(booking_id)')
@@ -513,15 +504,6 @@ export async function syncBookingProductsFromWms(
   if (!snapshot.ok) return snapshot as any;
 
   const products = flattenWmsProjectProducts(snapshot.body);
-  if (products.length === 0) {
-    return {
-      ok: false,
-      code: 'wms_bad_response',
-      error: 'WMS-reservationen saknar orderrader för projektvyn',
-      reservationId: snapshot.reservationId,
-    };
-  }
-
   const { data: existing, error: readError } = await supabase
     .from('booking_products')
     .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, source_missing_since')
