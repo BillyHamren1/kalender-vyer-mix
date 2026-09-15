@@ -13,6 +13,13 @@ import {
 import { useProductGrouping, type ProductGroup } from "@/hooks/useProductGrouping";
 import { GroupProductsDialog } from "@/components/project/GroupProductsDialog";
 import { MoveProductDialog } from "@/components/project/MoveProductDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface BookingProduct {
