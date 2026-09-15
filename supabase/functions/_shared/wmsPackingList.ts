@@ -180,6 +180,9 @@ export interface ExistingPackingRow {
    * återställa (excluded=false) en sådan rad — bara Planning kan ångra.
    */
   planning_excluded_at?: string | null;
+  source_booking_id?: string | null;
+  booking_product_id?: string | null;
+  booking_products?: { booking_id?: string | null } | null;
 }
 
 export interface WmsSyncPlan {
@@ -195,11 +198,24 @@ export interface WmsSyncPlan {
 export function planWmsPackingSync(
   wmsRows: WmsPackingRow[],
   existing: ExistingPackingRow[],
-  ctx: { packingId: string; organizationId: string },
+  ctx: {
+    packingId: string;
+    organizationId: string;
+    sourceBookingId: string;
+    claimUnscopedLegacyRows?: boolean;
+  },
 ): WmsSyncPlan {
+  const belongsToBooking = (row: ExistingPackingRow) =>
+    row.source_booking_id === ctx.sourceBookingId ||
+    row.booking_products?.booking_id === ctx.sourceBookingId ||
+    (
+      ctx.claimUnscopedLegacyRows === true &&
+      !row.source_booking_id
+    );
+
   const byLineId = new Map<string, ExistingPackingRow>();
   for (const row of existing) {
-    if (row.wms_line_id) byLineId.set(row.wms_line_id, row);
+    if (row.wms_line_id && belongsToBooking(row)) byLineId.set(row.wms_line_id, row);
   }
 
   const inserts: WmsSyncPlan['inserts'] = [];
@@ -217,6 +233,7 @@ export function planWmsPackingSync(
         packing_id: ctx.packingId,
         organization_id: ctx.organizationId,
         booking_product_id: null,
+        source_booking_id: ctx.sourceBookingId,
         wms_line_id: row.wmsLineId,
         manual_name: name,
         notes,
@@ -249,7 +266,10 @@ export function planWmsPackingSync(
   const staleIds: string[] = [];
   const conflictIds: string[] = [];
   for (const row of existing) {
-    if (!row.wms_line_id || seen.has(row.wms_line_id) || row.excluded) continue;
+    if (!belongsToBooking(row) || row.excluded) continue;
+    if (row.wms_line_id && seen.has(row.wms_line_id)) continue;
+    // Cutover rule: unscoped legacy Booking/Planning rows are stale once the
+    // WMS snapshot for this booking has been resolved. Never delete packed work.
     if ((row.quantity_packed || 0) > 0) conflictIds.push(row.id);
     else staleIds.push(row.id);
   }
@@ -278,6 +298,7 @@ export async function syncPackingListFromWms(
     packingId: string;
     organizationId: string;
     bookingNumber: string;
+    sourceBookingId: string;
     apiKey: string;
     fetchImpl?: typeof fetch;
     baseUrl?: string;
@@ -334,16 +355,25 @@ export async function syncPackingListFromWms(
 
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
-    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at')
+    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at, source_booking_id, booking_product_id, booking_products(booking_id)')
     .eq('packing_id', args.packingId)
     .eq('organization_id', args.organizationId);
   if (readErr) {
     return { ok: false, code: 'db_error', error: readErr.message, reservationId: reservation.reservationId };
   }
 
+  const { count: linkedBookingCount } = await supabase
+    .from('packing_project_bookings')
+    .select('booking_id', { count: 'exact', head: true })
+    .eq('packing_id', args.packingId);
+
   const plan = planWmsPackingSync(wmsRows, (existing || []) as ExistingPackingRow[], {
     packingId: args.packingId,
     organizationId: args.organizationId,
+    sourceBookingId: args.sourceBookingId,
+    // A single-booking packing owns every unscoped legacy row. Consolidated
+    // packings are only allowed to claim rows that can be tied to this booking.
+    claimUnscopedLegacyRows: (linkedBookingCount ?? 0) <= 1,
   });
 
   if (plan.inserts.length > 0) {
@@ -378,5 +408,189 @@ export async function syncPackingListFromWms(
     excluded: plan.staleIds.length,
     conflicts: plan.conflictIds.length,
     total: wmsRows.length,
+  };
+}
+
+
+export interface WmsProjectProduct {
+  syncKey: string;
+  name: string;
+  quantity: number;
+  itemTypeId: string | null;
+  packageId: string | null;
+  sku: string | null;
+}
+
+/**
+ * Project view projection: one row per Booking/WMS reservation line.
+ * Package components remain owned by WMS and are deliberately not copied into
+ * Planning booking_products; the warehouse projection receives those below.
+ */
+export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
+  const lines: any[] = body?.lines || body?.data?.lines || [];
+  return lines.flatMap((line: any) => {
+    const lineId = String(line?.line_id ?? line?.id ?? '');
+    if (!lineId) return [];
+    const quantity = Number(line?.quantity ?? line?.required_qty ?? 0) || 0;
+    if (quantity <= 0) return [];
+    return [{
+      syncKey: `wms:${lineId}`,
+      name: String(line?.name ?? 'Okänd artikel'),
+      quantity,
+      itemTypeId: line?.item_type_id ?? null,
+      packageId: line?.package_id ?? (line?.type === 'package' ? line?.id ?? null : null),
+      sku: line?.sku ?? null,
+    }];
+  });
+}
+
+async function fetchWmsPackingBody(
+  bookingNumber: string,
+  deps: WmsCallDeps,
+): Promise<{ ok: boolean; body?: any; reservationId?: string; code?: WmsFailureCode; error?: string }> {
+  const reservation = await resolveWmsReservation(bookingNumber, deps);
+  if (!reservation.ok) return reservation;
+  const f = deps.fetchImpl || fetch;
+  const base = deps.baseUrl || WMS_BASE_URL;
+  try {
+    const resp = await f(
+      `${base}/get-packing-list?reservation_id=${encodeURIComponent(reservation.reservationId!)}`,
+      { headers: headers(deps) },
+    );
+    const text = await resp.text();
+    let body: any = null;
+    try { body = JSON.parse(text); } catch { /* handled below */ }
+    if (!resp.ok) {
+      return {
+        ok: false,
+        code: 'wms_unavailable',
+        error: body?.error || `HTTP ${resp.status}`,
+        reservationId: reservation.reservationId,
+      };
+    }
+    if (!body) {
+      return {
+        ok: false,
+        code: 'wms_bad_response',
+        error: 'WMS packlista kunde inte tolkas',
+        reservationId: reservation.reservationId,
+      };
+    }
+    return { ok: true, body, reservationId: reservation.reservationId };
+  } catch (err: any) {
+    return {
+      ok: false,
+      code: 'wms_unavailable',
+      error: err?.message || 'network_error',
+      reservationId: reservation.reservationId,
+    };
+  }
+}
+
+/**
+ * Mirrors WMS order-level reservation lines into Planning's read projection.
+ * Existing src:/cmp:/legacy rows are soft-retired only after a complete,
+ * non-empty WMS snapshot has been obtained. Stable wms:<line_id> keys make the
+ * operation idempotent and prevent add-without-remove partial imports.
+ */
+export async function syncBookingProductsFromWms(
+  supabase: any,
+  args: {
+    bookingId: string;
+    organizationId: string;
+    bookingNumber: string;
+    apiKey: string;
+    fetchImpl?: typeof fetch;
+    baseUrl?: string;
+  },
+): Promise<{ ok: boolean; code?: WmsFailureCode | 'db_error'; error?: string; total?: number; inserted?: number; updated?: number; retired?: number; reservationId?: string }> {
+  const snapshot = await fetchWmsPackingBody(args.bookingNumber, {
+    apiKey: args.apiKey,
+    organizationId: args.organizationId,
+    fetchImpl: args.fetchImpl,
+    baseUrl: args.baseUrl,
+  });
+  if (!snapshot.ok) return snapshot as any;
+
+  const products = flattenWmsProjectProducts(snapshot.body);
+  if (products.length === 0) {
+    return {
+      ok: false,
+      code: 'wms_bad_response',
+      error: 'WMS-reservationen saknar orderrader för projektvyn',
+      reservationId: snapshot.reservationId,
+    };
+  }
+
+  const { data: existing, error: readError } = await supabase
+    .from('booking_products')
+    .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, source_missing_since')
+    .eq('booking_id', args.bookingId)
+    .eq('organization_id', args.organizationId);
+  if (readError) {
+    return { ok: false, code: 'db_error', error: readError.message, reservationId: snapshot.reservationId };
+  }
+
+  const currentByKey = new Map<string, any>();
+  for (const row of existing || []) {
+    if (row.sync_key?.startsWith('wms:')) currentByKey.set(row.sync_key, row);
+  }
+
+  const seen = new Set<string>();
+  let inserted = 0;
+  let updated = 0;
+  for (const product of products) {
+    seen.add(product.syncKey);
+    const row = currentByKey.get(product.syncKey);
+    const patch = {
+      name: product.name,
+      quantity: product.quantity,
+      sku: product.sku,
+      inventory_item_type_id: product.itemTypeId,
+      inventory_package_id: product.packageId,
+      is_package_component: false,
+      parent_product_id: null,
+      parent_package_id: null,
+      source_missing_since: null,
+    };
+    if (row) {
+      const { error } = await supabase
+        .from('booking_products')
+        .update(patch)
+        .eq('id', row.id)
+        .eq('organization_id', args.organizationId);
+      if (error) return { ok: false, code: 'db_error', error: error.message, reservationId: snapshot.reservationId };
+      updated++;
+    } else {
+      const { error } = await supabase.from('booking_products').insert({
+        booking_id: args.bookingId,
+        organization_id: args.organizationId,
+        sync_key: product.syncKey,
+        ...patch,
+      });
+      if (error) return { ok: false, code: 'db_error', error: error.message, reservationId: snapshot.reservationId };
+      inserted++;
+    }
+  }
+
+  const staleIds = (existing || [])
+    .filter((row: any) => !row.source_missing_since && !seen.has(row.sync_key || ''))
+    .map((row: any) => row.id);
+  if (staleIds.length > 0) {
+    const { error } = await supabase
+      .from('booking_products')
+      .update({ source_missing_since: new Date().toISOString() })
+      .in('id', staleIds)
+      .eq('organization_id', args.organizationId);
+    if (error) return { ok: false, code: 'db_error', error: error.message, reservationId: snapshot.reservationId };
+  }
+
+  return {
+    ok: true,
+    reservationId: snapshot.reservationId,
+    total: products.length,
+    inserted,
+    updated,
+    retired: staleIds.length,
   };
 }
