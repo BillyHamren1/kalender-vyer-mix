@@ -341,7 +341,7 @@ async function syncPackingListItems(
             .eq('packing_id', packingId)
             .eq('organization_id', organizationId)
             .eq('source_booking_id', bookingId)
-            .eq('excluded', false),
+            .or('excluded.eq.false,excluded.is.null'),
         ])
 
       if (!productCountError && !packCountError && (activeProductCount ?? 0) === 0 && (activePackCount ?? 0) === 0) {
