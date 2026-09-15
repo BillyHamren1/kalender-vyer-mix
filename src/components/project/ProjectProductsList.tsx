@@ -13,6 +13,13 @@ import {
 import { useProductGrouping, type ProductGroup } from "@/hooks/useProductGrouping";
 import { GroupProductsDialog } from "@/components/project/GroupProductsDialog";
 import { MoveProductDialog } from "@/components/project/MoveProductDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface BookingProduct {
@@ -113,7 +120,32 @@ const ProjectProductsList = ({
     () => allRows.filter((p) => !p.source_missing_since),
     [allRows]
   );
-  const removedCount = allRows.length - products.length;
+  const removedRows = useMemo(
+    () => allRows.filter((p) => !!p.source_missing_since),
+    [allRows]
+  );
+  const removedCount = removedRows.length;
+
+  // Badgen visas tills användaren öppnat den en gång (per bokning).
+  const seenKey = `project-products-removed-seen:${bookingId}`;
+  const [removedSeen, setRemovedSeen] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(seenKey) === String(removedCount);
+    } catch {
+      return false;
+    }
+  });
+  const [removedOpen, setRemovedOpen] = useState(false);
+
+  const openRemoved = () => {
+    setRemovedOpen(true);
+    setRemovedSeen(true);
+    try {
+      window.localStorage.setItem(seenKey, String(removedCount));
+    } catch {
+      /* noop */
+    }
+  };
 
 
   const { grouping, generate, save, clear } = useProductGrouping("booking", bookingId);
@@ -294,12 +326,40 @@ const ProjectProductsList = ({
 
   return (
     <div>
-      {removedCount > 0 && (
-        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          {removedCount} {removedCount === 1 ? "produkt är" : "produkter är"} borttagna i Booking och
-          visas inte längre här. Bekräfta borttagningen i bokningsvyn.
-        </div>
+      {removedCount > 0 && !removedSeen && (
+        <button
+          type="button"
+          onClick={openRemoved}
+          className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-500/20 transition-colors dark:text-amber-300"
+        >
+          Uppdaterad
+        </button>
       )}
+
+      <Dialog open={removedOpen} onOpenChange={setRemovedOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Uppdaterat sedan förra visningen</DialogTitle>
+            <DialogDescription>
+              {removedCount} {removedCount === 1 ? "produkt" : "produkter"} har tagits bort i Booking
+              och visas inte längre i listan.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="max-h-72 overflow-auto space-y-1">
+            {removedRows.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-3 text-sm border-b border-border/50 py-1.5"
+              >
+                <span className="min-w-0 truncate line-through text-muted-foreground">
+                  {cleanName(p.name)}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{p.quantity} st</span>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
 
       {showGroupingControls && (
         <div className="flex items-center gap-2 mb-3">
