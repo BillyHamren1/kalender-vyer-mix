@@ -101,6 +101,8 @@ import { SyncPerfTracker, verboseProductLogging } from '../_shared/syncPerf.ts'
 
 /** STEG 4E: verbose per-produkt-loggning är dyr → default AV (SYNC_DEBUG_PRODUCTS=true slår på). */
 const VERBOSE_PRODUCT_LOGS = verboseProductLogging();
+// WMS owns all operational product projections after the canonical cutover.
+const WMS_CANONICAL_PRODUCT_CUTOVER = true;
 
 /**
  * STEG 3I: counters hämtas från den guardade klienten så att varje
@@ -3942,7 +3944,7 @@ serve(async (req) => {
           // CHECK FOR PRODUCT CHANGES (even if booking metadata hasn't changed)
           // Note: needsProductUpdate and productChanges are declared at the top of the loop
           
-          if (externalBooking.products && Array.isArray(externalBooking.products)) {
+          if (!WMS_CANONICAL_PRODUCT_CUTOVER && externalBooking.products && Array.isArray(externalBooking.products)) {
             productChanges = await checkProductChanges(
               supabase,
               existingBooking.id,
