@@ -174,9 +174,9 @@ serve(async (req) => {
       duration_ms: Date.now() - startTime,
     }))
 
-    if (job.job_priority === 100) {
-      EdgeRuntime.waitUntil(wakeSyncWorker(supabaseUrl, serviceRoleKey, job.job_id))
-    }
+    // Every accepted Booking change should become visible immediately.
+    // The durable queue and cron still guarantee recovery if this wake fails.
+    EdgeRuntime.waitUntil(wakeSyncWorker(supabaseUrl, serviceRoleKey, job.job_id))
 
     return new Response(
       JSON.stringify({
