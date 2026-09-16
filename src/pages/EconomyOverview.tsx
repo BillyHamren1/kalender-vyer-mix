@@ -19,17 +19,13 @@ import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
-import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
-import BillingSection from '@/components/economy/billing/BillingSection';
 import ProjectLeaderActionBoard from '@/components/economy/ProjectLeaderActionBoard';
 import CompletedProjectsList from '@/components/economy/CompletedProjectsList';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-
-const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -179,10 +175,10 @@ const ProjectEconomyDashboard: React.FC = () => {
 };
 
 const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent " +
+  "relative px-6 py-3.5 rounded-none border-b-2 border-transparent " +
   "data-[state=active]:border-[hsl(var(--module-accent-base))] data-[state=active]:bg-transparent data-[state=active]:shadow-none " +
-  "bg-transparent text-muted-foreground data-[state=active]:text-[hsl(var(--module-accent))] " +
-  "font-semibold text-[13px] tracking-tight transition-colors hover:text-[hsl(var(--module-accent))]";
+  "bg-transparent text-foreground data-[state=active]:text-[hsl(var(--module-accent))] " +
+  "font-bold text-base tracking-tight transition-colors hover:text-[hsl(var(--module-accent))]";
 
 const EconomyOverview: React.FC = () => {
   return (
@@ -191,44 +187,21 @@ const EconomyOverview: React.FC = () => {
         icon={Banknote}
         variant="purple"
         title="Projektöversikt"
-        subtitle="Kontrolltorn · Kostnader · Attest · Överlämning"
+        subtitle="Kontrolltorn · Kostnader · Attest"
       />
 
       {/* Tabbed content */}
       <Tabs defaultValue="projects" className="space-y-6 mt-4">
         <div className="planning-card px-2 py-1">
-          <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-4">
+          <TabsList className="h-auto p-0 bg-transparent gap-0 w-full inline-flex">
             <TabsTrigger value="projects" className={tabTriggerClass}>
               Kontrollcenter
-            </TabsTrigger>
-            <TabsTrigger value="billing" className={tabTriggerClass}>
-              Överlämning & status
-            </TabsTrigger>
-            <TabsTrigger value="staff" className={tabTriggerClass}>
-              Personal
-            </TabsTrigger>
-            <TabsTrigger value="time-reports" className={tabTriggerClass}>
-              Utlägg
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="projects">
           <ProjectEconomyDashboard />
-        </TabsContent>
-
-        <TabsContent value="billing">
-          <BillingSection />
-        </TabsContent>
-
-        <TabsContent value="staff">
-          <StaffEconomyView />
-        </TabsContent>
-
-        <TabsContent value="time-reports">
-          <React.Suspense fallback={<Skeleton className="h-96" />}>
-            <EconomyTimeReportsContent />
-          </React.Suspense>
         </TabsContent>
       </Tabs>
     </PageContainer>
