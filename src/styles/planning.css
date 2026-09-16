@@ -14,16 +14,16 @@
 
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
-  /* Operations-identitet — bright #9672BE, deep #5E428B, soft #EEE8F6 */
-  --primary: 263.0137 35.6098% 40.1961%; /* #5E428B */
+  /* Planning-identitet — canonical #7357C8, deep #6849BE */
+  --primary: 254.867 50.673% 56.275%; /* #7357C8 */
   --primary-foreground: 0 0% 100%;
-  --primary-hover: 263.0137 35.6098% 35%;
-  --primary-dark: 263.0137 35.6098% 40.1961%;
+  --primary-hover: 255.897 47.368% 51.569%; /* #6849BE */
+  --primary-dark: 255.897 47.368% 51.569%;
 
   /* Secondary lila — för mjukare CTA-ytor */
-  --secondary: 268.4211 36.8932% 82%;
-  --secondary-foreground: 263.0137 35.6098% 40.1961%;
-  --secondary-hover: 268.4211 36.8932% 76%;
+  --secondary: 255 50% 82%;
+  --secondary-foreground: 255.897 47.368% 51.569%;
+  --secondary-hover: 255 50% 76%;
 
   /* Sidbakgrund — NEUTRAL premium-grå (matchar Booking-familjen).
      Lila används enbart som accent, inte som basbakgrund. */
@@ -32,13 +32,13 @@
   --gradient-teal-bg: hsl(200 20% 94.1176%);
 
   /* Accent / hover / focus-ring — lila */
-  --accent: 265.7143 43.75% 93.7255%;
-  --accent-foreground: 263.0137 35.6098% 40.1961%;
-  --ring: 268.4211 36.8932% 59.6078%;
+  --accent: 255 50% 95%;
+  --accent-foreground: 255.897 47.368% 51.569%;
+  --ring: 254.867 50.673% 56.275%;
   --muted-foreground: 240 6% 42%;
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
-  --gradient-icon: radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(268.4211 36.8932% 59.6078%), hsl(263.0137 35.6098% 40.1961%));
+  --gradient-icon: radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(254.867 50.673% 56.275%), hsl(255.897 47.368% 51.569%));
   --gradient-teal: var(--gradient-icon);
 
   /* Skuggor — neutral grå, inte lila-tintad */
@@ -48,13 +48,13 @@
   --shadow-raised:
     0 1px 3px hsl(240 10% 20% / 0.06),
     0 3px 0 hsl(240 8% 88%);
-  --shadow-btn-primary: 0 3px 0 hsl(263.0137 35.6098% 32%);
+  --shadow-btn-primary: 0 3px 0 hsl(255.897 47.368% 42%);
 
   /* Sidebar (när Planning-rot innehåller sidan) */
-  --sidebar-primary: 263.0137 35.6098% 40.1961%;
-  --sidebar-accent: 265.7143 43.75% 93.7255%;
-  --sidebar-accent-foreground: 263.0137 35.6098% 40.1961%;
-  --sidebar-ring: 268.4211 36.8932% 59.6078%;
+  --sidebar-primary: 254.867 50.673% 56.275%;
+  --sidebar-accent: 255 50% 95%;
+  --sidebar-accent-foreground: 255.897 47.368% 51.569%;
+  --sidebar-ring: 254.867 50.673% 56.275%;
 }
 
 

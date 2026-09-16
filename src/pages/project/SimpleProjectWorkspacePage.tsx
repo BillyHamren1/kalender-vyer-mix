@@ -138,8 +138,7 @@ export default function SimpleProjectWorkspacePage() {
     <div className="theme-purple min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
         <header
-          className="rounded-2xl p-6 text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)]"
-          style={{ background: "var(--gradient-planner)" }}
+          className="rounded-2xl bg-[image:var(--gradient-icon)] p-6 text-primary-foreground shadow-[var(--shadow-planner)]"
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><Button variant="ghost" size="sm" className="-ml-2 mb-2 text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Alla projekt</Button><h1 className="text-2xl font-semibold text-primary-foreground">{project.name}</h1><p className="mt-1 text-sm text-primary-foreground/80">{booking?.booking_number ? `Bokning ${booking.booking_number} · ` : ""}{booking?.client || project.client || "Internt projekt"}</p></div>
@@ -150,8 +149,8 @@ export default function SimpleProjectWorkspacePage() {
 
         <Tabs defaultValue="booking" className="space-y-5">
           <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-primary/20 bg-primary/10 p-1">
-            <TabsTrigger value="booking" className="py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Bokningsinformation</TabsTrigger>
-            <TabsTrigger value="planning" className="py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Projektplanering</TabsTrigger>
+            <TabsTrigger value="booking" className="py-2.5 data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground">Bokningsinformation</TabsTrigger>
+            <TabsTrigger value="planning" className="py-2.5 data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground">Projektplanering</TabsTrigger>
           </TabsList>
 
           <TabsContent value="booking" className="mt-0 space-y-5">
