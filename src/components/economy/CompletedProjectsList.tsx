@@ -106,6 +106,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('active');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
