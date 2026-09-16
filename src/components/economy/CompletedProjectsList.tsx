@@ -301,7 +301,32 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          <div className="mt-4 inline-flex flex-wrap gap-1 rounded-xl bg-muted/60 p-1">
+            {PHASE_TABS.map(tab => {
+              const count =
+                tab.value === 'all'
+                  ? completed.length
+                  : phaseCounts[tab.value as ProjectJobPhase];
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => { setPhaseFilter(tab.value); setVisibleCount(PAGE_SIZE); }}
+                  className={cn(
+                    'rounded-lg px-3 h-8 text-xs font-semibold transition-colors',
+                    phaseFilter === tab.value
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {tab.label}
+                  <span className="ml-1.5 tabular-nums opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 mt-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
