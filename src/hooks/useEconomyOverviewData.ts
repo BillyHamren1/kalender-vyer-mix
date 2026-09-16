@@ -292,6 +292,19 @@ export const useEconomyOverviewData = () => {
         const primaryBookingId = entry.booking_ids[0] ?? null;
         const eventdate = primaryBookingId ? (eventdateMap[primaryBookingId] ?? null) : null;
         const bookingCreatedAt = primaryBookingId ? (createdAtMap[primaryBookingId] ?? null) : null;
+        // Stora projekt: tidigaste riggdag och SENASTE nedriggdag över alla bokningar
+        const rigCandidates = entry.booking_ids
+          .map(id => rigdayMap[id])
+          .filter((v): v is string => !!v);
+        const rigdownCandidates = entry.booking_ids
+          .map(id => rigdownMap[id])
+          .filter((v): v is string => !!v);
+        const rigdaydate = rigCandidates.length
+          ? rigCandidates.reduce((min, v) => (v < min ? v : min))
+          : null;
+        const rigdowndate = rigdownCandidates.length
+          ? rigdownCandidates.reduce((max, v) => (v > max ? v : max))
+          : null;
 
         if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
           return {
