@@ -58,6 +58,27 @@ describe('flattenWmsPackingLines', () => {
   it('tar bort rader utan antal', () => {
     expect(flattenWmsPackingLines(wmsBody).some((r) => r.wmsLineId === 'l3')).toBe(false);
   });
+
+  it('är bakåtkompatibel men respekterar WMS packability och arv i paket', () => {
+    const rows = flattenWmsPackingLines({
+      lines: [
+        { line_id: 'legacy', name: 'Äldre rad', quantity: 1 },
+        {
+          line_id: 'transport', name: 'Transport', quantity: 1,
+          product_packable_default: false,
+        },
+        {
+          line_id: 'package', type: 'package', name: 'Paket', quantity: 1,
+          booking_packability_override: false,
+          packability_revision: 7,
+          components: [{ item_type_id: 'part', name: 'Paketdel', quantity: 1 }],
+        },
+      ],
+    });
+    expect(rows[0]).toMatchObject({ isPackable: true, packabilitySource: 'product_default', packabilityRevision: 1 });
+    expect(rows[1]).toMatchObject({ productPackableDefault: false, isPackable: false, packabilitySource: 'product_default' });
+    expect(rows[2]).toMatchObject({ bookingPackabilityOverride: false, isPackable: false, packabilitySource: 'booking_override', packabilityRevision: 7 });
+  });
 });
 
 
@@ -193,6 +214,35 @@ describe('planWmsPackingSync', () => {
     ], CTX);
     expect(plan.staleIds).toEqual(['gone']);
     expect(plan.conflictIds).toEqual(['packed']);
+  });
+
+  it('bevarar Lager-override över ny Booking/default-projektion', () => {
+    const rows = flattenWmsPackingLines({
+      lines: [{
+        line_id: 'l1', name: 'Transport', quantity: 1,
+        product_packable_default: false,
+        booking_packability_override: false,
+        is_packable: false,
+        packability_revision: 2,
+      }],
+    });
+    const plan = planWmsPackingSync(rows, [{
+      id: 'row1', wms_line_id: 'l1', quantity_to_pack: 1, quantity_packed: 0,
+      manual_name: 'Transport', excluded: false,
+      product_packable_default: true,
+      booking_packability_override: null,
+      warehouse_packability_override: true,
+      is_packable: true,
+      packability_source: 'warehouse_override',
+      packability_revision: 3,
+    }], CTX);
+    expect(plan.updates).toEqual([{
+      id: 'row1',
+      patch: {
+        product_packable_default: false,
+        booking_packability_override: false,
+      },
+    }]);
   });
 });
 

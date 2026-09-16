@@ -114,17 +114,18 @@ describe('edge-funktionen edit-packing-list', () => {
     expect(/body\?\.organization_id/.test(edgeFn)).toBe(false);
   });
 
-  it('anropar endast RPC:n och rör inga tabeller direkt', () => {
+  it('behåller legacy-RPC:n utan delete eller kommersiella writes', () => {
     expect(edgeFn).toContain("rpc('planning_edit_packing_list_item'");
     expect(edgeFn).toContain('_organization_id: profile.organization_id');
     expect(/\.delete\(/.test(edgeFn)).toBe(false);
-    expect(/from\('packing_list_items'\)/.test(edgeFn)).toBe(false);
+    expect(/from\('packing_list_items'\)[\s\S]{0,300}\.update\(/.test(edgeFn)).toBe(false);
     expect(/from\('bookings'\)/.test(edgeFn)).toBe(false);
     expect(/from\('booking_products'\)/.test(edgeFn)).toBe(false);
   });
 
-  it('accepterar bara exclude/restore', () => {
+  it('accepterar legacy plus typade packability-lägen', () => {
     expect(edgeFn).toContain("mode !== 'exclude' && mode !== 'restore'");
+    expect(edgeFn).toContain("'set_packable', 'set_non_packable', 'reset_packability'");
   });
 });
 
@@ -137,24 +138,28 @@ describe('WMS respekterar planning_excluded_at', () => {
 });
 
 describe('Planning-UI', () => {
-  it('visar redigering endast i planeringsläge och bekräftar alltid', () => {
+  it('visar WMS-projektionens effektiva packbarhet och tillåter lageroverride i rätt lägen', () => {
+    expect(view).toContain('getOperationsPackingPresentation');
+    expect(view).toContain('Ej packningsbar');
+    expect(view).toContain('PackageX');
     expect(view).toContain("packing?.status === 'planning'");
+    expect(view).toContain("packing?.status === 'in_progress'");
     expect(view).toContain('AlertDialog');
-    expect(view).toContain('Ta bort');
-    expect(view).toContain('Återställ');
-    expect(view).toContain('paketdel');
+    expect(view).toContain('Markera som packningsbar');
+    expect(view).toContain('Markera som ej packningsbar');
   });
 
   it('går via edge-funktionen, inte direkt mot tabellen', () => {
-    expect(view).toContain('planningEditPackingListItem');
+    expect(view).toContain('setWarehousePackingListItemPackability');
     expect(service).toContain("functions.invoke('edit-packing-list'");
     expect(/from\('packing_list_items'\)[\s\S]{0,200}\.delete\(/.test(service)).toBe(false);
     expect(/\.delete\(\)/.test(service)).toBe(false);
   });
 
-  it('blockerar knappen för packade/kollade rader', () => {
+  it('saknar fysisk packkontroll för ej packningsbara rader och blockerar override på rörda rader', () => {
+    expect(view).toContain('{presentation.isPackable && (');
     expect(view).toContain('isRowTouched');
-    expect(view).toContain('affected.some(isRowTouched)');
+    expect(view).toContain('const touched = isRowTouched(item)');
   });
 
   it('övriga desktop-mutatorer förblir blockerade', () => {
@@ -221,18 +226,32 @@ describe('Säkerhetsuppföljning (org-scope, restore-guard, audit)', () => {
     expect(edgeFn).toContain('kan därför inte återställas härifrån');
   });
 
-  it('UI räknar paketdelar även vid restore', () => {
-    expect(view).toContain('const affected = collectPackageRows(item);');
-    expect(view).not.toContain("mode === 'exclude' ? collectPackageRows(item) : [item]");
+  it('UI bevarar WMS paketkontext', () => {
+    expect(view).toContain("item.notes?.match(/^Ingår i paket:");
+    expect(view).toContain('Ingår i paket: {wmsPackageName}');
   });
 
-  it('UI visar Återställ endast för planning-exkluderade rader', () => {
-    expect(view).toContain('isEditMode && canEdit && !!item.planning_excluded_at');
+  it('UI använder source_booking_id för WMS-gruppering', () => {
+    expect(view).toContain('item.source_booking_id || item.booking_products?.booking_id');
   });
 
-  it('bannern beskriver planning-redigering men scanner-only packning', () => {
+  it('UI bygger inte packlistan från booking_products', () => {
+    expect(view).toContain('Never rebuild this list from booking_products');
+    expect(view).not.toContain(".from('booking_products')");
+  });
+
+  it('UI bevarar paketstrukturen utan att utvidga en radmutation lokalt', () => {
+    expect(view).toContain('childrenByParent');
+    expect(view).not.toContain('collectPackageRows');
+  });
+
+  it('UI använder effektiv WMS-packbarhet som visningssanning', () => {
+    expect(view).toContain('const isExcluded = !presentation.isPackable');
+    expect(view).toContain('presentation.nameClassName');
+  });
+
+  it('håller fysisk packning scanner-only', () => {
     expect(view).not.toContain('Den här webbvyn är skrivskyddad — kolli, +/-, exkludering');
-    expect(view).toContain('I planeringsläget kan du justera vilka rader som ska packas');
-    expect(view).toContain('hanteras enbart i skannern');
+    expect(view).toContain('hanteras fortfarande enbart i skannern');
   });
 });

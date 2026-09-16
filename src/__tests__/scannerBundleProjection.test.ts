@@ -55,6 +55,9 @@ describe("Planning -> Bundle Scanner projection", () => {
       parentReservationLineId: LINE,
       packageComponentId: COMPONENT,
       inventoryTypeId: TYPE,
+      isPackable: true,
+      packabilitySource: "product_default",
+      packabilityRevision: 1,
     });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toContain("eventflow-scanner-projection-v1");
@@ -64,6 +67,47 @@ describe("Planning -> Bundle Scanner projection", () => {
       bookingId: BOOKING,
     });
     expect((init?.headers as Record<string, string>)["x-scanner-signature"]).toMatch(/^v1=[0-9a-f]{64}$/);
+  });
+
+  it("bevarar WMS effective packability och accepterar legacyfält som packningsbara", async () => {
+    const explicitlyBlocked = {
+      ...response,
+      lines: [{
+        ...response.lines[0],
+        physicalLines: [{
+          ...response.lines[0].physicalLines[0],
+          isPackable: false,
+          packabilitySource: "warehouse_override",
+          packabilityRevision: 7,
+        }],
+      }],
+    };
+    const blocked = await fetchScannerBundleProjection(BOOKING, deps(async () =>
+      new Response(JSON.stringify(explicitlyBlocked), { status: 200 })));
+    expect(blocked).toMatchObject({
+      ok: true,
+      lines: [{ isPackable: false, packabilitySource: "warehouse_override", packabilityRevision: 7 }],
+    });
+
+    const legacy = await fetchScannerBundleProjection(BOOKING, deps(async () =>
+      new Response(JSON.stringify(response), { status: 200 })));
+    expect(legacy).toMatchObject({
+      ok: true,
+      lines: [{ isPackable: true, packabilitySource: "product_default", packabilityRevision: 1 }],
+    });
+  });
+
+  it("avvisar ogiltig effective packability i den signerade projektionen", async () => {
+    const invalid = {
+      ...response,
+      lines: [{
+        ...response.lines[0],
+        physicalLines: [{ ...response.lines[0].physicalLines[0], isPackable: "false" }],
+      }],
+    };
+    await expect(fetchScannerBundleProjection(BOOKING, deps(async () =>
+      new Response(JSON.stringify(invalid), { status: 200 }))))
+      .resolves.toMatchObject({ ok: false, code: "bundle_bad_response" });
   });
 
   it("avvisar paket- och komponentidentitet som inte bildar samma Bundle-tupel", async () => {

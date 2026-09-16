@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
-import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
+import { computePackingProgress, deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
 import { fetchScannerBundleProjection } from '../_shared/scannerBundleProjection.ts'
@@ -134,6 +134,15 @@ const PACKING_MUTATING_ACTIONS = new Set<string>([
   'add_unknown_product',
 ])
 
+const ITEM_PACKABILITY_ACTIONS = new Set<string>([
+  'toggle_item',
+  'decrement_item',
+  'assign_item_to_parcel',
+  'return_toggle_item',
+  'return_decrement_item',
+  'reset_return_item',
+])
+
 /**
  * KRITISK SÄKERHETSREGEL: packningshistorik är revisionsdata och får inte
  * missas tyst. När `logPackingSessionEvent` misslyckas kastas denna special-
@@ -248,6 +257,30 @@ async function assertSessionMatchesTarget(
 }
 
 /**
+ * Final local projection guard for item-targeted mutations. `is_packable` is
+ * already the effective WMS value (warehouse > Booking > product default).
+ * Scanner must never reinterpret the source fields or inspect booking_products.
+ */
+async function assertProjectedItemPackable(
+  supabase: any,
+  orgId: string,
+  itemId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('packing_list_items')
+    .select('id, is_packable, packability_revision')
+    .eq('id', itemId)
+    .eq('organization_id', orgId)
+    .maybeSingle()
+  if (error || !data) {
+    throw { status: 404, message: 'Packraden hittades inte.', reason: 'PACKING_ITEM_NOT_FOUND' }
+  }
+  if ((data as any).is_packable === false) {
+    throw { status: 409, message: 'Produkten är inte packningsbar.', reason: 'item_not_packable' }
+  }
+}
+
+/**
  * Loggar en händelse i packing_work_session_events. Ska köras EFTER att den
  * faktiska ändringen i WMS/lokal databas lyckats.
  *
@@ -353,13 +386,13 @@ async function checkIfAllPacked(supabase: any, packingId: string, orgId: string)
   // identical to what the UI shows. See `supabase/functions/_shared/packing-progress.ts`
   // and its mirror `src/lib/packing/progress.ts` for the rule.
   //
-  // We must fetch the same columns the helper inspects: `excluded` (so excluded
-  // rows don't keep status stuck at in_progress when the UI considers them done)
+  // We must fetch the same columns the helper inspects: WMS `is_packable`
+  // (with legacy `excluded` fallback)
   // and the booking_products id + parent_product_id (so package headers are
   // collapsed exactly the same way).
   const { data: items, error } = await supabase
     .from('packing_list_items')
-    .select('id, excluded, quantity_to_pack, quantity_packed, booking_products(id, parent_product_id)')
+    .select('id, is_packable, excluded, quantity_to_pack, quantity_packed, booking_products(id, parent_product_id)')
     .eq('packing_id', packingId)
     .eq('organization_id', orgId)
 
@@ -421,7 +454,7 @@ async function transitionToReturning(supabase: any, packingId: string, orgId: st
 async function checkIfAllReturned(supabase: any, packingId: string, orgId: string) {
   const { data: items, error } = await supabase
     .from('packing_list_items')
-    .select('id, excluded, quantity_to_pack, quantity_packed, quantity_returned, booking_products(id, parent_product_id)')
+    .select('id, is_packable, excluded, quantity_to_pack, quantity_packed, quantity_returned, booking_products(id, parent_product_id)')
     .eq('packing_id', packingId)
     .eq('organization_id', orgId)
 
@@ -436,7 +469,7 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   let totalReturned = 0
   let anyReturned = false
   for (const it of items) {
-    if ((it as any).excluded === true) continue
+    if (!((it as any).is_packable ?? (it as any).excluded !== true)) continue
     const productId = (it as any).booking_products?.id
     if (productId && headers.has(productId)) continue
     const sent = Math.max(0, ((it as any).quantity_packed ?? 0) | 0)
@@ -570,7 +603,7 @@ async function fetchControlCountableItems(
   const { data: items, error } = await supabase
     .from('packing_list_items')
     .select(
-      'id, excluded, quantity_to_pack, manual_name, booking_products(id, name, parent_product_id)',
+      'id, is_packable, excluded, quantity_to_pack, manual_name, booking_products(id, name, parent_product_id)',
     )
     .eq('packing_id', packingId)
     .eq('organization_id', orgId)
@@ -585,7 +618,7 @@ async function fetchControlCountableItems(
 
   const out: ControlCountableRow[] = []
   for (const it of items) {
-    if ((it as any).excluded === true) continue
+    if (!((it as any).is_packable ?? (it as any).excluded !== true)) continue
     const bp = (it as any).booking_products
     const productId: string | null = bp?.id ?? null
     if (productId && headerProductIds.has(productId)) continue // paketheader
@@ -787,6 +820,22 @@ Deno.serve(async (req) => {
     }
 
     const ORG_ID = auth.organizationId
+
+    if (ITEM_PACKABILITY_ACTIONS.has(action) && typeof (params as any)?.itemId === 'string' && (params as any).itemId) {
+      try {
+        await assertProjectedItemPackable(supabase, ORG_ID, (params as any).itemId)
+      } catch (packabilityErr: any) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: packabilityErr.message || 'Produkten är inte packningsbar.',
+            code: packabilityErr.reason || 'item_not_packable',
+            debugCode: packabilityErr.reason || 'item_not_packable',
+          }),
+          { status: packabilityErr.status || 409, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
 
     // PACKING SESSION GUARD ===================================================
     // För alla mutativa packnings-actions: kräv aktiv session från frontend.
@@ -1098,6 +1147,9 @@ Deno.serve(async (req) => {
                 quantity_picked: line.quantityPicked,
                 quantity_returned: line.quantityReturned,
                 allocated_instance_ids: line.allocatedInstanceIds,
+                is_packable: line.isPackable,
+                packability_source: line.packabilitySource,
+                packability_revision: line.packabilityRevision,
                 source: "bundle_wms_projection_v1",
               })),
             }),
@@ -1421,6 +1473,15 @@ Deno.serve(async (req) => {
 
         let allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
+        if (allocateData?.code === 'item_not_packable' || allocateData?.error_code === 'item_not_packable') {
+          return json({
+            success: false,
+            code: 'item_not_packable',
+            debugCode: 'item_not_packable',
+            error: allocateData?.error || allocateData?.message || 'Produkten är inte packningsbar',
+          })
+        }
+
         // ===== Ambiguous scan code (WMS duplicate) — handle FIRST, never recover =====
         // En dublett är inte samma sak som "already allocated". Vi får aldrig
         // försöka recovera eller packa lokalt — vi måste stoppa scanflödet helt.
@@ -1594,7 +1655,7 @@ Deno.serve(async (req) => {
         //    (A) inventory_item_type_id  (B) sku  (C) name fallback (warn only)
         const { data: packingItems, error: fetchError } = await supabase
           .from('packing_list_items')
-          .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
+          .select(`id, is_packable, packability_revision, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
 
@@ -1660,6 +1721,18 @@ Deno.serve(async (req) => {
             error: `Artikeln ${wmsItemTypeName || wmsSku || wmsItemTypeId} finns i WMS men inte i packlistan`,
           })
         }
+
+        // Never derive this from booking_products: it is the effective WMS
+        // projection and may have changed after the page was loaded.
+        if (matchedItems.every((item: any) => item.is_packable === false)) {
+          return json({
+            success: false,
+            code: 'item_not_packable',
+            debugCode: 'item_not_packable',
+            error: 'Produkten är inte packningsbar',
+          })
+        }
+        matchedItems = matchedItems.filter((item: any) => item.is_packable !== false)
 
         if (matchedItems.length > 1) {
           console.warn('[verify_product] multiple_local_rows_matched', {
@@ -2203,7 +2276,8 @@ Deno.serve(async (req) => {
           const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
           if (wmsBlocked) {
             const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
-            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus })
+            const code = checkinData?.code || checkinData?.error_code || null
+            return json({ success: false, error: wmsError, code, debugCode: code, data: checkinData?.data, wmsStatus: checkinStatus })
           }
         } catch (err) {
           console.error('[checkin-scan] network error', { serial, err })
@@ -2228,7 +2302,7 @@ Deno.serve(async (req) => {
 
         const { data: packingItems } = await supabase
           .from('packing_list_items')
-          .select(`id, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
+          .select(`id, is_packable, packability_revision, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
           .gt('quantity_packed', 0)
@@ -2268,6 +2342,11 @@ Deno.serve(async (req) => {
         }
 
         const debug = { matchedBy, wmsInstanceId, wmsItemTypeId, wmsSerialNumber, wmsSku, scannedValue: serial }
+
+        if (matched.length > 0 && matched.every((item: any) => item.is_packable === false)) {
+          return json({ success: false, error: 'Produkten är inte packningsbar', code: 'item_not_packable', debugCode: 'item_not_packable', ...debug })
+        }
+        matched = matched.filter((item: any) => item.is_packable !== false)
 
         // WMS accepted the checkin even if we can't find a matching local row.
         if (matched.length === 0) {
@@ -2639,6 +2718,22 @@ Deno.serve(async (req) => {
       case 'sign_packing': {
         const { packingId, signedBy, signedByStaffId } = params
 
+        const { data: completionRows, error: completionError } = await supabase
+          .from('packing_list_items')
+          .select('id, excluded, is_packable, quantity_to_pack, quantity_packed, booking_products(id, parent_product_id)')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+        if (completionError) throw completionError
+        const completion = computePackingProgress(completionRows || [])
+        if (completion.total > 0 && completion.verified < completion.total) {
+          return json({
+            success: false,
+            error: `Packningen är inte klar (${completion.verified}/${completion.total})`,
+            code: 'PACKING_INCOMPLETE',
+            missing: completion.total - completion.verified,
+          })
+        }
+
         // STATUS FLOW: Signing = delivery confirmed → set to delivered
         // Only allow signing if status is 'packed' or 'in_progress'
         const { data: currentPacking } = await supabase
@@ -2667,14 +2762,12 @@ Deno.serve(async (req) => {
         const { packingId } = params
         const { data, error } = await supabase
           .from('packing_list_items')
-          .select('id, verified_at')
+          .select('id, excluded, is_packable, quantity_to_pack, quantity_packed, booking_products(id, parent_product_id)')
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
 
         if (error) throw error
-        const total = data?.length || 0
-        const verified = data?.filter((item: any) => item.verified_at !== null).length || 0
-        return json({ total, verified, percentage: total > 0 ? Math.round((verified / total) * 100) : 0 })
+        return json(computePackingProgress(data || []))
       }
 
       case 'identify_product': {
@@ -2951,6 +3044,7 @@ Deno.serve(async (req) => {
           const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
           if (wmsBlocked) {
             const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
+            const code = checkinData?.code || checkinData?.error_code || null
             const wrongBooking =
               checkinData?.code === 'wrong_booking' ||
               checkinData?.error_code === 'wrong_booking' ||
@@ -2969,7 +3063,7 @@ Deno.serve(async (req) => {
                 packingId, serialPrefix: serial.slice(0, 12), status: checkinStatus, error: wmsError,
               })
             }
-            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus, wrongBooking })
+            return json({ success: false, error: wmsError, code, debugCode: code, data: checkinData?.data, wmsStatus: checkinStatus, wrongBooking })
           }
         } catch (err) {
           console.error('[scanner-api] wms_checkin_failed (network)', { serialPrefix: serial.slice(0, 12), err: String(err) })
@@ -3000,7 +3094,7 @@ Deno.serve(async (req) => {
         // 2) Match local packing_list_items strictly by item_type_id then sku.
         const { data: rows, error: rowsErr } = await supabase
           .from('packing_list_items')
-          .select('id, quantity_packed, quantity_returned, booking_products (id, name, sku, inventory_item_type_id)')
+          .select('id, is_packable, packability_revision, quantity_packed, quantity_returned, booking_products (id, name, sku, inventory_item_type_id)')
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
           .gt('quantity_packed', 0)
@@ -3039,6 +3133,11 @@ Deno.serve(async (req) => {
             debugCode: 'LOCAL_RETURN_MATCH_MISSING',
           })
         }
+
+        if (matched.every((row: any) => row.is_packable === false)) {
+          return json({ success: false, error: 'Produkten är inte packningsbar', code: 'item_not_packable', debugCode: 'item_not_packable' })
+        }
+        matched = matched.filter((row: any) => row.is_packable !== false)
 
         // Pick the row with most remaining-to-return (sent − back), deterministic
         const target = [...matched].sort((a: any, b: any) => {
@@ -3109,7 +3208,7 @@ Deno.serve(async (req) => {
 
         const { data: rows, error: rowsErr } = await supabase
           .from('packing_list_items')
-          .select('id, quantity_packed, quantity_returned, manual_name, booking_products(id, sku, name)')
+          .select('id, is_packable, packability_revision, quantity_packed, quantity_returned, manual_name, booking_products(id, sku, name)')
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
 
@@ -3118,16 +3217,29 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Kunde inte läsa packlistan' })
         }
 
-        // Match priority: exact SKU > exact name > contains name
-        const matchSku = (rows || []).find((r: any) => {
+        // Match priority: exact SKU > exact name > contains name. Packability
+        // comes only from the WMS-projected row, never from booking_products.
+        const packableRows = (rows || []).filter((r: any) => r.is_packable !== false)
+        const nonPackableMatch = (rows || []).some((r: any) => {
+          const s = r.booking_products?.sku
+          const n = r.booking_products?.name || r.manual_name
+          return r.is_packable === false && (
+            (s && String(s).trim().toLowerCase() === lower) ||
+            (n && String(n).toLowerCase().includes(lower))
+          )
+        })
+        if (nonPackableMatch) {
+          return json({ success: false, error: 'Produkten är inte packningsbar', code: 'item_not_packable', debugCode: 'item_not_packable' })
+        }
+        const matchSku = packableRows.find((r: any) => {
           const s = r.booking_products?.sku
           return s && String(s).trim().toLowerCase() === lower
         })
-        const matchName = matchSku || (rows || []).find((r: any) => {
+        const matchName = matchSku || packableRows.find((r: any) => {
           const n = r.booking_products?.name || r.manual_name
           return n && String(n).trim().toLowerCase() === lower
         })
-        const matchContains = matchName || (rows || []).find((r: any) => {
+        const matchContains = matchName || packableRows.find((r: any) => {
           const n = r.booking_products?.name || r.manual_name
           return n && String(n).toLowerCase().includes(lower)
         })

@@ -118,6 +118,81 @@ export interface WmsPackingRow {
   sku: string | null;
   /** Paketnamn när raden är en paketkomponent. */
   packageName: string | null;
+  productPackableDefault: boolean;
+  bookingPackabilityOverride: boolean | null;
+  warehousePackabilityOverride: boolean | null;
+  isPackable: boolean;
+  packabilitySource: 'product_default' | 'booking_override' | 'warehouse_override';
+  packabilityRevision: number;
+  packabilityUpdatedAt: string | null;
+  packabilityUpdatedBy: string | null;
+}
+
+export interface PackabilitySnapshot {
+  productPackableDefault: boolean;
+  bookingPackabilityOverride: boolean | null;
+  warehousePackabilityOverride: boolean | null;
+  isPackable: boolean;
+  packabilitySource: 'product_default' | 'booking_override' | 'warehouse_override';
+  packabilityRevision: number;
+  packabilityUpdatedAt: string | null;
+  packabilityUpdatedBy: string | null;
+}
+
+const nullableBoolean = (value: unknown): boolean | null =>
+  typeof value === 'boolean' ? value : null;
+
+/**
+ * Normalizes the additive WMS wire contract. Older WMS responses contain none
+ * of these keys and therefore remain packable, preserving existing behaviour.
+ */
+export function normalizePackability(node: any, inherited?: any): PackabilitySnapshot {
+  const productPackableDefault =
+    typeof node?.product_packable_default === 'boolean'
+      ? node.product_packable_default
+      : typeof node?.is_packable_default === 'boolean'
+        ? node.is_packable_default
+        : typeof inherited?.product_packable_default === 'boolean'
+          ? inherited.product_packable_default
+          : true;
+  const bookingPackabilityOverride = nullableBoolean(
+    node?.booking_packability_override ?? inherited?.booking_packability_override,
+  );
+  const warehousePackabilityOverride = nullableBoolean(
+    node?.warehouse_packability_override ?? inherited?.warehouse_packability_override,
+  );
+  const derivedSource = warehousePackabilityOverride !== null
+    ? 'warehouse_override'
+    : bookingPackabilityOverride !== null
+      ? 'booking_override'
+      : 'product_default';
+  const source = ['product_default', 'booking_override', 'warehouse_override'].includes(
+    String(node?.packability_source),
+  )
+    ? node.packability_source
+    : derivedSource;
+  const derivedEffective = warehousePackabilityOverride
+    ?? bookingPackabilityOverride
+    ?? productPackableDefault;
+  const revision = Number(node?.packability_revision ?? inherited?.packability_revision ?? 1);
+  return {
+    productPackableDefault,
+    bookingPackabilityOverride,
+    warehousePackabilityOverride,
+    isPackable: typeof node?.is_packable === 'boolean' ? node.is_packable : derivedEffective,
+    packabilitySource: source,
+    packabilityRevision: Number.isSafeInteger(revision) && revision > 0 ? revision : 1,
+    packabilityUpdatedAt: typeof node?.packability_updated_at === 'string'
+      ? node.packability_updated_at
+      : typeof inherited?.packability_updated_at === 'string'
+        ? inherited.packability_updated_at
+        : null,
+    packabilityUpdatedBy: typeof node?.packability_updated_by === 'string'
+      ? node.packability_updated_by
+      : typeof inherited?.packability_updated_by === 'string'
+        ? inherited.packability_updated_by
+        : null,
+  };
 }
 
 /**
@@ -143,6 +218,7 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
         // WMS ger ibland komponenten samma namn som paketet — särskilj med SKU
         // så att golvet ser vilken fysisk del raden gäller.
         const displayName = rawName === packageName && c?.sku ? `${rawName} (${c.sku})` : rawName;
+        const packability = normalizePackability(c, line);
         rows.push({
           wmsLineId: `${lineId}::${key}`,
           name: displayName,
@@ -150,11 +226,13 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
           itemTypeId: c?.item_type_id ?? null,
           sku: c?.sku ?? null,
           packageName,
+          ...packability,
         });
       }
       continue;
     }
 
+    const packability = normalizePackability(line);
     rows.push({
       wmsLineId: lineId,
       name: String(line?.name ?? 'Okänd artikel'),
@@ -162,6 +240,7 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
       itemTypeId: line?.item_type_id ?? null,
       sku: line?.sku ?? null,
       packageName: null,
+      ...packability,
     });
   }
 
@@ -183,6 +262,14 @@ export interface ExistingPackingRow {
   source_booking_id?: string | null;
   booking_product_id?: string | null;
   booking_products?: { booking_id?: string | null } | null;
+  product_packable_default?: boolean | null;
+  booking_packability_override?: boolean | null;
+  warehouse_packability_override?: boolean | null;
+  is_packable?: boolean | null;
+  packability_source?: string | null;
+  packability_revision?: number | null;
+  packability_updated_at?: string | null;
+  packability_updated_by?: string | null;
 }
 
 export interface WmsSyncPlan {
@@ -244,6 +331,14 @@ export function planWmsPackingSync(
         wms_sku: row.sku,
         wms_identity_source: row.itemTypeId ? 'wms_reservation' : 'wms_reservation_sku_only',
         wms_identity_needs_repair: !row.itemTypeId,
+        product_packable_default: row.productPackableDefault,
+        booking_packability_override: row.bookingPackabilityOverride,
+        warehouse_packability_override: row.warehousePackabilityOverride,
+        is_packable: row.isPackable,
+        packability_source: row.packabilitySource,
+        packability_revision: row.packabilityRevision,
+        packability_updated_at: row.packabilityUpdatedAt,
+        packability_updated_by: row.packabilityUpdatedBy,
       });
       continue;
     }
@@ -251,6 +346,36 @@ export function planWmsPackingSync(
     const patch: Record<string, unknown> = {};
     if (existingRow.quantity_to_pack !== row.quantity) patch.quantity_to_pack = row.quantity;
     if ((existingRow.manual_name || null) !== name) patch.manual_name = name;
+    if ((existingRow.product_packable_default ?? true) !== row.productPackableDefault) {
+      patch.product_packable_default = row.productPackableDefault;
+    }
+    if ((existingRow.booking_packability_override ?? null) !== row.bookingPackabilityOverride) {
+      patch.booking_packability_override = row.bookingPackabilityOverride;
+    }
+    // A local warehouse override has the highest precedence and is preserved
+    // until WMS returns the same/newer canonical revision.
+    const incomingWins = row.packabilityRevision > (existingRow.packability_revision || 1);
+    const warehouseOverride = incomingWins
+      ? row.warehousePackabilityOverride
+      : existingRow.warehouse_packability_override ?? row.warehousePackabilityOverride;
+    const effective = warehouseOverride
+      ?? row.bookingPackabilityOverride
+      ?? row.productPackableDefault;
+    const effectiveSource = warehouseOverride !== null
+      ? 'warehouse_override'
+      : row.bookingPackabilityOverride !== null
+        ? 'booking_override'
+        : 'product_default';
+    if ((existingRow.is_packable ?? true) !== effective) patch.is_packable = effective;
+    if ((existingRow.packability_source ?? 'product_default') !== effectiveSource) {
+      patch.packability_source = effectiveSource;
+    }
+    if ((existingRow.packability_revision || 1) < row.packabilityRevision) {
+      patch.packability_revision = row.packabilityRevision;
+      patch.warehouse_packability_override = row.warehousePackabilityOverride;
+      patch.packability_updated_at = row.packabilityUpdatedAt;
+      patch.packability_updated_by = row.packabilityUpdatedBy;
+    }
     // Planning-exkluderade rader återställs aldrig av WMS.
     if (existingRow.excluded && !existingRow.planning_excluded_at) patch.excluded = false;
     if (Object.keys(patch).length > 0) {
@@ -346,7 +471,7 @@ export async function syncPackingListFromWms(
   const wmsRows = flattenWmsPackingLines(body);
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
-    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at, source_booking_id, booking_product_id, booking_products(booking_id)')
+    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at, source_booking_id, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by, booking_products(booking_id)')
     .eq('packing_id', args.packingId)
     .eq('organization_id', args.organizationId);
   if (readErr) {
@@ -414,6 +539,13 @@ export interface WmsProjectProduct {
   sku: string | null;
   isPackageComponent: boolean;
   sortIndex: number;
+  productPackableDefault: boolean;
+  bookingPackabilityOverride: boolean | null;
+  isPackable: boolean;
+  packabilitySource: 'product_default' | 'booking_override' | 'warehouse_override';
+  packabilityRevision: number;
+  packabilityUpdatedAt: string | null;
+  packabilityUpdatedBy: string | null;
 }
 
 /**
@@ -491,6 +623,7 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
       name = `${name} (#${occurrence})`;
     }
 
+    const linePackability = normalizePackability(line);
     rows.push({
       syncKey,
       parentSyncKey: null,
@@ -501,12 +634,20 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
       sku: line?.sku ?? null,
       isPackageComponent: false,
       sortIndex: sortIndex++,
+      productPackableDefault: linePackability.productPackableDefault,
+      bookingPackabilityOverride: linePackability.bookingPackabilityOverride,
+      isPackable: linePackability.isPackable,
+      packabilitySource: linePackability.packabilitySource,
+      packabilityRevision: linePackability.packabilityRevision,
+      packabilityUpdatedAt: linePackability.packabilityUpdatedAt,
+      packabilityUpdatedBy: linePackability.packabilityUpdatedBy,
     });
 
     for (const accessory of childrenByParent.get(lineId) || []) {
       const childId = String(accessory?.line_id ?? accessory?.id ?? '');
       const childQuantity = Number(accessory?.quantity ?? accessory?.required_qty ?? 0) || 0;
       if (!childId || childQuantity <= 0) continue;
+      const accessoryPackability = normalizePackability(accessory, line);
       rows.push({
         syncKey: `wms:${childId}`,
         parentSyncKey: syncKey,
@@ -517,6 +658,13 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
         sku: accessory?.sku ?? null,
         isPackageComponent: false,
         sortIndex: sortIndex++,
+        productPackableDefault: accessoryPackability.productPackableDefault,
+        bookingPackabilityOverride: accessoryPackability.bookingPackabilityOverride,
+        isPackable: accessoryPackability.isPackable,
+        packabilitySource: accessoryPackability.packabilitySource,
+        packabilityRevision: accessoryPackability.packabilityRevision,
+        packabilityUpdatedAt: accessoryPackability.packabilityUpdatedAt,
+        packabilityUpdatedBy: accessoryPackability.packabilityUpdatedBy,
       });
     }
 
@@ -528,6 +676,7 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
         const key = component?.item_type_id || component?.sku || component?.line_id || component?.id;
         const componentQuantity = Number(component?.required_qty ?? component?.quantity ?? 0) || 0;
         if (!key || componentQuantity <= 0) continue;
+        const componentPackability = normalizePackability(component, line);
         rows.push({
           syncKey: `${syncKey}::${key}`,
           parentSyncKey: syncKey,
@@ -538,6 +687,13 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
           sku: component?.sku ?? null,
           isPackageComponent: true,
           sortIndex: sortIndex++,
+          productPackableDefault: componentPackability.productPackableDefault,
+          bookingPackabilityOverride: componentPackability.bookingPackabilityOverride,
+          isPackable: componentPackability.isPackable,
+          packabilitySource: componentPackability.packabilitySource,
+          packabilityRevision: componentPackability.packabilityRevision,
+          packabilityUpdatedAt: componentPackability.packabilityUpdatedAt,
+          packabilityUpdatedBy: componentPackability.packabilityUpdatedBy,
         });
       }
     }
@@ -551,6 +707,7 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
       const childId = String(accessory?.line_id ?? accessory?.id ?? '');
       const quantity = Number(accessory?.quantity ?? accessory?.required_qty ?? 0) || 0;
       if (!childId || quantity <= 0) continue;
+      const accessoryPackability = normalizePackability(accessory);
       rows.push({
         syncKey: `wms:${childId}`,
         parentSyncKey: null,
@@ -561,6 +718,13 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
         sku: accessory?.sku ?? null,
         isPackageComponent: false,
         sortIndex: sortIndex++,
+        productPackableDefault: accessoryPackability.productPackableDefault,
+        bookingPackabilityOverride: accessoryPackability.bookingPackabilityOverride,
+        isPackable: accessoryPackability.isPackable,
+        packabilitySource: accessoryPackability.packabilitySource,
+        packabilityRevision: accessoryPackability.packabilityRevision,
+        packabilityUpdatedAt: accessoryPackability.packabilityUpdatedAt,
+        packabilityUpdatedBy: accessoryPackability.packabilityUpdatedBy,
       });
     }
   }
@@ -639,7 +803,7 @@ export async function syncBookingProductsFromWms(
   const products = flattenWmsProjectProducts(snapshot.body);
   const { data: existing, error: readError } = await supabase
     .from('booking_products')
-    .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, parent_product_id, is_package_component, sort_index, source_missing_since')
+    .select('id, sync_key, name, quantity, sku, inventory_item_type_id, inventory_package_id, parent_product_id, is_package_component, sort_index, source_missing_since, product_packable_default, packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by')
     .eq('booking_id', args.bookingId)
     .eq('organization_id', args.organizationId);
   if (readError) {
@@ -675,6 +839,13 @@ export async function syncBookingProductsFromWms(
       parent_package_id: null,
       sort_index: product.sortIndex,
       source_missing_since: null,
+      product_packable_default: product.productPackableDefault,
+      packability_override: product.bookingPackabilityOverride,
+      is_packable: product.isPackable,
+      packability_source: product.packabilitySource,
+      packability_revision: product.packabilityRevision,
+      packability_updated_at: product.packabilityUpdatedAt,
+      packability_updated_by: product.packabilityUpdatedBy,
     };
     if (row) {
       const { error } = await supabase

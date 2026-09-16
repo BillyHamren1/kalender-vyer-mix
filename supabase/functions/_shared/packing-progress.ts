@@ -8,7 +8,8 @@
  * `packing_projects.status` value never drift.
  *
  * Rule recap (see `src/lib/packing/progress.ts` for full prose):
- *   • Countable iff `excluded !== true` AND not a "package header".
+ *   • Countable iff effective WMS `is_packable !== false` (legacy
+ *     `excluded` fallback) AND not a "package header".
  *   • Package header = a row whose `booking_products.id` is referenced
  *     as `parent_product_id` by ≥1 other row in the same packing list.
  *   • total = Σ quantity_to_pack; verified = Σ min(packed, want).
@@ -18,6 +19,8 @@
 
 export interface ProgressItemInput {
   id: string;
+  /** Effective WMS projection. Missing means legacy/default packable. */
+  is_packable?: boolean | null;
   excluded?: boolean | null;
   quantity_to_pack: number;
   quantity_packed: number | null;
@@ -47,7 +50,8 @@ export function isCountable(
   item: ProgressItemInput,
   packageHeaderProductIds: Set<string>,
 ): boolean {
-  if (item.excluded === true) return false;
+  const isPackable = item.is_packable ?? item.excluded !== true;
+  if (!isPackable) return false;
   const productId = item.booking_products?.id;
   if (!productId) return true;
   return !packageHeaderProductIds.has(productId);

@@ -69,10 +69,11 @@ async function assertPlanningScope(admin: any, auth: any, command: any) {
     throw { status: 404, code: 'PACKING_NOT_FOUND', message: 'Packing not found in organization' }
   }
 
+  let projectedItem: any = null
   if (command.itemId) {
     const { data: item, error } = await admin
       .from('packing_list_items')
-      .select('id, packing_id, organization_id')
+      .select('id, packing_id, organization_id, source_booking_id, wms_line_id, is_packable, packability_revision')
       .eq('id', command.itemId)
       .eq('packing_id', command.packingId)
       .eq('organization_id', auth.organizationId)
@@ -80,6 +81,19 @@ async function assertPlanningScope(admin: any, auth: any, command: any) {
     if (error || !item) {
       throw { status: 404, code: 'ITEM_SCOPE_MISMATCH', message: 'Packing item not found in organization/packing' }
     }
+    // packing_list_items is a WMS projection. Its effective flag is the final
+    // local fail-closed guard for manual/SKU operations and, crucially, for an
+    // offline operation replayed after Warehouse changed packability.
+    if (item.is_packable === false) {
+      throw { status: 409, code: 'item_not_packable', message: 'Produkten är inte packningsbar' }
+    }
+    if (item.source_booking_id && item.source_booking_id !== packing.booking_id) {
+      throw { status: 409, code: 'WRONG_BOOKING', message: 'WMS projection belongs to another Booking' }
+    }
+    if ((command.type === 'PACK_QUANTITY' || command.type === 'UNPACK_QUANTITY') && !item.wms_line_id) {
+      throw { status: 409, code: 'WMS_LINE_ID_REQUIRED', message: 'Packing row lacks canonical WMS line identity' }
+    }
+    projectedItem = item
   }
 
   if (command.bookingNumber) {
@@ -116,7 +130,7 @@ async function assertPlanningScope(admin: any, auth: any, command: any) {
     if (session.status !== 'active') throw { status: 409, code: 'PACKING_SESSION_NOT_ACTIVE', message: 'Packing session is not active' }
   }
 
-  return packing
+  return { packing, projectedItem }
 }
 
 const transientWmsStatus = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500
@@ -155,7 +169,7 @@ Deno.serve(async (req) => {
 
     const auth = await authenticateScanner(req)
     const admin = auth.admin
-    await assertPlanningScope(admin, auth, command)
+    const scope = await assertPlanningScope(admin, auth, command)
 
     const gatewayUrl = Deno.env.get('WMS_COMMAND_GATEWAY_URL')
     const apiKey = Deno.env.get('PRICELIST_API_KEY')
@@ -182,7 +196,11 @@ Deno.serve(async (req) => {
           organization_id: auth.organizationId,
           packing_id: command.packingId,
           reservation_id: command.reservationId ?? null,
-          item_id: command.itemId ?? null,
+          // Never send Planning's packing_list_items.id to WMS. WMS receives
+          // only its canonical reservation line plus the canonical Booking ID.
+          item_id: scope.projectedItem?.wms_line_id ?? null,
+          reservation_line_id: scope.projectedItem?.wms_line_id ?? null,
+          booking_id: scope.packing.booking_id,
           serial_number: command.serialNumber ?? null,
           sku: command.sku ?? null,
           quantity_delta: command.quantityDelta ?? null,
@@ -212,7 +230,7 @@ Deno.serve(async (req) => {
     if (status === 'unknown') {
       return json({
         status: 'unknown', operationId: command.operationId,
-        itemId: wmsBody?.item_id ?? command.itemId ?? null,
+        itemId: scope.projectedItem?.id ?? null,
         message: wmsBody?.message ?? wmsBody?.error ?? 'WMS outcome unknown',
         debugCode: wmsBody?.code ?? `WMS_${wmsStatus}`,
       }, 503)
@@ -224,13 +242,30 @@ Deno.serve(async (req) => {
       // so the client never gives green feedback for an unrelated prior scan.
       return json({
         status: 'rejected', operationId: command.operationId,
-        itemId: wmsBody?.item_id ?? command.itemId ?? null,
+        itemId: scope.projectedItem?.id ?? null,
         message: wmsBody?.message ?? 'Duplicate state could not be proven as replay of this operation',
         debugCode: 'DUPLICATE_WITHOUT_REPLAY_PROOF', replayed: false,
       }, 409)
     }
 
-    const itemId = wmsBody?.item_id ?? command.itemId ?? null
+    const canonicalWmsLineId = wmsBody?.reservation_line_id ?? wmsBody?.item_id ?? scope.projectedItem?.wms_line_id ?? null
+    let itemId = scope.projectedItem?.id ?? null
+    if (!itemId && canonicalWmsLineId) {
+      const { data: projected } = await admin
+        .from('packing_list_items')
+        .select('id, is_packable')
+        .eq('packing_id', command.packingId)
+        .eq('organization_id', auth.organizationId)
+        .eq('wms_line_id', canonicalWmsLineId)
+        .maybeSingle()
+      if (projected?.is_packable === false) {
+        return json({
+          status: 'rejected', operationId: command.operationId, itemId: projected.id,
+          message: 'Produkten är inte packningsbar', debugCode: 'item_not_packable',
+        }, 409)
+      }
+      itemId = projected?.id ?? null
+    }
     const packedQuantity = typeof wmsBody?.packed_quantity === 'number' ? wmsBody.packed_quantity : null
     const requiredQuantity = typeof wmsBody?.required_quantity === 'number' ? wmsBody.required_quantity : null
     const returnedQuantity = typeof wmsBody?.returned_quantity === 'number' ? wmsBody.returned_quantity : null

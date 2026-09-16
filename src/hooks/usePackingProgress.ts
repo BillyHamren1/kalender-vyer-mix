@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toMap } from '@/lib/query/mapCache';
 import { uniqueChannelName } from '@/lib/realtime/channelName';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 export interface PackingProgress {
   packingId: string;
@@ -41,32 +42,34 @@ export function usePackingProgressBatch(bookingIds: string[]) {
       // Fetch packing list items for all packing projects
       const { data: items, error: iErr } = await supabase
         .from('packing_list_items')
-        .select('packing_id, quantity_to_pack, quantity_packed, packed_at')
+        .select('id, packing_id, is_packable, excluded, quantity_to_pack, quantity_packed, packed_at, booking_products(id, parent_product_id)')
         .in('packing_id', packingIds);
 
       // Aggregate per packing
-      const itemsByPacking = new Map<string, { total: number; scanned: number; lastUpdated: string | null }>();
+      const rowsByPacking = new Map<string, typeof items>();
       (items || []).forEach(item => {
-        const existing = itemsByPacking.get(item.packing_id) || { total: 0, scanned: 0, lastUpdated: null };
-        existing.total += (item.quantity_to_pack || 0);
-        existing.scanned += (item.quantity_packed || 0);
-        if (item.packed_at && (!existing.lastUpdated || item.packed_at > existing.lastUpdated)) {
-          existing.lastUpdated = item.packed_at;
-        }
-        itemsByPacking.set(item.packing_id, existing);
+        const rows = rowsByPacking.get(item.packing_id) || [];
+        rows.push(item);
+        rowsByPacking.set(item.packing_id, rows);
       });
 
       const result = new Map<string, PackingProgress>();
       packings.forEach(p => {
-        const agg = itemsByPacking.get(p.id) || { total: 0, scanned: 0, lastUpdated: null };
+        const rows = rowsByPacking.get(p.id) || [];
+        const agg = computePackingProgress(rows);
+        const lastUpdated = rows
+          .map((row) => row.packed_at)
+          .filter((value): value is string => Boolean(value))
+          .sort()
+          .at(-1) ?? null;
         result.set(p.booking_id, {
           packingId: p.id,
           bookingId: p.booking_id,
           status: p.status,
           totalItems: agg.total,
-          scannedItems: agg.scanned,
-          remainingItems: Math.max(0, agg.total - agg.scanned),
-          lastActivity: agg.lastUpdated,
+          scannedItems: agg.verified,
+          remainingItems: Math.max(0, agg.total - agg.verified),
+          lastActivity: lastUpdated,
         });
       });
 

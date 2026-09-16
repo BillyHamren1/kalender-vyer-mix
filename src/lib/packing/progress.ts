@@ -8,7 +8,7 @@
  * --- The rule ---
  *
  * A `packing_list_items` row is COUNTABLE in the progress totals iff:
- *   1. `excluded` is not true, AND
+ *   1. WMS `is_packable` is not false (with legacy `excluded` fallback), AND
  *   2. The row's product is NOT a "package header".
  *
  * A row is a PACKAGE HEADER iff its `booking_products.id` is referenced as
@@ -48,6 +48,9 @@
 export interface ProgressItemInput {
   /** From packing_list_items.id */
   id: string;
+  /** Effective WMS decision. Authoritative when present. */
+  is_packable?: boolean | null;
+  /** Legacy fallback for snapshots predating is_packable. */
   excluded?: boolean | null;
   quantity_to_pack: number;
   quantity_packed: number | null;
@@ -83,7 +86,8 @@ export function isCountable(
   item: ProgressItemInput,
   packageHeaderProductIds: Set<string>,
 ): boolean {
-  if (item.excluded === true) return false;
+  const isPackable = item.is_packable ?? item.excluded !== true;
+  if (!isPackable) return false;
   const productId = item.booking_products?.id;
   if (!productId) return true; // manual / orphan row
   return !packageHeaderProductIds.has(productId);
@@ -150,7 +154,9 @@ export function getDisplayedProgressForRow(
   }
 
   const children = allItems.filter(
-    (i) => i.booking_products?.parent_product_id === productId && i.excluded !== true,
+    (i) =>
+      i.booking_products?.parent_product_id === productId &&
+      (i.is_packable ?? i.excluded !== true),
   );
   const allChildrenPacked =
     children.length > 0 &&
