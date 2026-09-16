@@ -175,10 +175,10 @@ const ProjectEconomyDashboard: React.FC = () => {
 };
 
 const tabTriggerClass =
-  "relative px-5 py-3 rounded-none border-b-2 border-transparent " +
+  "relative px-6 py-3.5 rounded-none border-b-2 border-transparent " +
   "data-[state=active]:border-[hsl(var(--module-accent-base))] data-[state=active]:bg-transparent data-[state=active]:shadow-none " +
-  "bg-transparent text-muted-foreground data-[state=active]:text-[hsl(var(--module-accent))] " +
-  "font-semibold text-sm tracking-tight transition-colors hover:text-[hsl(var(--module-accent))]";
+  "bg-transparent text-foreground data-[state=active]:text-[hsl(var(--module-accent))] " +
+  "font-bold text-base tracking-tight transition-colors hover:text-[hsl(var(--module-accent))]";
 
 const EconomyOverview: React.FC = () => {
   return (
@@ -187,7 +187,7 @@ const EconomyOverview: React.FC = () => {
         icon={Banknote}
         variant="purple"
         title="Projektöversikt"
-        subtitle="Kontrollcenter"
+        subtitle="Kontrolltorn · Kostnader · Attest"
       />
 
       {/* Tabbed content */}
