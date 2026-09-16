@@ -12,6 +12,8 @@ export interface ProjectWithEconomy {
   status: string;
   booking_id: string | null;
   eventdate: string | null;
+  rigdaydate: string | null;
+  rigdowndate: string | null;
   bookingCreatedAt: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
