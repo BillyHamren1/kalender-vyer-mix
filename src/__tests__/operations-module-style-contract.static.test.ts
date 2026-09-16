@@ -13,8 +13,8 @@ describe('Operations premium module contract', () => {
     expect(MODULE_PALETTE.planning.dark).toBe('hsl(255.897 47.368% 51.569%)');
 
     const css = read('src/styles/module-accents.css');
-    expect(css).toContain('265.7143 43.75% 93.7255%');
-    expect(css).toContain('/* #EEE8F6 */');
+    expect(css).toContain('--module-accent: 254.867 50.673% 56.275%; /* #7357C8 */');
+    expect(css).toContain('--module-accent-dark: 255.897 47.368% 51.569%; /* #6849BE */');
   });
 
   it('locks the identical neutral canvas on app pages and authentication', () => {
