@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -301,30 +302,33 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
             </div>
           </div>
 
-          <div className="mt-4 inline-flex flex-wrap gap-1 rounded-xl bg-muted/60 p-1">
-            {PHASE_TABS.map(tab => {
-              const count =
-                tab.value === 'all'
-                  ? completed.length
-                  : phaseCounts[tab.value as ProjectJobPhase];
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => { setPhaseFilter(tab.value); setVisibleCount(PAGE_SIZE); }}
-                  className={cn(
-                    'rounded-lg px-3 h-8 text-xs font-semibold transition-colors',
-                    phaseFilter === tab.value
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {tab.label}
-                  <span className="ml-1.5 tabular-nums opacity-60">{count}</span>
-                </button>
-              );
-            })}
-          </div>
+          <Tabs
+            value={phaseFilter}
+            onValueChange={(value) => {
+              setPhaseFilter(value as PhaseFilter);
+              setVisibleCount(PAGE_SIZE);
+            }}
+            className="mt-4 w-full"
+          >
+            <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-lg border border-border/60 bg-card p-1.5 shadow-sm">
+              {PHASE_TABS.map(tab => {
+                const count =
+                  tab.value === 'all'
+                    ? completed.length
+                    : phaseCounts[tab.value as ProjectJobPhase];
+                return (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="h-11 w-full rounded-md px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary-soft-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:text-sm"
+                  >
+                    <span>{tab.label}</span>
+                    <span className="ml-1.5 tabular-nums opacity-70">{count}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
 
           <div className="flex flex-col sm:flex-row gap-2 mt-3">
             <div className="relative flex-1">
