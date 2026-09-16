@@ -163,6 +163,8 @@ export function toProjectInsight(p: ProjectWithEconomy): EconomyProjectInsight {
     status: p.status,
     booking_id: p.booking_id,
     eventdate: p.eventdate,
+    rigdaydate: p.rigdaydate ?? null,
+    rigdowndate: p.rigdowndate ?? null,
     bookingCreatedAt: p.bookingCreatedAt,
     navigateTo: p.navigateTo,
 

@@ -30,6 +30,28 @@ import {
   LIFECYCLE_STATUS_LABEL,
   type ProjectLifecycleStatus,
 } from '@/lib/economy/projectLifecycleStatus';
+import {
+  getProjectJobPhase,
+  getJobLastDay,
+  JOB_PHASE_LABEL,
+  type ProjectJobPhase,
+} from '@/lib/economy/projectJobPhase';
+
+type PhaseFilter = 'all' | ProjectJobPhase;
+
+const PHASE_TABS: { value: PhaseFilter; label: string }[] = [
+  { value: 'active', label: 'Pågående' },
+  { value: 'upcoming', label: 'Kommande' },
+  { value: 'finished', label: 'Avslutade' },
+  { value: 'all', label: 'Alla' },
+];
+
+const PHASE_PILL_CLASS: Record<ProjectJobPhase, string> = {
+  active: 'border-primary/30 text-primary bg-primary/5',
+  upcoming: 'border-sky-500/30 text-sky-600 bg-sky-500/5',
+  finished: 'border-border bg-muted/50 text-muted-foreground',
+  undated: 'border-border bg-muted/40 text-muted-foreground',
+};
 
 const PAGE_SIZE = 10;
 
@@ -84,6 +106,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('active');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -138,20 +161,29 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
-        return { ...p, _daysSince: daysSince, _eventDate: eventDate };
+        const phase = getProjectJobPhase(p as any, today);
+        const lastDay = getJobLastDay(p as any);
+        return { ...p, _daysSince: daysSince, _eventDate: eventDate, _phase: phase, _lastDay: lastDay };
       })
       .sort((a, b) => b._daysSince - a._daysSince);
   }, [projectInsights, hidden]);
+
+  const phaseCounts = useMemo(() => {
+    const counts: Record<ProjectJobPhase, number> = { active: 0, upcoming: 0, finished: 0, undated: 0 };
+    completed.forEach(p => { counts[p._phase] += 1; });
+    return counts;
+  }, [completed]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return completed.filter(p => {
       const lifecycle = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
       if (statusFilter !== 'all' && lifecycle !== statusFilter) return false;
+      if (phaseFilter !== 'all' && p._phase !== phaseFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q);
     });
-  }, [completed, search, statusFilter]);
+  }, [completed, search, statusFilter, phaseFilter]);
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visible.length < filtered.length;
@@ -269,7 +301,32 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          <div className="mt-4 inline-flex flex-wrap gap-1 rounded-xl bg-muted/60 p-1">
+            {PHASE_TABS.map(tab => {
+              const count =
+                tab.value === 'all'
+                  ? completed.length
+                  : phaseCounts[tab.value as ProjectJobPhase];
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => { setPhaseFilter(tab.value); setVisibleCount(PAGE_SIZE); }}
+                  className={cn(
+                    'rounded-lg px-3 h-8 text-xs font-semibold transition-colors',
+                    phaseFilter === tab.value
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {tab.label}
+                  <span className="ml-1.5 tabular-nums opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 mt-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -355,7 +412,16 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                           </div>
                         </TableCell>
                         <TableCell className="py-5 align-middle text-sm text-muted-foreground tabular-nums">
-                          {dateLabel}
+                          <div>{dateLabel}</div>
+                          <span
+                            className={cn(
+                              'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                              PHASE_PILL_CLASS[p._phase],
+                            )}
+                            title={p._lastDay ? `Sista jobbdag ${p._lastDay}` : undefined}
+                          >
+                            {JOB_PHASE_LABEL[p._phase]}
+                          </span>
                         </TableCell>
                         <TableCell className="py-5 align-middle" onClick={(e) => e.stopPropagation()}>
                           <Popover>

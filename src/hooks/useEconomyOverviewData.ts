@@ -12,6 +12,8 @@ export interface ProjectWithEconomy {
   status: string;
   booking_id: string | null;
   eventdate: string | null;
+  rigdaydate: string | null;
+  rigdowndate: string | null;
   bookingCreatedAt: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
@@ -203,17 +205,21 @@ export const useEconomyOverviewData = () => {
       // Collect all unique booking IDs
       const allBookingIds = [...new Set(entries.flatMap(e => e.booking_ids))];
 
-      // Fetch eventdates and created_at from bookings
+      // Fetch job dates and created_at from bookings
       let eventdateMap: Record<string, string | null> = {};
+      let rigdayMap: Record<string, string | null> = {};
+      let rigdownMap: Record<string, string | null> = {};
       let createdAtMap: Record<string, string | null> = {};
       if (allBookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('id, eventdate, created_at')
+          .select('id, eventdate, rigdaydate, rigdowndate, created_at')
           .in('id', allBookingIds);
         if (bookings) {
           bookings.forEach(b => {
             eventdateMap[b.id] = b.eventdate;
+            rigdayMap[b.id] = (b as any).rigdaydate ?? null;
+            rigdownMap[b.id] = (b as any).rigdowndate ?? null;
             createdAtMap[b.id] = b.created_at;
           });
         }
@@ -286,6 +292,19 @@ export const useEconomyOverviewData = () => {
         const primaryBookingId = entry.booking_ids[0] ?? null;
         const eventdate = primaryBookingId ? (eventdateMap[primaryBookingId] ?? null) : null;
         const bookingCreatedAt = primaryBookingId ? (createdAtMap[primaryBookingId] ?? null) : null;
+        // Stora projekt: tidigaste riggdag och SENASTE nedriggdag över alla bokningar
+        const rigCandidates = entry.booking_ids
+          .map(id => rigdayMap[id])
+          .filter((v): v is string => !!v);
+        const rigdownCandidates = entry.booking_ids
+          .map(id => rigdownMap[id])
+          .filter((v): v is string => !!v);
+        const rigdaydate = rigCandidates.length
+          ? rigCandidates.reduce((min, v) => (v < min ? v : min))
+          : null;
+        const rigdowndate = rigdownCandidates.length
+          ? rigdownCandidates.reduce((max, v) => (v > max ? v : max))
+          : null;
 
         if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
           return {
@@ -294,6 +313,8 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            rigdaydate,
+            rigdowndate,
             bookingCreatedAt,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
@@ -343,6 +364,8 @@ export const useEconomyOverviewData = () => {
               status: entry.status,
               booking_id: primaryBookingId,
               eventdate,
+              rigdaydate,
+              rigdowndate,
               bookingCreatedAt,
               summary: aggregated,
               timeReports: allTimeReports,
@@ -360,6 +383,8 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            rigdaydate,
+            rigdowndate,
             bookingCreatedAt,
             summary,
             timeReports,
@@ -375,6 +400,8 @@ export const useEconomyOverviewData = () => {
             status: entry.status,
             booking_id: primaryBookingId,
             eventdate,
+            rigdaydate,
+            rigdowndate,
             bookingCreatedAt,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
