@@ -7,10 +7,10 @@ const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), file)
 
 describe('Operations premium module contract', () => {
   it('locks the exact approved Operations palette', () => {
-    expect(MODULE_PALETTE.planning.baseHex).toBe('#9672BE');
-    expect(MODULE_PALETTE.planning.darkHex).toBe('#5E428B');
-    expect(MODULE_PALETTE.planning.base).toBe('hsl(268.4211 36.8932% 59.6078%)');
-    expect(MODULE_PALETTE.planning.dark).toBe('hsl(263.0137 35.6098% 40.1961%)');
+    expect(MODULE_PALETTE.planning.baseHex).toBe('#7357C8');
+    expect(MODULE_PALETTE.planning.darkHex).toBe('#6849BE');
+    expect(MODULE_PALETTE.planning.base).toBe('hsl(254.867 50.673% 56.275%)');
+    expect(MODULE_PALETTE.planning.dark).toBe('hsl(255.897 47.368% 51.569%)');
 
     const css = read('src/styles/module-accents.css');
     expect(css).toContain('265.7143 43.75% 93.7255%');

@@ -1,7 +1,7 @@
 /**
  * Canonical EventFlow module palette (owned by EventFlow HUB).
  *
- * Operations (internal key: planning)  base #9672BE / deep #5E428B
+ * Planning (internal key: planning)  base #7357C8 / deep #6849BE
  * Lager     base #C77922 / dark #9A5715
  *
  * These values control MODULE IDENTITY only — active navigation, brand/icon,
@@ -33,14 +33,14 @@ export interface ModulePalette {
 
 export const MODULE_PALETTE: Record<ModuleKey, ModulePalette> = {
   planning: {
-    baseHex: '#9672BE',
-    darkHex: '#5E428B',
-    base: 'hsl(268.4211 36.8932% 59.6078%)',
-    dark: 'hsl(263.0137 35.6098% 40.1961%)',
-    soft: 'hsl(265.7143 43.75% 93.7255%)',
-    border: 'hsl(268 28% 84%)',
-    hover: 'hsl(266 42% 97%)',
-    ring: 'hsl(268.4211 36.8932% 59.6078%)',
+    baseHex: '#7357C8',
+    darkHex: '#6849BE',
+    base: 'hsl(254.867 50.673% 56.275%)',
+    dark: 'hsl(255.897 47.368% 51.569%)',
+    soft: 'hsl(255 50% 95%)',
+    border: 'hsl(255 35% 84%)',
+    hover: 'hsl(255 42% 97%)',
+    ring: 'hsl(254.867 50.673% 56.275%)',
   },
   warehouse: {
     baseHex: '#C77922',
