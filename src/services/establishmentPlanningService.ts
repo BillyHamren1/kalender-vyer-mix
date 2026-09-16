@@ -244,11 +244,16 @@ export const fetchEstablishmentBookingData = async (bookingId: string): Promise<
     // Get packing list item counts
     const { data: packingItems } = await supabase
       .from('packing_list_items')
-      .select('id, quantity_to_pack, quantity_packed')
+      .select('id, is_packable, excluded, quantity_to_pack, quantity_packed')
       .eq('packing_id', packing.id);
-    
-    const itemsTotal = packingItems?.length || 0;
-    const itemsPacked = packingItems?.filter(item => item.quantity_packed >= item.quantity_to_pack).length || 0;
+
+    const countableItems = (packingItems || []).filter(
+      (item) => item.is_packable ?? !item.excluded,
+    );
+    const itemsTotal = countableItems.length;
+    const itemsPacked = countableItems.filter(
+      (item) => item.quantity_packed >= item.quantity_to_pack,
+    ).length;
     
     packingInfo = {
       id: packing.id,

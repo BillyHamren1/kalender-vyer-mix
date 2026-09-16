@@ -197,7 +197,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         const itemsRes = await supabase
           .from("packing_list_items")
           .select(
-            "id,packing_id,excluded,quantity_to_pack,quantity_packed,booking_product_id,booking_products(id,parent_product_id)"
+            "id,packing_id,excluded,is_packable,quantity_to_pack,quantity_packed,booking_product_id,booking_products(id,parent_product_id)"
           )
           .in("packing_id", ids)
           .limit(20000);
@@ -337,6 +337,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         const progress = computePackingProgress(
           projItems.map((it: any) => ({
             id: it.id,
+            is_packable: it.is_packable,
             excluded: it.excluded,
             quantity_to_pack: Number(it.quantity_to_pack) || 0,
             quantity_packed: it.quantity_packed,

@@ -408,8 +408,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     const isOverscan = packed > total && total > 0;
     const isComplete = packed >= total && total > 0 && !isOverscan;
     const isPartial = packed > 0 && packed < total;
+    const isPackable = item.is_packable !== false;
     
-    return { isChild, isParent, packed, total, displayName, prefixIndicator, isOverscan, isComplete, isPartial, isPackageComponent };
+    return { isChild, isParent, packed, total, displayName, prefixIndicator, isOverscan, isComplete, isPartial, isPackageComponent, isPackable };
   };
 
   // --- Loading state ---
@@ -427,11 +428,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
     const info = getItemDisplayInfo(item, childrenByParent);
     const parcelNumber = itemParcelMap[item.id];
-    const rowDisabled = info.isParent || (showParcelColumn && info.isComplete);
+    const rowDisabled = !info.isPackable || info.isParent || (showParcelColumn && info.isComplete);
 
     const rowClasses = `w-full flex items-center gap-2 text-left transition-all duration-300 ${
       highlightedItemId === item.id
         ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
+        : !info.isPackable
+          ? 'bg-muted/50'
         : info.isOverscan
           ? 'bg-red-100/80 border-l-4 border-red-500'
           : info.isComplete 
@@ -450,7 +453,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <div className={`shrink-0 rounded-full flex items-center justify-center ${
           info.isChild ? 'w-4 h-4' : 'w-5 h-5'
         } ${
-          info.isOverscan ? 'bg-red-500 animate-pulse'
+          !info.isPackable ? 'border-2 border-muted-foreground/20 bg-muted'
+            : info.isOverscan ? 'bg-red-500 animate-pulse'
             : info.isComplete ? 'bg-green-500' 
             : info.isPartial ? 'bg-amber-500' 
             : info.isParent ? 'border-2 border-dashed border-muted-foreground/30'
@@ -464,7 +468,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <div className="flex-1 min-w-0">
           <span className={`block truncate ${
             info.isChild ? 'text-[11px] font-normal' : 'text-xs font-semibold tracking-wide'
-          } ${
+          } ${!info.isPackable ? 'line-through text-muted-foreground' : ''} ${
             info.isOverscan ? 'text-red-700 font-bold'
               : info.isComplete ? 'text-green-700' 
               : info.isPartial ? 'text-amber-800'
@@ -474,6 +478,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             {info.isChild && <span className="text-muted-foreground/70">{info.prefixIndicator}</span>}
             {info.displayName}
           </span>
+          {!info.isPackable && (
+            <span className="text-[9px] text-muted-foreground">Ej packningsbar</span>
+          )}
           {info.isParent && (
             <span className="text-[9px] text-muted-foreground">
               Marked when all parts are packed
@@ -524,9 +531,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         })()}
         
         {/* Quantity badge + (manual mode) +/- controls */}
-        {!showParcelColumn && (
+        {!showParcelColumn && info.isPackable && (
           <div className="shrink-0 flex items-center gap-1">
-            {isManualMode && !info.isParent && (
+            {isManualMode && !info.isParent && info.isPackable && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleManualDecrement(item.id); }}
@@ -547,7 +554,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 {info.packed}/{info.total}
               </span>
             </div>
-            {isManualMode && !info.isParent && (
+            {isManualMode && !info.isParent && info.isPackable && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleManualIncrement(item.id, item.quantity_to_pack, info.isParent); }}

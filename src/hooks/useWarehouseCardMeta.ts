@@ -45,12 +45,12 @@ export function useWarehousePackingStats(bookingIds: string[]) {
       const packingIds = packings.map((p) => p.id);
       const { data: items } = await supabase
         .from('packing_list_items')
-        .select('packing_id, quantity_to_pack, quantity_packed, excluded')
+        .select('packing_id, quantity_to_pack, quantity_packed, excluded, is_packable')
         .in('packing_id', packingIds);
 
       const agg = new Map<string, { total: number; packed: number }>();
       (items || []).forEach((item) => {
-        if (item.excluded) return;
+        if (!(item.is_packable ?? !item.excluded)) return;
         const entry = agg.get(item.packing_id) || { total: 0, packed: 0 };
         const toPack = Number(item.quantity_to_pack || 0);
         const packed = Math.min(Number(item.quantity_packed || 0), toPack);

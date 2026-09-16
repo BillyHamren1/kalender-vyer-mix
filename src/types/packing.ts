@@ -94,6 +94,10 @@ export interface PackingListItem {
   verified_at: string | null;
   notes: string | null;
   excluded: boolean;
+  /** Effective WMS decision; overrides legacy excluded when present. */
+  is_packable?: boolean | null;
+  packability_source?: 'product_default' | 'booking_override' | 'warehouse_override' | null;
+  packability_revision?: number | null;
   manual_name: string | null;
   wms_line_id?: string | null;
   wms_item_type_id?: string | null;

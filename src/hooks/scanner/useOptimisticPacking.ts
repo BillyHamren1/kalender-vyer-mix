@@ -14,6 +14,12 @@ export interface PackingItem {
   verified_at: string | null;
   verified_by: string | null;
   parcel_id: string | null;
+  /** Effective WMS projection. false rows are display-only in Scanner. */
+  is_packable?: boolean | null;
+  packability_source?: 'product_default' | 'booking_override' | 'warehouse_override' | null;
+  packability_revision?: number | null;
+  wms_line_id?: string | null;
+  source_booking_id?: string | null;
   booking_products: {
     id: string;
     name: string;

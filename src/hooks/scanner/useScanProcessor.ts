@@ -188,6 +188,14 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         const matchingItem = parsed.unique
           ? undefined
           : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
+        if (matchingItem?.is_packable === false) {
+          const productName = matchingItem.booking_products?.name || scannedValue;
+          scanLog('scan_blocked_item_not_packable', { packingId, itemId: matchingItem.id, value: scannedValue });
+          onScanResult({ value: scannedValue, result: 'Produkten är inte packningsbar', success: false, productName });
+          toast.error('Produkten är inte packningsbar');
+          addRecentScan({ value: scannedValue, productName, success: false, timestamp: Date.now(), reason: 'error' });
+          return;
+        }
         const minus = getIsMinusMode();
         const operation: ScannerOperationKind = parsed.unique
           ? (minus ? 'unpack_instance' : 'pack_instance')
@@ -319,7 +327,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
         // SKU / repeatable code — local match path
         const matchingItem = items.find(
-          item => item.booking_products?.sku?.trim().toLowerCase() === normalised && (item.quantity_packed || 0) > 0
+          item => item.is_packable !== false && item.booking_products?.sku?.trim().toLowerCase() === normalised && (item.quantity_packed || 0) > 0
         );
 
         if (!matchingItem) {
@@ -513,6 +521,18 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       const matchingItem = parsed.unique
         ? undefined
         : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
+      if (matchingItem?.is_packable === false) {
+        const productName = matchingItem.booking_products?.name || scannedValue;
+        scanLog('scan_blocked_before_persist_item_not_packable', {
+          packingId: optRef.current.packingId,
+          itemId: matchingItem.id,
+          value: scannedValue,
+        });
+        optRef.current.onScanResult({ value: scannedValue, result: 'Produkten är inte packningsbar', success: false, productName });
+        toast.error('Produkten är inte packningsbar');
+        addRecentScan({ value: scannedValue, productName, success: false, timestamp: Date.now(), reason: 'error' });
+        continue;
+      }
       const operation: ScannerOperationKind = parsed.unique
         ? (minus ? 'unpack_instance' : 'pack_instance')
         : (minus ? 'unpack_quantity' : 'pack_quantity');
@@ -623,6 +643,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
     if (isParent) {
       toast.info('Parent products are marked automatically when all parts are packed');
+      return;
+    }
+
+    const selectedItem = getItems().find((item) => item.id === itemId);
+    if (selectedItem?.is_packable === false) {
+      scanLog('manual_pack_blocked_item_not_packable', { itemId, packingId: optRef.current.packingId });
+      toast.error('Produkten är inte packningsbar');
       return;
     }
 

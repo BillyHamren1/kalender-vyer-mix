@@ -56,6 +56,10 @@ export type ScannerBundleProjection =
         quantityPicked: number;
         quantityReturned: null;
         allocatedInstanceIds: string[];
+        /** Effective WMS packability for this physical reservation line. */
+        isPackable: boolean;
+        packabilitySource: "product_default" | "booking_override" | "warehouse_override";
+        packabilityRevision: number;
       }>;
     };
 
@@ -144,8 +148,17 @@ export async function fetchScannerBundleProjection(
       const inventoryTypeId = uuid(physical?.inventoryTypeId);
       const required = nonNegative(physical?.requiredQuantity);
       const picked = nonNegative(physical?.packedQuantity);
+      const packabilityRevision = physical?.packabilityRevision === undefined
+        ? 1
+        : nonNegative(physical?.packabilityRevision);
+      const isPackable = physical?.isPackable === undefined ? true : physical?.isPackable;
+      const packabilitySource = physical?.packabilitySource === undefined
+        ? "product_default"
+        : physical?.packabilitySource;
       if (!physical || !inventoryTypeId || required === null || picked === null || picked > required ||
           physical.returnedQuantity !== null || !Array.isArray(physical.allocatedInstanceIds) ||
+          typeof isPackable !== "boolean" || packabilityRevision === null || packabilityRevision < 1 ||
+          !["product_default", "booking_override", "warehouse_override"].includes(String(packabilitySource)) ||
           !(physical.packageComponentId === null || componentId)) {
         return failure("bundle_bad_response", "Invalid Bundle physical line");
       }
@@ -170,6 +183,9 @@ export async function fetchScannerBundleProjection(
         quantityPicked: picked,
         quantityReturned: null,
         allocatedInstanceIds: instanceIds as string[],
+        isPackable,
+        packabilitySource: packabilitySource as "product_default" | "booking_override" | "warehouse_override",
+        packabilityRevision,
       });
     }
   }

@@ -791,6 +791,13 @@ export type Database = {
           package_components: Json | null
           parent_package_id: string | null
           parent_product_id: string | null
+          packability_override: boolean | null
+          packability_revision: number
+          packability_source: string
+          packability_updated_at: string | null
+          packability_updated_by: string | null
+          product_packable_default: boolean
+          is_packable: boolean
           purchase_cost: number | null
           quantity: number
           setup_hours: number | null
@@ -826,6 +833,13 @@ export type Database = {
           package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
+          packability_override?: boolean | null
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          product_packable_default?: boolean
+          is_packable?: boolean
           purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
@@ -861,6 +875,13 @@ export type Database = {
           package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
+          packability_override?: boolean | null
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          product_packable_default?: boolean
+          is_packable?: boolean
           purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
@@ -4480,12 +4501,71 @@ export type Database = {
           },
         ]
       }
+      packing_packability_events: {
+        Row: {
+          actor_id: string
+          actor_name: string | null
+          created_at: string
+          id: string
+          new_is_packable: boolean
+          new_revision: number
+          new_warehouse_override: boolean | null
+          old_is_packable: boolean
+          old_revision: number
+          old_warehouse_override: boolean | null
+          operation_id: string
+          organization_id: string
+          packing_id: string
+          packing_list_item_id: string
+          receipt: Json
+          source: string
+        }
+        Insert: {
+          actor_id: string
+          actor_name?: string | null
+          created_at?: string
+          id?: string
+          new_is_packable: boolean
+          new_revision: number
+          new_warehouse_override?: boolean | null
+          old_is_packable: boolean
+          old_revision: number
+          old_warehouse_override?: boolean | null
+          operation_id: string
+          organization_id: string
+          packing_id: string
+          packing_list_item_id: string
+          receipt: Json
+          source: string
+        }
+        Update: {
+          actor_id?: string
+          actor_name?: string | null
+          created_at?: string
+          id?: string
+          new_is_packable?: boolean
+          new_revision?: number
+          new_warehouse_override?: boolean | null
+          old_is_packable?: boolean
+          old_revision?: number
+          old_warehouse_override?: boolean | null
+          operation_id?: string
+          organization_id?: string
+          packing_id?: string
+          packing_list_item_id?: string
+          receipt?: Json
+          source?: string
+        }
+        Relationships: []
+      }
       packing_list_items: {
         Row: {
           booking_product_id: string | null
+          booking_packability_override: boolean | null
           created_at: string
           excluded: boolean
           id: string
+          is_packable: boolean
           manual_name: string | null
           notes: string | null
           organization_id: string
@@ -4495,6 +4575,11 @@ export type Database = {
           packing_id: string
           parcel_id: string | null
           planning_excluded_at: string | null
+          packability_revision: number
+          packability_source: string
+          packability_updated_at: string | null
+          packability_updated_by: string | null
+          product_packable_default: boolean
           quantity_packed: number
           quantity_returned: number
           quantity_to_pack: number
@@ -4509,12 +4594,15 @@ export type Database = {
           wms_item_type_id: string | null
           wms_line_id: string | null
           wms_sku: string | null
+          warehouse_packability_override: boolean | null
         }
         Insert: {
           booking_product_id?: string | null
+          booking_packability_override?: boolean | null
           created_at?: string
           excluded?: boolean
           id?: string
+          is_packable?: boolean
           manual_name?: string | null
           notes?: string | null
           organization_id?: string
@@ -4524,6 +4612,11 @@ export type Database = {
           packing_id: string
           parcel_id?: string | null
           planning_excluded_at?: string | null
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          product_packable_default?: boolean
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
@@ -4538,12 +4631,15 @@ export type Database = {
           wms_item_type_id?: string | null
           wms_line_id?: string | null
           wms_sku?: string | null
+          warehouse_packability_override?: boolean | null
         }
         Update: {
           booking_product_id?: string | null
+          booking_packability_override?: boolean | null
           created_at?: string
           excluded?: boolean
           id?: string
+          is_packable?: boolean
           manual_name?: string | null
           notes?: string | null
           organization_id?: string
@@ -4553,6 +4649,11 @@ export type Database = {
           packing_id?: string
           parcel_id?: string | null
           planning_excluded_at?: string | null
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          product_packable_default?: boolean
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
@@ -4567,6 +4668,7 @@ export type Database = {
           wms_item_type_id?: string | null
           wms_line_id?: string | null
           wms_sku?: string | null
+          warehouse_packability_override?: boolean | null
         }
         Relationships: [
           {
@@ -11277,6 +11379,19 @@ export type Database = {
           _mode: string
           _organization_id: string
           _packing_id: string
+        }
+        Returns: Json
+      }
+      set_packing_list_item_packability: {
+        Args: {
+          _actor_id: string
+          _actor_name: string
+          _expected_revision: number | null
+          _item_id: string
+          _operation_id: string
+          _organization_id: string
+          _packing_id: string
+          _warehouse_override: boolean | null
         }
         Returns: Json
       }

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import {
   Check,
@@ -13,14 +12,19 @@ import {
   ChevronRight,
   ChevronDown,
   QrCode,
-  EyeOff,
   Hash,
   Printer,
   History,
-  Pencil,
-  Trash2,
+  PackageX,
   Undo2,
 } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +43,7 @@ import {
   getItemParcelsDesktop as getItemParcels,
   fetchPackingForDesktop as fetchPackingForScanner,
   repairPackingItemsDesktop,
-  planningEditPackingListItem,
+  setWarehousePackingListItemPackability,
 } from '@/services/desktopPackingService';
 import { PackingWithBooking } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
@@ -48,16 +52,17 @@ import type { PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
 import PackingIntegrityBanner from './PackingIntegrityBanner';
 import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
 import PrintPackingListDialog from './PrintPackingListDialog';
+import { getOperationsPackingPresentation } from '@/lib/packing/operationsPresentation';
 
 // ============================================================================
-// READ-ONLY desktop checklist.
+// Desktop checklist with one bounded warehouse write capability.
 //
 // SÄKERHETSREGEL: Packningsändringar måste gå via scanner-api med aktiv
 // `packing_work_session`. Desktop-vyn saknar fortfarande session/dialog för
 // signering vid lämning — fram tills att stödet finns på desktop visar den
-// här vyn ENBART status, kolli-tillhörighet, exkluderade rader och historik.
-// All mutativ logik (toggle/decrement/parcel/exclude/manual-row/sign) är
-// borttagen härifrån. Packa i skannerappen.
+// här vyn status, kolli-tillhörighet och historik. Packningsbarhet får ändras
+// via WMS-first edit-packing-list; all fysisk packning, kolli, +/- och signering
+// hanteras fortfarande enbart i skannern.
 // ============================================================================
 
 interface DesktopChecklistViewProps {
@@ -78,6 +83,16 @@ interface PackingItem {
   packed_at?: string | null;
   planning_excluded_at?: string | null;
   excluded?: boolean;
+  product_packable_default?: boolean;
+  booking_packability_override?: boolean | null;
+  warehouse_packability_override?: boolean | null;
+  is_packable?: boolean | null;
+  packability_source?: 'product_default' | 'booking_override' | 'warehouse_override' | null;
+  packability_revision?: number;
+  source_booking_id?: string | null;
+  wms_line_id?: string | null;
+  wms_sku?: string | null;
+  notes?: string | null;
   manual_name?: string | null;
   booking_product_id?: string | null;
   booking_products: {
@@ -138,16 +153,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [isSigned, setIsSigned] = useState(false);
   const [signedInfo, setSignedInfo] = useState<{ by: string; at: string } | null>(null);
   const [showQR, setShowQR] = useState(false);
-  const [showExcluded, setShowExcluded] = useState(false);
   const [bookingGroups, setBookingGroups] = useState<BookingGroupInfo[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
   const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
   const [isRepairing, setIsRepairing] = useState(false);
   const loadDataRef = useRef<((bg?: boolean) => Promise<void>) | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<
-    { item: PackingItem; mode: 'exclude' | 'restore'; affected: PackingItem[]; name: string } | null
+    { item: PackingItem; mode: 'set_packable' | 'set_non_packable'; name: string } | null
   >(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -172,7 +185,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   }, [packingId]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const { total, verified, percentage } = computePackingProgress(updatedItems);
+    const { total, verified, percentage } = computePackingProgress(
+      updatedItems.map((item) => ({
+        ...item,
+        excluded: item.is_packable === false || item.excluded === true,
+      })),
+    );
     setProgress({ total, verified, percentage });
   }, []);
 
@@ -195,7 +213,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         // Group info for multi-booking packings
         const productBookingIds = new Set<string>();
         (itemsData as any[]).forEach((item) => {
-          const bid = item.booking_products?.booking_id;
+          const bid = item.source_booking_id || item.booking_products?.booking_id;
           if (bid) productBookingIds.add(bid);
         });
 
@@ -270,16 +288,20 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     }
   });
 
-  const activeItems = items.filter((i) => !i.excluded);
-  const excludedItems = items.filter((i) => i.excluded);
-  const manualItems = activeItems.filter((i) => !i.booking_product_id && i.manual_name);
-  const productItems = activeItems.filter((i) => i.booking_product_id || !i.manual_name);
+  // Keep every WMS-projected row in the same hierarchy/order. Non-packable
+  // rows remain operational context; only their packing controls/progress are
+  // disabled. Never rebuild this list from booking_products.
+  const activeItems = items.filter((i) => getOperationsPackingPresentation(i).isPackable);
+  const manualItems = items.filter((i) => !i.booking_product_id && !i.wms_line_id && i.manual_name);
+  const productItems = items.filter((i) => !manualItems.includes(i));
 
   const isMultiBooking = bookingGroups.length > 1;
   const groupedItems = isMultiBooking
     ? bookingGroups.map((group) => ({
         ...group,
-        items: productItems.filter((i) => i.booking_products?.booking_id === group.bookingId),
+        items: productItems.filter(
+          (i) => (i.source_booking_id || i.booking_products?.booking_id) === group.bookingId,
+        ),
       }))
     : [{ bookingId: 'all', client: '', bookingNumber: null, eventdate: null, items: productItems }];
 
@@ -320,11 +342,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         trimmedName.startsWith('└') ||
         trimmedName.startsWith('L,') ||
         trimmedName.startsWith('⦿');
-      const isChild = isChildByRelation || isChildByPrefix;
+      const wmsPackageName = item.notes?.match(/^Ingår i paket:\s*(.+)$/i)?.[1] ?? null;
+      const isChild = isChildByRelation || isChildByPrefix || !!wmsPackageName;
       const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
       const groupLabel = isMultiBooking
         ? (() => {
-            const bid = item.booking_products?.booking_id;
+            const bid = item.source_booking_id || item.booking_products?.booking_id;
             const group = bookingGroups.find((candidate) => candidate.bookingId === bid);
             return group
               ? `${group.client}${group.bookingNumber ? ` · #${group.bookingNumber}` : ''}`
@@ -334,12 +357,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
 
       return {
         name: displayName,
-        sku: item.booking_products?.sku ?? null,
+        sku: item.wms_sku ?? item.booking_products?.sku ?? null,
         quantity: item.quantity_to_pack,
         isChild,
         groupLabel,
         parcelNumber: itemParcelMap[item.id] ?? null,
-        notes: item.booking_products?.notes ?? null,
+        notes: item.notes ?? item.booking_products?.notes ?? null,
       };
     });
 
@@ -363,33 +386,16 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     setShowPrintDialog(true);
   };
 
-  // Endast planeringsläge får redigeras — allt annat är scanner-only.
-  const canEdit = packing?.status === 'planning';
-
-  /** Raden + alla rekursiva paketdelar (booking_products-barn). */
-  const collectPackageRows = (item: PackingItem): PackingItem[] => {
-    const collected: PackingItem[] = [item];
-    const walk = (productId?: string | null) => {
-      if (!productId) return;
-      for (const child of childrenByParent[productId] || []) {
-        if (collected.some((c) => c.id === child.id)) continue;
-        collected.push(child);
-        walk(child.booking_products?.id);
-      }
-    };
-    walk(item.booking_products?.id);
-    return collected;
-  };
+  // WMS-boundaryn tillåter planering och pågående packning; touched-rader
+  // blockeras alltid server-side och kontrolleras även före anropet.
+  const canEdit = packing?.status === 'planning' || packing?.status === 'in_progress';
 
   const isRowTouched = (row: PackingItem) =>
     (row.quantity_packed || 0) > 0 || !!row.parcel_id || !!row.packed_at || !!row.verified_at;
 
-  const requestEdit = (item: PackingItem, mode: 'exclude' | 'restore') => {
-    // Både exkludering och återställning hanterar hela paketet i RPC:n,
-    // så dialogen måste räkna samma rader i båda lägena.
-    const affected = collectPackageRows(item);
+  const requestEdit = (item: PackingItem, mode: 'set_packable' | 'set_non_packable') => {
     const name = cleanProductName(item.manual_name || item.booking_products?.name || 'Okänd produkt');
-    setPendingEdit({ item, mode, affected, name });
+    setPendingEdit({ item, mode, name });
   };
 
 
@@ -397,11 +403,16 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     if (!pendingEdit) return;
     setIsSavingEdit(true);
     try {
-      const res = await planningEditPackingListItem(packingId, pendingEdit.item.id, pendingEdit.mode);
+      const res = await setWarehousePackingListItemPackability(
+        packingId,
+        pendingEdit.item.id,
+        pendingEdit.mode,
+        pendingEdit.item.packability_revision,
+      );
       toast.success(
-        pendingEdit.mode === 'exclude'
-          ? `Borttagen från packlistan (${res.affected_count} rad${res.affected_count === 1 ? '' : 'er'}). Bokningen är oförändrad.`
-          : 'Raden är återställd i packlistan.',
+        pendingEdit.mode === 'set_non_packable'
+          ? `Markerad som ej packningsbar (${res.affected_count} rad${res.affected_count === 1 ? '' : 'er'}). WMS har verifierat ändringen.`
+          : `Markerad som packningsbar (${res.affected_count} rad${res.affected_count === 1 ? '' : 'er'}). WMS har verifierat ändringen.`,
       );
       setPendingEdit(null);
       await loadData(true);
@@ -412,7 +423,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
       setIsSavingEdit(false);
     }
   };
-
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
     const trimmedName = rawName.trimStart();
@@ -423,12 +433,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
       item.booking_products?.parent_package_id ||
       item.booking_products?.is_package_component
     );
+    const wmsPackageName = item.notes?.match(/^Ingår i paket:\s*(.+)$/i)?.[1] ?? null;
     const isChildByPrefix =
       trimmedName.startsWith('↳') ||
       trimmedName.startsWith('└') ||
       trimmedName.startsWith('L,') ||
       trimmedName.startsWith('⦿');
-    const isChild = isChildByRelation || isChildByPrefix;
+    const isChild = isChildByRelation || isChildByPrefix || !!wmsPackageName;
     const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
     const isParent = !isChild && hasChildren;
 
@@ -436,7 +447,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     let total = item.quantity_to_pack;
 
     if (isParent && productId) {
-      const children = childrenByParent[productId] || [];
+      const children = (childrenByParent[productId] || []).filter((child) => child.is_packable !== false);
       const allChildrenPacked =
         children.length > 0 && children.every((c) => (c.quantity_packed || 0) >= c.quantity_to_pack);
       total = 1;
@@ -445,15 +456,18 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
 
     const cleanName = cleanProductName(rawName);
     const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
-    const isComplete = packed >= total && total > 0;
-    const isPartial = packed > 0 && packed < total;
+    const presentation = getOperationsPackingPresentation(item);
+    const isComplete = presentation.isPackable && packed >= total && total > 0;
+    const isPartial = presentation.isPackable && packed > 0 && packed < total;
     const parcelNumber = itemParcelMap[item.id];
     const isManual = !item.booking_product_id && !!item.manual_name;
+    const isExcluded = !presentation.isPackable;
+    const touched = isRowTouched(item);
 
-    return (
+    const row = (
       <div
         key={item.id}
-        className={`w-full flex items-center gap-3 transition-all ${
+        className={`w-full flex items-center gap-3 transition-all ${presentation.rowClassName} ${
           isComplete
             ? 'bg-primary/5'
             : isPartial
@@ -476,16 +490,22 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                   : 'border-2 border-muted-foreground/40'
           }`}
         >
-          {isComplete && <Check className="text-white w-3.5 h-3.5" />}
-          {isPartial && <span className="text-white text-[11px] font-bold">{packed}</span>}
+          {!presentation.isPackable ? (
+            <PackageX className="text-muted-foreground w-3.5 h-3.5" />
+          ) : (
+            <>
+              {isComplete && <Check className="text-white w-3.5 h-3.5" />}
+              {isPartial && <span className="text-white text-[11px] font-bold">{packed}</span>}
+            </>
+          )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <span
-            className={`block truncate ${
-              isChild ? 'text-sm font-normal' : 'text-sm font-semibold tracking-wide'
-            } ${
-              isComplete
+          <div className="flex-1 min-w-0">
+            <span
+              className={`block truncate ${presentation.nameClassName} ${
+                isChild ? 'text-sm font-normal' : 'text-sm font-semibold tracking-wide'
+              } ${
+                isComplete
                 ? 'text-primary line-through'
                 : isPartial
                   ? 'text-amber-800 dark:text-amber-400'
@@ -496,15 +516,23 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           >
             {displayName}
           </span>
-          {item.booking_products?.sku && (
+          {(item.wms_sku || item.booking_products?.sku) && (
             <span className="text-[11px] text-muted-foreground font-mono">
-              [{item.booking_products.sku}]
+              [{item.wms_sku || item.booking_products?.sku}]
             </span>
           )}
           {isParent && (
             <span className="text-[11px] text-muted-foreground block">
               Auto vid alla delar packade
             </span>
+          )}
+          {wmsPackageName && (
+            <span className="text-[11px] text-muted-foreground block">
+              Ingår i paket: {wmsPackageName}
+            </span>
+          )}
+          {!presentation.isPackable && (
+            <span className="text-[11px] text-muted-foreground block">Ej packningsbar</span>
           )}
         </div>
 
@@ -515,44 +543,52 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           </div>
         )}
 
-        <div
-          className={`shrink-0 min-w-[64px] flex items-center justify-center rounded-md px-2 py-1 ${
+        {presentation.isPackable && (
+          <div
+            className={`shrink-0 min-w-[64px] flex items-center justify-center rounded-md px-2 py-1 ${
             isComplete
               ? 'bg-primary/10 text-primary'
               : isPartial
                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                 : 'bg-muted/60 text-muted-foreground'
           }`}
-        >
-          <span className="font-mono font-bold text-sm">
-            {packed}/{total}
-          </span>
-        </div>
-
-        {isEditMode && canEdit && (
-          (() => {
-            const affected = collectPackageRows(item);
-            const touched = affected.some(isRowTouched);
-            return (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0 text-destructive hover:text-destructive"
-                disabled={touched}
-                title={
-                  touched
-                    ? 'Raden är packad, kontrollerad eller lagd i kolli och kan inte tas bort'
-                    : 'Ta bort raden från packlistan (bokningen påverkas inte)'
-                }
-                onClick={() => requestEdit(item, 'exclude')}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Ta bort
-              </Button>
-            );
-          })()
+          >
+            <span className="font-mono font-bold text-sm">
+              {packed}/{total}
+            </span>
+          </div>
         )}
       </div>
+    );
+
+    if (!canEdit) return row;
+
+    return (
+      <ContextMenu key={item.id}>
+        <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+        <ContextMenuContent className="w-64">
+          <ContextMenuLabel className="truncate font-normal text-muted-foreground">
+            {cleanName}
+          </ContextMenuLabel>
+          <ContextMenuItem
+            disabled={!isExcluded && touched}
+            className="cursor-pointer"
+            onSelect={() => requestEdit(item, isExcluded ? 'set_packable' : 'set_non_packable')}
+          >
+            {isExcluded ? (
+              <Undo2 className="h-4 w-4 mr-2" />
+            ) : (
+              <Package className="h-4 w-4 mr-2" />
+            )}
+            {isExcluded ? 'Markera som packningsbar' : 'Markera som ej packningsbar'}
+          </ContextMenuItem>
+          {!isExcluded && touched && (
+            <p className="px-2 py-1 text-xs text-muted-foreground">
+              Redan packad, kontrollerad eller lagd i kolli.
+            </p>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
     );
   };
 
@@ -590,17 +626,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
               <AlertTriangle className="h-3.5 w-3.5" />
               Preliminär
             </span>
-          )}
-          {packing?.status === 'planning' && (
-            <Button
-              variant={isEditMode ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setIsEditMode((v) => !v)}
-              title="Ta bort eller återställ rader i packlistan (endast planeringsläge)"
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              {isEditMode ? 'Klar' : 'Redigera'}
-            </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4 mr-2" />
@@ -667,6 +692,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         <span className="text-sm font-bold text-primary">{progress.percentage}%</span>
       </div>
 
+      {canEdit && items.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Högerklicka på en rad för att markera den som packningsbar eller ej packningsbar.
+        </p>
+      )}
+
       {/* No items */}
       {items.length === 0 && (
         <Card className="border-amber-500/50 bg-amber-50">
@@ -699,7 +730,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
 
 
       {/* Product list grouped by booking */}
-      {activeItems.length > 0 && (
+      {items.length > 0 && (
         <div className="space-y-3">
           {groupedItems.map((group) => {
             const isCollapsed = collapsedGroups.has(group.bookingId);
@@ -774,56 +805,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         </div>
       )}
 
-      {/* Excluded items (read-only) */}
-      {excludedItems.length > 0 && (
-        <Collapsible open={showExcluded} onOpenChange={setShowExcluded}>
-          <CollapsibleTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-between text-muted-foreground"
-            >
-              <span className="flex items-center gap-1.5">
-                <EyeOff className="h-3.5 w-3.5" />
-                Exkluderade ({excludedItems.length})
-              </span>
-              {showExcluded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="border rounded-lg overflow-hidden bg-muted/20 mt-1">
-              <div className="divide-y divide-border/20">
-                {excludedItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-60">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-muted-foreground line-through truncate block">
-                        {item.manual_name || item.booking_products?.name || 'Okänd'}
-                      </span>
-                    </div>
-                    {isEditMode && canEdit && !!item.planning_excluded_at && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => requestEdit(item, 'restore')}
-                      >
-                        <Undo2 className="h-4 w-4 mr-1" />
-                        Återställ
-                      </Button>
-                    )}
-                  </div>
-                ))}
-
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
       {/* Signed indicator (read-only) */}
       {isSigned && signedInfo && (
         <div className="w-full h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-primary font-semibold">
@@ -857,36 +838,22 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingEdit?.mode === 'restore'
-                ? 'Återställ raden i packlistan?'
-                : 'Ta bort raden från packlistan?'}
+              {pendingEdit?.mode === 'set_packable'
+                ? 'Markera som packningsbar?'
+                : 'Markera som ej packningsbar?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingEdit?.mode === 'restore' ? (
+              {pendingEdit?.mode === 'set_packable' ? (
                 <>
-                  «{pendingEdit?.name}» läggs tillbaka i packlistan.
-                  {pendingEdit && pendingEdit.affected.length > 1 && (
-                    <>
-                      {' '}
-                      Detta är en paketrad — {pendingEdit.affected.length - 1} paketdel
-                      {pendingEdit.affected.length - 1 === 1 ? '' : 'ar'} återställs också
-                      (totalt {pendingEdit.affected.length} rader).
-                    </>
-                  )}{' '}
+                  «{pendingEdit?.name}» aktiveras i packflödet.
+                  {' '}
                   Bokningen är oförändrad.
                 </>
               ) : (
 
                 <>
-                  «{pendingEdit?.name}» tas bort från den operativa packlistan.
-                  {pendingEdit && pendingEdit.affected.length > 1 && (
-                    <>
-                      {' '}
-                      Detta är en paketrad — {pendingEdit.affected.length - 1} paketdel
-                      {pendingEdit.affected.length - 1 === 1 ? '' : 'ar'} följer med
-                      (totalt {pendingEdit.affected.length} rader).
-                    </>
-                  )}{' '}
+                  «{pendingEdit?.name}» ligger kvar synlig men tas bort från det operativa packflödet.
+                  {' '}
                   Ingenting raderas och bokningen med dess orderrader ändras inte — raden kan
                   återställas här.
                 </>
@@ -902,12 +869,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                 void confirmEdit();
               }}
             >
-              {pendingEdit?.mode === 'restore' ? 'Återställ' : 'Ta bort'}
+              {pendingEdit?.mode === 'set_packable' ? 'Markera packningsbar' : 'Markera ej packningsbar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <PrintPackingListDialog
         open={showPrintDialog}
         onOpenChange={setShowPrintDialog}
