@@ -30,6 +30,28 @@ import {
   LIFECYCLE_STATUS_LABEL,
   type ProjectLifecycleStatus,
 } from '@/lib/economy/projectLifecycleStatus';
+import {
+  getProjectJobPhase,
+  getJobLastDay,
+  JOB_PHASE_LABEL,
+  type ProjectJobPhase,
+} from '@/lib/economy/projectJobPhase';
+
+type PhaseFilter = 'all' | ProjectJobPhase;
+
+const PHASE_TABS: { value: PhaseFilter; label: string }[] = [
+  { value: 'active', label: 'Pågående' },
+  { value: 'upcoming', label: 'Kommande' },
+  { value: 'finished', label: 'Avslutade' },
+  { value: 'all', label: 'Alla' },
+];
+
+const PHASE_PILL_CLASS: Record<ProjectJobPhase, string> = {
+  active: 'border-primary/30 text-primary bg-primary/5',
+  upcoming: 'border-sky-500/30 text-sky-600 bg-sky-500/5',
+  finished: 'border-border bg-muted/50 text-muted-foreground',
+  undated: 'border-border bg-muted/40 text-muted-foreground',
+};
 
 const PAGE_SIZE = 10;
 
