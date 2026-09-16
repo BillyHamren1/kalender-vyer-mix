@@ -161,20 +161,29 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
-        return { ...p, _daysSince: daysSince, _eventDate: eventDate };
+        const phase = getProjectJobPhase(p as any, today);
+        const lastDay = getJobLastDay(p as any);
+        return { ...p, _daysSince: daysSince, _eventDate: eventDate, _phase: phase, _lastDay: lastDay };
       })
       .sort((a, b) => b._daysSince - a._daysSince);
   }, [projectInsights, hidden]);
+
+  const phaseCounts = useMemo(() => {
+    const counts: Record<ProjectJobPhase, number> = { active: 0, upcoming: 0, finished: 0, undated: 0 };
+    completed.forEach(p => { counts[p._phase] += 1; });
+    return counts;
+  }, [completed]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return completed.filter(p => {
       const lifecycle = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
       if (statusFilter !== 'all' && lifecycle !== statusFilter) return false;
+      if (phaseFilter !== 'all' && p._phase !== phaseFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q);
     });
-  }, [completed, search, statusFilter]);
+  }, [completed, search, statusFilter, phaseFilter]);
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visible.length < filtered.length;
