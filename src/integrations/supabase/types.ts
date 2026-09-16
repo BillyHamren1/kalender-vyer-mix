@@ -781,6 +781,7 @@ export type Database = {
           id: string
           inventory_item_type_id: string | null
           inventory_package_id: string | null
+          is_packable: boolean
           is_package_component: boolean | null
           labor_cost: number | null
           local_tags: string[]
@@ -788,16 +789,15 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string
-          package_components: Json | null
-          parent_package_id: string | null
-          parent_product_id: string | null
           packability_override: boolean | null
           packability_revision: number
           packability_source: string
           packability_updated_at: string | null
           packability_updated_by: string | null
+          package_components: Json | null
+          parent_package_id: string | null
+          parent_product_id: string | null
           product_packable_default: boolean
-          is_packable: boolean
           purchase_cost: number | null
           quantity: number
           setup_hours: number | null
@@ -823,6 +823,7 @@ export type Database = {
           id?: string
           inventory_item_type_id?: string | null
           inventory_package_id?: string | null
+          is_packable?: boolean
           is_package_component?: boolean | null
           labor_cost?: number | null
           local_tags?: string[]
@@ -830,16 +831,15 @@ export type Database = {
           name: string
           notes?: string | null
           organization_id?: string
-          package_components?: Json | null
-          parent_package_id?: string | null
-          parent_product_id?: string | null
           packability_override?: boolean | null
           packability_revision?: number
           packability_source?: string
           packability_updated_at?: string | null
           packability_updated_by?: string | null
+          package_components?: Json | null
+          parent_package_id?: string | null
+          parent_product_id?: string | null
           product_packable_default?: boolean
-          is_packable?: boolean
           purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
@@ -865,6 +865,7 @@ export type Database = {
           id?: string
           inventory_item_type_id?: string | null
           inventory_package_id?: string | null
+          is_packable?: boolean
           is_package_component?: boolean | null
           labor_cost?: number | null
           local_tags?: string[]
@@ -872,16 +873,15 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string
-          package_components?: Json | null
-          parent_package_id?: string | null
-          parent_product_id?: string | null
           packability_override?: boolean | null
           packability_revision?: number
           packability_source?: string
           packability_updated_at?: string | null
           packability_updated_by?: string | null
+          package_components?: Json | null
+          parent_package_id?: string | null
+          parent_product_id?: string | null
           product_packable_default?: boolean
-          is_packable?: boolean
           purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
@@ -4501,6 +4501,163 @@ export type Database = {
           },
         ]
       }
+      packing_list_items: {
+        Row: {
+          booking_packability_override: boolean | null
+          booking_product_id: string | null
+          created_at: string
+          excluded: boolean
+          id: string
+          is_packable: boolean
+          manual_name: string | null
+          notes: string | null
+          organization_id: string
+          packability_revision: number
+          packability_source: string
+          packability_updated_at: string | null
+          packability_updated_by: string | null
+          packed_at: string | null
+          packed_by: string | null
+          packed_by_staff_id: string | null
+          packing_id: string
+          parcel_id: string | null
+          planning_excluded_at: string | null
+          product_packable_default: boolean
+          quantity_packed: number
+          quantity_returned: number
+          quantity_to_pack: number
+          returned_at: string | null
+          returned_by: string | null
+          source_booking_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+          verified_by_staff_id: string | null
+          warehouse_packability_override: boolean | null
+          wms_identity_needs_repair: boolean
+          wms_identity_source: string | null
+          wms_item_type_id: string | null
+          wms_line_id: string | null
+          wms_sku: string | null
+        }
+        Insert: {
+          booking_packability_override?: boolean | null
+          booking_product_id?: string | null
+          created_at?: string
+          excluded?: boolean
+          id?: string
+          is_packable?: boolean
+          manual_name?: string | null
+          notes?: string | null
+          organization_id?: string
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          packed_at?: string | null
+          packed_by?: string | null
+          packed_by_staff_id?: string | null
+          packing_id: string
+          parcel_id?: string | null
+          planning_excluded_at?: string | null
+          product_packable_default?: boolean
+          quantity_packed?: number
+          quantity_returned?: number
+          quantity_to_pack?: number
+          returned_at?: string | null
+          returned_by?: string | null
+          source_booking_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          verified_by_staff_id?: string | null
+          warehouse_packability_override?: boolean | null
+          wms_identity_needs_repair?: boolean
+          wms_identity_source?: string | null
+          wms_item_type_id?: string | null
+          wms_line_id?: string | null
+          wms_sku?: string | null
+        }
+        Update: {
+          booking_packability_override?: boolean | null
+          booking_product_id?: string | null
+          created_at?: string
+          excluded?: boolean
+          id?: string
+          is_packable?: boolean
+          manual_name?: string | null
+          notes?: string | null
+          organization_id?: string
+          packability_revision?: number
+          packability_source?: string
+          packability_updated_at?: string | null
+          packability_updated_by?: string | null
+          packed_at?: string | null
+          packed_by?: string | null
+          packed_by_staff_id?: string | null
+          packing_id?: string
+          parcel_id?: string | null
+          planning_excluded_at?: string | null
+          product_packable_default?: boolean
+          quantity_packed?: number
+          quantity_returned?: number
+          quantity_to_pack?: number
+          returned_at?: string | null
+          returned_by?: string | null
+          source_booking_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          verified_by_staff_id?: string | null
+          warehouse_packability_override?: boolean | null
+          wms_identity_needs_repair?: boolean
+          wms_identity_source?: string | null
+          wms_item_type_id?: string | null
+          wms_line_id?: string | null
+          wms_sku?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_list_items_booking_product_id_fkey"
+            columns: ["booking_product_id"]
+            isOneToOne: false
+            referencedRelation: "booking_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_packed_by_staff_id_fkey"
+            columns: ["packed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "packing_parcels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_verified_by_staff_id_fkey"
+            columns: ["verified_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_packability_events: {
         Row: {
           actor_id: string
@@ -4556,161 +4713,26 @@ export type Database = {
           receipt?: Json
           source?: string
         }
-        Relationships: []
-      }
-      packing_list_items: {
-        Row: {
-          booking_product_id: string | null
-          booking_packability_override: boolean | null
-          created_at: string
-          excluded: boolean
-          id: string
-          is_packable: boolean
-          manual_name: string | null
-          notes: string | null
-          organization_id: string
-          packed_at: string | null
-          packed_by: string | null
-          packed_by_staff_id: string | null
-          packing_id: string
-          parcel_id: string | null
-          planning_excluded_at: string | null
-          packability_revision: number
-          packability_source: string
-          packability_updated_at: string | null
-          packability_updated_by: string | null
-          product_packable_default: boolean
-          quantity_packed: number
-          quantity_returned: number
-          quantity_to_pack: number
-          returned_at: string | null
-          returned_by: string | null
-          source_booking_id: string | null
-          verified_at: string | null
-          verified_by: string | null
-          verified_by_staff_id: string | null
-          wms_identity_needs_repair: boolean
-          wms_identity_source: string | null
-          wms_item_type_id: string | null
-          wms_line_id: string | null
-          wms_sku: string | null
-          warehouse_packability_override: boolean | null
-        }
-        Insert: {
-          booking_product_id?: string | null
-          booking_packability_override?: boolean | null
-          created_at?: string
-          excluded?: boolean
-          id?: string
-          is_packable?: boolean
-          manual_name?: string | null
-          notes?: string | null
-          organization_id?: string
-          packed_at?: string | null
-          packed_by?: string | null
-          packed_by_staff_id?: string | null
-          packing_id: string
-          parcel_id?: string | null
-          planning_excluded_at?: string | null
-          packability_revision?: number
-          packability_source?: string
-          packability_updated_at?: string | null
-          packability_updated_by?: string | null
-          product_packable_default?: boolean
-          quantity_packed?: number
-          quantity_returned?: number
-          quantity_to_pack?: number
-          returned_at?: string | null
-          returned_by?: string | null
-          source_booking_id?: string | null
-          verified_at?: string | null
-          verified_by?: string | null
-          verified_by_staff_id?: string | null
-          wms_identity_needs_repair?: boolean
-          wms_identity_source?: string | null
-          wms_item_type_id?: string | null
-          wms_line_id?: string | null
-          wms_sku?: string | null
-          warehouse_packability_override?: boolean | null
-        }
-        Update: {
-          booking_product_id?: string | null
-          booking_packability_override?: boolean | null
-          created_at?: string
-          excluded?: boolean
-          id?: string
-          is_packable?: boolean
-          manual_name?: string | null
-          notes?: string | null
-          organization_id?: string
-          packed_at?: string | null
-          packed_by?: string | null
-          packed_by_staff_id?: string | null
-          packing_id?: string
-          parcel_id?: string | null
-          planning_excluded_at?: string | null
-          packability_revision?: number
-          packability_source?: string
-          packability_updated_at?: string | null
-          packability_updated_by?: string | null
-          product_packable_default?: boolean
-          quantity_packed?: number
-          quantity_returned?: number
-          quantity_to_pack?: number
-          returned_at?: string | null
-          returned_by?: string | null
-          source_booking_id?: string | null
-          verified_at?: string | null
-          verified_by?: string | null
-          verified_by_staff_id?: string | null
-          wms_identity_needs_repair?: boolean
-          wms_identity_source?: string | null
-          wms_item_type_id?: string | null
-          wms_line_id?: string | null
-          wms_sku?: string | null
-          warehouse_packability_override?: boolean | null
-        }
         Relationships: [
           {
-            foreignKeyName: "packing_list_items_booking_product_id_fkey"
-            columns: ["booking_product_id"]
-            isOneToOne: false
-            referencedRelation: "booking_products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "packing_list_items_organization_id_fkey"
+            foreignKeyName: "packing_packability_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "packing_list_items_packed_by_staff_id_fkey"
-            columns: ["packed_by_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "packing_list_items_packing_id_fkey"
+            foreignKeyName: "packing_packability_events_packing_id_fkey"
             columns: ["packing_id"]
             isOneToOne: false
             referencedRelation: "packing_projects"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "packing_list_items_parcel_id_fkey"
-            columns: ["parcel_id"]
+            foreignKeyName: "packing_packability_events_packing_list_item_id_fkey"
+            columns: ["packing_list_item_id"]
             isOneToOne: false
-            referencedRelation: "packing_parcels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "packing_list_items_verified_by_staff_id_fkey"
-            columns: ["verified_by_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff_members"
+            referencedRelation: "packing_list_items"
             referencedColumns: ["id"]
           },
         ]
@@ -11130,6 +11152,21 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_wms_packability_receipt: {
+        Args: {
+          _actor_id: string
+          _actor_name: string
+          _expected_local_revision: number
+          _item_id: string
+          _operation_id: string
+          _organization_id: string
+          _packing_id: string
+          _requested_override: boolean
+          _wms_line_id: string
+          _wms_receipt: Json
+        }
+        Returns: Json
+      }
       archive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
@@ -11382,19 +11419,6 @@ export type Database = {
         }
         Returns: Json
       }
-      set_packing_list_item_packability: {
-        Args: {
-          _actor_id: string
-          _actor_name: string
-          _expected_revision: number | null
-          _item_id: string
-          _operation_id: string
-          _organization_id: string
-          _packing_id: string
-          _warehouse_override: boolean | null
-        }
-        Returns: Json
-      }
       promote_stale_assistant_events: { Args: never; Returns: number }
       recompute_booking_staff_for_day: {
         Args: { p_booking_id: string; p_date: string }
@@ -11405,6 +11429,19 @@ export type Database = {
           p_booking_id: string
           p_date: string
           p_organization_id: string
+        }
+        Returns: Json
+      }
+      set_packing_list_item_packability: {
+        Args: {
+          _actor_id: string
+          _actor_name: string
+          _expected_revision: number
+          _item_id: string
+          _operation_id: string
+          _organization_id: string
+          _packing_id: string
+          _warehouse_override: boolean
         }
         Returns: Json
       }
