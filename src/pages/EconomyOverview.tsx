@@ -19,17 +19,13 @@ import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
-import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
-import BillingSection from '@/components/economy/billing/BillingSection';
 import ProjectLeaderActionBoard from '@/components/economy/ProjectLeaderActionBoard';
 import CompletedProjectsList from '@/components/economy/CompletedProjectsList';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-
-const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
