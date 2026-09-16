@@ -412,7 +412,16 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                           </div>
                         </TableCell>
                         <TableCell className="py-5 align-middle text-sm text-muted-foreground tabular-nums">
-                          {dateLabel}
+                          <div>{dateLabel}</div>
+                          <span
+                            className={cn(
+                              'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                              PHASE_PILL_CLASS[p._phase],
+                            )}
+                            title={p._lastDay ? `Sista jobbdag ${p._lastDay}` : undefined}
+                          >
+                            {JOB_PHASE_LABEL[p._phase]}
+                          </span>
                         </TableCell>
                         <TableCell className="py-5 align-middle" onClick={(e) => e.stopPropagation()}>
                           <Popover>
