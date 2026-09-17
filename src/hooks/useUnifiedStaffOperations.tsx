@@ -324,8 +324,21 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       // optimistic och försvinna vid nästa refresh).
       queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
     } catch (error) {
-      toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning');
-      // Revert: invalidate to re-fetch fresh data
+      // Rulla tillbaka den optimistiska raden direkt så ingen tror att
+      // planeringen ligger kvar — och hämta om sanningen från servern.
+      queryClient.setQueryData<StaffAssignment[]>(['staff-assignments-all', window.bucket], prev => {
+        const list = prev || [];
+        if (!dbResourceId) return list;
+        return list.filter(a => !(a.staffId === staffId && a.teamId === dbResourceId && a.date === effectiveDateStr));
+      });
+      console.error('[useUnifiedStaffOperations] staff assignment write failed', {
+        staffId,
+        teamId: dbResourceId ?? dbFromTeamId ?? null,
+        date: effectiveDateStr,
+        message: (error as any)?.message,
+        code: (error as any)?.code,
+      });
+      toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning — planeringen sparades INTE');
       queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
     }
   }, [currentDate, activeStaff, queryClient]);
