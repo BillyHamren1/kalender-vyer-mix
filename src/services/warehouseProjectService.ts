@@ -6,6 +6,7 @@ import {
 } from "@/types/warehouseProject";
 import { PackingWithBooking } from "@/types/packing";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
+import { assignStaffToTeamCore } from "@/services/staffAssignmentCore";
 
 // ============================================================================
 // Inbox
