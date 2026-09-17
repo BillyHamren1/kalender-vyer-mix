@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, subDays, addDays, startOfWeek } from "date-fns";
 import { debugTimed } from "@/lib/performance/debugTiming";
+import { assignStaffToTeamCore } from "@/services/staffAssignmentCore";
 
 // Staff with location and status
 export interface StaffLocation {
