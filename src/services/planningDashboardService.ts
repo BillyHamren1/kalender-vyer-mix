@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, subDays, addDays, startOfWeek } from "date-fns";
 import { debugTimed } from "@/lib/performance/debugTiming";
+import { assignStaffToTeamCore } from "@/services/staffAssignmentCore";
 
 // Staff with location and status
 export interface StaffLocation {
@@ -266,30 +267,11 @@ export const fetchWeekAssignments = async (): Promise<DayAssignment[]> => {
   return Array.from(groupedMap.values());
 };
 
-// Assign staff to team on specific date
+// Assign staff to team on specific date.
+// Delegerar till den enda kanoniska skrivvägen — lägger till en rad och tar
+// ALDRIG bort personens övriga team samma dag (multi-team-policy).
 export const assignStaffToDay = async (staffId: string, teamId: string, date: Date): Promise<void> => {
-  const dateStr = format(date, 'yyyy-MM-dd');
-
-  // First remove any existing assignment for this staff on this date
-  await supabase
-    .from('staff_assignments')
-    .delete()
-    .eq('staff_id', staffId)
-    .eq('assignment_date', dateStr);
-
-  // Create new assignment
-  const { error } = await supabase
-    .from('staff_assignments')
-    .insert({
-      staff_id: staffId,
-      team_id: teamId,
-      assignment_date: dateStr
-    });
-
-  if (error) {
-    console.error('Error assigning staff:', error);
-    throw error;
-  }
+  await assignStaffToTeamCore(staffId, teamId, date);
 };
 
 export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
@@ -826,26 +808,8 @@ export const assignStaffToBooking = async (staffId: string, bookingId: string, d
 
   const teamId = calendarEvent?.resource_id || 'team-1';
 
-  // Remove any existing assignment for this staff on this date
-  await supabase
-    .from('staff_assignments')
-    .delete()
-    .eq('staff_id', staffId)
-    .eq('assignment_date', dateStr);
-
-  // Create new assignment
-  const { error } = await supabase
-    .from('staff_assignments')
-    .insert({
-      staff_id: staffId,
-      team_id: teamId,
-      assignment_date: dateStr
-    });
-
-  if (error) {
-    console.error('Error assigning staff to booking:', error);
-    throw error;
-  }
+  // Kanonisk skrivväg: lägg till raden, radera aldrig personens övriga team.
+  await assignStaffToTeamCore(staffId, teamId, date);
 };
 
 // Fetch unopened bookings (viewed = false) - only future CONFIRMED events

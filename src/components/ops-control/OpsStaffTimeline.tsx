@@ -129,17 +129,18 @@ const OpsStaffTimeline = ({ timeline, isLoading, onOpenDM, onOptimizeRoute, date
     if (!dragStaffId || !targetBookingId) return;
 
     try {
-      await assignStaffToBooking(dragStaffId, targetBookingId, new Date());
+      // Planera på den dag man faktiskt tittar på — inte alltid dagens datum.
+      await assignStaffToBooking(dragStaffId, targetBookingId, date);
       toast.success('Personal tilldelad till jobb');
       queryClient.invalidateQueries({ queryKey: ['ops-control'] });
-    } catch {
-      toast.error('Kunde inte tilldela personal');
+    } catch (error) {
+      toast.error((error as any)?.message || 'Kunde inte tilldela personal — planeringen sparades INTE');
     } finally {
       setDragStaffId(null);
       setDragOverStaffId(null);
       setDragOverBookingId(null);
     }
-  }, [dragStaffId, queryClient]);
+  }, [dragStaffId, queryClient, date]);
 
   const handleAssignmentClick = useCallback((bookingId: string) => {
     navigate(`/booking/${bookingId}`);

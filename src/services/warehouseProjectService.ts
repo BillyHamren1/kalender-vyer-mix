@@ -6,6 +6,7 @@ import {
 } from "@/types/warehouseProject";
 import { PackingWithBooking } from "@/types/packing";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
+import { assignStaffToTeamCore } from "@/services/staffAssignmentCore";
 
 // ============================================================================
 // Inbox
@@ -932,19 +933,19 @@ export const createInternalWarehouseTask = async (
       rowCount: rows.length,
     });
 
-    const { data: bridgeRows, error: bridgeErr } = await supabase
-      .from('staff_assignments')
-      .upsert(rows, { onConflict: 'staff_id,team_id,assignment_date' })
-      .select('staff_id, team_id, assignment_date');
-
-    if (bridgeErr) {
-      console.error('[lager-bridge] upsert failed', { taskId: task.id, error: bridgeErr });
-    } else {
-      console.log('[lager-bridge] upsert OK', {
-        taskId: task.id,
-        createdCount: bridgeRows?.length ?? 0,
-        rows: bridgeRows,
-      });
+    // Kanonisk skrivväg med läs-tillbaka-kvittens (staffAssignmentCore).
+    for (const row of rows) {
+      const [y, m, d] = row.assignment_date.split('-').map((v) => parseInt(v, 10));
+      try {
+        await assignStaffToTeamCore(row.staff_id, row.team_id, new Date(y, m - 1, d));
+      } catch (bridgeErr) {
+        console.error('[lager-bridge] assignment failed', {
+          taskId: task.id,
+          staffId: row.staff_id,
+          date: row.assignment_date,
+          error: (bridgeErr as any)?.message,
+        });
+      }
     }
   }
 
