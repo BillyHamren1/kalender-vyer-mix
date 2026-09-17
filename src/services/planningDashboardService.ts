@@ -808,26 +808,8 @@ export const assignStaffToBooking = async (staffId: string, bookingId: string, d
 
   const teamId = calendarEvent?.resource_id || 'team-1';
 
-  // Remove any existing assignment for this staff on this date
-  await supabase
-    .from('staff_assignments')
-    .delete()
-    .eq('staff_id', staffId)
-    .eq('assignment_date', dateStr);
-
-  // Create new assignment
-  const { error } = await supabase
-    .from('staff_assignments')
-    .insert({
-      staff_id: staffId,
-      team_id: teamId,
-      assignment_date: dateStr
-    });
-
-  if (error) {
-    console.error('Error assigning staff to booking:', error);
-    throw error;
-  }
+  // Kanonisk skrivväg: lägg till raden, radera aldrig personens övriga team.
+  await assignStaffToTeamCore(staffId, teamId, date);
 };
 
 // Fetch unopened bookings (viewed = false) - only future CONFIRMED events
