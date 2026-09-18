@@ -86,12 +86,16 @@ export function isCountable(
   item: ProgressItemInput,
   packageHeaderProductIds: Set<string>,
 ): boolean {
-  const isPackable = item.is_packable ?? item.excluded !== true;
-  if (!isPackable) return false;
+  // Canonical rule: countable === excluded !== true && is_packable !== false.
+  // `is_packable ?? excluded !== true` is forbidden — a stale is_packable=true
+  // would revive a historically retired (excluded) row.
+  if (item.excluded === true) return false;
+  if (item.is_packable === false) return false;
   const productId = item.booking_products?.id;
   if (!productId) return true; // manual / orphan row
   return !packageHeaderProductIds.has(productId);
 }
+
 
 /** Compute total, verified, percentage for a packing list. */
 export function computePackingProgress(items: ProgressItemInput[]): PackingProgressResult {

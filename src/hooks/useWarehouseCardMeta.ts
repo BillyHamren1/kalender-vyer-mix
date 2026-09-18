@@ -50,7 +50,9 @@ export function useWarehousePackingStats(bookingIds: string[]) {
 
       const agg = new Map<string, { total: number; packed: number }>();
       (items || []).forEach((item) => {
-        if (!(item.is_packable ?? !item.excluded)) return;
+        // Canonical: excluded !== true && is_packable !== false
+        if (item.excluded === true || item.is_packable === false) return;
+
         const entry = agg.get(item.packing_id) || { total: 0, packed: 0 };
         const toPack = Number(item.quantity_to_pack || 0);
         const packed = Math.min(Number(item.quantity_packed || 0), toPack);

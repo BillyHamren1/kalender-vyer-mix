@@ -50,12 +50,17 @@ export function isCountable(
   item: ProgressItemInput,
   packageHeaderProductIds: Set<string>,
 ): boolean {
-  const isPackable = item.is_packable ?? item.excluded !== true;
-  if (!isPackable) return false;
+  // Canonical rule (mirrored in src/lib/packing/progress.ts):
+  //   countable === excluded !== true && is_packable !== false
+  // A historically retired row (excluded === true) must never be revived by a
+  // stale is_packable === true value.
+  if (item.excluded === true) return false;
+  if (item.is_packable === false) return false;
   const productId = item.booking_products?.id;
   if (!productId) return true;
   return !packageHeaderProductIds.has(productId);
 }
+
 
 export function computePackingProgress(items: ProgressItemInput[]): PackingProgressResult {
   const headers = buildPackageHeaderProductIds(items);

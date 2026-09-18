@@ -247,9 +247,11 @@ export const fetchEstablishmentBookingData = async (bookingId: string): Promise<
       .select('id, is_packable, excluded, quantity_to_pack, quantity_packed')
       .eq('packing_id', packing.id);
 
+    // Canonical: excluded !== true && is_packable !== false
     const countableItems = (packingItems || []).filter(
-      (item) => item.is_packable ?? !item.excluded,
+      (item) => item.excluded !== true && item.is_packable !== false,
     );
+
     const itemsTotal = countableItems.length;
     const itemsPacked = countableItems.filter(
       (item) => item.quantity_packed >= item.quantity_to_pack,
