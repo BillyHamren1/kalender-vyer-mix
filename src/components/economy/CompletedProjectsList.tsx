@@ -320,7 +320,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="h-11 w-full rounded-md px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary-soft-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:text-sm"
+                    className="h-11 w-full rounded-md px-2 text-xs font-semibold text-muted-foreground hover:bg-primary-soft hover:text-primary-soft-foreground sm:text-sm"
                   >
                     <span>{tab.label}</span>
                     <span className="ml-1.5 tabular-nums opacity-70">{count}</span>
