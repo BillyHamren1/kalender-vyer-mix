@@ -39,6 +39,20 @@ describe('Operations premium module contract', () => {
     expect(button).toContain('active: "border');
   });
 
+  it('gives primary buttons and active tabs the same icon-like luster and physical depth', () => {
+    const css = read('src/styles/planning.css');
+    const tabs = read('src/components/ui/tabs.tsx');
+    const economy = read('src/components/economy/CompletedProjectsList.tsx');
+
+    expect(css).toContain('--control-luster-shadow:');
+    expect(css).toContain(".theme-purple .operations-tab-luster[data-state='active']");
+    expect(css).toContain('background-image: var(--gradient-icon)');
+    expect(css).toContain('transform: translateY(-1px)');
+    expect(css).toContain("@media (prefers-reduced-motion: no-preference)");
+    expect(tabs).toContain('operations-tab-luster');
+    expect(economy).not.toContain('data-[state=active]:bg-primary data-[state=active]:text-primary-foreground');
+  });
+
   it('locks the shared premium header geometry and larger icon', () => {
     const header = read('src/components/ui/PageHeader.tsx');
     expect(header).toContain("min-h-[98px] lg:h-[98px] lg:min-h-[98px]");
