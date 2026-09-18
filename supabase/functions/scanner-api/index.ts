@@ -1656,9 +1656,9 @@ Deno.serve(async (req) => {
 
         // 3. Match WMS identifiers against local packing_list_items in strict priority:
         //    (A) inventory_item_type_id  (B) sku  (C) name fallback (warn only)
-        const { data: packingItems, error: fetchError } = await supabase
+        const { data: packingItemsRaw, error: fetchError } = await supabase
           .from('packing_list_items')
-          .select(`id, is_packable, packability_revision, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
+          .select(`id, is_packable, excluded, packability_revision, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
 
@@ -1666,6 +1666,7 @@ Deno.serve(async (req) => {
 
         // Historiskt utfasade rader är inte längre en del av packlistan.
         const packingItems = (packingItemsRaw || []).filter((i: any) => i.excluded !== true)
+
 
         const normalizeItemTypeName = (value: string): string =>
           value
