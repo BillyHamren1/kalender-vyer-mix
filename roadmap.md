@@ -1,7 +1,7 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
 ## Pågående visuellt
-- [ ] Matcha alla knappar och aktiva tabbar mot Planning-ikonens lila lyster, ljus och djup; verifiera i preview och tester.
+- [x] Matcha alla knappar och aktiva tabbar mot Planning-ikonens lila lyster, ljus och djup; verifierat i preview och tester.
 
 ## Klart denna körning
 - [x] Steg 1: signerad `status` 200 med seed-kid (e2Ma2…) genom deployad proxy.
