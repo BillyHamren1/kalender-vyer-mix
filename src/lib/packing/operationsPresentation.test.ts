@@ -12,14 +12,19 @@ describe('Operations packability projection', () => {
     expect(view.nameClassName).toContain('line-through');
   });
 
-  it('keeps a packable WMS row active', () => {
-    expect(getOperationsPackingPresentation({ is_packable: true, excluded: true })).toEqual({
+  it('keeps a packable, current WMS row active', () => {
+    expect(getOperationsPackingPresentation({ is_packable: true, excluded: false })).toEqual({
       isPackable: true,
       label: 'Packningsbar',
       rowClassName: '',
       nameClassName: '',
     });
   });
+
+  it('never revives a historically excluded row via a stale is_packable=true', () => {
+    expect(getOperationsPackingPresentation({ is_packable: true, excluded: true }).isPackable).toBe(false);
+  });
+
 
   it('uses excluded only as fallback when WMS is_packable is absent', () => {
     expect(getOperationsPackingPresentation({ excluded: true }).isPackable).toBe(false);

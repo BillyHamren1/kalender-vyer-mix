@@ -2309,7 +2309,7 @@ Deno.serve(async (req) => {
 
         const { data: packingItemsRaw } = await supabase
           .from('packing_list_items')
-          .select(`id, is_packable, packability_revision, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
+          .select(`id, is_packable, excluded, packability_revision, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
           .eq('packing_id', packingId)
           .eq('organization_id', ORG_ID)
           .gt('quantity_packed', 0)
