@@ -73,7 +73,7 @@ async function assertPlanningScope(admin: any, auth: any, command: any) {
   if (command.itemId) {
     const { data: item, error } = await admin
       .from('packing_list_items')
-      .select('id, packing_id, organization_id, source_booking_id, wms_line_id, is_packable, packability_revision')
+      .select('id, packing_id, organization_id, source_booking_id, wms_line_id, is_packable, excluded, packability_revision')
       .eq('id', command.itemId)
       .eq('packing_id', command.packingId)
       .eq('organization_id', auth.organizationId)
@@ -84,6 +84,9 @@ async function assertPlanningScope(admin: any, auth: any, command: any) {
     // packing_list_items is a WMS projection. Its effective flag is the final
     // local fail-closed guard for manual/SKU operations and, crucially, for an
     // offline operation replayed after Warehouse changed packability.
+    if (item.excluded === true) {
+      throw { status: 404, code: 'ITEM_SCOPE_MISMATCH', message: 'Packing item not found in organization/packing' }
+    }
     if (item.is_packable === false) {
       throw { status: 409, code: 'item_not_packable', message: 'Produkten är inte packningsbar' }
     }
@@ -253,12 +256,12 @@ Deno.serve(async (req) => {
     if (!itemId && canonicalWmsLineId) {
       const { data: projected } = await admin
         .from('packing_list_items')
-        .select('id, is_packable')
+        .select('id, is_packable, excluded')
         .eq('packing_id', command.packingId)
         .eq('organization_id', auth.organizationId)
         .eq('wms_line_id', canonicalWmsLineId)
         .maybeSingle()
-      if (projected?.is_packable === false) {
+      if (projected?.excluded === true || projected?.is_packable === false) {
         return json({
           status: 'rejected', operationId: command.operationId, itemId: projected.id,
           message: 'Produkten är inte packningsbar', debugCode: 'item_not_packable',
