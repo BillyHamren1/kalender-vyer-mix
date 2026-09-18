@@ -6,7 +6,7 @@
 export interface OperationsPackingRow {
   /** Canonical effective value projected by WMS. */
   is_packable?: boolean | null;
-  /** Legacy fallback for snapshots created before is_packable existed. */
+  /** Historically retired row. Never revived by a stale is_packable value. */
   excluded?: boolean | null;
 }
 
@@ -20,7 +20,9 @@ export interface OperationsPackingPresentation {
 export function getOperationsPackingPresentation(
   row: OperationsPackingRow,
 ): OperationsPackingPresentation {
-  const isPackable = row.is_packable ?? row.excluded !== true;
+  // Canonical rule: excluded !== true && is_packable !== false.
+  const isPackable = row.excluded !== true && row.is_packable !== false;
+
 
   return isPackable
     ? {

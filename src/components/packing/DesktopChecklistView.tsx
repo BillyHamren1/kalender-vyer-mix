@@ -185,14 +185,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   }, [packingId]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const { total, verified, percentage } = computePackingProgress(
-      updatedItems.map((item) => ({
-        ...item,
-        excluded: item.is_packable === false || item.excluded === true,
-      })),
-    );
+    // Kanonisk regel i computePackingProgress: excluded !== true && is_packable !== false.
+    const { total, verified, percentage } = computePackingProgress(updatedItems);
     setProgress({ total, verified, percentage });
   }, []);
+
 
   const loadData = useCallback(
     async (isBackground = false) => {
@@ -278,9 +275,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     });
   };
 
-  // Build parent-children map
+  // Historiskt utfasade rader (excluded === true) finns kvar i databasen men
+  // är inte längre en del av packlistan — de döljs helt, oavsett is_packable.
+  const currentItems = items.filter((i) => i.excluded !== true);
+
+  // Build parent-children map (endast aktuella rader)
   const childrenByParent: Record<string, PackingItem[]> = {};
-  items.forEach((item) => {
+  currentItems.forEach((item) => {
     const parentId = item.booking_products?.parent_product_id;
     if (parentId) {
       if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
@@ -288,12 +289,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     }
   });
 
-  // Keep every WMS-projected row in the same hierarchy/order. Non-packable
-  // rows remain operational context; only their packing controls/progress are
-  // disabled. Never rebuild this list from booking_products.
-  const activeItems = items.filter((i) => getOperationsPackingPresentation(i).isPackable);
-  const manualItems = items.filter((i) => !i.booking_product_id && !i.wms_line_id && i.manual_name);
-  const productItems = items.filter((i) => !manualItems.includes(i));
+  // Alla aktuella WMS-projicerade rader visas i samma hierarki/ordning.
+  // Aktuella icke-packningsbara rader visas överstrukna men räknas inte i
+  // progress och skrivs inte ut. Never rebuild this list from booking_products.
+  const packableItems = currentItems.filter((i) => i.is_packable !== false);
+  const manualItems = currentItems.filter((i) => !i.booking_product_id && !i.wms_line_id && i.manual_name);
+  const productItems = currentItems.filter((i) => !manualItems.includes(i));
+
 
   const isMultiBooking = bookingGroups.length > 1;
   const groupedItems = isMultiBooking
@@ -328,7 +330,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     const bookingNumber = packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
     const rigDate = (packing?.booking as any)?.rigdaydate || null;
 
-    const rows = activeItems.map((item) => {
+    const rows = packableItems.map((item) => {
       const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
       const cleanName = cleanProductName(rawName);
       const isChildByRelation = !!(
