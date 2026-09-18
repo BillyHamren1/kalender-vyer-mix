@@ -185,14 +185,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   }, [packingId]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const { total, verified, percentage } = computePackingProgress(
-      updatedItems.map((item) => ({
-        ...item,
-        excluded: item.is_packable === false || item.excluded === true,
-      })),
-    );
+    // Kanonisk regel i computePackingProgress: excluded !== true && is_packable !== false.
+    const { total, verified, percentage } = computePackingProgress(updatedItems);
     setProgress({ total, verified, percentage });
   }, []);
+
 
   const loadData = useCallback(
     async (isBackground = false) => {
@@ -333,7 +330,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     const bookingNumber = packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
     const rigDate = (packing?.booking as any)?.rigdaydate || null;
 
-    const rows = activeItems.map((item) => {
+    const rows = packableItems.map((item) => {
       const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
       const cleanName = cleanProductName(rawName);
       const isChildByRelation = !!(
