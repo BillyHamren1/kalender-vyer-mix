@@ -49,6 +49,8 @@ describe('Operations premium module contract', () => {
     expect(css).toContain('background-image: var(--gradient-icon)');
     expect(css).toContain('transform: translateY(-1px)');
     expect(css).toContain("@media (prefers-reduced-motion: no-preference)");
+    expect(css).toContain('.theme-purple .operations-button-depth:not(.operations-gradient-shadow)');
+    expect(button).toContain('operations-button-depth inline-flex');
     expect(tabs).toContain('operations-tab-luster');
     expect(economy).not.toContain('data-[state=active]:bg-primary data-[state=active]:text-primary-foreground');
   });
