@@ -160,8 +160,10 @@ export function getDisplayedProgressForRow(
   const children = allItems.filter(
     (i) =>
       i.booking_products?.parent_product_id === productId &&
-      (i.is_packable ?? i.excluded !== true),
+      i.excluded !== true &&
+      i.is_packable !== false,
   );
+
   const allChildrenPacked =
     children.length > 0 &&
     children.every((c) => (c.quantity_packed ?? 0) >= c.quantity_to_pack);
