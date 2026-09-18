@@ -41,6 +41,7 @@ describe('Operations premium module contract', () => {
 
   it('gives primary buttons and active tabs the same icon-like luster and physical depth', () => {
     const css = read('src/styles/planning.css');
+    const button = read('src/components/ui/button.tsx');
     const tabs = read('src/components/ui/tabs.tsx');
     const economy = read('src/components/economy/CompletedProjectsList.tsx');
 
