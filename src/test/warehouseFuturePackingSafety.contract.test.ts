@@ -33,7 +33,13 @@ describe('active and future warehouse packing safety', () => {
 
   it('the empty-list repair never deletes packing rows', () => {
     expect(repair).not.toMatch(/\.delete\s*\(/);
-    expect(repair).toContain('!existingProductIds.has(p.id)');
+    expect(repair).toContain('ensureMissingPackingRowsFromBookingProducts');
+    const failSafe = readFileSync(
+      resolve(process.cwd(), 'supabase/functions/_shared/packingFailSafe.ts'),
+      'utf8',
+    );
+    expect(failSafe).not.toMatch(/\.delete\s*\(/);
+    expect(failSafe).toContain('existingProductIds.has(p.id)');
   });
 
   it('the standard Packing page uses the dedicated repair Edge Function', () => {
