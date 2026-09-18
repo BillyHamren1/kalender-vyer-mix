@@ -3,6 +3,9 @@
 ## Pågående visuellt
 - [x] Matcha alla knappar och aktiva tabbar mot Planning-ikonens lila lyster, ljus och djup; verifierat i preview och tester.
 
+## Ekonomiöversikt
+- [x] Hämta alla `booking_products` paginerat så att summor efter Supabases 1 000-radersgräns inte visas som 0 kr.
+
 ## Klart denna körning
 - [x] Steg 1: signerad `status` 200 med seed-kid (e2Ma2…) genom deployad proxy.
 - [x] Steg 2 (Planning-sidan): `lager.contextImport`-operation byggd, testad (104/104 vitest), deployad.

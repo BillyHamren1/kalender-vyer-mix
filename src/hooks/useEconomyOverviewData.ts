@@ -3,6 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
+import {
+  aggregateBookingProductEconomy,
+  fetchAllBookingProductEconomyRows,
+  mergeBookingProductEconomyFallback,
+} from '@/lib/economy/bookingProductEconomyFallback';
 
 export type ProjectSize = 'small' | 'medium' | 'large';
 
@@ -241,47 +246,20 @@ export const useEconomyOverviewData = () => {
       // it into the batch data when the proxy summary is missing/zero.
       if (allBookingIds.length > 0) {
         try {
-          const { data: localProducts } = await supabase
-            .from('booking_products')
-            .select('booking_id, total_price, unit_price, quantity, purchase_cost')
-            .in('booking_id', allBookingIds);
+          const localProducts = await fetchAllBookingProductEconomyRows(async (from, to) => {
+            const result = await supabase
+              .from('booking_products')
+              .select('booking_id, total_price, unit_price, quantity, purchase_cost')
+              .in('booking_id', allBookingIds)
+              .order('id', { ascending: true })
+              .range(from, to);
+            return { data: result.data, error: result.error };
+          });
 
-          if (localProducts && localProducts.length > 0) {
-            const localAgg: Record<string, { revenue: number; costs: number; count: number }> = {};
-            for (const p of localProducts as any[]) {
-              const bid = p.booking_id;
-              if (!bid) continue;
-              const rev = Number(p.total_price) || (Number(p.unit_price) || 0) * (Number(p.quantity) || 0);
-              const cost = (Number(p.purchase_cost) || 0) * (Number(p.quantity) || 0);
-              if (!localAgg[bid]) localAgg[bid] = { revenue: 0, costs: 0, count: 0 };
-              localAgg[bid].revenue += rev;
-              localAgg[bid].costs += cost;
-              localAgg[bid].count += 1;
-            }
-
-            for (const bid of Object.keys(localAgg)) {
-              const local = localAgg[bid];
-              if (local.revenue <= 0) continue;
-              const existing = multiBatchData[bid] || ({} as BatchEconomyData);
-              const proxyPc: any = existing.product_costs ?? null;
-              const proxyRevenue = Number(proxyPc?.summary?.revenue) || 0;
-              if (proxyRevenue > 0) continue; // proxy already has data — trust it
-              multiBatchData[bid] = {
-                ...existing,
-                product_costs: {
-                  ...(proxyPc || {}),
-                  summary: {
-                    ...(proxyPc?.summary || {}),
-                    revenue: local.revenue,
-                    costs: local.costs,
-                    margin: local.revenue - local.costs,
-                  },
-                  products: proxyPc?.products ?? [],
-                  _source: 'local_booking_products_fallback',
-                },
-              } as BatchEconomyData;
-            }
-          }
+          multiBatchData = mergeBookingProductEconomyFallback(
+            multiBatchData,
+            aggregateBookingProductEconomy(localProducts),
+          );
         } catch (err) {
           console.warn('[economy-overview] local booking_products fallback failed:', err);
         }
