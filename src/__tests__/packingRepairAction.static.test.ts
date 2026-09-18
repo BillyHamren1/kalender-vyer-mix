@@ -21,9 +21,11 @@ describe('packing repair', () => {
     expect(shared).not.toMatch(/\.delete\(/);
   });
 
-  it('är idempotent: skapar endast saknade rader', () => {
-    expect(shared).toContain('existingProductIds');
-    expect(shared).toContain('!existingProductIds.has(p.id)');
+  it('är idempotent: skapar endast saknade rader via den delade fail-safen', () => {
+    expect(shared).toContain('ensureMissingPackingRowsFromBookingProducts');
+    const failSafe = read('supabase/functions/_shared/packingFailSafe.ts');
+    expect(failSafe).toContain('existingProductIds');
+    expect(failSafe).toContain('existingProductIds.has(p.id)');
   });
 
   it('rapporterar läsfel i stället för att godkänna en tom lista', () => {

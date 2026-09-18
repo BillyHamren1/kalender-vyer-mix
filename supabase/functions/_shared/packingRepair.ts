@@ -11,11 +11,13 @@
  *
  * KÄLLORDNING (kanonisk):
  *   1. Lagersystemets reservation (WMS) — sanningen för vad som ska packas.
- *   2. Endast om bokningen saknar WMS-reservation används booking_products.
- *   WMS-fel returneras ärligt; ingen tyst fallback till lokala rader.
+ *   2. Om WMS inte kan leverera (schemafel, otillgänglig, saknad konfiguration)
+ *      fylls endast SAKNADE rader på additivt från aktiva booking_products.
+ *      Felet loggas alltid; WMS förblir förstahandskälla vid nästa körning.
  */
 
 import { syncPackingListFromWms } from './wmsPackingList.ts';
+import { ensureMissingPackingRowsFromBookingProducts } from './packingFailSafe.ts';
 
 export const REPAIRABLE_PACKING_STATUSES = ['planning', 'in_progress'] as const;
 
@@ -95,14 +97,7 @@ export async function repairPackingItems(
   }
   const bookingNumber = (bookingRow as any)?.booking_number || null;
 
-  if (!apiKey) {
-    return { ok: false, code: 'wms_not_configured', error: 'PRICELIST_API_KEY saknas', status: packing.status };
-  }
-  if (!bookingNumber) {
-    return { ok: false, code: 'db_error', error: 'Bokningsnummer saknas', status: packing.status };
-  }
-
-  {
+  if (apiKey && bookingNumber) {
     const wms = await syncPackingListFromWms(supabase, {
       packingId,
       organizationId,
@@ -122,15 +117,15 @@ export async function repairPackingItems(
         status: packing.status,
       };
     }
-    // WMS is the only canonical source after cutover. Missing/unavailable
-    // reservations are surfaced and retried; Planning must never invent rows.
-    return { ok: false, code: wms.code as any, error: wms.error, status: packing.status };
+    // WMS förblir förstahandskälla, men ett WMS-fel (schema/otillgänglighet)
+    // får aldrig lämna en bekräftad bokning helt utan lagerrader. Vi faller
+    // tillbaka på en additiv påfyllning från aktiva booking_products.
+    console.error(
+      `[packingRepair] WMS-projektionen misslyckades för packning ${packingId}: ${wms.code}:${wms.error}`,
+    );
   }
 
-  // Legacy local fallback retained as unreachable rollback reference.
-  // ── 2) Legacy local booking_products path ────────────────────────────────
-
-
+  // ── 2) Fail-safe: additiv påfyllning från aktiva booking_products ────────
   const [productsResult, existingItemsResult] = await Promise.all([
     supabase
       .from('booking_products')
@@ -157,17 +152,11 @@ export async function repairPackingItems(
       error: existingItemsResult.error.message || String(existingItemsResult.error),
     };
   }
-  const products = productsResult.data || [];
-  const existingItems = existingItemsResult.data || [];
-
-  // Samma packable-filter som sync-booking-to-packing:
-  // aktiva rader, paketrubriker (rader som är förälder åt andra rader) exkluderas.
-  const active = products.filter((p: any) => !p.source_missing_since);
+  const active = (productsResult.data || []).filter((p: any) => !p.source_missing_since);
   const parentIds = new Set(
     active.filter((p: any) => p.parent_product_id).map((p: any) => p.parent_product_id),
   );
-  const packable = active.filter((p: any) => !parentIds.has(p.id));
-  if (packable.length === 0) {
+  if (active.filter((p: any) => !parentIds.has(p.id)).length === 0) {
     return {
       ok: false,
       code: 'source_empty',
@@ -175,52 +164,22 @@ export async function repairPackingItems(
       status: packing.status,
     };
   }
-  const existingProductIds = new Set(existingItems.map((i: any) => i.booking_product_id));
 
-  const toInsert = packable
-    .filter((p: any) => !existingProductIds.has(p.id))
-    .map((p: any) => ({
-      packing_id: packingId,
-      booking_product_id: p.id,
-      quantity_to_pack: p.quantity ?? 1,
-      quantity_packed: 0,
-      organization_id: organizationId,
-      wms_item_type_id: p.inventory_item_type_id || null,
-      wms_sku: p.sku || null,
-      wms_identity_source: p.inventory_item_type_id
-        ? 'booking_item_type_id'
-        : (p.sku ? 'booking_sku_legacy' : 'missing'),
-      wms_identity_needs_repair: !p.inventory_item_type_id,
-    }));
-
-  const existingCount = existingItems.length;
-
-  if (toInsert.length === 0) {
-    return { ok: true, source: 'booking_products', inserted: 0, total: existingCount, status: packing.status };
+  const failSafe = await ensureMissingPackingRowsFromBookingProducts(supabase, {
+    packingId,
+    bookingId: packing.booking_id,
+    organizationId,
+  });
+  if (!failSafe.ok) {
+    return { ok: false, code: 'insert_failed', error: failSafe.error, status: packing.status };
   }
-
-
-  const { error: insertError } = await supabase.from('packing_list_items').insert(toInsert);
-  if (insertError) {
-    return { ok: false, code: 'insert_failed', error: insertError.message };
-  }
-
-  // Pending "item_added"-kvittenser för rader vi just skapat är inte längre relevanta.
-  const insertedProductIds = toInsert.map((i: any) => i.booking_product_id);
-  await supabase
-    .from('packing_change_requests')
-    .update({ status: 'dismissed', updated_at: new Date().toISOString() })
-    .eq('packing_id', packingId)
-    .eq('status', 'pending')
-    .eq('change_type', 'item_added')
-    .in('booking_product_id', insertedProductIds);
 
   return {
     ok: true,
     source: 'booking_products',
-    inserted: toInsert.length,
-
-    total: existingCount + toInsert.length,
+    inserted: failSafe.inserted || 0,
+    total: failSafe.total || 0,
     status: packing.status,
   };
 }
+

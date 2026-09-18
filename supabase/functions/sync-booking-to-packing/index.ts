@@ -9,6 +9,7 @@ import {
   syncBookingProductsFromWms,
   syncPackingListFromWms,
 } from '../_shared/wmsPackingList.ts'
+import { ensureMissingPackingRowsFromBookingProducts } from '../_shared/packingFailSafe.ts'
 
 
 const corsHeaders = {
@@ -320,12 +321,11 @@ async function syncPackingListItems(
     bookingNumber: canonicalBooking.booking_number,
     apiKey,
   })
+  let wmsProjectionFailed = false
   if (!projectProjection.ok) {
     // A confirmed Booking with no inventory demand intentionally has no WMS
     // reservation. Treat that as an authoritative empty projection only when
     // this booking already has zero active Planning product and pack rows.
-    // Any residual row keeps the failure hard, preventing accidental clearing
-    // when a real WMS reservation is missing or unavailable.
     if (projectProjection.code === 'wms_reservation_not_found') {
       const [{ count: activeProductCount, error: productCountError }, { count: activePackCount, error: packCountError }] =
         await Promise.all([
@@ -352,8 +352,11 @@ async function syncPackingListItems(
       }
     }
 
-    throw new Error(
-      `wms_project_projection_failed:${projectProjection.code || 'unknown'}:${projectProjection.error || 'unknown error'}`
+    // WMS-fel (schema/otillgänglighet) får aldrig blockera Planning-projektionen.
+    // Befintliga booking_products lämnas orörda och lagerraderna fylls på additivt.
+    wmsProjectionFailed = true
+    console.error(
+      `[sync-booking-to-packing] wms_project_projection_failed:${projectProjection.code || 'unknown'}:${projectProjection.error || 'unknown error'} — faller tillbaka på additiv lagerpåfyllning`
     )
   }
 
@@ -385,16 +388,35 @@ async function syncPackingListItems(
     )
   }
 
-  const packingProjection = await syncPackingListFromWms(supabase, {
-    packingId,
-    organizationId,
-    bookingNumber: canonicalBooking.booking_number,
-    sourceBookingId: bookingId,
-    apiKey,
-  })
+  const packingProjection = wmsProjectionFailed
+    ? { ok: false, code: 'wms_project_projection_failed', error: projectProjection.error }
+    : await syncPackingListFromWms(supabase, {
+        packingId,
+        organizationId,
+        bookingNumber: canonicalBooking.booking_number,
+        sourceBookingId: bookingId,
+        apiKey,
+      })
+
   if (!packingProjection.ok) {
-    throw new Error(
-      `wms_packing_projection_failed:${packingProjection.code || 'unknown'}:${packingProjection.error || 'unknown error'}`
+    console.error(
+      `[sync-booking-to-packing] wms_packing_projection_failed:${packingProjection.code || 'unknown'}:${packingProjection.error || 'unknown error'} — skapar endast saknade lagerrader från aktiva booking_products`
+    )
+    const failSafe = await ensureMissingPackingRowsFromBookingProducts(supabase, {
+      packingId,
+      bookingId,
+      organizationId,
+    })
+    if (!failSafe.ok) {
+      throw new Error(
+        `packing_failsafe_failed:${failSafe.code || 'unknown'}:${failSafe.error || 'unknown error'}`
+      )
+    }
+    return (
+      (projectProjection.inserted || 0) +
+      (projectProjection.updated || 0) +
+      (projectProjection.retired || 0) +
+      (failSafe.inserted || 0)
     )
   }
 
