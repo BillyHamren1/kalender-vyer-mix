@@ -1,29 +1,32 @@
-# Fixa "0 kr" i Projektöversikten – och sluta ladda hela produktregistret
+# Återställ den riktiga Booking-summan – ingen workaround
 
-## Vad som faktiskt är fel
+## Bekräftat problem
 
-Summan i listan är projektets produktintäkt. Den hämtas i första hand från Booking-systemet; när det svaret saknar belopp används vår egen kopia av orderraderna som reserv.
+Du har rätt: Planning ska inte ladda tusentals lokala produktrader för att återskapa en summa som Booking redan äger.
 
-Reserven är byggd fel idag:
+Det verifierade felet ligger i den ordinarie kedjan:
 
-- Den frågar efter **alla orderrader för alla 351 projekt på en gång** (12 914 rader, sida för sida). Det är onödigt tungt och exakt det du reagerar på.
-- Alla boknings-id skickas i **en enda webbadress**. Med ~350 id blir adressen så lång att anropet faller, hela reserven hoppas över tyst, och raderna visar 0 kr.
+- Ekonomiöversikten bad nu om 444 bokningar.
+- `planning-api-proxy` förnyade cachen för alla 444 klockan 18:56.
+- Booking-anropets `product_costs` blev `null` även för bokningar som har riktiga belopp.
+- Proxyn sväljer idag fel från varje delanrop med `.catch(() => null)` och sparar därefter detta `null` som om det vore ett giltigt svar.
+- Listan tolkar `null` som 0 kr.
 
-Att beloppen finns är verifierat i databasen: Westers Catering 19 sep = 17 158 kr, Westmans 19 sep, Rydbergs 21 sep = 191 500 kr. Det är alltså bara hämtningen som fallerar, inte datan.
+Det såg ut att fungera tidigare därför att äldre cachade svar eller den lokala reserven råkade ge belopp. När cachen förnyades sparades de misslyckade Booking-svaren som `null`, och felet blev synligt. Den lokala 1 000-radershämtningen maskerade alltså det riktiga felet och var aldrig en korrekt lösning.
 
-## Lösning
+## Åtgärd
 
-Låt databasen summera i stället för att skicka hem varje rad.
+1. **Ta bort den lokala reservberäkningen helt.** Ingen summering från `booking_products` i ekonomiöversikten.
+2. **Gör Booking-felet synligt i serverflödet.** `planning-api-proxy` ska kontrollera HTTP-status och svar för `product_costs`, logga endast säker felmetadata och aldrig omvandla ett misslyckat anrop till ett giltigt nollvärde.
+3. **Spara aldrig trasiga ekonomisvar i cachen.** Ett svar där `product_costs` misslyckats ska inte skriva över ett tidigare giltigt cachevärde.
+4. **Fastställ och rätta det exakta upstream-felet.** Kör ett riktat serveranrop för en av de berörda bokningarna och kontrollera status/svarsform. Om felet finns i Planning-proxyn rättas det här. Om Booking-tjänsten själv returnerar fel lämnas raden tydligt som “Summan kunde inte hämtas” – aldrig falskt `0 kr` – och det externa felet rapporteras exakt.
+5. **Hämta endast listans relevanta bokningar.** Begränsa serveranropet till projekten i vald fas/listvy, chunkat och tenant-säkrat; inga 12 914 produktrader laddas.
+6. **Återhämta berörda cacheposter utan delete eller bred backfill.** Nästa lyckade hämtning skriver över `null` för endast efterfrågade bokningar.
 
-1. Ny läsfunktion i databasen som tar en lista boknings-id och returnerar **en summerad rad per bokning** (intäkt och kostnad). Läsning sker med POST, så ingen adresslängd-gräns, och svaret blir ~350 små rader i stället för 12 914.
-2. Ekonomiöversikten anropar den i stycken om 200 bokningar, så gränserna aldrig nås oavsett hur många projekt som finns.
-3. Den gamla sidvisa hämtningen av alla orderrader tas bort.
-4. Booking-systemets egen summa vinner alltid när den finns och är större än noll – reserven fyller bara tomma rader. Oförändrad regel.
-5. Om reserven ändå fallerar ska det synas i loggen som ett tydligt fel i stället för att tyst ge 0 kr.
+## Verifiering
 
-## Teknisk detalj
-
-- Ny SQL-funktion `public.get_booking_product_revenue(booking_ids uuid[])` – `stable`, `security invoker`, respekterar befintlig RLS och tenant-scope, `grant execute` till `authenticated`. Summerar `coalesce(total_price, unit_price * quantity)` som intäkt och `purchase_cost * quantity` som kostnad, grupperat på `booking_id`.
-- `src/lib/economy/bookingProductEconomyFallback.ts`: byt `fetchAllBookingProductEconomyRows` mot `fetchBookingProductEconomyTotals(bookingIds, rpc)` med chunkning (`BOOKING_ID_CHUNK_SIZE = 200`). `mergeBookingProductEconomyFallback` behålls oförändrad.
-- `src/hooks/useEconomyOverviewData.ts`: anropa `supabase.rpc('get_booking_product_revenue', { booking_ids: chunk })`; ta bort radhämtningen mot `booking_products`.
-- Tester: uppdatera `bookingProductEconomyFallback.test.ts` – chunkning vid >200 id, summor mappas per bokning, positiv proxy-summa skrivs aldrig över. Kör riktade ekonomitester + build.
+- Kontraktstest: ett misslyckat `product_costs` får aldrig bli 0 kr eller cachas som lyckat.
+- Kontraktstest: ekonomiöversikten använder inte lokal `booking_products`-reserv.
+- Riktat test av Westers Catering 19 sep och Rydbergs 21 sep mot Booking-källan.
+- Kontroll att listan visar de kanoniska summorna efter cacheförnyelse.
+- Kör riktade Vitest-tester, full relevant ekonomisvit och verifiera preview direkt efter ändringen.
