@@ -469,7 +469,7 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   let totalReturned = 0
   let anyReturned = false
   for (const it of items) {
-    if (!((it as any).is_packable ?? (it as any).excluded !== true)) continue
+    if ((it as any).excluded === true || (it as any).is_packable === false) continue
     const productId = (it as any).booking_products?.id
     if (productId && headers.has(productId)) continue
     const sent = Math.max(0, ((it as any).quantity_packed ?? 0) | 0)
@@ -618,7 +618,7 @@ async function fetchControlCountableItems(
 
   const out: ControlCountableRow[] = []
   for (const it of items) {
-    if (!((it as any).is_packable ?? (it as any).excluded !== true)) continue
+    if ((it as any).excluded === true || (it as any).is_packable === false) continue
     const bp = (it as any).booking_products
     const productId: string | null = bp?.id ?? null
     if (productId && headerProductIds.has(productId)) continue // paketheader
