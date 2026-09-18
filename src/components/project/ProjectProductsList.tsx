@@ -49,10 +49,11 @@ interface ProjectProductsListProps {
 export const cleanName = (name: string) =>
   name.replace(/^(?:L,|--|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
 
-// En rad är ett barn (paketmedlem eller tillbehör) om DB säger det
-// (parent_product_id, parent_package_id eller is_package_component) ELLER
-// om namnet bär en hierarki-prefix (legacy-data utan FK).
-const NAME_LOOKS_LIKE_CHILD = /^\s*(?:--|↳|└|L,)/;
+// Namnprefixet är den säkraste skillnaden i importerad legacy-data:
+// tillbehör kan samtidigt ha is_package_component=true, men ska ändå visas.
+const NAME_LOOKS_LIKE_ACCESSORY = /^\s*(?:↳|└|L,|└,|→)/;
+const NAME_LOOKS_LIKE_PACKAGE_MEMBER = /^\s*(?:--|⦿)/;
+const NAME_LOOKS_LIKE_CHILD = /^\s*(?:--|⦿|↳|└|L,|└,|→)/;
 const isChildRow = (p: BookingProduct): boolean =>
   !!p.parent_product_id ||
   !!p.parent_package_id ||
@@ -66,12 +67,12 @@ export const isPackageMemberRow = (p: {
   parent_package_id?: string | null;
   is_package_component?: boolean | null;
 }): boolean =>
-  !!p.is_package_component ||
-  !!p.parent_package_id ||
-  /^\s*--/.test(p.name || "");
+  !NAME_LOOKS_LIKE_ACCESSORY.test(p.name || "") &&
+  (!!p.is_package_component ||
+    !!p.parent_package_id ||
+    NAME_LOOKS_LIKE_PACKAGE_MEMBER.test(p.name || ""));
 
-// Alla kopplade barn ska vara synliga. Det är avgörande att projektet visar
-// både tillbehör och vilka fysiska delar som ingår i ett paket.
+// Projektinfo visar riktiga tillbehör, men aldrig paketets uppackade innehåll.
 export const isVisibleAccessory = (p: {
   name: string;
   parent_product_id: string | null;
@@ -83,8 +84,7 @@ export const isVisibleAccessory = (p: {
     !!p.parent_package_id ||
     !!p.is_package_component ||
     NAME_LOOKS_LIKE_CHILD.test(p.name || "");
-  if (!isChild) return false;
-  return true;
+  return isChild && !isPackageMemberRow(p);
 };
 
 const ProjectProductsList = ({
@@ -167,19 +167,18 @@ const ProjectProductsList = ({
     );
   }
 
-  // Huvudprodukter = rader som inte är barnrader eller paketkomponenter.
+  // Huvudprodukter visas på bokningsnivå. Paketens interna komponenter döljs.
   const mainProducts = products.filter((p) => !isChildRow(p) && !isPackageMemberRow(p));
   const mainIds = new Set(mainProducts.map((p) => p.id));
-  // Synliga barn = både tillbehör och paketkomponenter, alltid under sin förälder.
-  const allChildren = products.filter((p) => isChildRow(p));
+  const visibleAccessories = products.filter((p) => isVisibleAccessory(p));
 
   // Föräldralösa barn där parent saknas i mainProducts → visas separat
-  const orphanedChildren = allChildren.filter((c) => {
+  const orphanedChildren = visibleAccessories.filter((c) => {
     const parentKey = c.parent_product_id || c.parent_package_id;
     return !parentKey || !mainIds.has(parentKey);
   });
 
-  const visibleProducts = [...mainProducts, ...allChildren];
+  const visibleProducts = [...mainProducts, ...visibleAccessories];
 
   const totalWeight = visibleProducts.reduce(
     (sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity,
@@ -252,7 +251,6 @@ const ProjectProductsList = ({
   };
 
   const renderChildRow = (child: BookingProduct) => {
-    const packageMember = isPackageMemberRow(child);
     return (
       <div
         key={child.id}
@@ -264,7 +262,7 @@ const ProjectProductsList = ({
           </span>
           <span className="truncate">{cleanName(child.name)}</span>
           <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-            {packageMember ? "Paketdel" : "Tillbehör"}
+            Tillbehör
           </span>
         </span>
         <span />
@@ -276,9 +274,7 @@ const ProjectProductsList = ({
   };
 
   const renderProductLine = (product: BookingProduct, withMenu: boolean) => {
-    // Matcha barn på BÅDE parent_product_id OCH parent_package_id så att
-    // både paketmedlemmar (`-- M Ben`) och tillbehör (`↳ M Takduk`) visas.
-    const accessories = allChildren.filter(
+    const accessories = visibleAccessories.filter(
       (c) =>
         c.parent_product_id === product.id ||
         (!!c.parent_package_id && c.parent_package_id === product.id)

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isVisibleAccessory, isPackageMemberRow, cleanName } from "../ProjectProductsList";
 
-describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas", () => {
+describe("ProjectProductsList — tillbehör visas och paketkomponenter döljs", () => {
   it("visar `↳ M Takduk` med parent_product_id", () => {
     expect(
       isVisibleAccessory({
@@ -35,7 +35,7 @@ describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas
     ).toBe(true);
   });
 
-  it("visar paketkomponent `-- M Ben` (is_package_component=true)", () => {
+  it("döljer paketkomponent `-- M Ben` (is_package_component=true)", () => {
     expect(
       isVisibleAccessory({
         name: "  -- M Ben",
@@ -43,10 +43,10 @@ describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas
         parent_package_id: null,
         is_package_component: true,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("visar rad med parent_package_id (paketmedlem)", () => {
+  it("döljer rad med parent_package_id (paketmedlem)", () => {
     expect(
       isVisibleAccessory({
         name: "Någon paketdel",
@@ -54,10 +54,10 @@ describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas
         parent_package_id: "pkg-1",
         is_package_component: false,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("visar `--`-prefix även utan DB-flaggor", () => {
+  it("döljer `--`-prefix även utan DB-flaggor", () => {
     expect(
       isVisibleAccessory({
         name: "-- P Hatt",
@@ -65,7 +65,7 @@ describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas
         parent_package_id: null,
         is_package_component: false,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("räknar `Multiflex 6x6` som huvudprodukt (inte barn)", () => {
@@ -86,6 +86,19 @@ describe("ProjectProductsList — kopplade tillbehör och paketkomponenter visas
     expect(isPackageMemberRow({ name: "X", parent_package_id: "pkg-1" })).toBe(true);
     expect(isPackageMemberRow({ name: "↳ Takduk" })).toBe(false);
     expect(isPackageMemberRow({ name: "Multiflex 6x6" })).toBe(false);
+  });
+
+  it("tillbehörsprefix vinner över felaktig paketkomponent-flagga", () => {
+    expect(isPackageMemberRow({ name: "↳ M Takduk Vit 4m", is_package_component: true })).toBe(false);
+    expect(isPackageMemberRow({ name: "└ M Vägg Täckt 3m", parent_package_id: "pkg-1" })).toBe(false);
+    expect(
+      isVisibleAccessory({
+        name: "↳ M Takduk Vit 4m",
+        parent_product_id: "parent-1",
+        parent_package_id: null,
+        is_package_component: true,
+      })
+    ).toBe(true);
   });
 
   it("cleanName strippar paketmedlems-prefix `--`", () => {
