@@ -102,7 +102,11 @@ import { SyncPerfTracker, verboseProductLogging } from '../_shared/syncPerf.ts'
 /** STEG 4E: verbose per-produkt-loggning är dyr → default AV (SYNC_DEBUG_PRODUCTS=true slår på). */
 const VERBOSE_PRODUCT_LOGS = verboseProductLogging();
 // WMS owns all operational product projections after the canonical cutover.
-const WMS_CANONICAL_PRODUCT_CUTOVER = true;
+// Planning måste alltid ha en komplett produktprojektion från Booking-källan,
+// oavsett packbarhet. WMS förblir förstahandskälla och skriver över dessa rader
+// när reservationen kan läsas — men källimporten får aldrig stängas av, annars
+// blir bokningen helt tom när WMS fallerar.
+const WMS_CANONICAL_PRODUCT_CUTOVER = false;
 
 /**
  * STEG 3I: counters hämtas från den guardade klienten så att varje
@@ -885,6 +889,10 @@ interface ProductData {
   tags_en?: string[];
   /** Stabil identitet: 'src:<booking-row-id>' eller 'cmp:<parent>:<comp>'. */
   sync_key?: string | null;
+  /** Packbarhet är metadata — den filtrerar aldrig bort Planning-rader. */
+  product_packable_default?: boolean;
+  packability_override?: boolean | null;
+  is_packable?: boolean;
 }
 
 /**
@@ -4829,6 +4837,24 @@ serve(async (req) => {
                 tags: Array.isArray(product.tags) ? product.tags : [],
                 tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
                 sync_key: productSyncKey,
+                // Packbarhet följer med som metadata. Den påverkar ENDAST
+                // lagerpresentation/operationer — aldrig om raden importeras.
+                ...(() => {
+                  const packableDefault = typeof product.product_packable_default === 'boolean'
+                    ? product.product_packable_default
+                    : (typeof product.is_packable_default === 'boolean' ? product.is_packable_default : true);
+                  const override = typeof product.booking_packability_override === 'boolean'
+                    ? product.booking_packability_override
+                    : (typeof product.packability_override === 'boolean' ? product.packability_override : null);
+                  const effective = typeof product.is_packable === 'boolean'
+                    ? product.is_packable
+                    : (override ?? packableDefault);
+                  return {
+                    product_packable_default: packableDefault,
+                    packability_override: override,
+                    is_packable: effective,
+                  };
+                })(),
               }
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
