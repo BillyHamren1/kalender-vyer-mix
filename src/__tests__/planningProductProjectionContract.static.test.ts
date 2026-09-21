@@ -23,10 +23,12 @@ describe('Planning-produktprojektion får aldrig bli tom', () => {
     expect(src).not.toContain('throw new Error(\n      `wms_project_projection_failed');
   });
 
-  it('fail-safe rör aldrig befintliga rader', () => {
+  it('fail-safe tar aldrig bort rader och uppdaterar bara packbarhetsmetadata', () => {
     const src = read('supabase/functions/_shared/packingFailSafe.ts');
     expect(src).not.toMatch(/\.delete\(/);
-    expect(src).not.toMatch(/\.update\(/);
+    expect(src).toContain('.update(update.values)');
+    expect(src).toContain('warehouse_packability_override');
+    expect(src).toContain("packability_source: source");
     expect(src).toContain('quantity_packed: 0');
   });
 });
