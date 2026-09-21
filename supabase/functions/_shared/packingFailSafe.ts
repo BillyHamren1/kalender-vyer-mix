@@ -6,8 +6,11 @@
  * reservation, saknad konfiguration). WMS förblir förstahandskälla.
  *
  * SÄKERHETSREGLER:
- * - Skapar endast SAKNADE rader. Inga deletes, ingen ändring av
- *   quantity_packed, kolli eller befintliga rader.
+ * - Skapar endast SAKNADE rader. Inga deletes och ingen ändring av
+ *   quantity_packed eller kolli.
+ * - Uppdaterar enbart packbarhetsmetadata på befintliga AKTIVA rader när
+ *   Booking-källans explicita klassning ändras. Lageroverride har alltid
+ *   företräde och historiskt frysta rader lämnas orörda.
  * - Historiskt utfasade rader (excluded=true) återupplivas aldrig; de räknas
  *   som befintliga och skapas därför inte om.
  * - is_packable följer med från booking_products men filtrerar aldrig bort
@@ -19,6 +22,7 @@ export interface PackingFailSafeResult {
   code?: 'db_error';
   error?: string;
   inserted?: number;
+  updated?: number;
   total?: number;
 }
 
@@ -32,13 +36,13 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     supabase
       .from('booking_products')
       .select(
-        'id, name, quantity, parent_product_id, sku, sync_key, inventory_item_type_id, source_missing_since, is_packable, product_packable_default, packability_source, packability_revision',
+        'id, name, quantity, parent_product_id, sku, sync_key, inventory_item_type_id, source_missing_since, is_packable, product_packable_default, packability_override, packability_source, packability_revision',
       )
       .eq('booking_id', bookingId)
       .eq('organization_id', organizationId),
     supabase
       .from('packing_list_items')
-      .select('id, booking_product_id, wms_line_id, excluded')
+      .select('id, booking_product_id, wms_line_id, excluded, planning_excluded_at, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision')
       .eq('packing_id', packingId)
       .eq('organization_id', organizationId),
   ]);
@@ -62,6 +66,66 @@ export async function ensureMissingPackingRowsFromBookingProducts(
 
   const existingProductIds = new Set(existing.map((row: any) => row.booking_product_id).filter(Boolean));
   const existingLineIds = new Set(existing.map((row: any) => row.wms_line_id).filter(Boolean));
+  const existingByProductId = new Map(
+    existing
+      .filter((row: any) => row.booking_product_id)
+      .map((row: any) => [row.booking_product_id, row]),
+  );
+
+  // Packbarhet är källmetadata, inte plockutfall. Den får därför läkas på en
+  // befintlig aktiv rad utan att röra antal, kolli eller skanningsstatus.
+  const toUpdate = candidates.flatMap((p: any) => {
+    const row: any = existingByProductId.get(p.id);
+    if (!row || row.excluded === true || row.planning_excluded_at) return [];
+
+    const productDefault = p.product_packable_default ?? true;
+    const bookingOverride = typeof p.packability_override === 'boolean'
+      ? p.packability_override
+      : null;
+    const sourceEffective = typeof p.is_packable === 'boolean'
+      ? p.is_packable
+      : (bookingOverride ?? productDefault);
+    const warehouseOverride = typeof row.warehouse_packability_override === 'boolean'
+      ? row.warehouse_packability_override
+      : null;
+    const effective = warehouseOverride ?? sourceEffective;
+    const source = warehouseOverride !== null
+      ? 'warehouse_override'
+      : (p.packability_source ?? (bookingOverride !== null ? 'booking_override' : 'product_default'));
+
+    if (
+      row.product_packable_default === productDefault &&
+      row.booking_packability_override === bookingOverride &&
+      row.is_packable === effective &&
+      row.packability_source === source
+    ) return [];
+
+    return [{
+      id: row.id,
+      values: {
+        product_packable_default: productDefault,
+        booking_packability_override: bookingOverride,
+        is_packable: effective,
+        packability_source: source,
+        packability_revision: Math.max(
+          Number(row.packability_revision ?? 0) + 1,
+          Number(p.packability_revision ?? 1),
+        ),
+      },
+    }];
+  });
+
+  for (const update of toUpdate) {
+    const { error: updateError } = await supabase
+      .from('packing_list_items')
+      .update(update.values)
+      .eq('id', update.id)
+      .eq('packing_id', packingId)
+      .eq('organization_id', organizationId);
+    if (updateError) {
+      return { ok: false, code: 'db_error', error: updateError.message || String(updateError) };
+    }
+  }
 
   const toInsert = candidates
     .filter((p: any) => {
@@ -95,7 +159,7 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     });
 
   if (toInsert.length === 0) {
-    return { ok: true, inserted: 0, total: existing.length };
+    return { ok: true, inserted: 0, updated: toUpdate.length, total: existing.length };
   }
 
   const { error: insertError } = await supabase.from('packing_list_items').insert(toInsert);
@@ -103,5 +167,10 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     return { ok: false, code: 'db_error', error: insertError.message || String(insertError) };
   }
 
-  return { ok: true, inserted: toInsert.length, total: existing.length + toInsert.length };
+  return {
+    ok: true,
+    inserted: toInsert.length,
+    updated: toUpdate.length,
+    total: existing.length + toInsert.length,
+  };
 }
