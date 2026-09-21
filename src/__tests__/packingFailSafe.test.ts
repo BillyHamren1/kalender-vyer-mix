@@ -4,6 +4,7 @@ import { ensureMissingPackingRowsFromBookingProducts } from '../../supabase/func
 
 const createSupabase = (products: any[], existing: any[]) => {
   const insertedRows: any[] = [];
+  const updatedRows: any[] = [];
   const responses: Record<string, any> = {
     booking_products: { data: products, error: null },
     packing_list_items: { data: existing, error: null },
@@ -18,12 +19,21 @@ const createSupabase = (products: any[], existing: any[]) => {
         insertedRows.push(...rows);
         return { error: null };
       },
+      update: (values: any) => {
+        const updateBuilder: any = {
+          eq: () => updateBuilder,
+          then: (resolve: (v: any) => unknown, reject: (r: unknown) => unknown) =>
+            Promise.resolve({ error: null }).then(resolve, reject),
+        };
+        updatedRows.push(values);
+        return updateBuilder;
+      },
       then: (resolve: (v: any) => unknown, reject: (r: unknown) => unknown) =>
         Promise.resolve(response).then(resolve, reject),
     };
     return builder;
   };
-  return { supabase: { from }, insertedRows };
+  return { supabase: { from }, insertedRows, updatedRows };
 };
 
 const args = { packingId: 'pack-1', bookingId: 'booking-1', organizationId: 'org-1' };
@@ -58,6 +68,69 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     expect(result.ok).toBe(true);
     expect(result.inserted).toBe(0);
     expect(second.insertedRows).toEqual([]);
+  });
+
+  it('läker packbarhetsmetadata på befintlig aktiv rad utan att skapa dubblett', async () => {
+    const existing = [{
+      id: 'item-transport',
+      booking_product_id: 'transport-1',
+      wms_line_id: null,
+      excluded: false,
+      planning_excluded_at: null,
+      product_packable_default: true,
+      booking_packability_override: null,
+      warehouse_packability_override: null,
+      is_packable: true,
+      packability_source: 'product_default',
+      packability_revision: 1,
+    }];
+    const { supabase, insertedRows, updatedRows } = createSupabase(
+      [fixtureProducts()[1]],
+      existing,
+    );
+
+    const result = await ensureMissingPackingRowsFromBookingProducts(supabase, args);
+
+    expect(result).toMatchObject({ ok: true, inserted: 0, updated: 1, total: 1 });
+    expect(insertedRows).toEqual([]);
+    expect(updatedRows).toEqual([{
+      product_packable_default: true,
+      booking_packability_override: null,
+      is_packable: false,
+      packability_source: 'product_default',
+      packability_revision: 2,
+    }]);
+  });
+
+  it('bevarar lageroverride när Booking ändrar grundklassningen', async () => {
+    const existing = [{
+      id: 'item-transport',
+      booking_product_id: 'transport-1',
+      excluded: false,
+      planning_excluded_at: null,
+      product_packable_default: true,
+      booking_packability_override: null,
+      warehouse_packability_override: true,
+      is_packable: true,
+      packability_source: 'warehouse_override',
+      packability_revision: 4,
+    }];
+    const product = {
+      ...fixtureProducts()[1],
+      product_packable_default: false,
+      packability_override: false,
+    };
+    const { supabase, updatedRows } = createSupabase([product], existing);
+
+    const result = await ensureMissingPackingRowsFromBookingProducts(supabase, args);
+
+    expect(result.updated).toBe(1);
+    expect(updatedRows[0]).toMatchObject({
+      product_packable_default: false,
+      booking_packability_override: false,
+      is_packable: true,
+      packability_source: 'warehouse_override',
+    });
   });
 
   it('återupplivar aldrig historiskt utfasade rader', async () => {
