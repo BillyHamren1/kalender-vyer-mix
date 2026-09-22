@@ -126,9 +126,10 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     expect(updatedRows[0]).toMatchObject({
       product_packable_default: false,
       booking_packability_override: false,
-      is_packable: true,
-      packability_source: 'warehouse_override',
     });
+    // Lageroverride vinner: den effektiva klassningen ändras inte.
+    expect(updatedRows[0].is_packable).toBeUndefined();
+    expect(updatedRows[0].packability_source).toBeUndefined();
   });
 
   it('återupplivar aldrig historiskt utfasade rader', async () => {
