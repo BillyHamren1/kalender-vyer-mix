@@ -84,7 +84,23 @@ export const PackingIntegrityBanner = ({
   onRefresh,
   compact = false,
 }: PackingIntegrityBannerProps) => {
+  // Alla hooks måste ligga före varje villkorlig return — annars kraschar React
+  // med "Rendered more hooks than during the previous render".
   const [open, setOpen] = useState(false);
+  const signature = integrity ? buildSignature(integrity) : null;
+  const [dismissedSignature, setDismissedSignature] = useState<string | null>(
+    () => readDismissed(packingId)?.signature ?? null,
+  );
+
+  useEffect(() => {
+    if (!signature) return;
+    const record = readDismissed(packingId);
+    if (record && record.signature !== signature) {
+      writeDismissed(packingId, null);
+      setDismissedSignature(null);
+    }
+  }, [signature, packingId]);
+
 
   if (error) {
     return (
