@@ -53,6 +53,7 @@ import PackingIntegrityBanner from './PackingIntegrityBanner';
 import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
 import PrintPackingListDialog from './PrintPackingListDialog';
 import { getOperationsPackingPresentation } from '@/lib/packing/operationsPresentation';
+import { buildPackingHierarchy, readPackingRelationship } from '@/lib/packing/packingHierarchy';
 
 // ============================================================================
 // Desktop checklist with one bounded warehouse write capability.
@@ -330,22 +331,28 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     const bookingNumber = packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
     const rigDate = (packing?.booking as any)?.rigdaydate || null;
 
-    const rows = packableItems.map((item) => {
+    const rows = groupedItems.flatMap((group) => buildPackingHierarchy<PackingItem>(
+      group.items.filter((item) => item.is_packable !== false),
+    ).flatMap((entry) => {
+      const hierarchyItems = entry.kind === 'standalone'
+        ? [{ item: entry.item, packageName: null, relationshipKind: 'standalone' as const }]
+        : [
+            ...entry.group.members.map((item) => ({
+              item,
+              packageName: entry.group.packageName,
+              relationshipKind: 'package_member' as const,
+            })),
+            ...entry.group.accessories.map((item) => ({
+              item,
+              packageName: entry.group.packageName,
+              relationshipKind: 'accessory' as const,
+            })),
+          ];
+
+      return hierarchyItems.map(({ item, packageName, relationshipKind }) => {
       const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
       const cleanName = cleanProductName(rawName);
-      const isChildByRelation = !!(
-        item.booking_products?.parent_product_id ||
-        item.booking_products?.parent_package_id ||
-        item.booking_products?.is_package_component
-      );
-      const trimmedName = rawName.trimStart();
-      const isChildByPrefix =
-        trimmedName.startsWith('↳') ||
-        trimmedName.startsWith('└') ||
-        trimmedName.startsWith('L,') ||
-        trimmedName.startsWith('⦿');
-      const wmsPackageName = item.notes?.match(/^Ingår i paket:\s*(.+)$/i)?.[1] ?? null;
-      const isChild = isChildByRelation || isChildByPrefix || !!wmsPackageName;
+      const isChild = relationshipKind !== 'standalone';
       const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
       const groupLabel = isMultiBooking
         ? (() => {
@@ -365,8 +372,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         groupLabel,
         parcelNumber: itemParcelMap[item.id] ?? null,
         notes: item.notes ?? item.booking_products?.notes ?? null,
+        packageName,
+        relationshipKind,
       };
-    });
+      });
+    }));
 
     const multiBookingNotes = bookingGroups
       .filter((group) => group.internalnotes?.trim())
@@ -435,13 +445,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
       item.booking_products?.parent_package_id ||
       item.booking_products?.is_package_component
     );
-    const wmsPackageName = item.notes?.match(/^Ingår i paket:\s*(.+)$/i)?.[1] ?? null;
+    const relationship = readPackingRelationship(item);
+    const wmsPackageName = relationship.packageName;
     const isChildByPrefix =
       trimmedName.startsWith('↳') ||
       trimmedName.startsWith('└') ||
       trimmedName.startsWith('L,') ||
       trimmedName.startsWith('⦿');
-    const isChild = isChildByRelation || isChildByPrefix || !!wmsPackageName;
+    const isChild = isChildByRelation || isChildByPrefix || relationship.kind !== 'standalone';
     const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
     const isParent = !isChild && hasChildren;
 
@@ -526,11 +537,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           {isParent && (
             <span className="text-[11px] text-muted-foreground block">
               Auto vid alla delar packade
-            </span>
-          )}
-          {wmsPackageName && (
-            <span className="text-[11px] text-muted-foreground block">
-              Ingår i paket: {wmsPackageName}
             </span>
           )}
           {!presentation.isPackable && (
@@ -783,7 +789,31 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                       </div>
                     )}
                     <div className="divide-y divide-border/30 max-h-[60vh] overflow-y-auto">
-                      {groupProductItems.map(renderItem)}
+                      {buildPackingHierarchy<PackingItem>(groupProductItems).map((entry) => entry.kind === 'standalone' ? (
+                        renderItem(entry.item)
+                      ) : (
+                        <div key={entry.group.key} className="divide-y divide-border/30">
+                          <div className="px-4 py-3 bg-muted border-y border-border">
+                            <span className="text-sm font-bold text-foreground uppercase">{entry.group.packageName}</span>
+                          </div>
+                          {entry.group.members.length > 0 && (
+                            <div>
+                              <div className="px-4 py-1.5 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase">
+                                Paketmedlemmar
+                              </div>
+                              {entry.group.members.map(renderItem)}
+                            </div>
+                          )}
+                          {entry.group.accessories.length > 0 && (
+                            <div>
+                              <div className="px-4 py-1.5 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase">
+                                Tillbehör
+                              </div>
+                              {entry.group.accessories.map(renderItem)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </>
                 )}

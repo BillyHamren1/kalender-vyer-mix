@@ -39,7 +39,8 @@ describe('flattenWmsPackingLines', () => {
   it('plattar ut paket till komponenter och hoppar över paketrubriken', () => {
     const rows = flattenWmsPackingLines(wmsBody);
     expect(rows.map((r) => r.wmsLineId)).toEqual(['l1', 'l2::it2', 'l2::it3', 'l2-accessory']);
-    expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', itemTypeId: 'it2' });
+    expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', relationshipKind: 'package_member', itemTypeId: 'it2' });
+    expect(rows[3]).toMatchObject({ name: 'Vikt', packageName: 'Tältpaket', relationshipKind: 'accessory' });
   });
 
   it('särskiljer komponenter som delar namn med paketet via SKU', () => {
@@ -181,6 +182,7 @@ describe('planWmsPackingSync', () => {
       quantity_to_pack: i.quantity_to_pack,
       quantity_packed: 0,
       manual_name: i.manual_name,
+      notes: i.notes,
       excluded: false,
     }));
     const plan = planWmsPackingSync(rows, existing, CTX);
@@ -196,7 +198,11 @@ describe('planWmsPackingSync', () => {
       { id: 'b', wms_line_id: 'l2::it2', quantity_to_pack: 5, quantity_packed: 5, manual_name: 'Tältduk', excluded: false },
       { id: 'c', wms_line_id: 'l2::it3', quantity_to_pack: 8, quantity_packed: 0, manual_name: 'Ben', excluded: false },
     ], CTX);
-    expect(plan.updates).toEqual([{ id: 'a', patch: { quantity_to_pack: 6 } }]);
+    expect(plan.updates).toEqual([
+      { id: 'a', patch: { quantity_to_pack: 6 } },
+      { id: 'b', patch: { notes: 'Paketmedlem i: Tältpaket' } },
+      { id: 'c', patch: { notes: 'Paketmedlem i: Tältpaket' } },
+    ]);
   });
 
   it('retires unscoped legacy rows on cutover and flags packed rows as conflicts', () => {

@@ -118,6 +118,8 @@ export interface WmsPackingRow {
   sku: string | null;
   /** Paketnamn när raden är en paketkomponent. */
   packageName: string | null;
+  /** Explicit relation so package members and order accessories never mix. */
+  relationshipKind: 'package_member' | 'accessory' | 'standalone';
   productPackableDefault: boolean;
   bookingPackabilityOverride: boolean | null;
   warehousePackabilityOverride: boolean | null;
@@ -203,6 +205,17 @@ export function normalizePackability(node: any, inherited?: any): PackabilitySna
 export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
   const lines: any[] = body?.lines || body?.data?.lines || [];
   const rows: WmsPackingRow[] = [];
+  const packageNamesByLineId = new Map<string, string>();
+
+  for (const line of lines) {
+    const lineId = String(line?.line_id ?? line?.id ?? '');
+    if (lineId && line?.type === 'package') {
+      packageNamesByLineId.set(
+        lineId,
+        String(line?.source_display_name ?? line?.name ?? line?.name_sv ?? 'Paket'),
+      );
+    }
+  }
 
   for (const line of lines) {
     const lineId = String(line?.line_id ?? line?.id ?? '');
@@ -226,6 +239,7 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
           itemTypeId: c?.item_type_id ?? null,
           sku: c?.sku ?? null,
           packageName,
+          relationshipKind: 'package_member',
           ...packability,
         });
       }
@@ -233,13 +247,16 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
     }
 
     const packability = normalizePackability(line);
+    const parentLineId = String(line?.parent_line_id ?? '');
+    const accessoryPackageName = parentLineId ? packageNamesByLineId.get(parentLineId) ?? null : null;
     rows.push({
       wmsLineId: lineId,
       name: String(line?.name ?? 'Okänd artikel'),
       quantity: Number(line?.required_qty ?? line?.quantity ?? 0) || 0,
       itemTypeId: line?.item_type_id ?? null,
       sku: line?.sku ?? null,
-      packageName: null,
+      packageName: accessoryPackageName,
+      relationshipKind: line?.is_accessory === true || parentLineId ? 'accessory' : 'standalone',
       ...packability,
     });
   }
@@ -253,6 +270,7 @@ export interface ExistingPackingRow {
   quantity_to_pack: number;
   quantity_packed: number | null;
   manual_name: string | null;
+  notes?: string | null;
   excluded?: boolean | null;
   /**
    * Satt när raden exkluderats manuellt från Planning. WMS får ALDRIG
@@ -312,7 +330,11 @@ export function planWmsPackingSync(
   for (const row of wmsRows) {
     seen.add(row.wmsLineId);
     const name = row.packageName ? `${row.name}` : row.name;
-    const notes = row.packageName ? `Ingår i paket: ${row.packageName}` : null;
+    const notes = row.packageName
+      ? row.relationshipKind === 'accessory'
+        ? `Tillbehör till paket: ${row.packageName}`
+        : `Paketmedlem i: ${row.packageName}`
+      : null;
     const existingRow = byLineId.get(row.wmsLineId);
 
     if (!existingRow) {
@@ -346,6 +368,7 @@ export function planWmsPackingSync(
     const patch: Record<string, unknown> = {};
     if (existingRow.quantity_to_pack !== row.quantity) patch.quantity_to_pack = row.quantity;
     if ((existingRow.manual_name || null) !== name) patch.manual_name = name;
+    if ((existingRow.notes || null) !== notes) patch.notes = notes;
     if ((existingRow.product_packable_default ?? true) !== row.productPackableDefault) {
       patch.product_packable_default = row.productPackableDefault;
     }
@@ -471,7 +494,7 @@ export async function syncPackingListFromWms(
   const wmsRows = flattenWmsPackingLines(body);
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
-    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, excluded, planning_excluded_at, source_booking_id, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by, booking_products(booking_id)')
+    .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, notes, excluded, planning_excluded_at, source_booking_id, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by, booking_products(booking_id)')
     .eq('packing_id', args.packingId)
     .eq('organization_id', args.organizationId);
   if (readErr) {

@@ -227,8 +227,9 @@ describe('Säkerhetsuppföljning (org-scope, restore-guard, audit)', () => {
   });
 
   it('UI bevarar WMS paketkontext', () => {
-    expect(view).toContain("item.notes?.match(/^Ingår i paket:");
-    expect(view).toContain('Ingår i paket: {wmsPackageName}');
+    expect(view).toContain('buildPackingHierarchy<PackingItem>(groupProductItems)');
+    expect(view).toContain('Paketmedlemmar');
+    expect(view).toContain('Tillbehör');
   });
 
   it('UI använder source_booking_id för WMS-gruppering', () => {
