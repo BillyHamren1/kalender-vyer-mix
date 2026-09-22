@@ -18,11 +18,11 @@ describe('PackingIntegrityBanner', () => {
     const { rerender, container } = render(
       <PackingIntegrityBanner integrity={null} packingId="pack-1" />,
     );
-    expect(container.textContent).toContain('Kontrollerar');
+    expect(container).toBeEmptyDOMElement();
 
     expect(() =>
       rerender(<PackingIntegrityBanner integrity={integrity} packingId="pack-1" />),
     ).not.toThrow();
-    expect(container.textContent).toContain('Packlistan får inte användas utan kontroll');
+    expect(container.querySelector('[aria-label="Visa problem med packlistan (1)"]')).not.toBeNull();
   });
 });

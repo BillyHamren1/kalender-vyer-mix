@@ -9,7 +9,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import BookingInfoExpanded from '@/components/project/BookingInfoExpanded';
 import ManualPackingChecklist from '@/components/packing/ManualPackingChecklist';
 import PackingIntegrityBanner from '@/components/packing/PackingIntegrityBanner';
-import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
 import WarehouseBookingQuickOpen from '@/components/warehouse/WarehouseBookingQuickOpen';
 import { usePackingList } from '@/hooks/usePackingList';
 import { PACKING_STATUS_COLORS, PACKING_STATUS_LABELS, type PackingStatus } from '@/types/packing';
@@ -252,12 +251,6 @@ const WarehouseBookingDetail = () => {
               onRefresh={refetchItems}
             />
 
-            <PackingPreflightPanel
-              packingId={activePacking.id}
-              bookingNumber={booking.booking_number}
-              className="border-border/60 shadow-sm"
-              autoRun
-            />
           </>
         )}
 
