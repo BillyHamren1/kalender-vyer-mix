@@ -143,6 +143,10 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     }
   }
 
+  if (hasActiveRows) {
+    return { ok: true, inserted: 0, updated: toUpdate.length, total: existing.length };
+  }
+
   const toInsert = candidates
     .filter((p: any) => {
       if (existingProductIds.has(p.id)) return false;
