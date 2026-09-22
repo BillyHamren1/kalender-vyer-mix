@@ -66,6 +66,12 @@ Deno.serve(async (req) => {
     // Operatörskörning (service-role → t.ex. underhållsskript/kö): aktören måste
     // pekas ut explicit och verifieras mot en riktig profil i samma organisation.
     // Ingen identitet hittas på — saknas eller matchar inte profilen körs WMS inte.
+    console.log('[sync-booking-to-packing] auth-probe', JSON.stringify({
+      hasToken: !!token,
+      tokenIsServiceRole: !!token && token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      hasActorUserId: !!body.actor_user_id,
+      hasAuthUser: !!actorUser,
+    }))
     if (!wmsActor && token && token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') && body.actor_user_id) {
       const { data: operatorProfile } = await supabase
         .from('profiles')
