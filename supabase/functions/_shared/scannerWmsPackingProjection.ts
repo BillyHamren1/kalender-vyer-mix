@@ -113,8 +113,11 @@ export async function fetchScannerWmsPackingProjection(
     );
   }
 
-  const rawLines = Array.isArray(body.raw_projection_lines)
-    ? body.raw_projection_lines.map((value) => {
+  const sourceProjectionLines: unknown[] = Array.isArray(body.raw_projection_lines)
+    ? body.raw_projection_lines
+    : [];
+  const rawLines = sourceProjectionLines.length > 0
+    ? sourceProjectionLines.map((value) => {
         const line = record(value);
         if (!line) return value;
         return {
@@ -127,7 +130,7 @@ export async function fetchScannerWmsPackingProjection(
           required_qty: line.requiredQuantity ?? line.quantity ?? 0,
           packed_count: line.packedQuantity ?? line.packed ?? 0,
           components: line.kind === "group"
-            ? body.raw_projection_lines
+            ? sourceProjectionLines
                 .map(record)
                 .filter((child) => child && (child.parentLineId ?? child.parentReservationLineId) === (line.reservationLineId ?? line.lineId))
                 .map((child) => ({

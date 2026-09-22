@@ -82,7 +82,7 @@ export async function fetchTimeWmsProjection(
 
   const rawBody = JSON.stringify(request);
   const timestamp = String(Math.floor((deps.now?.() ?? new Date()).getTime() / 1000));
-  const nonce = (deps.nonce?.() ?? crypto.randomUUID()).replaceAll('-', '');
+  const nonce = (deps.nonce?.() ?? crypto.randomUUID()).replace(/-/g, '');
   const signature = await hmacSha256Hex(
     deps.hmacSecret,
     `${timestamp}.${nonce}.${rawBody}`,
