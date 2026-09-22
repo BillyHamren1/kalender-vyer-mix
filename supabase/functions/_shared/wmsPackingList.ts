@@ -560,7 +560,8 @@ export async function syncPackingListFromWms(
   const body = snapshot.body;
   const reservationId = snapshot.reservationId;
 
-  const wmsRows = flattenWmsPackingLines(body);
+  const accessoryKeys = await fetchAccessoryIdentityKeys(supabase, args.sourceBookingId);
+  const wmsRows = applyAccessoryRelationships(flattenWmsPackingLines(body), accessoryKeys);
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
     .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, notes, excluded, planning_excluded_at, source_booking_id, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by, booking_products(booking_id)')
