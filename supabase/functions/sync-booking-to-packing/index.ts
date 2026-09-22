@@ -44,6 +44,25 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { booking_id, organization_id, target_packing_id } = body
 
+    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const { data: authData } = token ? await supabase.auth.getUser(token) : { data: null }
+    const actorUser = authData?.user || null
+    let wmsActor = null
+    if (actorUser) {
+      const { data: actorProfile } = await supabase
+        .from('profiles')
+        .select('organization_id, full_name')
+        .eq('user_id', actorUser.id)
+        .maybeSingle()
+      if (actorProfile?.organization_id === organization_id) {
+        wmsActor = {
+          organizationId: organization_id,
+          personnelId: actorUser.id,
+          label: actorProfile.full_name || actorUser.email || actorUser.id,
+        }
+      }
+    }
+
     if (!booking_id) {
       return new Response(
         JSON.stringify({ error: 'booking_id is required' }),
@@ -125,7 +144,7 @@ Deno.serve(async (req) => {
           { onConflict: 'packing_id,booking_id', ignoreDuplicates: true }
         )
 
-      const itemsSynced = await syncPackingListItems(supabase, target_packing_id, booking_id, organization_id)
+      const itemsSynced = await syncPackingListItems(supabase, target_packing_id, booking_id, organization_id, wmsActor)
       console.log(`[sync-booking-to-packing] Explicit target sync done: packing=${target_packing_id} booking=${booking_id} items=${itemsSynced}`)
 
       return new Response(
@@ -173,7 +192,7 @@ Deno.serve(async (req) => {
     if (linkedConsolidated?.packing_id) {
       const consolidatedId = linkedConsolidated.packing_id
       console.log(`[sync-booking-to-packing] Booking ${booking_id} belongs to consolidated packing ${consolidatedId} — syncing items into it`)
-      const itemsSynced = await syncPackingListItems(supabase, consolidatedId, booking_id, organization_id)
+      const itemsSynced = await syncPackingListItems(supabase, consolidatedId, booking_id, organization_id, wmsActor)
       return new Response(
         JSON.stringify({
           action: 'consolidated_synced',
@@ -257,7 +276,7 @@ Deno.serve(async (req) => {
     }
 
     // 5. Sync packing list items to match booking products
-    const itemsSynced = await syncPackingListItems(supabase, packingId, booking_id, organization_id)
+    const itemsSynced = await syncPackingListItems(supabase, packingId, booking_id, organization_id, wmsActor)
 
     console.log(`[sync-booking-to-packing] Done: action=${action}, packingId=${packingId}, itemsSynced=${itemsSynced}`)
 
@@ -290,7 +309,8 @@ async function syncPackingListItems(
   supabase: any,
   packingId: string,
   bookingId: string,
-  organizationId: string
+  organizationId: string,
+  actor: { organizationId: string; personnelId: string; label: string } | null,
 ): Promise<number> {
   // WMS-CANONICAL CUTOVER.
   // Booking writes the complete inventory reservation to WMS. Planning never
@@ -298,6 +318,7 @@ async function syncPackingListItems(
   // booking_products copy. Both projections are refreshed from the same WMS
   // reservation snapshot, and any WMS error aborts the sync visibly.
   const apiKey = Deno.env.get('PRICELIST_API_KEY') || ''
+  const hmacSecret = Deno.env.get('PLANNING_WMS_HMAC_SECRET') || ''
   if (!apiKey) {
     throw new Error('wms_not_configured: PRICELIST_API_KEY saknas')
   }
@@ -320,6 +341,9 @@ async function syncPackingListItems(
     organizationId,
     bookingNumber: canonicalBooking.booking_number,
     apiKey,
+    hmacSecret,
+    actor,
+    deviceId: actor ? `planning-web:${actor.personnelId}` : '',
   })
   let wmsProjectionFailed = false
   if (!projectProjection.ok) {
@@ -396,6 +420,9 @@ async function syncPackingListItems(
         bookingNumber: canonicalBooking.booking_number,
         sourceBookingId: bookingId,
         apiKey,
+        hmacSecret,
+        actor,
+        deviceId: actor ? `planning-web:${actor.personnelId}` : '',
       })
 
   if (!packingProjection.ok) {

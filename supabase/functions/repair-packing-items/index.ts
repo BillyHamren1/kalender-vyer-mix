@@ -31,8 +31,8 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('organization_id')
-      .eq('id', user.id)
+      .select('organization_id, full_name')
+      .eq('user_id', user.id)
       .maybeSingle()
     if (!profile?.organization_id) return json({ error: 'Organization access required' }, 403)
 
@@ -40,7 +40,17 @@ Deno.serve(async (req) => {
     const packingId: string | null = body?.packing_id || null
     if (!packingId) return json({ error: 'packing_id is required' }, 400)
 
-    const result = await repairPackingItems(supabase, packingId, profile.organization_id)
+    const result = await repairPackingItems(
+      supabase,
+      packingId,
+      profile.organization_id,
+      {
+        organizationId: profile.organization_id,
+        personnelId: user.id,
+        label: profile.full_name || user.email || user.id,
+      },
+      `planning-web:${user.id}`,
+    )
     console.log('[repair-packing-items]', packingId, JSON.stringify(result))
 
     if (!result.ok) {

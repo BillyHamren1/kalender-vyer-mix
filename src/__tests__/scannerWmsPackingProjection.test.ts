@@ -3,14 +3,12 @@ import type { WmsCallDeps } from "../../supabase/functions/_shared/wmsPackingLis
 import { fetchScannerWmsPackingProjection } from "../../supabase/functions/_shared/scannerWmsPackingProjection";
 
 function fakeFetch(
-  reservationBody: unknown,
   packingBody: unknown,
   packingStatus = 200
 ): typeof fetch {
-  return (async (url: string | URL | Request) => {
-    const isPacking = String(url).includes("/get-packing-list?");
-    const body = isPacking ? packingBody : reservationBody;
-    const status = isPacking ? packingStatus : 200;
+  return (async () => {
+    const body = packingBody;
+    const status = packingStatus;
     return {
       ok: status >= 200 && status < 300,
       status,
@@ -22,7 +20,11 @@ function fakeFetch(
 const deps = (fetchImpl: typeof fetch): WmsCallDeps => ({
   apiKey: "server-only-key",
   organizationId: "org-1",
-  baseUrl: "https://wms.invalid/functions/v1",
+  bookingId: "booking-1",
+  hmacSecret: "test-secret-at-least-16-characters",
+  actor: { organizationId: "org-1", personnelId: "user-1", label: "Testare" },
+  deviceId: "planning-web:user-1",
+  projectionUrl: "https://wms.invalid/outbound/projection",
   fetchImpl,
 });
 
@@ -35,17 +37,13 @@ describe("fetchScannerWmsPackingProjection", () => {
     const result = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
-        fakeFetch(reservation, {
-          reservation: { id: "res-1" },
+        fakeFetch({
+          bookingId: "booking-1", reservationId: "res-1", revision: 1,
           lines: [
             {
-              line_id: "rl-1",
-              type: "item_type",
-              item_type_id: "it-1",
-              name: "Lampa",
-              required_qty: 4,
-              packed_count: 2,
-              parent_line_id: null,
+              reservationLineId: "rl-1", kind: "line", parentLineId: null,
+              itemTypeId: "it-1", label: "Lampa", requiredQuantity: 4,
+              packedQuantity: 2,
             },
           ],
         })
@@ -73,25 +71,20 @@ describe("fetchScannerWmsPackingProjection", () => {
     });
   });
 
-  it("skickar tenant och servernyckel endast server-till-server", async () => {
+  it("skickar signerad tenant- och actor-bunden POST endast server-till-server", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = (async (
       url: string | URL | Request,
       init?: RequestInit
     ) => {
       calls.push({ url: String(url), init });
-      const body =
-        calls.length === 1
-          ? reservation
-          : {
-              reservation: { id: "res-1" },
+      const body = {
+              bookingId: "booking-1", reservationId: "res-1", revision: 1,
               lines: [
                 {
-                  line_id: "rl-1",
-                  type: "item_type",
-                  item_type_id: "it-1",
-                  required_qty: 1,
-                  packed_count: 0,
+                  reservationLineId: "rl-1", kind: "line", parentLineId: null,
+                  itemTypeId: "it-1", label: "Lampa", requiredQuantity: 1,
+                  packedQuantity: 0,
                 },
               ],
             };
@@ -103,24 +96,34 @@ describe("fetchScannerWmsPackingProjection", () => {
     }) as typeof fetch;
 
     await fetchScannerWmsPackingProjection("B-100", deps(fetchImpl));
-    expect(calls).toHaveLength(2);
-    for (const call of calls) {
-      expect(call.init?.headers).toMatchObject({
-        Authorization: "Bearer server-only-key",
-        "x-organization-id": "org-1",
-      });
-    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://wms.invalid/outbound/projection");
+    expect(calls[0].init?.method).toBe("POST");
+    expect(calls[0].init?.headers).toMatchObject({
+      "content-type": "application/json",
+      "x-time-timestamp": expect.any(String),
+      "x-time-nonce": expect.any(String),
+      "x-time-signature": expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      schema: "time-wms-outbound-projection-request.v1",
+      bookingId: "booking-1",
+      bookingNumber: "B-100",
+      reservationId: null,
+      deviceId: "planning-web:user-1",
+      actor: { organizationId: "org-1", personnelId: "user-1", label: "Testare" },
+    });
   });
 
   it("blockerar hela svaret när reservations-ID ändras mellan läsningarna", async () => {
     const result = await fetchScannerWmsPackingProjection(
       "B-100",
-      deps(fakeFetch(reservation, { reservation: { id: "res-2" }, lines: [] }))
+      deps(fakeFetch({ bookingId: "booking-1", reservationId: "res-2", revision: 1, lines: [] }))
     );
     expect(result).toMatchObject({
       ok: false,
-      reservationId: "res-1",
-      code: "wms_reservation_mismatch",
+      reservationId: "res-2",
+      code: "wms_bad_response",
       lines: [],
     });
   });
@@ -129,23 +132,17 @@ describe("fetchScannerWmsPackingProjection", () => {
     const result = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
-        fakeFetch(reservation, {
-          reservation: { id: "res-1" },
+        fakeFetch({
+          bookingId: "booking-1", reservationId: "res-1", revision: 1,
           lines: [
             {
-              line_id: "rl-package",
-              type: "package",
-              package_id: "pkg-1",
-              required_qty: 3,
-              packed_count: 1,
-              components: [
-                {
-                  item_type_id: "it-component",
-                  name_sv: "Paketdel",
-                  required_qty: 3,
-                  packed_count: 1,
-                },
-              ],
+              reservationLineId: "rl-package", kind: "group", parentLineId: null,
+              label: "Paket", requiredQuantity: 3, packedQuantity: 1,
+            },
+            {
+              reservationLineId: "rl-component", kind: "line", parentLineId: "rl-package",
+              itemTypeId: "it-component", label: "Paketdel", requiredQuantity: 3,
+              packedQuantity: 1,
             },
           ],
         })
@@ -177,16 +174,20 @@ describe("fetchScannerWmsPackingProjection", () => {
     const result = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
-        fakeFetch(reservation, {
-          reservation: { id: "res-1" },
+        fakeFetch({
+          bookingId: "booking-1", reservationId: "res-1", revision: 1,
           lines: [
             {
-              line_id: "rl-package",
-              type: "package",
-              components: [
-                { item_type_id: "it-1", required_qty: 1, packed_count: 0 },
-                { item_type_id: "it-1", required_qty: 1, packed_count: 0 },
-              ],
+              reservationLineId: "rl-package", kind: "group", parentLineId: null,
+              label: "Paket", requiredQuantity: 1, packedQuantity: 0,
+            },
+            {
+              reservationLineId: "rl-component-1", kind: "line", parentLineId: "rl-package",
+              itemTypeId: "it-1", label: "Del", requiredQuantity: 1, packedQuantity: 0,
+            },
+            {
+              reservationLineId: "rl-component-2", kind: "line", parentLineId: "rl-package",
+              itemTypeId: "it-1", label: "Del", requiredQuantity: 1, packedQuantity: 0,
             },
           ],
         })
@@ -203,11 +204,11 @@ describe("fetchScannerWmsPackingProjection", () => {
     const duplicate = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
-        fakeFetch(reservation, {
-          reservation: { id: "res-1" },
+        fakeFetch({
+          bookingId: "booking-1", reservationId: "res-1", revision: 1,
           lines: [
-            { line_id: "rl-1", type: "item_type", item_type_id: "it-1" },
-            { line_id: "rl-1", type: "item_type", item_type_id: "it-2" },
+            { reservationLineId: "rl-1", kind: "line", parentLineId: null, itemTypeId: "it-1", label: "A", requiredQuantity: 1, packedQuantity: 0 },
+            { reservationLineId: "rl-1", kind: "line", parentLineId: null, itemTypeId: "it-2", label: "B", requiredQuantity: 1, packedQuantity: 0 },
           ],
         })
       )
@@ -221,9 +222,9 @@ describe("fetchScannerWmsPackingProjection", () => {
     const missingType = await fetchScannerWmsPackingProjection(
       "B-100",
       deps(
-        fakeFetch(reservation, {
-          reservation: { id: "res-1" },
-          lines: [{ line_id: "rl-1", type: "item_type", item_type_id: null }],
+        fakeFetch({
+          bookingId: "booking-1", reservationId: "res-1", revision: 1,
+          lines: [{ reservationLineId: "rl-1", kind: "line", parentLineId: null, itemTypeId: null, label: "A", requiredQuantity: 1, packedQuantity: 0 }],
         })
       )
     );
@@ -243,14 +244,14 @@ describe("fetchScannerWmsPackingProjection", () => {
       const result = await fetchScannerWmsPackingProjection(
         "B-100",
         deps(
-          fakeFetch(reservation, {
-            reservation: { id: "res-1" },
+          fakeFetch({
+            bookingId: "booking-1", reservationId: "res-1", revision: 1,
             lines: [
               {
-                line_id: "rl-1",
-                type: "item_type",
-                item_type_id: "it-1",
-                ...line,
+                reservationLineId: "rl-1", kind: "line", parentLineId: null,
+                itemTypeId: "it-1", label: "A",
+                requiredQuantity: line.required_qty,
+                packedQuantity: line.packed_count,
               },
             ],
           })

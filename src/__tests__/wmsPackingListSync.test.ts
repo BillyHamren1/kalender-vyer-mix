@@ -357,13 +357,28 @@ describe('syncPackingListFromWms', () => {
       bookingNumber: '2609-9',
       sourceBookingId: 'booking1',
       apiKey: 'k',
+      hmacSecret: 'test-secret-at-least-16-characters',
+      actor: { organizationId: 'org1', personnelId: 'user1', label: 'Testare' },
+      deviceId: 'planning-web:user1',
+      projectionUrl: 'https://wms.invalid/outbound/projection',
+      now: () => new Date('2026-09-22T10:00:00.000Z'),
+      nonce: () => 'nonce123456789012',
       fetchImpl: fakeFetch({
-        'get-reservation?': { body: { data: { reservation: { id: 'uuid-1' } } } },
-        'get-packing-list': { body: wmsBody },
+        '/outbound/projection': { body: {
+          bookingId: 'booking1',
+          reservationId: 'uuid-1',
+          revision: 1,
+          lines: [
+            { reservationLineId: 'l1', kind: 'line', parentLineId: null, label: 'Vägg 3m', requiredQuantity: 6, packedQuantity: 0, itemTypeId: 'it1', sku: 'V3' },
+            { reservationLineId: 'l2', kind: 'group', parentLineId: null, label: 'Tältpaket', requiredQuantity: 2, packedQuantity: 0, packageId: 'pkg1' },
+            { reservationLineId: 'l2-c1', kind: 'line', parentLineId: 'l2', label: 'Tältduk', requiredQuantity: 2, packedQuantity: 0, itemTypeId: 'it2', relationshipKind: 'package_member' },
+            { reservationLineId: 'l2-c2', kind: 'line', parentLineId: 'l2', label: 'Ben', requiredQuantity: 8, packedQuantity: 0, itemTypeId: 'it3', relationshipKind: 'package_member' },
+          ],
+        } },
       }),
     });
-    expect(res).toMatchObject({ ok: true, reservationId: 'uuid-1', inserted: 4, total: 4 });
-    expect(client.inserted).toHaveLength(4);
+    expect(res).toMatchObject({ ok: true, reservationId: 'uuid-1', inserted: 3, total: 3 });
+    expect(client.inserted).toHaveLength(3);
   });
 
   it('rapporterar WMS-fel ärligt istället för att skapa lokala rader', async () => {
@@ -374,9 +389,12 @@ describe('syncPackingListFromWms', () => {
       bookingNumber: '2609-9',
       sourceBookingId: 'booking1',
       apiKey: 'k',
+      hmacSecret: 'test-secret-at-least-16-characters',
+      actor: { organizationId: 'org1', personnelId: 'user1', label: 'Testare' },
+      deviceId: 'planning-web:user1',
+      projectionUrl: 'https://wms.invalid/outbound/projection',
       fetchImpl: fakeFetch({
-        'get-reservation?': { body: { data: { reservation: { id: 'uuid-1' } } } },
-        'get-packing-list': { status: 500, body: { error: 'boom' } },
+        '/outbound/projection': { status: 500, body: { error: 'boom' } },
       }),
     });
     expect(res.ok).toBe(false);

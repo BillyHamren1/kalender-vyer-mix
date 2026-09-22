@@ -8,6 +8,7 @@
 
 ## Packlistans paketstruktur
 - [x] Återställ paketnamn och separera paketmedlemmar från tillbehör i Lager och utskrift, utan delete eller ändrad packstatus.
+- [ ] Byt trasig WMS-packlistehämtning till signerad Time-WMS-projektion med `PLANNING_WMS_HMAC_SECRET`; testa idempotens och deploya berörda funktioner.
 
 ## Klart denna körning
 - [x] Steg 1: signerad `status` 200 med seed-kid (e2Ma2…) genom deployad proxy.

@@ -17,6 +17,7 @@
  */
 
 import { syncPackingListFromWms } from './wmsPackingList.ts';
+import type { TimeWmsActor } from './timeWmsProjection.ts';
 import { ensureMissingPackingRowsFromBookingProducts } from './packingFailSafe.ts';
 
 export const REPAIRABLE_PACKING_STATUSES = ['planning', 'in_progress'] as const;
@@ -50,6 +51,8 @@ export async function repairPackingItems(
   supabase: any,
   packingId: string,
   organizationId: string,
+  actor?: TimeWmsActor,
+  deviceId?: string,
 ): Promise<PackingRepairResult> {
   const { data: packing, error: packErr } = await supabase
     .from('packing_projects')
@@ -79,6 +82,7 @@ export async function repairPackingItems(
 
   // ── 1) WMS-reservationen är kanonisk källa ──────────────────────────────
   const apiKey = (globalThis as any)?.Deno?.env?.get?.('PRICELIST_API_KEY') || '';
+  const hmacSecret = (globalThis as any)?.Deno?.env?.get?.('PLANNING_WMS_HMAC_SECRET') || '';
   const { data: bookingRow, error: bookingError } = await supabase
     .from('bookings')
     .select('booking_number')
@@ -97,13 +101,16 @@ export async function repairPackingItems(
   }
   const bookingNumber = (bookingRow as any)?.booking_number || null;
 
-  if (apiKey && bookingNumber) {
+  if (apiKey && hmacSecret && bookingNumber && actor && deviceId) {
     const wms = await syncPackingListFromWms(supabase, {
       packingId,
       organizationId,
       bookingNumber,
       sourceBookingId: packing.booking_id,
       apiKey,
+      hmacSecret,
+      actor,
+      deviceId,
     });
     if (wms.ok) {
       return {
