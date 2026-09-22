@@ -1,4 +1,10 @@
 // @ts-nocheck
+import {
+  buildTimeWmsProjectionRequest,
+  fetchTimeWmsProjection,
+  normalizeTimeWmsProjectionBody,
+  type TimeWmsActor,
+} from './timeWmsProjection.ts';
 /**
  * wmsPackingList — KANONISK källa för packlistan.
  *
@@ -25,8 +31,15 @@ export const WMS_BASE_URL = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/
 export interface WmsCallDeps {
   apiKey: string;
   organizationId: string;
+  hmacSecret?: string;
+  bookingId?: string;
+  actor?: TimeWmsActor;
+  deviceId?: string;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
+  projectionUrl?: string;
+  now?: () => Date;
+  nonce?: () => string;
 }
 
 export type WmsFailureCode =
@@ -448,48 +461,34 @@ export async function syncPackingListFromWms(
     bookingNumber: string;
     sourceBookingId: string;
     apiKey: string;
+    hmacSecret: string;
+    actor: TimeWmsActor;
+    deviceId: string;
     fetchImpl?: typeof fetch;
     baseUrl?: string;
+    projectionUrl?: string;
+    now?: () => Date;
+    nonce?: () => string;
   },
 ): Promise<WmsPackingSyncResult> {
   const deps: WmsCallDeps = {
     apiKey: args.apiKey,
     organizationId: args.organizationId,
+    hmacSecret: args.hmacSecret,
+    bookingId: args.sourceBookingId,
+    actor: args.actor,
+    deviceId: args.deviceId,
     fetchImpl: args.fetchImpl,
     baseUrl: args.baseUrl,
+    projectionUrl: args.projectionUrl,
+    now: args.now,
+    nonce: args.nonce,
   };
 
-  const reservation = await resolveWmsReservation(args.bookingNumber, deps);
-  if (!reservation.ok) {
-    return { ok: false, code: reservation.code, error: reservation.error };
-  }
-
-  const f = args.fetchImpl || fetch;
-  const base = args.baseUrl || WMS_BASE_URL;
-  let body: any;
-  try {
-    const resp = await f(
-      `${base}/get-packing-list?reservation_id=${encodeURIComponent(reservation.reservationId!)}`,
-      { headers: headers(deps) },
-    );
-    const text = await resp.text();
-    try { body = JSON.parse(text); } catch { body = null; }
-    if (!resp.ok) {
-      return {
-        ok: false,
-        code: 'wms_unavailable',
-        error: body?.error || `HTTP ${resp.status}`,
-        reservationId: reservation.reservationId,
-      };
-    }
-  } catch (err: any) {
-    return {
-      ok: false,
-      code: 'wms_unavailable',
-      error: err?.message || 'network_error',
-      reservationId: reservation.reservationId,
-    };
-  }
+  const snapshot = await fetchWmsPackingBody(args.bookingNumber, deps);
+  if (!snapshot.ok || !snapshot.body) return snapshot;
+  const body = snapshot.body;
+  const reservationId = snapshot.reservationId;
 
   const wmsRows = flattenWmsPackingLines(body);
   const { data: existing, error: readErr } = await supabase
@@ -498,7 +497,7 @@ export async function syncPackingListFromWms(
     .eq('packing_id', args.packingId)
     .eq('organization_id', args.organizationId);
   if (readErr) {
-    return { ok: false, code: 'db_error', error: readErr.message, reservationId: reservation.reservationId };
+    return { ok: false, code: 'db_error', error: readErr.message, reservationId };
   }
 
   const { count: linkedBookingCount } = await supabase
@@ -518,7 +517,7 @@ export async function syncPackingListFromWms(
   if (plan.inserts.length > 0) {
     const { error } = await supabase.from('packing_list_items').insert(plan.inserts);
     if (error) {
-      return { ok: false, code: 'db_error', error: error.message, reservationId: reservation.reservationId };
+      return { ok: false, code: 'db_error', error: error.message, reservationId };
     }
   }
   for (const u of plan.updates) {
@@ -528,7 +527,7 @@ export async function syncPackingListFromWms(
       .eq('id', u.id)
       .eq('organization_id', args.organizationId);
     if (error) {
-      return { ok: false, code: 'db_error', error: error.message, reservationId: reservation.reservationId };
+      return { ok: false, code: 'db_error', error: error.message, reservationId };
     }
   }
   if (plan.staleIds.length > 0) {
@@ -541,7 +540,7 @@ export async function syncPackingListFromWms(
 
   return {
     ok: true,
-    reservationId: reservation.reservationId,
+    reservationId,
     inserted: plan.inserts.length,
     updated: plan.updates.length,
     excluded: plan.staleIds.length,
@@ -755,47 +754,37 @@ export function flattenWmsProjectProducts(body: any): WmsProjectProduct[] {
   return rows;
 }
 
-async function fetchWmsPackingBody(
+export async function fetchWmsPackingBody(
   bookingNumber: string,
   deps: WmsCallDeps,
 ): Promise<{ ok: boolean; body?: any; reservationId?: string; code?: WmsFailureCode; error?: string }> {
-  const reservation = await resolveWmsReservation(bookingNumber, deps);
-  if (!reservation.ok) return reservation;
-  const f = deps.fetchImpl || fetch;
-  const base = deps.baseUrl || WMS_BASE_URL;
-  try {
-    const resp = await f(
-      `${base}/get-packing-list?reservation_id=${encodeURIComponent(reservation.reservationId!)}`,
-      { headers: headers(deps) },
-    );
-    const text = await resp.text();
-    let body: any = null;
-    try { body = JSON.parse(text); } catch { /* handled below */ }
-    if (!resp.ok) {
-      return {
-        ok: false,
-        code: 'wms_unavailable',
-        error: body?.error || `HTTP ${resp.status}`,
-        reservationId: reservation.reservationId,
-      };
-    }
-    if (!body) {
-      return {
-        ok: false,
-        code: 'wms_bad_response',
-        error: 'WMS packlista kunde inte tolkas',
-        reservationId: reservation.reservationId,
-      };
-    }
-    return { ok: true, body, reservationId: reservation.reservationId };
-  } catch (err: any) {
-    return {
-      ok: false,
-      code: 'wms_unavailable',
-      error: err?.message || 'network_error',
-      reservationId: reservation.reservationId,
-    };
+  if (!deps.bookingId || !deps.actor || !deps.deviceId) {
+    return { ok: false, code: 'wms_bad_response', error: 'WMS-anropet saknar verifierad scope eller aktör' };
   }
+  if (deps.actor.organizationId !== deps.organizationId) {
+    return { ok: false, code: 'wms_bad_response', error: 'WMS-aktören tillhör fel organisation' };
+  }
+  const result = await fetchTimeWmsProjection(
+    buildTimeWmsProjectionRequest({
+      bookingId: deps.bookingId,
+      bookingNumber,
+      deviceId: deps.deviceId,
+      actor: deps.actor,
+    }),
+    {
+      hmacSecret: deps.hmacSecret || '',
+      fetchImpl: deps.fetchImpl,
+      endpoint: deps.projectionUrl,
+      now: deps.now,
+      nonce: deps.nonce,
+    },
+  );
+  if (!result.ok) return result;
+  const body = normalizeTimeWmsProjectionBody(result.body);
+  if (!body) return { ok: false, code: 'wms_bad_response', error: 'WMS-projektionen saknar rader' };
+  const reservationId = body?.reservation?.id;
+  if (!reservationId) return { ok: false, code: 'wms_bad_response', error: 'WMS-projektionen saknar reservationId' };
+  return { ok: true, body, reservationId };
 }
 
 /**
@@ -811,15 +800,28 @@ export async function syncBookingProductsFromWms(
     organizationId: string;
     bookingNumber: string;
     apiKey: string;
+    hmacSecret: string;
+    actor: TimeWmsActor;
+    deviceId: string;
     fetchImpl?: typeof fetch;
     baseUrl?: string;
+    projectionUrl?: string;
+    now?: () => Date;
+    nonce?: () => string;
   },
 ): Promise<{ ok: boolean; code?: WmsFailureCode | 'db_error'; error?: string; total?: number; inserted?: number; updated?: number; retired?: number; reservationId?: string }> {
   const snapshot = await fetchWmsPackingBody(args.bookingNumber, {
     apiKey: args.apiKey,
     organizationId: args.organizationId,
+    hmacSecret: args.hmacSecret,
+    bookingId: args.bookingId,
+    actor: args.actor,
+    deviceId: args.deviceId,
     fetchImpl: args.fetchImpl,
     baseUrl: args.baseUrl,
+    projectionUrl: args.projectionUrl,
+    now: args.now,
+    nonce: args.nonce,
   });
   if (!snapshot.ok) return snapshot as any;
 

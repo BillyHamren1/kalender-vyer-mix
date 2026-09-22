@@ -45,7 +45,9 @@ describe('packing repair', () => {
     expect(scanner).toContain("case 'repair_packing_items'");
     expect(scanner).toContain("import { repairPackingItems } from '../_shared/packingRepair.ts'");
     const fn = read('supabase/functions/repair-packing-items/index.ts');
-    expect(fn).toContain('repairPackingItems(supabase, packingId, profile.organization_id)');
+    expect(fn).toContain('repairPackingItems(');
+    expect(fn).toContain('personnelId: user.id');
+    expect(fn).toContain('`planning-web:${user.id}`');
   });
 
   it('vanlig synk fyller automatiskt en tom/orörd lista (Uppdatera räcker)', () => {

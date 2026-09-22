@@ -28,7 +28,7 @@ describe('Planning-produktprojektion får aldrig bli tom', () => {
     expect(src).not.toMatch(/\.delete\(/);
     expect(src).toContain('.update(update.values)');
     expect(src).toContain('warehouse_packability_override');
-    expect(src).toContain("packability_source: source");
+    expect(src).toContain('values.packability_source = source');
     expect(src).toContain('quantity_packed: 0');
   });
 });

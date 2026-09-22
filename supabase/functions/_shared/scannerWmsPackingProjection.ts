@@ -5,8 +5,7 @@
  * It never writes Planning rows and never constructs identifiers.
  */
 import {
-  resolveWmsReservation,
-  WMS_BASE_URL,
+  fetchWmsPackingBody,
   type WmsCallDeps,
   type WmsFailureCode,
 } from "./wmsPackingList.ts";
@@ -23,7 +22,7 @@ export interface ScannerWmsPackingLine {
   displayName: string;
   quantityReserved: number;
   quantityPicked: number;
-  /** get-packing-list does not prove a returned quantity. Never assume zero. */
+  /** Projektionen bevisar inte ett returnerat antal. Anta aldrig noll. */
   quantityReturned: null;
   parentReservationLineId: string | null;
   source: "bundle_wms";
@@ -80,72 +79,22 @@ function failure(
   return { ok: false, reservationId, lines: [], code, error };
 }
 
-function serverHeaders(deps: WmsCallDeps): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${deps.apiKey}`,
-    "x-organization-id": deps.organizationId,
-  };
-}
-
 /** Returns only a complete physical list with canonical owner IDs. */
 export async function fetchScannerWmsPackingProjection(
   bookingNumber: string,
   deps: WmsCallDeps
 ): Promise<ScannerWmsPackingProjection> {
-  const reservation = await resolveWmsReservation(bookingNumber, deps);
-  if (!reservation.ok || !reservation.reservationId) {
+  const snapshot = await fetchWmsPackingBody(bookingNumber, deps);
+  if (!snapshot.ok || !snapshot.reservationId || !snapshot.body) {
     return failure(
       null,
-      reservation.code ?? "wms_bad_response",
-      reservation.error ?? "WMS reservation could not be verified"
+      snapshot.code ?? "wms_bad_response",
+      snapshot.error ?? "WMS projection could not be verified"
     );
   }
 
-  const reservationId = reservation.reservationId;
-  const fetchImpl = deps.fetchImpl ?? fetch;
-  const baseUrl = deps.baseUrl ?? WMS_BASE_URL;
-  let response: Response;
-  try {
-    response = await fetchImpl(
-      `${baseUrl}/get-packing-list?reservation_id=${encodeURIComponent(
-        reservationId
-      )}`,
-      { headers: serverHeaders(deps) }
-    );
-  } catch (error: unknown) {
-    return failure(
-      reservationId,
-      "wms_unavailable",
-      error instanceof Error ? error.message : "network_error"
-    );
-  }
-
-  const text = await response.text();
-  let parsed: unknown = null;
-  try {
-    parsed = JSON.parse(text) as unknown;
-  } catch {
-    // Reported as a bad response below.
-  }
-  const body = record(parsed);
-  if (!response.ok) {
-    const upstreamError = body ? body.error : null;
-    return failure(
-      reservationId,
-      "wms_unavailable",
-      typeof upstreamError === "string"
-        ? upstreamError
-        : `HTTP ${response.status}`
-    );
-  }
-  if (!body) {
-    return failure(
-      reservationId,
-      "wms_bad_response",
-      "WMS packing list is not an object"
-    );
-  }
+  const reservationId = snapshot.reservationId;
+  const body = record(snapshot.body)!;
 
   const bodyReservation = record(body.reservation);
   const bodyReservationId = exactOwnerId(bodyReservation?.id);
@@ -164,7 +113,34 @@ export async function fetchScannerWmsPackingProjection(
     );
   }
 
-  const rawLines = body.lines;
+  const rawLines = Array.isArray(body.raw_projection_lines)
+    ? body.raw_projection_lines.map((value) => {
+        const line = record(value);
+        if (!line) return value;
+        return {
+          ...line,
+          line_id: line.reservationLineId ?? line.lineId,
+          parent_line_id: line.parentLineId ?? line.parentReservationLineId ?? null,
+          type: line.kind === "group" ? "package" : "item_type",
+          item_type_id: line.itemTypeId ?? line.inventoryTypeId ?? line.inventory_type_id ?? null,
+          name: line.label ?? line.name ?? "",
+          required_qty: line.requiredQuantity ?? line.quantity ?? 0,
+          packed_count: line.packedQuantity ?? line.packed ?? 0,
+          components: line.kind === "group"
+            ? body.raw_projection_lines
+                .map(record)
+                .filter((child) => child && (child.parentLineId ?? child.parentReservationLineId) === (line.reservationLineId ?? line.lineId))
+                .map((child) => ({
+                  ...child,
+                  item_type_id: child!.itemTypeId ?? child!.inventoryTypeId ?? child!.inventory_type_id ?? null,
+                  name_sv: child!.label ?? child!.name ?? "",
+                  required_qty: child!.requiredQuantity ?? child!.quantity ?? 0,
+                  packed_count: child!.packedQuantity ?? child!.packed ?? 0,
+                }))
+            : undefined,
+        };
+      })
+    : body.lines;
   const sourceLineIds = new Set<string>();
   for (const value of rawLines) {
     const line = record(value);
@@ -184,6 +160,7 @@ export async function fetchScannerWmsPackingProjection(
       );
     }
     sourceLineIds.add(lineId);
+    if (line.parent_line_id != null) continue;
     if (line.type === "package") {
       if (!Array.isArray(line.components) || line.components.length === 0) {
         return failure(
@@ -291,6 +268,8 @@ export async function fetchScannerWmsPackingProjection(
       }
       continue;
     }
+
+    if (parentReservationLineId) continue;
 
     const failed = appendPhysicalLine(
       line,

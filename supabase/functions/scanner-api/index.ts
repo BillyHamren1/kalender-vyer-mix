@@ -1224,7 +1224,17 @@ Deno.serve(async (req) => {
         const { packingId } = params
         if (!packingId) return json({ success: false, error: 'packingId krävs' })
 
-        const result = await repairPackingItems(supabase, packingId, ORG_ID)
+        const result = await repairPackingItems(
+          supabase,
+          packingId,
+          ORG_ID,
+          {
+            organizationId: ORG_ID,
+            personnelId: auth.staffId,
+            label: auth.staffName,
+          },
+          `planning-scanner:${auth.staffId}`,
+        )
         console.log('[scanner-api repair_packing_items]', packingId, JSON.stringify(result))
         if (!result.ok) return json({ success: false, error: result.error, code: result.code })
         return json({ success: true, inserted: result.inserted, total: result.total })
