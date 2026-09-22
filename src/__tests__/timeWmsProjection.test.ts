@@ -49,14 +49,15 @@ describe('Time-WMS projection transport', () => {
       deviceId: 'planning-web:11111111-1111-4111-8111-111111111111',
       actor,
     });
+    const isoTimestamp = new Date(1790078400 * 1000).toISOString();
     const expected = await hmacSha256Hex(
       secret,
-      `1790078400.nonce123456789012.${rawBody}`,
+      `${isoTimestamp}.nonce123456789012.${rawBody}`,
     );
     expect(calls[0].init?.headers).toEqual({
       'content-type': 'application/json',
       accept: 'application/json',
-      'x-time-timestamp': '1790078400',
+      'x-time-timestamp': isoTimestamp,
       'x-time-nonce': 'nonce123456789012',
       'x-time-signature': expected,
     });

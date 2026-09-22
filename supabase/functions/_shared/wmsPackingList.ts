@@ -211,6 +211,88 @@ export function normalizePackability(node: any, inherited?: any): PackabilitySna
 }
 
 /**
+ * Tillbehör vs paketmedlem.
+ *
+ * WMS-reservationen vet bara att en rad hänger under ett paket — den skiljer
+ * inte paketets fasta delar från tillbehör som sålts till paketet. Den
+ * skillnaden finns i Booking-raderna (`booking_products`): ett tillbehör har
+ * en förälder men är inte paketkomponent. Vi läser den relationen därifrån och
+ * märker WMS-raderna, så lagret visar "Tillbehör till paket: X" i stället för
+ * att allt hamnar som paketmedlem.
+ */
+export interface AccessoryIdentityKeys {
+  /** Nyckel (sku/item_type_id/namn, gemener) → paketets namn i Booking. */
+  packageNameByKey: Map<string, string>;
+}
+
+export const EMPTY_ACCESSORY_KEYS: AccessoryIdentityKeys = { packageNameByKey: new Map() };
+
+export function buildAccessoryIdentityKeys(
+  bookingProducts: Array<{
+    id?: string | null;
+    name?: string | null;
+    sku?: string | null;
+    inventory_item_type_id?: string | null;
+    parent_product_id?: string | null;
+    is_package_component?: boolean | null;
+  }>,
+): AccessoryIdentityKeys {
+  const nameById = new Map<string, string>();
+  for (const product of bookingProducts) {
+    if (product?.id && product.name) nameById.set(String(product.id), String(product.name));
+  }
+  const packageNameByKey = new Map<string, string>();
+  for (const product of bookingProducts) {
+    if (!product?.parent_product_id) continue;
+    if (product.is_package_component === true) continue;
+    const packageName = nameById.get(String(product.parent_product_id)) ?? '';
+    if (!packageName) continue;
+    if (product.sku) packageNameByKey.set(String(product.sku).trim().toLowerCase(), packageName);
+    if (product.inventory_item_type_id) {
+      packageNameByKey.set(String(product.inventory_item_type_id).toLowerCase(), packageName);
+    }
+    if (product.name) packageNameByKey.set(String(product.name).trim().toLowerCase(), packageName);
+  }
+  return { packageNameByKey };
+}
+
+export function applyAccessoryRelationships(
+  rows: WmsPackingRow[],
+  keys: AccessoryIdentityKeys,
+): WmsPackingRow[] {
+  if (keys.packageNameByKey.size === 0) return rows;
+  return rows.map((row) => {
+    if (row.relationshipKind === 'package_member' && row.packageName) {
+      // Paketets egna komponenter kommer från WMS-paketet och rörs aldrig.
+      const memberKey = String(row.sku ?? '').trim().toLowerCase();
+      const memberHit = memberKey ? keys.packageNameByKey.get(memberKey) : undefined;
+      if (!memberHit) return row;
+      return { ...row, relationshipKind: 'accessory' as const, packageName: memberHit };
+    }
+    if (row.relationshipKind === 'accessory' && row.packageName) return row;
+    const hit =
+      (row.sku ? keys.packageNameByKey.get(String(row.sku).trim().toLowerCase()) : undefined) ??
+      (row.itemTypeId ? keys.packageNameByKey.get(String(row.itemTypeId).toLowerCase()) : undefined) ??
+      keys.packageNameByKey.get(String(row.name).trim().toLowerCase());
+    if (!hit) return row;
+    return { ...row, relationshipKind: 'accessory' as const, packageName: hit };
+  });
+}
+
+export async function fetchAccessoryIdentityKeys(
+  supabase: any,
+  bookingId: string,
+): Promise<AccessoryIdentityKeys> {
+  if (!bookingId) return EMPTY_ACCESSORY_KEYS;
+  const { data, error } = await supabase
+    .from('booking_products')
+    .select('id, name, sku, inventory_item_type_id, parent_product_id, is_package_component')
+    .eq('booking_id', bookingId);
+  if (error || !Array.isArray(data)) return EMPTY_ACCESSORY_KEYS;
+  return buildAccessoryIdentityKeys(data);
+}
+
+/**
  * Plattar ut WMS-packlistans rader till fysiskt packbara rader.
  * Paketrubriker skapas ALDRIG som egna rader (skulle dubbelräknas i progress);
  * i stället speglas paketets komponenter med paketnamnet som kontext.
@@ -490,7 +572,8 @@ export async function syncPackingListFromWms(
   const body = snapshot.body;
   const reservationId = snapshot.reservationId;
 
-  const wmsRows = flattenWmsPackingLines(body);
+  const accessoryKeys = await fetchAccessoryIdentityKeys(supabase, args.sourceBookingId);
+  const wmsRows = applyAccessoryRelationships(flattenWmsPackingLines(body), accessoryKeys);
   const { data: existing, error: readErr } = await supabase
     .from('packing_list_items')
     .select('id, wms_line_id, quantity_to_pack, quantity_packed, manual_name, notes, excluded, planning_excluded_at, source_booking_id, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, packability_updated_at, packability_updated_by, booking_products(booking_id)')

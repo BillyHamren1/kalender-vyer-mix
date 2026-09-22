@@ -81,7 +81,8 @@ export async function fetchTimeWmsProjection(
   }
 
   const rawBody = JSON.stringify(request);
-  const timestamp = String(Math.floor((deps.now?.() ?? new Date()).getTime() / 1000));
+  // Serverkontraktet verifierar ISO-8601-tidsstämpel (unix-sekunder ger 401 unauthorized).
+  const timestamp = (deps.now?.() ?? new Date()).toISOString();
   const nonce = (deps.nonce?.() ?? crypto.randomUUID()).replace(/-/g, '');
   const signature = await hmacSha256Hex(
     deps.hmacSecret,

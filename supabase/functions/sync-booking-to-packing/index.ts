@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
       }
     }
 
+
     if (!booking_id) {
       return new Response(
         JSON.stringify({ error: 'booking_id is required' }),
