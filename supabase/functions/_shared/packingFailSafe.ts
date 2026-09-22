@@ -36,13 +36,13 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     supabase
       .from('booking_products')
       .select(
-        'id, name, quantity, parent_product_id, sku, sync_key, inventory_item_type_id, source_missing_since, is_packable, product_packable_default, packability_override, packability_source, packability_revision',
+        'id, name, quantity, parent_product_id, is_package_component, sku, sync_key, inventory_item_type_id, source_missing_since, is_packable, product_packable_default, packability_override, packability_source, packability_revision',
       )
       .eq('booking_id', bookingId)
       .eq('organization_id', organizationId),
     supabase
       .from('packing_list_items')
-      .select('id, booking_product_id, wms_line_id, excluded, planning_excluded_at, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision')
+      .select('id, booking_product_id, wms_line_id, manual_name, notes, excluded, planning_excluded_at, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision')
       .eq('packing_id', packingId)
       .eq('organization_id', organizationId),
   ]);
@@ -71,11 +71,17 @@ export async function ensureMissingPackingRowsFromBookingProducts(
       .filter((row: any) => row.booking_product_id)
       .map((row: any) => [row.booking_product_id, row]),
   );
+  const existingByLineId = new Map(
+    existing.filter((row: any) => row.wms_line_id).map((row: any) => [row.wms_line_id, row]),
+  );
+  const productNamesById = new Map(active.map((product: any) => [product.id, product.name]));
 
   // Packbarhet är källmetadata, inte plockutfall. Den får därför läkas på en
   // befintlig aktiv rad utan att röra antal, kolli eller skanningsstatus.
   const toUpdate = candidates.flatMap((p: any) => {
-    const row: any = existingByProductId.get(p.id);
+    const syncKey: string = p.sync_key || '';
+    const row: any = existingByProductId.get(p.id)
+      || (syncKey.startsWith('wms:') ? existingByLineId.get(syncKey.slice(4)) : null);
     if (!row || row.excluded === true || row.planning_excluded_at) return [];
 
     const productDefault = p.product_packable_default ?? true;
@@ -92,21 +98,27 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     const source = warehouseOverride !== null
       ? 'warehouse_override'
       : (p.packability_source ?? (bookingOverride !== null ? 'booking_override' : 'product_default'));
+    const parentName = p.parent_product_id ? productNamesById.get(p.parent_product_id) : null;
+    const hierarchyNote = parentName
+      ? p.is_package_component === true
+        ? `Paketmedlem i: ${parentName}`
+        : `Tillbehör till paket: ${parentName}`
+      : null;
 
-    if (
-      row.product_packable_default === productDefault &&
-      row.booking_packability_override === bookingOverride &&
-      row.is_packable === effective &&
-      row.packability_source === source
-    ) return [];
+    const values: Record<string, unknown> = {};
+    if (row.product_packable_default !== productDefault) values.product_packable_default = productDefault;
+    if (row.booking_packability_override !== bookingOverride) values.booking_packability_override = bookingOverride;
+    if (row.is_packable !== effective) values.is_packable = effective;
+    if (row.packability_source !== source) values.packability_source = source;
+    if (hierarchyNote && row.notes !== hierarchyNote) values.notes = hierarchyNote;
+    if (!row.manual_name && p.name) values.manual_name = p.name;
+
+    if (Object.keys(values).length === 0) return [];
 
     return [{
       id: row.id,
       values: {
-        product_packable_default: productDefault,
-        booking_packability_override: bookingOverride,
-        is_packable: effective,
-        packability_source: source,
+        ...values,
         packability_revision: Math.max(
           Number(row.packability_revision ?? 0) + 1,
           Number(p.packability_revision ?? 1),
@@ -155,6 +167,12 @@ export async function ensureMissingPackingRowsFromBookingProducts(
           ? 'wms_reservation'
           : (p.inventory_item_type_id ? 'booking_item_type_id' : (p.sku ? 'booking_sku_legacy' : 'missing')),
         wms_identity_needs_repair: !syncKey.startsWith('wms:'),
+        manual_name: p.name || null,
+        notes: p.parent_product_id
+          ? p.is_package_component === true
+            ? `Paketmedlem i: ${productNamesById.get(p.parent_product_id) || 'Okänt paket'}`
+            : `Tillbehör till paket: ${productNamesById.get(p.parent_product_id) || 'Okänt paket'}`
+          : null,
       };
     });
 
