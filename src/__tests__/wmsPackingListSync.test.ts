@@ -198,7 +198,11 @@ describe('planWmsPackingSync', () => {
       { id: 'b', wms_line_id: 'l2::it2', quantity_to_pack: 5, quantity_packed: 5, manual_name: 'Tältduk', excluded: false },
       { id: 'c', wms_line_id: 'l2::it3', quantity_to_pack: 8, quantity_packed: 0, manual_name: 'Ben', excluded: false },
     ], CTX);
-    expect(plan.updates).toEqual([{ id: 'a', patch: { quantity_to_pack: 6 } }]);
+    expect(plan.updates).toEqual([
+      { id: 'a', patch: { quantity_to_pack: 6 } },
+      { id: 'b', patch: { notes: 'Paketmedlem i: Tältpaket' } },
+      { id: 'c', patch: { notes: 'Paketmedlem i: Tältpaket' } },
+    ]);
   });
 
   it('retires unscoped legacy rows on cutover and flags packed rows as conflicts', () => {

@@ -82,7 +82,9 @@ export function buildPackingHierarchy<T extends PackingHierarchyItem>(
       continue;
     }
 
-    const key = `${relationship.parentKey}:${relationship.packageName}`;
+    // WMS physical rows use component IDs for members and separate line IDs for
+    // accessories. The stable shared identity available on both is the package name.
+    const key = relationship.packageName.toLocaleLowerCase('sv-SE');
     let group = groups.get(key);
     if (!group) {
       group = {
