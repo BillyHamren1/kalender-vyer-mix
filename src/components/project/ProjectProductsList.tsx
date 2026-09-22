@@ -261,9 +261,6 @@ const ProjectProductsList = ({
             ↳
           </span>
           <span className="truncate">{cleanName(child.name)}</span>
-          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-            Tillbehör
-          </span>
         </span>
         <span />
         <span className="text-right text-xs text-muted-foreground tabular-nums">
