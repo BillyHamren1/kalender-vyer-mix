@@ -6,6 +6,9 @@
 ## Ekonomiöversikt
 - [x] Återställ Bookings kanoniska produktsummor: ingen lokal reserv, upstream-fel cachas inte och visas aldrig som falska 0 kr.
 
+## Packlistans paketstruktur
+- [x] Återställ paketnamn och separera paketmedlemmar från tillbehör i Lager och utskrift, utan delete eller ändrad packstatus.
+
 ## Klart denna körning
 - [x] Steg 1: signerad `status` 200 med seed-kid (e2Ma2…) genom deployad proxy.
 - [x] Steg 2 (Planning-sidan): `lager.contextImport`-operation byggd, testad (104/104 vitest), deployad.

@@ -39,7 +39,8 @@ describe('flattenWmsPackingLines', () => {
   it('plattar ut paket till komponenter och hoppar över paketrubriken', () => {
     const rows = flattenWmsPackingLines(wmsBody);
     expect(rows.map((r) => r.wmsLineId)).toEqual(['l1', 'l2::it2', 'l2::it3', 'l2-accessory']);
-    expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', itemTypeId: 'it2' });
+    expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', relationshipKind: 'package_member', itemTypeId: 'it2' });
+    expect(rows[3]).toMatchObject({ name: 'Vikt', packageName: 'Tältpaket', relationshipKind: 'accessory' });
   });
 
   it('särskiljer komponenter som delar namn med paketet via SKU', () => {
@@ -181,6 +182,7 @@ describe('planWmsPackingSync', () => {
       quantity_to_pack: i.quantity_to_pack,
       quantity_packed: 0,
       manual_name: i.manual_name,
+      notes: i.notes,
       excluded: false,
     }));
     const plan = planWmsPackingSync(rows, existing, CTX);

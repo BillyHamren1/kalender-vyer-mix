@@ -14,6 +14,8 @@ export interface PrintablePackingRow {
   groupLabel?: string | null;
   parcelNumber?: number | null;
   notes?: string | null;
+  packageName?: string | null;
+  relationshipKind?: 'package_member' | 'accessory' | 'standalone';
 }
 
 export interface PrintablePackingMeta {
@@ -54,11 +56,27 @@ export function openPrintablePackingList(
 
   const groupsHtml = Array.from(groups.entries())
     .map(([groupName, groupRows]) => {
+      let activePackage: string | null = null;
+      let activeRelationship: PrintablePackingRow['relationshipKind'] | null = null;
       const rowsHtml = groupRows
         .map((row) => {
+          let hierarchyHeaders = '';
+          if (row.packageName !== activePackage) {
+            activePackage = row.packageName || null;
+            activeRelationship = null;
+            if (activePackage) {
+              hierarchyHeaders += `<tr class="package-header"><td colspan="8">${escapeHtml(activePackage)}</td></tr>`;
+            }
+          }
+          if (row.packageName && row.relationshipKind !== activeRelationship) {
+            activeRelationship = row.relationshipKind;
+            hierarchyHeaders += `<tr class="relationship-header"><td colspan="8">${row.relationshipKind === 'accessory' ? 'Tillbehör' : 'Paketmedlemmar'}</td></tr>`;
+          }
           const sku = row.sku ? `<div class="sku">[${escapeHtml(row.sku)}]</div>` : '';
-          const notes = row.notes ? `<div class="row-note">${escapeHtml(row.notes)}</div>` : '';
-          return `
+          const notes = row.notes && !/^(?:Paketmedlem i|Ingår i paket|Tillbehör till(?: paket)?):/i.test(row.notes)
+            ? `<div class="row-note">${escapeHtml(row.notes)}</div>`
+            : '';
+          return `${hierarchyHeaders}
             <tr class="${row.isChild ? 'child-row' : ''}">
               <td class="col-name">
                 <div class="name">${escapeHtml(row.name)}</div>
@@ -184,6 +202,23 @@ export function openPrintablePackingList(
       font-size: 12px;
       border-top: 2px solid #111;
       border-bottom: 1px solid #888;
+    }
+    .package-header td {
+      background: #e8e8e8;
+      font-weight: 800;
+      padding: 8px 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      border-top: 2px solid #555;
+      border-bottom: 1px solid #999;
+    }
+    .relationship-header td {
+      background: #f7f7f7;
+      color: #555;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 4px 8px;
+      text-transform: uppercase;
     }
     .main-box {
       display: inline-block;
