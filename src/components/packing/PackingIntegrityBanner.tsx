@@ -173,19 +173,7 @@ export const PackingIntegrityBanner = ({
   const blockingIssues = integrity.issues.filter((issue) => issue.severity === 'blocking');
   const warningIssues = integrity.issues.filter((issue) => issue.severity === 'warning');
 
-  const signature = buildSignature(integrity);
-  const dismissedRecord = readDismissed(packingId);
-  const [dismissedSignature, setDismissedSignature] = useState<string | null>(dismissedRecord?.signature ?? null);
-
-  useEffect(() => {
-    const record = readDismissed(packingId);
-    if (record && record.signature !== signature) {
-      writeDismissed(packingId, null);
-      setDismissedSignature(null);
-    }
-  }, [signature, packingId]);
-
-  const isDismissed = dismissedSignature === signature;
+  const isDismissed = signature !== null && dismissedSignature === signature;
 
   const handleRefresh = async () => {
     writeDismissed(packingId, null);
