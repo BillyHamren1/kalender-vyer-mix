@@ -1,50 +1,8 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { PackingIntegrityIssue, PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
-
-const DISMISS_KEY = 'packing-integrity-dismissed.v1';
-
-interface DismissRecord {
-  signature: string;
-  dismissedAt: string;
-}
-
-function readDismissed(packingId?: string): DismissRecord | null {
-  if (!packingId || typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(DISMISS_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, DismissRecord>;
-    return map[packingId] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function writeDismissed(packingId: string | undefined, record: DismissRecord | null): void {
-  if (!packingId || typeof window === 'undefined') return;
-  try {
-    const raw = window.localStorage.getItem(DISMISS_KEY);
-    const map = raw ? (JSON.parse(raw) as Record<string, DismissRecord>) : {};
-    if (record) {
-      map[packingId] = record;
-    } else {
-      delete map[packingId];
-    }
-    window.localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
-  } catch {
-    /* ignore */
-  }
-}
-
-function buildSignature(integrity: PackingIntegrityResult): string {
-  const parts = integrity.issues
-    .map((issue) => `${issue.severity}:${issue.type}:${issue.bookingProductId ?? 'none'}`)
-    .sort();
-  return `${integrity.blockingCount}:${integrity.warningCount}:${integrity.expectedRows}:${parts.join('|')}`;
-}
 
 interface PackingIntegrityBannerProps {
   integrity: PackingIntegrityResult | null;
@@ -66,11 +24,11 @@ const issueText = (issue: PackingIntegrityIssue) => {
     case 'duplicate_item':
       return `${issue.name}: förekommer flera gånger på packlistan.`;
     case 'excluded_source_item':
-      return `${issue.name}: borttagen från den operativa packlistan i planeringsläget. Bokningen är oförändrad.`;
+      return `${issue.name}: borttagen från den operativa packlistan i planeringsläget.`;
     case 'manual_item':
       return `${issue.name}: manuell extrarad på packlistan (${issue.actualQuantity ?? 0} st).`;
     case 'wms_only_item':
-      return `${issue.name}: finns i WMS-packlistan men saknar motsvarande packbar bokningsrad (${issue.actualQuantity ?? 0} st).`;
+      return `${issue.name}: saknar motsvarande packbar bokningsrad (${issue.actualQuantity ?? 0} st).`;
     default:
       return issue.name;
   }
@@ -79,166 +37,74 @@ const issueText = (issue: PackingIntegrityIssue) => {
 export const PackingIntegrityBanner = ({
   integrity,
   error = null,
-  packingId,
-  packingStatus,
   onRefresh,
-  compact = false,
 }: PackingIntegrityBannerProps) => {
-  // Alla hooks måste ligga före varje villkorlig return — annars kraschar React
-  // med "Rendered more hooks than during the previous render".
   const [open, setOpen] = useState(false);
-  const signature = integrity ? buildSignature(integrity) : null;
-  const [dismissedSignature, setDismissedSignature] = useState<string | null>(
-    () => readDismissed(packingId)?.signature ?? null,
-  );
 
-  useEffect(() => {
-    if (!signature) return;
-    const record = readDismissed(packingId);
-    if (record && record.signature !== signature) {
-      writeDismissed(packingId, null);
-      setDismissedSignature(null);
-    }
-  }, [signature, packingId]);
+  if (!error && (!integrity || integrity.isExactMatch)) return null;
 
-
-  if (error) {
-    return (
-      <div className="rounded-xl border-2 border-destructive/45 bg-destructive/5 px-4 py-3 flex items-start gap-3">
-        <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-destructive">Packlistans integritet kunde inte verifieras</p>
-          <p className="text-xs text-destructive/90 mt-0.5">Listan är blockerad tills kontrollen kan genomföras utan fel.</p>
-        </div>
-        {onRefresh && (
-          <Button variant="outline" size="sm" className="h-8" onClick={() => onRefresh()}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Försök igen
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  if (!integrity) {
-    return (
-      <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
-        <RefreshCw className="h-4 w-4 animate-spin" />
-        Kontrollerar packlistans underlag…
-      </div>
-    );
-  }
-
-  if (!integrity.sourceAvailable) {
-    return (
-      <div className="rounded-xl border border-amber-300/70 bg-amber-50/70 dark:bg-amber-950/20 px-4 py-3 flex items-start gap-3">
-        <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Manuellt packunderlag</p>
-          <p className="text-xs text-amber-800/90 dark:text-amber-200/80 mt-0.5">
-            Ingen bokningskälla kunde jämföras. Kontrollera manuella rader innan packning eller utskrift.
-          </p>
-        </div>
-        {onRefresh && (
-          <Button variant="outline" size="sm" className="h-8" onClick={() => onRefresh()}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Kontrollera igen
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  if (integrity.isExactMatch) {
-    return (
-      <div className="rounded-xl border border-emerald-300/70 bg-emerald-50/70 dark:bg-emerald-950/20 px-4 py-3 flex items-start gap-3">
-        <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Packlistan matchar bokningen</p>
-          <p className="text-xs text-emerald-800/90 dark:text-emerald-200/80 mt-0.5">
-            {integrity.expectedRows} packbara bokningsrader kontrollerade utan blockerande avvikelse
-            {integrity.warningCount > 0 ? ` · ${integrity.warningCount} tydligt markerad extrarad/varning` : ''}.
-          </p>
-        </div>
-        {onRefresh && !compact && (
-          <Button variant="outline" size="sm" className="h-8" onClick={() => onRefresh()}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Kontrollera igen
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  const activePacking = packingStatus && packingStatus !== 'planning';
-  const blockingIssues = integrity.issues.filter((issue) => issue.severity === 'blocking');
-  const warningIssues = integrity.issues.filter((issue) => issue.severity === 'warning');
-
-  const isDismissed = signature !== null && dismissedSignature === signature;
-
-  const handleRefresh = async () => {
-    writeDismissed(packingId, null);
-    setDismissedSignature(null);
-    await onRefresh?.();
-  };
-
-  const handleDismiss = () => {
-    writeDismissed(packingId, { signature, dismissedAt: new Date().toISOString() });
-    setDismissedSignature(signature);
-  };
-
-  if (isDismissed) return null;
+  const sourceUnavailable = Boolean(integrity && !integrity.sourceAvailable);
+  const issues = integrity?.issues ?? [];
+  const problemCount = integrity
+    ? integrity.blockingCount + integrity.warningCount
+    : 1;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-xl border-2 border-destructive/45 bg-destructive/5 overflow-hidden">
-        <div className="px-4 py-3 flex items-start gap-3">
-          <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-destructive">Packlistan får inte användas utan kontroll</p>
-            <p className="text-xs text-destructive/90 mt-0.5">
-              {integrity.blockingCount} blockerande avvikelse{integrity.blockingCount === 1 ? '' : 'r'} mellan bokningen och den operativa packlistan.
-              {activePacking ? ' Packningen har redan startat, så listan ändras inte automatiskt.' : ' Öppning av sidan ändrar aldrig packlistan automatiskt.'}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
+    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col items-end">
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-amber-600 hover:text-amber-700"
+          aria-label={`Visa problem med packlistan (${problemCount})`}
+          title="Visa problem med packlistan"
+        >
+          <AlertTriangle className="h-5 w-5" />
+        </Button>
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="w-full">
+        <div className="mt-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-4 py-3 dark:bg-amber-950/20">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Problem med packlistan</p>
+              {error ? (
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/80">
+                  Packlistans underlag kunde inte kontrolleras.
+                </p>
+              ) : sourceUnavailable ? (
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/80">
+                  Underlaget kunde inte jämföras. Kontrollera listan manuellt.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/80">
+                  {integrity?.blockingCount ?? 0} blockerande avvikelse{integrity?.blockingCount === 1 ? '' : 'r'} hittades.
+                </p>
+              )}
+            </div>
             {onRefresh && (
-              <Button variant="outline" size="sm" className="h-8" onClick={handleRefresh}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => onRefresh()}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Kontrollera igen
               </Button>
             )}
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-2">
-                Detaljer
-                <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform ${open ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Avfärda varning" onClick={handleDismiss}>
-              <X className="h-4 w-4" />
-            </Button>
           </div>
-        </div>
-        <CollapsibleContent>
-          <div className="border-t border-destructive/20 bg-background/70 px-4 py-3 space-y-2">
-            {blockingIssues.map((issue, index) => (
-              <div key={`${issue.type}-${issue.bookingProductId || index}`} className="flex items-start gap-2 text-xs">
-                <ShieldAlert className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                <span>{issueText(issue)}</span>
-              </div>
-            ))}
-            {warningIssues.map((issue, index) => (
-              <div key={`warning-${issue.type}-${issue.bookingProductId || index}`} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                <span>{issueText(issue)}</span>
-              </div>
-            ))}
-            <div className="pt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <CheckCircle2 className="h-3 w-3" />
-              Kontroll är read-only: inga packrader har lagts till, ändrats eller tagits bort.
+
+          {issues.length > 0 && (
+            <div className="mt-3 space-y-2 border-t border-amber-300/50 pt-3">
+              {issues.map((issue, index) => (
+                <div
+                  key={`${issue.type}-${issue.bookingProductId || index}`}
+                  className="flex items-start gap-2 text-xs text-foreground"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <span>{issueText(issue)}</span>
+                </div>
+              ))}
             </div>
-          </div>
-        </CollapsibleContent>
-      </div>
+          )}
+        </div>
+      </CollapsibleContent>
     </Collapsible>
   );
 };

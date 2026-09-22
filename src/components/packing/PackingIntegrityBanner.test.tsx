@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { PackingIntegrityBanner } from './PackingIntegrityBanner';
 import type { PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
 
-const baseIntegrity: PackingIntegrityResult = {
+const problemIntegrity: PackingIntegrityResult = {
   isExactMatch: false,
   sourceAvailable: true,
   expectedRows: 3,
@@ -13,69 +13,38 @@ const baseIntegrity: PackingIntegrityResult = {
   blockingCount: 1,
   warningCount: 0,
   checkedAt: new Date().toISOString(),
-  issues: [
-    {
-      type: 'missing_item',
-      severity: 'blocking',
-      name: 'Transport',
-      bookingProductId: 'bp-1',
-      expectedQuantity: 2,
-    },
-  ],
+  issues: [{
+    type: 'missing_item',
+    severity: 'blocking',
+    name: 'Transport',
+    bookingProductId: 'bp-1',
+    expectedQuantity: 2,
+  }],
 };
 
 describe('PackingIntegrityBanner', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
+  it('visar bara en diskret varningstriangel tills användaren öppnar problemen', () => {
+    render(<PackingIntegrityBanner integrity={problemIntegrity} packingId="pack-1" />);
+
+    expect(screen.getByLabelText('Visa problem med packlistan (1)')).toBeInTheDocument();
+    expect(screen.queryByText('Problem med packlistan')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Visa problem med packlistan (1)'));
+    expect(screen.getByText('Problem med packlistan')).toBeInTheDocument();
+    expect(screen.getByText(/Transport: finns i bokningen/)).toBeInTheDocument();
   });
 
-  afterEach(() => {
-    window.localStorage.clear();
+  it('visar ingenting vid laddning eller när listan matchar', () => {
+    const { rerender, container } = render(<PackingIntegrityBanner integrity={null} />);
+    expect(container).toBeEmptyDOMElement();
+
+    rerender(<PackingIntegrityBanner integrity={{ ...problemIntegrity, isExactMatch: true, blockingCount: 0, issues: [] }} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('visar varningsbannern när den inte är avfärdad', () => {
-    render(<PackingIntegrityBanner integrity={baseIntegrity} packingId="pack-1" />);
-    expect(screen.getByText('Packlistan får inte användas utan kontroll')).toBeInTheDocument();
-  });
-
-  it('döljer bannern efter att användaren klickat på krysset', () => {
-    const { rerender } = render(<PackingIntegrityBanner integrity={baseIntegrity} packingId="pack-1" />);
-    fireEvent.click(screen.getByLabelText('Avfärda varning'));
-    expect(screen.queryByText('Packlistan får inte användas utan kontroll')).not.toBeInTheDocument();
-
-    // Verifiera att avfärdandet överlever en omrendering
-    rerender(<PackingIntegrityBanner integrity={baseIntegrity} packingId="pack-1" />);
-    expect(screen.queryByText('Packlistan får inte användas utan kontroll')).not.toBeInTheDocument();
-  });
-
-  it('visar bannern igen när avvikelserna ändrats', () => {
-    const { rerender } = render(<PackingIntegrityBanner integrity={baseIntegrity} packingId="pack-1" />);
-    fireEvent.click(screen.getByLabelText('Avfärda varning'));
-    expect(screen.queryByText('Packlistan får inte användas utan kontroll')).not.toBeInTheDocument();
-
-    const changedIntegrity: PackingIntegrityResult = {
-      ...baseIntegrity,
-      issues: [
-        {
-          type: 'missing_item',
-          severity: 'blocking',
-          name: 'Belysning',
-          bookingProductId: 'bp-2',
-          expectedQuantity: 1,
-        },
-      ],
-    };
-
-    rerender(<PackingIntegrityBanner integrity={changedIntegrity} packingId="pack-1" />);
-    expect(screen.getByText('Packlistan får inte användas utan kontroll')).toBeInTheDocument();
-  });
-
-  it('kör en ny kontroll när användaren klickar Kontrollera igen', async () => {
-    const onRefresh = vi.fn().mockResolvedValue(undefined);
-    render(<PackingIntegrityBanner integrity={baseIntegrity} packingId="pack-1" onRefresh={onRefresh} />);
-
-    fireEvent.click(screen.getByText('Kontrollera igen'));
-    expect(onRefresh).toHaveBeenCalled();
-    expect(screen.getByText('Packlistan får inte användas utan kontroll')).toBeInTheDocument();
+  it('visar tekniskt fel först efter klick på varningstriangeln', () => {
+    render(<PackingIntegrityBanner integrity={null} error={new Error('network')} />);
+    fireEvent.click(screen.getByLabelText('Visa problem med packlistan (1)'));
+    expect(screen.getByText('Packlistans underlag kunde inte kontrolleras.')).toBeInTheDocument();
   });
 });

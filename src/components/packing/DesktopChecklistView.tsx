@@ -50,7 +50,6 @@ import PackingQRCode from './PackingQRCode';
 import { computePackingProgress } from '@/lib/packing/progress';
 import type { PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
 import PackingIntegrityBanner from './PackingIntegrityBanner';
-import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
 import PrintPackingListDialog from './PrintPackingListDialog';
 import { getOperationsPackingPresentation } from '@/lib/packing/operationsPresentation';
 import { buildPackingHierarchy, readPackingRelationship } from '@/lib/packing/packingHierarchy';
@@ -157,7 +156,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [bookingGroups, setBookingGroups] = useState<BookingGroupInfo[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
-  const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
   const [isRepairing, setIsRepairing] = useState(false);
   const loadDataRef = useRef<((bg?: boolean) => Promise<void>) | null>(null);
   const [pendingEdit, setPendingEdit] = useState<
@@ -310,8 +308,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
 
   const integrityPending = !integrity && !integrityError;
   const integrityMismatch = Boolean(integrity?.sourceAvailable && !integrity?.isExactMatch);
-  const requiresWmsPreflight = Boolean(packing?.id);
-  const wmsUnverified = requiresWmsPreflight && wmsPreflightState !== 'pass';
   // Utskrift blockeras aldrig – osäkert läge markeras istället på utskriften.
   const printPreliminaryReason = integrityError
     ? 'packlistans integritet kunde inte verifieras'
@@ -319,9 +315,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
       ? 'avvikelse mellan bokning och packlista'
       : integrityPending
         ? 'integritetskontrollen har inte slutförts'
-        : wmsUnverified
-          ? 'WMS-kopplingen är inte verifierad'
-          : null;
+        : null;
   const printTitle = printPreliminaryReason
     ? `Skrivs ut som PRELIMINÄR (${printPreliminaryReason})`
     : 'Skriv ut packlistan eller spara som PDF';
@@ -660,16 +654,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           await loadData(true);
         }}
       />
-
-      {packing && (
-        <PackingPreflightPanel
-          packingId={packingId}
-          bookingNumber={packing.booking?.booking_number || bookingGroups[0]?.bookingNumber || null}
-          className="border-border/60 shadow-none"
-          autoRun
-          onResult={(_result, state) => setWmsPreflightState(state)}
-        />
-      )}
 
       {packing?.notes && (
         <Card className="border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20">
