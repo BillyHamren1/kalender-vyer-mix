@@ -469,7 +469,9 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                           </Popover>
                         </TableCell>
                         <TableCell className="py-5 align-middle text-right tabular-nums font-semibold text-sm pr-6">
-                          {formatCurrency(p.quotedAmount)}
+                          {p.revenueAvailable ? formatCurrency(p.quotedAmount) : (
+                            <span className="text-xs font-medium text-destructive">Summan kunde inte hämtas</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     );

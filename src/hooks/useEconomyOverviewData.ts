@@ -3,11 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
-import {
-  aggregateBookingProductEconomy,
-  fetchAllBookingProductEconomyRows,
-  mergeBookingProductEconomyFallback,
-} from '@/lib/economy/bookingProductEconomyFallback';
 
 export type ProjectSize = 'small' | 'medium' | 'large';
 
@@ -25,6 +20,7 @@ export interface ProjectWithEconomy {
   economyClosed: boolean;
   projectSize: ProjectSize;
   navigateTo: string;
+  revenueAvailable: boolean;
 }
 
 /**
@@ -240,31 +236,6 @@ export const useEconomyOverviewData = () => {
         }
       }
 
-      // ── Local fallback: booking_products from our DB ──
-      // The external planning-api sometimes returns empty product_costs even when
-      // booking_products has rows locally. Aggregate revenue per booking and merge
-      // it into the batch data when the proxy summary is missing/zero.
-      if (allBookingIds.length > 0) {
-        try {
-          const localProducts = await fetchAllBookingProductEconomyRows(async (from, to) => {
-            const result = await supabase
-              .from('booking_products')
-              .select('booking_id, total_price, unit_price, quantity, purchase_cost')
-              .in('booking_id', allBookingIds)
-              .order('id', { ascending: true })
-              .range(from, to);
-            return { data: result.data, error: result.error };
-          });
-
-          multiBatchData = mergeBookingProductEconomyFallback(
-            multiBatchData,
-            aggregateBookingProductEconomy(localProducts),
-          );
-        } catch (err) {
-          console.warn('[economy-overview] local booking_products fallback failed:', err);
-        }
-      }
-
       return entries.map((entry) => {
         // For projects with a single booking
         const primaryBookingId = entry.booking_ids[0] ?? null;
@@ -299,6 +270,7 @@ export const useEconomyOverviewData = () => {
             economyClosed: entry.status === 'completed',
             projectSize: entry.projectSize,
             navigateTo: entry.navigateTo,
+            revenueAvailable: false,
           };
         }
 
@@ -350,6 +322,7 @@ export const useEconomyOverviewData = () => {
               economyClosed: allClosed || entry.status === 'completed',
               projectSize: entry.projectSize,
               navigateTo: entry.navigateTo,
+              revenueAvailable: entry.booking_ids.every(id => multiBatchData[id]?.product_costs != null && !multiBatchData[id]?._errors?.product_costs),
             };
           }
 
@@ -369,6 +342,7 @@ export const useEconomyOverviewData = () => {
             economyClosed: economyClosed || entry.status === 'completed',
             projectSize: entry.projectSize,
             navigateTo: entry.navigateTo,
+            revenueAvailable: multiBatchData[primaryBookingId!]?.product_costs != null && !multiBatchData[primaryBookingId!]?._errors?.product_costs,
           };
         } catch (err) {
           console.error(`Failed to process economy for project ${entry.name}:`, err);
@@ -386,6 +360,7 @@ export const useEconomyOverviewData = () => {
             economyClosed: entry.status === 'completed',
             projectSize: entry.projectSize,
             navigateTo: entry.navigateTo,
+            revenueAvailable: false,
           };
         }
       });

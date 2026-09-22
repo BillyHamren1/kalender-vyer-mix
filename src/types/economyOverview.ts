@@ -153,6 +153,7 @@ export interface EconomyProjectInsight {
   rigdowndate: string | null;
   bookingCreatedAt: string | null;
   navigateTo: string;
+  revenueAvailable: boolean;
 
   // Derived status
   economyStatus: EconomyProjectStatus;
