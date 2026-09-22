@@ -94,10 +94,8 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     expect(result).toMatchObject({ ok: true, inserted: 0, updated: 1, total: 1 });
     expect(insertedRows).toEqual([]);
     expect(updatedRows).toEqual([{
-      product_packable_default: true,
-      booking_packability_override: null,
       is_packable: false,
-      packability_source: 'product_default',
+      manual_name: 'Transport',
       packability_revision: 2,
     }]);
   });
