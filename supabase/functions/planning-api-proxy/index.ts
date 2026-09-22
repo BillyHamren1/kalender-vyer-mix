@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
 
       for (const bid of bookingIds) {
         const entry = cached?.find((c: any) => c.booking_id === bid);
-        if (entry && (now - new Date(entry.cached_at).getTime()) < CACHE_TTL_MS) {
+        if (entry && hasValidProductCosts(entry.data) && (now - new Date(entry.cached_at).getTime()) < CACHE_TTL_MS) {
           // Cache hit — use cached data
           responseData[bid] = entry.data;
         } else {

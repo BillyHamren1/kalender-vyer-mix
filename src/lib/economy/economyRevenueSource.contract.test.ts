@@ -19,6 +19,7 @@ describe('economy revenue source contract', () => {
   it('cachar bara batcher med ett giltigt product_costs-svar', () => {
     const proxy = read('supabase/functions/planning-api-proxy/index.ts');
     expect(proxy).toContain('.filter(([, data]) => hasValidProductCosts(data))');
+    expect(proxy).toContain('entry && hasValidProductCosts(entry.data)');
     expect(proxy).toContain(".eq('organization_id', orgId)");
     expect(proxy).toContain(".from('bookings')");
   });
