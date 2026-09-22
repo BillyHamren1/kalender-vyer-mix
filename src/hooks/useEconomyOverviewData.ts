@@ -360,6 +360,7 @@ export const useEconomyOverviewData = () => {
             economyClosed: entry.status === 'completed',
             projectSize: entry.projectSize,
             navigateTo: entry.navigateTo,
+            revenueAvailable: false,
           };
         }
       });

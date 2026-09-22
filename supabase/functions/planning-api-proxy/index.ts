@@ -105,7 +105,15 @@ Deno.serve(async (req) => {
 
     // === MULTI_BATCH: fetch all economy data for multiple bookings ===
     if (type === 'multi_batch' && params.booking_ids) {
-      const bookingIds: string[] = params.booking_ids;
+      const bookingIds: string[] = Array.isArray(params.booking_ids)
+        ? [...new Set(params.booking_ids.filter((id: unknown) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 500)
+        : [];
+      if (bookingIds.length === 0) {
+        return new Response(JSON.stringify({ error: 'Invalid booking_ids' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       // Use service_role client for cache access (bypasses RLS)
       const serviceClient = createClient(
@@ -125,6 +133,20 @@ Deno.serve(async (req) => {
       const orgId = profile?.organization_id;
       if (!orgId) {
         return new Response(JSON.stringify({ error: 'Organization context missing' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: scopedBookings, error: scopedBookingsError } = await serviceClient
+        .from('bookings')
+        .select('id')
+        .eq('organization_id', orgId)
+        .in('id', bookingIds);
+      if (scopedBookingsError) throw scopedBookingsError;
+      const allowedIds = new Set((scopedBookings ?? []).map((booking: { id: string }) => booking.id));
+      if (bookingIds.some((bookingId) => !allowedIds.has(bookingId))) {
+        return new Response(JSON.stringify({ error: 'Booking access denied' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
