@@ -221,19 +221,15 @@ export function normalizePackability(node: any, inherited?: any): PackabilitySna
  * att allt hamnar som paketmedlem.
  */
 export interface AccessoryIdentityKeys {
-  skus: Set<string>;
-  itemTypeIds: Set<string>;
-  names: Set<string>;
+  /** Nyckel (sku/item_type_id/namn, gemener) → paketets namn i Booking. */
+  packageNameByKey: Map<string, string>;
 }
 
-export const EMPTY_ACCESSORY_KEYS: AccessoryIdentityKeys = {
-  skus: new Set(),
-  itemTypeIds: new Set(),
-  names: new Set(),
-};
+export const EMPTY_ACCESSORY_KEYS: AccessoryIdentityKeys = { packageNameByKey: new Map() };
 
 export function buildAccessoryIdentityKeys(
   bookingProducts: Array<{
+    id?: string | null;
     name?: string | null;
     sku?: string | null;
     inventory_item_type_id?: string | null;
@@ -241,29 +237,45 @@ export function buildAccessoryIdentityKeys(
     is_package_component?: boolean | null;
   }>,
 ): AccessoryIdentityKeys {
-  const keys: AccessoryIdentityKeys = { skus: new Set(), itemTypeIds: new Set(), names: new Set() };
+  const nameById = new Map<string, string>();
+  for (const product of bookingProducts) {
+    if (product?.id && product.name) nameById.set(String(product.id), String(product.name));
+  }
+  const packageNameByKey = new Map<string, string>();
   for (const product of bookingProducts) {
     if (!product?.parent_product_id) continue;
     if (product.is_package_component === true) continue;
-    if (product.sku) keys.skus.add(String(product.sku).trim().toLowerCase());
-    if (product.inventory_item_type_id) keys.itemTypeIds.add(String(product.inventory_item_type_id));
-    if (product.name) keys.names.add(String(product.name).trim().toLowerCase());
+    const packageName = nameById.get(String(product.parent_product_id)) ?? '';
+    if (!packageName) continue;
+    if (product.sku) packageNameByKey.set(String(product.sku).trim().toLowerCase(), packageName);
+    if (product.inventory_item_type_id) {
+      packageNameByKey.set(String(product.inventory_item_type_id).toLowerCase(), packageName);
+    }
+    if (product.name) packageNameByKey.set(String(product.name).trim().toLowerCase(), packageName);
   }
-  return keys;
+  return { packageNameByKey };
 }
 
 export function applyAccessoryRelationships(
   rows: WmsPackingRow[],
   keys: AccessoryIdentityKeys,
 ): WmsPackingRow[] {
-  if (keys.skus.size === 0 && keys.itemTypeIds.size === 0 && keys.names.size === 0) return rows;
+  if (keys.packageNameByKey.size === 0) return rows;
   return rows.map((row) => {
-    if (!row.packageName || row.relationshipKind === 'accessory') return row;
-    const isAccessory =
-      (row.sku ? keys.skus.has(String(row.sku).trim().toLowerCase()) : false) ||
-      (row.itemTypeId ? keys.itemTypeIds.has(String(row.itemTypeId)) : false) ||
-      keys.names.has(String(row.name).trim().toLowerCase());
-    return isAccessory ? { ...row, relationshipKind: 'accessory' as const } : row;
+    if (row.relationshipKind === 'package_member' && row.packageName) {
+      // Paketets egna komponenter kommer från WMS-paketet och rörs aldrig.
+      const memberKey = String(row.sku ?? '').trim().toLowerCase();
+      const memberHit = memberKey ? keys.packageNameByKey.get(memberKey) : undefined;
+      if (!memberHit) return row;
+      return { ...row, relationshipKind: 'accessory' as const, packageName: memberHit };
+    }
+    if (row.relationshipKind === 'accessory' && row.packageName) return row;
+    const hit =
+      (row.sku ? keys.packageNameByKey.get(String(row.sku).trim().toLowerCase()) : undefined) ??
+      (row.itemTypeId ? keys.packageNameByKey.get(String(row.itemTypeId).toLowerCase()) : undefined) ??
+      keys.packageNameByKey.get(String(row.name).trim().toLowerCase());
+    if (!hit) return row;
+    return { ...row, relationshipKind: 'accessory' as const, packageName: hit };
   });
 }
 
@@ -274,7 +286,7 @@ export async function fetchAccessoryIdentityKeys(
   if (!bookingId) return EMPTY_ACCESSORY_KEYS;
   const { data, error } = await supabase
     .from('booking_products')
-    .select('name, sku, inventory_item_type_id, parent_product_id, is_package_component')
+    .select('id, name, sku, inventory_item_type_id, parent_product_id, is_package_component')
     .eq('booking_id', bookingId);
   if (error || !Array.isArray(data)) return EMPTY_ACCESSORY_KEYS;
   return buildAccessoryIdentityKeys(data);
