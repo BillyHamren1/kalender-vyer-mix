@@ -227,7 +227,7 @@ describe('Säkerhetsuppföljning (org-scope, restore-guard, audit)', () => {
   });
 
   it('UI bevarar WMS paketkontext', () => {
-    expect(view).toContain('buildPackingHierarchy(groupProductItems)');
+    expect(view).toContain('buildPackingHierarchy<PackingItem>(groupProductItems)');
     expect(view).toContain('Paketmedlemmar');
     expect(view).toContain('Tillbehör');
   });
