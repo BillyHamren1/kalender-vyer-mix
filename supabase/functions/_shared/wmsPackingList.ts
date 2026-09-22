@@ -211,6 +211,76 @@ export function normalizePackability(node: any, inherited?: any): PackabilitySna
 }
 
 /**
+ * Tillbehör vs paketmedlem.
+ *
+ * WMS-reservationen vet bara att en rad hänger under ett paket — den skiljer
+ * inte paketets fasta delar från tillbehör som sålts till paketet. Den
+ * skillnaden finns i Booking-raderna (`booking_products`): ett tillbehör har
+ * en förälder men är inte paketkomponent. Vi läser den relationen därifrån och
+ * märker WMS-raderna, så lagret visar "Tillbehör till paket: X" i stället för
+ * att allt hamnar som paketmedlem.
+ */
+export interface AccessoryIdentityKeys {
+  skus: Set<string>;
+  itemTypeIds: Set<string>;
+  names: Set<string>;
+}
+
+export const EMPTY_ACCESSORY_KEYS: AccessoryIdentityKeys = {
+  skus: new Set(),
+  itemTypeIds: new Set(),
+  names: new Set(),
+};
+
+export function buildAccessoryIdentityKeys(
+  bookingProducts: Array<{
+    name?: string | null;
+    sku?: string | null;
+    inventory_item_type_id?: string | null;
+    parent_product_id?: string | null;
+    is_package_component?: boolean | null;
+  }>,
+): AccessoryIdentityKeys {
+  const keys: AccessoryIdentityKeys = { skus: new Set(), itemTypeIds: new Set(), names: new Set() };
+  for (const product of bookingProducts) {
+    if (!product?.parent_product_id) continue;
+    if (product.is_package_component === true) continue;
+    if (product.sku) keys.skus.add(String(product.sku).trim().toLowerCase());
+    if (product.inventory_item_type_id) keys.itemTypeIds.add(String(product.inventory_item_type_id));
+    if (product.name) keys.names.add(String(product.name).trim().toLowerCase());
+  }
+  return keys;
+}
+
+export function applyAccessoryRelationships(
+  rows: WmsPackingRow[],
+  keys: AccessoryIdentityKeys,
+): WmsPackingRow[] {
+  if (keys.skus.size === 0 && keys.itemTypeIds.size === 0 && keys.names.size === 0) return rows;
+  return rows.map((row) => {
+    if (!row.packageName || row.relationshipKind === 'accessory') return row;
+    const isAccessory =
+      (row.sku ? keys.skus.has(String(row.sku).trim().toLowerCase()) : false) ||
+      (row.itemTypeId ? keys.itemTypeIds.has(String(row.itemTypeId)) : false) ||
+      keys.names.has(String(row.name).trim().toLowerCase());
+    return isAccessory ? { ...row, relationshipKind: 'accessory' as const } : row;
+  });
+}
+
+export async function fetchAccessoryIdentityKeys(
+  supabase: any,
+  bookingId: string,
+): Promise<AccessoryIdentityKeys> {
+  if (!bookingId) return EMPTY_ACCESSORY_KEYS;
+  const { data, error } = await supabase
+    .from('booking_products')
+    .select('name, sku, inventory_item_type_id, parent_product_id, is_package_component')
+    .eq('booking_id', bookingId);
+  if (error || !Array.isArray(data)) return EMPTY_ACCESSORY_KEYS;
+  return buildAccessoryIdentityKeys(data);
+}
+
+/**
  * Plattar ut WMS-packlistans rader till fysiskt packbara rader.
  * Paketrubriker skapas ALDRIG som egna rader (skulle dubbelräknas i progress);
  * i stället speglas paketets komponenter med paketnamnet som kontext.
