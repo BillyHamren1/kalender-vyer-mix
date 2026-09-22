@@ -331,7 +331,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     const bookingNumber = packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
     const rigDate = (packing?.booking as any)?.rigdaydate || null;
 
-    const rows = groupedItems.flatMap((group) => buildPackingHierarchy(
+    const rows = groupedItems.flatMap((group) => buildPackingHierarchy<PackingItem>(
       group.items.filter((item) => item.is_packable !== false),
     ).flatMap((entry) => {
       const hierarchyItems = entry.kind === 'standalone'
@@ -789,7 +789,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                       </div>
                     )}
                     <div className="divide-y divide-border/30 max-h-[60vh] overflow-y-auto">
-                      {buildPackingHierarchy(groupProductItems).map((entry) => entry.kind === 'standalone' ? (
+                      {buildPackingHierarchy<PackingItem>(groupProductItems).map((entry) => entry.kind === 'standalone' ? (
                         renderItem(entry.item)
                       ) : (
                         <div key={entry.group.key} className="divide-y divide-border/30">
