@@ -94,10 +94,8 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     expect(result).toMatchObject({ ok: true, inserted: 0, updated: 1, total: 1 });
     expect(insertedRows).toEqual([]);
     expect(updatedRows).toEqual([{
-      product_packable_default: true,
-      booking_packability_override: null,
       is_packable: false,
-      packability_source: 'product_default',
+      manual_name: 'Transport',
       packability_revision: 2,
     }]);
   });
@@ -128,9 +126,10 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     expect(updatedRows[0]).toMatchObject({
       product_packable_default: false,
       booking_packability_override: false,
-      is_packable: true,
-      packability_source: 'warehouse_override',
     });
+    // Lageroverride vinner: den effektiva klassningen ändras inte.
+    expect(updatedRows[0].is_packable).toBeUndefined();
+    expect(updatedRows[0].packability_source).toBeUndefined();
   });
 
   it('återupplivar aldrig historiskt utfasade rader', async () => {
@@ -155,6 +154,20 @@ describe('ensureMissingPackingRowsFromBookingProducts', () => {
     const result = await ensureMissingPackingRowsFromBookingProducts(supabase, args);
     expect(result.inserted).toBe(1);
     expect(insertedRows[0].booking_product_id).toBe('child-1');
+  });
+
+  it('fyller aldrig på en lista som redan har aktiva rader (inga dubbletter)', async () => {
+    const { supabase, insertedRows } = createSupabase(
+      [
+        { id: 'unit-1', name: 'H Mastertent (#1)', quantity: 1, sync_key: 'wms:line-a::unit-1', source_missing_since: null },
+        { id: 'unit-2', name: 'H Mastertent (#2)', quantity: 1, sync_key: 'wms:line-a::unit-2', source_missing_since: null },
+      ],
+      [{ id: 'item-agg', booking_product_id: null, wms_line_id: 'line-a', excluded: false }],
+    );
+    const result = await ensureMissingPackingRowsFromBookingProducts(supabase, args);
+    expect(result.ok).toBe(true);
+    expect(result.inserted).toBe(0);
+    expect(insertedRows).toEqual([]);
   });
 });
 

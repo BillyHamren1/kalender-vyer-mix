@@ -56,6 +56,10 @@ export async function ensureMissingPackingRowsFromBookingProducts(
 
   const products = productsResult.data || [];
   const existing = existingResult.data || [];
+  // Fail-safe får ENDAST fylla en tom projektion. Om listan redan har aktiva
+  // rader (t.ex. aggregerade WMS-rader) skulle en påfyllning från de
+  // enhetsuppdelade booking_products skapa dubbletter. Metadata får läkas.
+  const hasActiveRows = existing.some((row: any) => row.excluded !== true);
 
   const active = products.filter((p: any) => !p.source_missing_since);
   // Paketrubriker (rader som är förälder åt andra rader) är inga fysiska kollin.
@@ -137,6 +141,10 @@ export async function ensureMissingPackingRowsFromBookingProducts(
     if (updateError) {
       return { ok: false, code: 'db_error', error: updateError.message || String(updateError) };
     }
+  }
+
+  if (hasActiveRows) {
+    return { ok: true, inserted: 0, updated: toUpdate.length, total: existing.length };
   }
 
   const toInsert = candidates
