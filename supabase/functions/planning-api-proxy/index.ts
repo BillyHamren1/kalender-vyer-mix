@@ -1,5 +1,11 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  fetchEconomyBatch,
+  fetchEconomyType,
+  hasValidProductCosts,
+  type EconomyDataType,
+} from './economy-fetch.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,15 +21,7 @@ async function fetchFromExternal(
   type: string,
   bookingId: string
 ): Promise<any> {
-  const qs = new URLSearchParams({ type, booking_id: bookingId });
-  const res = await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': planningApiKey,
-    },
-  });
-  return res.json();
+  return fetchEconomyType(fetch, efUrl, planningApiKey, type as EconomyDataType, bookingId);
 }
 
 /** Fetch all 7 data types for a single booking */
@@ -32,13 +30,7 @@ async function fetchAllForBooking(
   planningApiKey: string,
   bookingId: string
 ): Promise<Record<string, any>> {
-  const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
-  const results = await Promise.all(
-    dataTypes.map((t) => fetchFromExternal(efUrl, planningApiKey, t, bookingId).catch(() => null))
-  );
-  const data: Record<string, any> = {};
-  dataTypes.forEach((t, i) => { data[t] = results[i]; });
-  return data;
+  return fetchEconomyBatch(fetch, efUrl, planningApiKey, bookingId);
 }
 
 /** Process bookings in chunks of CHUNK_SIZE */
@@ -125,9 +117,23 @@ Deno.serve(async (req) => {
       const responseData: Record<string, any> = {};
 
       // 1. Check cache for all booking IDs
+      const { data: profile } = await serviceClient
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', userData.user.id)
+        .single();
+      const orgId = profile?.organization_id;
+      if (!orgId) {
+        return new Response(JSON.stringify({ error: 'Organization context missing' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { data: cached } = await serviceClient
         .from('economy_cache')
         .select('booking_id, data, cached_at')
+        .eq('organization_id', orgId)
         .in('booking_id', bookingIds);
 
       const uncachedIds: string[] = [];
@@ -148,29 +154,18 @@ Deno.serve(async (req) => {
         const freshData = await fetchInChunks(efUrl, planningApiKey, uncachedIds);
 
         // 3. Upsert fresh data into cache
-        const upsertRows = Object.entries(freshData).map(([bid, data]) => ({
+        const upsertRows = Object.entries(freshData)
+          .filter(([, data]) => hasValidProductCosts(data))
+          .map(([bid, data]) => ({
           booking_id: bid,
           data,
           cached_at: new Date().toISOString(),
-          organization_id: userData.user.app_metadata?.organization_id || 
-            // Fallback: look up org from user profile
-            null,
+          organization_id: orgId,
         }));
-
-        // Get organization_id from the user's profile
-        const { data: profile } = await serviceClient
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', userData.user.id)
-          .single();
-
-        const orgId = profile?.organization_id;
-
-        if (orgId && upsertRows.length > 0) {
-          const rowsWithOrg = upsertRows.map(r => ({ ...r, organization_id: orgId }));
+        if (upsertRows.length > 0) {
           await serviceClient
             .from('economy_cache')
-            .upsert(rowsWithOrg, { onConflict: 'booking_id' });
+            .upsert(upsertRows, { onConflict: 'booking_id' });
         }
 
         // Merge into response
@@ -190,18 +185,7 @@ Deno.serve(async (req) => {
     // === BATCH: fetch all economy data in one call ===
     if (type === 'batch' && params.booking_id) {
       const bookingId = params.booking_id;
-      const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
-
-      const results = await Promise.all(
-        dataTypes.map((t) =>
-          fetchFromExternal(efUrl, planningApiKey, t, bookingId).catch(() => null)
-        )
-      );
-
-      const responseData: Record<string, any> = {};
-      dataTypes.forEach((t, i) => {
-        responseData[t] = results[i];
-      });
+      const responseData = await fetchAllForBooking(efUrl, planningApiKey, bookingId);
 
       return new Response(JSON.stringify(responseData), {
         status: 200,

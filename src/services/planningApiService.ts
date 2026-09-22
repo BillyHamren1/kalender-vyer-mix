@@ -112,6 +112,7 @@ export interface BatchEconomyData {
   invoices: any;
   product_costs: any;
   supplier_invoices: any;
+  _errors?: Record<string, { code: string; status?: number }>;
 }
 
 export const fetchAllEconomyData = (bookingId: string): Promise<BatchEconomyData> =>
