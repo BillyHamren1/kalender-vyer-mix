@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { queueItems } from "./WarehouseOpsActionQueue";
 import type { OpsAttention, OpsJob } from "@/hooks/useWarehouseOpsRange";
-import type { SyncJob } from "@/hooks/useSyncJobs";
 import type { WarehouseProjectInboxItem } from "@/types/warehouseProject";
 
 const TODAY = "2026-09-11";
@@ -46,20 +45,6 @@ const job = (id: string, anchorDate: string, overrides: Partial<OpsJob> = {}): O
   lastScanAt: null,
   updatedAt: `${TODAY}T08:00:00Z`,
   ...overrides,
-});
-
-const syncJob = (id: string, bookingId: string, status: SyncJob["status"]): SyncJob => ({
-  id,
-  booking_id: bookingId,
-  organization_id: "org-1",
-  event_type: "booking.updated",
-  status,
-  error_message: status === "failed" ? "Synkfel" : null,
-  attempts: 1,
-  max_attempts: 3,
-  received_at: `${TODAY}T08:00:00Z`,
-  started_at: null,
-  processed_at: null,
 });
 
 describe("Att lösa nu", () => {
