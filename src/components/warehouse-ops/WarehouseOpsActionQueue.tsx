@@ -73,16 +73,11 @@ export function queueItems(
   jobs: OpsJob[],
   changedPackings: ChangedPacking[] = [],
   preflightBookings: PreflightBooking[] = [],
-  syncJobs: SyncJob[] = [],
   today = format(new Date(), "yyyy-MM-dd"),
 ): QueueItem[] {
   const items: QueueItem[] = [];
   const todayAtNoon = new Date(`${today}T12:00:00`);
   const horizon = format(addDays(todayAtNoon, 2), "yyyy-MM-dd");
-  const syncWindowStart = format(addDays(todayAtNoon, -2), "yyyy-MM-dd");
-  const jobByBookingId = new Map(
-    jobs.filter((job) => job.bookingId).map((job) => [job.bookingId as string, job]),
-  );
 
   // Nya framtida bokningar hör hemma i planeringsinkorgen. Här visas de bara
   // när eventet är högst 48 timmar bort. Odaterade rader stannar också där.
@@ -119,22 +114,6 @@ export function queueItems(
       kind: "wms-blocked",
       preflight: booking,
     }));
-
-  // Bara det senaste synkjobbet per bokning avgör om felet fortfarande är öppet.
-  const seenBookings = new Set<string>();
-  syncJobs.forEach((syncJob) => {
-    if (seenBookings.has(syncJob.booking_id)) return;
-    seenBookings.add(syncJob.booking_id);
-    if (syncJob.status !== "failed") return;
-    if (!isWithin(syncJob.received_at, syncWindowStart, horizon)) return;
-    items.push({
-      id: `sync-${syncJob.id}`,
-      priority: 0,
-      kind: "sync-failed",
-      syncJob,
-      job: jobByBookingId.get(syncJob.booking_id) || null,
-    });
-  });
 
   jobs.filter((job) => !DONE.has(job.status) && isWithin(job.anchorDate, today, horizon)).forEach((job) => {
     const hasPeople = job.assignedStaff.length > 0 || job.workers.length > 0;
