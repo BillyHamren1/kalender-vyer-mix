@@ -166,7 +166,7 @@ describe('opt-in wiring', () => {
 
   it('opt-in true använder max 6 samtidiga resolutioner', async () => {
     expect(SCANNER_CONTRACT_WMS_CONCURRENCY).toBe(6);
-    expect(listBlock).toMatch(/mapWithConcurrency\(\s*filtered,\s*SCANNER_CONTRACT_WMS_CONCURRENCY/);
+    expect(listBlock).toMatch(/resolveWmsBatchWithBudget\(\s*filtered,/); // defaultar till SCANNER_CONTRACT_WMS_CONCURRENCY
 
     let inFlight = 0;
     let peak = 0;
