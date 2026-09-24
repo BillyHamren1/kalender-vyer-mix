@@ -22,7 +22,7 @@
 export const SCANNER_READ_CONTRACT_VERSION = 'scanner_contract_v1' as const;
 export const SCANNER_CONTRACT_TIME_ZONE = 'Europe/Stockholm' as const;
 /** Max samtidiga WMS-resolutioner i opt-in-flödet. */
-export const SCANNER_CONTRACT_WMS_CONCURRENCY = 6;
+export const SCANNER_CONTRACT_WMS_CONCURRENCY = 12;
 
 export interface ScannerBookingEvidence {
   booking_id: string | null;
@@ -322,4 +322,44 @@ export async function mapWithConcurrency<T, R>(
   }
   await Promise.all(runners);
   return results;
+}
+
+/** Max tid för ett enskilt WMS-anrop i jobblistan. */
+export const SCANNER_CONTRACT_WMS_CALL_TIMEOUT_MS = 4000;
+/** Total tidsbudget för WMS-berikning av hela jobblistan. */
+export const SCANNER_CONTRACT_WMS_TOTAL_BUDGET_MS = 12000;
+
+export interface WmsBatchResult { ok: boolean; code?: string | null; [k: string]: unknown }
+
+/**
+ * Kör WMS-resolution per jobb med per-anrops-timeout och total budget.
+ * Ett enskilt fel/timeout blir en typed kod på just det jobbet — aldrig ett
+ * fel för hela listan. Jobb som inte hinner startas inom budgeten får
+ * `wms_timeout` utan att WMS anropas. Ingen gissning, ingen lokal sanning.
+ */
+export async function resolveWmsBatchWithBudget<T>(
+  items: T[],
+  resolve: (item: T, signal: AbortSignal) => Promise<WmsBatchResult>,
+  opts: { concurrency?: number; callTimeoutMs?: number; totalBudgetMs?: number; now?: () => number } = {},
+): Promise<WmsBatchResult[]> {
+  const now = opts.now ?? (() => Date.now());
+  const callTimeout = opts.callTimeoutMs ?? SCANNER_CONTRACT_WMS_CALL_TIMEOUT_MS;
+  const deadline = now() + (opts.totalBudgetMs ?? SCANNER_CONTRACT_WMS_TOTAL_BUDGET_MS);
+  return mapWithConcurrency(items, opts.concurrency ?? SCANNER_CONTRACT_WMS_CONCURRENCY, async (item) => {
+    const remaining = deadline - now();
+    if (remaining <= 0) return { ok: false, code: 'wms_timeout' };
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<WmsBatchResult>((res) => {
+      timer = setTimeout(() => { controller.abort(); res({ ok: false, code: 'wms_timeout' }); }, Math.min(callTimeout, remaining));
+    });
+    try {
+      return await Promise.race([
+        resolve(item, controller.signal).catch(() => ({ ok: false, code: 'wms_unavailable' })),
+        timeout,
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  });
 }

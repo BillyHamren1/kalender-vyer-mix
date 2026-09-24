@@ -24,6 +24,7 @@ import {
 } from '../_shared/scannerCors.ts'
 import {
   SCANNER_CONTRACT_WMS_CONCURRENCY,
+  resolveWmsBatchWithBudget,
   buildScannerContractV1,
   mapWithConcurrency,
 } from '../_shared/scannerReadContractV1.ts'
@@ -991,24 +992,24 @@ Deno.serve(async (req) => {
           }
 
           const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
-          const wmsResults = await mapWithConcurrency(
+          const wmsStartedAt = Date.now()
+          const wmsResults = await resolveWmsBatchWithBudget(
             filtered,
-            SCANNER_CONTRACT_WMS_CONCURRENCY,
-            async (p: any) => {
+            async (p: any, signal: AbortSignal) => {
               const bookingNumber = p.booking?.booking_number
               if (!PRICELIST_API_KEY || !bookingNumber) {
                 return { ok: false, code: PRICELIST_API_KEY ? 'wms_reservation_not_found' : 'wms_not_configured' }
               }
-              try {
-                return await resolveWmsReservation(bookingNumber, {
-                  apiKey: PRICELIST_API_KEY,
-                  organizationId: ORG_ID,
-                })
-              } catch (_err) {
-                return { ok: false, code: 'wms_unavailable' }
-              }
+              return await resolveWmsReservation(bookingNumber, {
+                apiKey: PRICELIST_API_KEY,
+                organizationId: ORG_ID,
+                fetchImpl: (input: any, init?: any) => fetch(input, { ...(init || {}), signal }),
+              }) as any
             },
           )
+          const wmsFailCounts: Record<string, number> = {}
+          wmsResults.forEach((r: any) => { if (!r?.ok) wmsFailCounts[r?.code || 'unknown'] = (wmsFailCounts[r?.code || 'unknown'] || 0) + 1 })
+          console.log(`[scanner_contract_v1] list_active_packings jobs=${filtered.length} wms_ms=${Date.now() - wmsStartedAt} failures=${JSON.stringify(wmsFailCounts)}`)
 
           const enriched = filtered.map((p: any, i: number) => {
             const wms = wmsResults[i]
