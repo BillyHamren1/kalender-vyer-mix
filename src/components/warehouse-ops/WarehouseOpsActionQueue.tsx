@@ -18,7 +18,6 @@ import { useChangedPackings } from "@/components/packing/PackingChangedList";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
 import { cn } from "@/lib/utils";
 import { fetchInbox } from "@/services/warehouseProjectService";
-import { useSyncJobs, type SyncJob } from "@/hooks/useSyncJobs";
 import { supabase } from "@/integrations/supabase/client";
 import type { OpsAttention, OpsJob } from "@/hooks/useWarehouseOpsRange";
 import type { WarehouseProjectInboxItem } from "@/types/warehouseProject";
@@ -33,7 +32,6 @@ type QueueItem =
   | { id: string; priority: 0 | 1 | 2; kind: "attention"; attention: OpsAttention }
   | { id: string; priority: 0 | 1 | 2; kind: "changed"; changed: ChangedPacking }
   | { id: string; priority: 0 | 1 | 2; kind: "wms-blocked"; preflight: PreflightBooking }
-  | { id: string; priority: 0 | 1 | 2; kind: "sync-failed"; syncJob: SyncJob; job: OpsJob | null }
   | { id: string; priority: 0 | 1 | 2; kind: "unstaffed" | "no-time"; job: OpsJob };
 
 interface ChangedPacking {
