@@ -106,4 +106,44 @@ describe('Time-WMS projection transport', () => {
       is_accessory: true,
     });
   });
+  it('bevarar manuella WMS-rader utan item_type_id som manuella rader', () => {
+    const body = normalizeTimeWmsProjectionBody({
+      bookingId: 'booking-1',
+      reservationId: 'reservation-1',
+      lines: [{
+        reservationLineId: 'line-manual-1',
+        parentLineId: null,
+        kind: 'line',
+        actionable: false,
+        label: 'Entréskylt 3m',
+        requiredQuantity: 3,
+        packedQuantity: 0,
+        scanCodes: [],
+        lineType: 'manual',
+        itemTypeId: null,
+        packageId: null,
+        sourceDisplayName: 'Entréskylt 3m',
+        sourceSortIndex: 1,
+        productPackableDefault: true,
+        bookingPackabilityOverride: null,
+        warehousePackabilityOverride: null,
+        isPackable: true,
+        packabilitySource: 'product_default',
+        packabilityRevision: 2,
+      }],
+    });
+
+    expect(body.lines).toHaveLength(1);
+    expect(body.lines[0]).toMatchObject({
+      line_id: 'line-manual-1',
+      type: 'manual',
+      name: 'Entréskylt 3m',
+      required_qty: 3,
+      item_type_id: null,
+      is_packable: true,
+      line_type: 'manual',
+      source_sort_index: 1,
+    });
+  });
+
 });

@@ -157,13 +157,23 @@ export function normalizeTimeWmsProjectionBody(value: Record<string, unknown>): 
     const normalized = {
       ...line,
       line_id: lineId,
-      name: String(line.label ?? line.name ?? 'Okänd artikel'),
+      name: String(line.sourceDisplayName ?? line.label ?? line.name ?? 'Okänd artikel'),
+      source_display_name: line.sourceDisplayName ?? line.source_display_name ?? null,
+      source_sort_index: Number.isFinite(Number(line.sourceSortIndex ?? line.source_sort_index))
+        ? Number(line.sourceSortIndex ?? line.source_sort_index)
+        : null,
       required_qty: Number(line.requiredQuantity ?? line.quantity ?? 0) || 0,
       packed_count: Number(line.packedQuantity ?? line.packed ?? 0) || 0,
       sku: line.sku ?? line.articleNumber ?? null,
       item_type_id: line.itemTypeId ?? line.inventoryTypeId ?? line.inventory_type_id ?? null,
       package_id: line.packageId ?? line.package_id ?? null,
       parent_line_id: parentLineId,
+      line_type: line.lineType ?? line.line_type ?? 'catalog',
+      product_packable_default: line.productPackableDefault ?? line.product_packable_default ?? true,
+      booking_packability_override: line.bookingPackabilityOverride ?? line.booking_packability_override ?? null,
+      warehouse_packability_override: line.warehousePackabilityOverride ?? line.warehouse_packability_override ?? null,
+      packability_source: line.packabilitySource ?? line.packability_source ?? undefined,
+      packability_revision: line.packabilityRevision ?? line.packability_revision ?? 1,
       is_packable: line.isPackable ?? line.is_packable ?? line.actionable ?? true,
     };
     if ((line.kind ?? '') === 'group') {
@@ -183,20 +193,26 @@ export function normalizeTimeWmsProjectionBody(value: Record<string, unknown>): 
       values.push(normalized);
       target.set(String(parentLineId), values);
     } else {
-      topLevel.push({ ...normalized, type: 'item_type' });
+      topLevel.push({
+        ...normalized,
+        type: normalized.line_type === 'manual' ? 'manual' : 'item_type',
+      });
     }
   }
   for (const [groupId, group] of groups) {
     group.components = packageMembers.get(groupId) ?? [];
     topLevel.push(group);
     for (const accessory of accessories.get(groupId) ?? []) {
-      topLevel.push({ ...accessory, type: 'item_type', is_accessory: true });
+      topLevel.push({ ...accessory, type: accessory.line_type === 'manual' ? 'manual' : 'item_type', is_accessory: true });
     }
     packageMembers.delete(groupId);
     accessories.delete(groupId);
   }
   for (const orphaned of [...packageMembers.values(), ...accessories.values()]) {
-    topLevel.push(...orphaned.map((line) => ({ ...line, type: 'item_type' })));
+    topLevel.push(...orphaned.map((line) => ({
+      ...line,
+      type: line.line_type === 'manual' ? 'manual' : 'item_type',
+    })));
   }
   return {
     ...source,
