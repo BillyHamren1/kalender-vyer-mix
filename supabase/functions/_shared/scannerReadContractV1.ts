@@ -60,6 +60,8 @@ export interface ScannerContractV1 {
   booking: ScannerBookingEvidence;
   planning: { calendar_events: ScannerCalendarEvent[] };
   wms: ScannerWmsEvidence;
+  /** Additivt: per-jobb-blockerare från Planning-läsningar (tom = inga). */
+  blockers: string[];
 }
 
 /**
@@ -278,6 +280,10 @@ export function buildWmsEvidence(result: WmsResolutionLike | null | undefined): 
   };
 }
 
+/** Per-jobb-blockerarkoder när Planning inte kunde läsa ägarbevis. */
+export const SCANNER_CONTRACT_BOOKING_READ_FAILED = 'scanner_contract_booking_read_failed' as const;
+export const SCANNER_CONTRACT_CALENDAR_READ_FAILED = 'scanner_contract_calendar_read_failed' as const;
+
 export function buildScannerContractV1(input: {
   bookingId: string | null | undefined;
   organizationId: string | null | undefined;
@@ -285,18 +291,29 @@ export function buildScannerContractV1(input: {
   calendarRows: RawCalendarEventRow[] | null | undefined;
   jobId: string | null;
   wms: WmsResolutionLike | null | undefined;
+  /** Läsningen av bookings-bevis misslyckades → per-jobb-blockerare, aldrig gissning. */
+  bookingReadFailed?: boolean;
+  /** Läsningen av calendar_events misslyckades → per-jobb-blockerare. */
+  calendarReadFailed?: boolean;
 }): ScannerContractV1 {
+  const blockers: string[] = [];
+  if (input.bookingReadFailed) blockers.push(SCANNER_CONTRACT_BOOKING_READ_FAILED);
+  if (input.calendarReadFailed) blockers.push(SCANNER_CONTRACT_CALENDAR_READ_FAILED);
   return {
     contract_version: SCANNER_READ_CONTRACT_VERSION,
-    booking: buildBookingEvidence(input.bookingId, input.lastAppliedSourceRevision),
+    booking: buildBookingEvidence(
+      input.bookingId,
+      input.bookingReadFailed ? null : input.lastAppliedSourceRevision,
+    ),
     planning: {
-      calendar_events: buildCalendarEvents(input.calendarRows, {
+      calendar_events: input.calendarReadFailed ? [] : buildCalendarEvents(input.calendarRows, {
         bookingId: input.bookingId,
         organizationId: input.organizationId,
         jobId: input.jobId,
       }),
     },
     wms: buildWmsEvidence(input.wms),
+    blockers,
   };
 }
 

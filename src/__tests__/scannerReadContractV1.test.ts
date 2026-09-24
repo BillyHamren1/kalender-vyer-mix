@@ -159,9 +159,10 @@ describe('opt-in wiring', () => {
     expect(listBlock).toMatch(/\.slice\(0, 300\)/);
   });
 
-  it('databasfel fail-closed med stabila koder', () => {
-    expect(listBlock).toMatch(/scanner_contract_booking_read_failed/);
-    expect(listBlock).toMatch(/scanner_contract_calendar_read_failed/);
+  it('databasfel fail-closed per jobb (ingen hela-listan-502)', () => {
+    expect(listBlock).toMatch(/bookingReadFailed/);
+    expect(listBlock).toMatch(/calendarReadFailed/);
+    expect(listBlock).not.toMatch(/status: 502/);
   });
 
   it('opt-in true använder max 6 samtidiga resolutioner', async () => {
