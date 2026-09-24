@@ -22,7 +22,7 @@
 export const SCANNER_READ_CONTRACT_VERSION = 'scanner_contract_v1' as const;
 export const SCANNER_CONTRACT_TIME_ZONE = 'Europe/Stockholm' as const;
 /** Max samtidiga WMS-resolutioner i opt-in-flödet. */
-export const SCANNER_CONTRACT_WMS_CONCURRENCY = 12;
+export const SCANNER_CONTRACT_WMS_CONCURRENCY = 6;
 
 export interface ScannerBookingEvidence {
   booking_id: string | null;
