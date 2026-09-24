@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { queueItems } from "./WarehouseOpsActionQueue";
 import type { OpsAttention, OpsJob } from "@/hooks/useWarehouseOpsRange";
-import type { SyncJob } from "@/hooks/useSyncJobs";
 import type { WarehouseProjectInboxItem } from "@/types/warehouseProject";
 
 const TODAY = "2026-09-11";
@@ -48,20 +47,6 @@ const job = (id: string, anchorDate: string, overrides: Partial<OpsJob> = {}): O
   ...overrides,
 });
 
-const syncJob = (id: string, bookingId: string, status: SyncJob["status"]): SyncJob => ({
-  id,
-  booking_id: bookingId,
-  organization_id: "org-1",
-  event_type: "booking.updated",
-  status,
-  error_message: status === "failed" ? "Synkfel" : null,
-  attempts: 1,
-  max_attempts: 3,
-  received_at: `${TODAY}T08:00:00Z`,
-  started_at: null,
-  processed_at: null,
-});
-
 describe("Att lösa nu", () => {
   it("tar bort vanliga framtida och odaterade bokningar men behåller akuta", () => {
     const result = queueItems(
@@ -71,7 +56,6 @@ describe("Att lösa nu", () => {
         inbox("past", "2026-09-02"),
         inbox("missing", null),
       ],
-      [],
       [],
       [],
       [],
@@ -100,7 +84,7 @@ describe("Att lösa nu", () => {
     const future = job("future", "2026-09-20");
     const past = job("past", "2026-09-02");
 
-    const result = queueItems([], [], [nearUnstaffed, nearNoTime, future, past], [], [], [], TODAY);
+    const result = queueItems([], [], [nearUnstaffed, nearNoTime, future, past], [], [], TODAY);
 
     expect(result.map((item) => item.id)).toEqual(expect.arrayContaining(["unstaffed-near", "no-time-near-time"]));
     expect(result.map((item) => item.id)).not.toContain("unstaffed-future");
@@ -123,7 +107,6 @@ describe("Att lösa nu", () => {
         { packingId: "blocked", bookingNumber: "2609-1", customerName: "Kund", eventDate: "2026-09-12", blocked: 2, worstStatus: "BLOCKED" },
         { packingId: "warning", bookingNumber: "2609-2", customerName: "Kund", eventDate: "2026-09-12", blocked: 0, worstStatus: "WARNING" },
       ],
-      [],
       TODAY,
     );
 
@@ -135,28 +118,4 @@ describe("Att lösa nu", () => {
     expect(result.map((item) => item.id)).not.toContain("wms-warning");
   });
 
-  it("visar synkfel bara när bokningens senaste synkjobb är failed", () => {
-    const oldFailure = {
-      ...syncJob("old-failed", "booking-old", "failed"),
-      received_at: "2026-08-20T08:00:00Z",
-    };
-    const result = queueItems(
-      [],
-      [],
-      [],
-      [],
-      [],
-      [
-        syncJob("latest-ok", "booking-ok", "completed"),
-        syncJob("older-failed", "booking-ok", "failed"),
-        syncJob("latest-failed", "booking-failed", "failed"),
-        oldFailure,
-      ],
-      TODAY,
-    );
-
-    expect(result.map((item) => item.id)).toContain("sync-latest-failed");
-    expect(result.map((item) => item.id)).not.toContain("sync-older-failed");
-    expect(result.map((item) => item.id)).not.toContain("sync-old-failed");
-  });
 });

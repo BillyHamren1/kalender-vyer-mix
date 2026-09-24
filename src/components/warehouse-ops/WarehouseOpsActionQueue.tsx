@@ -18,7 +18,6 @@ import { useChangedPackings } from "@/components/packing/PackingChangedList";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
 import { cn } from "@/lib/utils";
 import { fetchInbox } from "@/services/warehouseProjectService";
-import { useSyncJobs, type SyncJob } from "@/hooks/useSyncJobs";
 import { supabase } from "@/integrations/supabase/client";
 import type { OpsAttention, OpsJob } from "@/hooks/useWarehouseOpsRange";
 import type { WarehouseProjectInboxItem } from "@/types/warehouseProject";
@@ -33,7 +32,6 @@ type QueueItem =
   | { id: string; priority: 0 | 1 | 2; kind: "attention"; attention: OpsAttention }
   | { id: string; priority: 0 | 1 | 2; kind: "changed"; changed: ChangedPacking }
   | { id: string; priority: 0 | 1 | 2; kind: "wms-blocked"; preflight: PreflightBooking }
-  | { id: string; priority: 0 | 1 | 2; kind: "sync-failed"; syncJob: SyncJob; job: OpsJob | null }
   | { id: string; priority: 0 | 1 | 2; kind: "unstaffed" | "no-time"; job: OpsJob };
 
 interface ChangedPacking {
@@ -75,16 +73,11 @@ export function queueItems(
   jobs: OpsJob[],
   changedPackings: ChangedPacking[] = [],
   preflightBookings: PreflightBooking[] = [],
-  syncJobs: SyncJob[] = [],
   today = format(new Date(), "yyyy-MM-dd"),
 ): QueueItem[] {
   const items: QueueItem[] = [];
   const todayAtNoon = new Date(`${today}T12:00:00`);
   const horizon = format(addDays(todayAtNoon, 2), "yyyy-MM-dd");
-  const syncWindowStart = format(addDays(todayAtNoon, -2), "yyyy-MM-dd");
-  const jobByBookingId = new Map(
-    jobs.filter((job) => job.bookingId).map((job) => [job.bookingId as string, job]),
-  );
 
   // Nya framtida bokningar hör hemma i planeringsinkorgen. Här visas de bara
   // när eventet är högst 48 timmar bort. Odaterade rader stannar också där.
@@ -122,22 +115,6 @@ export function queueItems(
       preflight: booking,
     }));
 
-  // Bara det senaste synkjobbet per bokning avgör om felet fortfarande är öppet.
-  const seenBookings = new Set<string>();
-  syncJobs.forEach((syncJob) => {
-    if (seenBookings.has(syncJob.booking_id)) return;
-    seenBookings.add(syncJob.booking_id);
-    if (syncJob.status !== "failed") return;
-    if (!isWithin(syncJob.received_at, syncWindowStart, horizon)) return;
-    items.push({
-      id: `sync-${syncJob.id}`,
-      priority: 0,
-      kind: "sync-failed",
-      syncJob,
-      job: jobByBookingId.get(syncJob.booking_id) || null,
-    });
-  });
-
   jobs.filter((job) => !DONE.has(job.status) && isWithin(job.anchorDate, today, horizon)).forEach((job) => {
     const hasPeople = job.assignedStaff.length > 0 || job.workers.length > 0;
     if (!hasPeople) {
@@ -170,7 +147,6 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
     retry: 1,
   });
   const { data: changedPackings = [] } = useChangedPackings();
-  const { data: syncJobs = [], isError: syncJobsError } = useSyncJobs();
   const today = format(new Date(), "yyyy-MM-dd");
   const horizon = format(addDays(new Date(), 2), "yyyy-MM-dd");
   const { data: preflightData, isError: preflightError } = useQuery({
@@ -194,13 +170,7 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
       title: "WMS-kontroll misslyckades",
       detail: "Blockerande packfel kunde inte kontrolleras.",
     }] : []),
-    ...(syncJobsError ? [{
-      id: "sync-status-unavailable",
-      level: "warning" as const,
-      title: "Synkstatus kunde inte hämtas",
-      detail: "Kontrollera systemövervakningen.",
-    }] : []),
-  ], [attention, preflightError, syncJobsError]);
+  ], [attention, preflightError]);
   const items = useMemo(
     () => queueItems(
       inbox,
@@ -208,10 +178,9 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
       jobs,
       changedPackings as ChangedPacking[],
       preflightData?.bookings || [],
-      syncJobs,
       today,
     ),
-    [changedPackings, inbox, jobs, preflightData?.bookings, syncJobs, systemAttention, today],
+    [changedPackings, inbox, jobs, preflightData?.bookings, systemAttention, today],
   );
 
   return (
@@ -309,27 +278,6 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
                   <div className="text-[11px] text-muted-foreground truncate">
                     {row.worstStatus === "ERROR" ? "Kontrollen misslyckades" : `${row.blocked} blockerande ${row.blocked === 1 ? "rad" : "rader"}`}
                   </div>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            );
-          }
-
-          if (item.kind === "sync-failed") {
-            const row = item.syncJob;
-            const linkedJob = item.job;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="w-full min-h-[58px] px-3 py-2 flex items-center gap-2.5 text-left hover:bg-accent/35"
-                onClick={() => navigate(linkedJob ? `/warehouse/packing/${linkedJob.packingId}` : "/admin/sync")}
-              >
-                <RefreshCw className="h-4 w-4 shrink-0 text-red-600" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-red-700">SYNK MISSLYCKAD</div>
-                  <div className="text-xs font-semibold truncate">{linkedJob?.bookingNumber || linkedJob?.name || "Bokningssynk"}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{row.error_message || "Kräver ny synkronisering"}</div>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
