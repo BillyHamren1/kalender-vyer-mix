@@ -9,10 +9,18 @@ import { APP_MODE } from '@/config/appMode';
  * (localhost). Renderar aldrig i produktion (planning.e-flow.se,
  * *.lovable.app publicerad domän) eller i scanner/time-appen.
  */
+const PRODUCTION_HOSTS = ['kalender-vyer-mix.lovable.app'];
 const isPreviewHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
-  return host === 'localhost' || host.startsWith('id-preview--');
+  if (host.endsWith('e-flow.se') || PRODUCTION_HOSTS.includes(host)) return false;
+  return (
+    host === 'localhost' ||
+    host.startsWith('id-preview--') ||
+    host.endsWith('.lovableproject.com') ||
+    host.endsWith('.lovable.app') ||
+    host.endsWith('.lovable.dev')
+  );
 };
 
 const PLANNING_PURPLE = '#7357C8';
