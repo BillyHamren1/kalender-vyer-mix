@@ -107,7 +107,6 @@ describe("Att lösa nu", () => {
         { packingId: "blocked", bookingNumber: "2609-1", customerName: "Kund", eventDate: "2026-09-12", blocked: 2, worstStatus: "BLOCKED" },
         { packingId: "warning", bookingNumber: "2609-2", customerName: "Kund", eventDate: "2026-09-12", blocked: 0, worstStatus: "WARNING" },
       ],
-      [],
       TODAY,
     );
 
@@ -119,28 +118,4 @@ describe("Att lösa nu", () => {
     expect(result.map((item) => item.id)).not.toContain("wms-warning");
   });
 
-  it("visar synkfel bara när bokningens senaste synkjobb är failed", () => {
-    const oldFailure = {
-      ...syncJob("old-failed", "booking-old", "failed"),
-      received_at: "2026-08-20T08:00:00Z",
-    };
-    const result = queueItems(
-      [],
-      [],
-      [],
-      [],
-      [],
-      [
-        syncJob("latest-ok", "booking-ok", "completed"),
-        syncJob("older-failed", "booking-ok", "failed"),
-        syncJob("latest-failed", "booking-failed", "failed"),
-        oldFailure,
-      ],
-      TODAY,
-    );
-
-    expect(result.map((item) => item.id)).toContain("sync-latest-failed");
-    expect(result.map((item) => item.id)).not.toContain("sync-older-failed");
-    expect(result.map((item) => item.id)).not.toContain("sync-old-failed");
-  });
 });
