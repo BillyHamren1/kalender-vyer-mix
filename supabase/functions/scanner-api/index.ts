@@ -962,6 +962,10 @@ Deno.serve(async (req) => {
 
           const revisionMap = new Map<string, any>()
           const calendarMap = new Map<string, any[]>()
+          // Endast autentisering får stoppa hela listan. Läsfel på ägarbevis
+          // blir per-jobb-blockerare med exakt felkod (fail-closed per jobb).
+          let bookingReadFailed = false
+          let calendarReadFailed = false
 
           if (contractBookingIds.length > 0) {
             const { data: revRows, error: revError } = await supabase
@@ -971,9 +975,10 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (revError) {
               console.error('[scanner_contract_v1] booking evidence read failed', revError?.code)
-              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_booking_read_failed', error: 'Kunde inte läsa bokningsbevis' }), { status: 502, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+              bookingReadFailed = true
+            } else {
+              ;(revRows || []).forEach((b: any) => revisionMap.set(b.id, b.last_applied_source_revision ?? null))
             }
-            ;(revRows || []).forEach((b: any) => revisionMap.set(b.id, b.last_applied_source_revision ?? null))
 
             const { data: calRows, error: calError } = await supabase
               .from('calendar_events')
@@ -982,13 +987,14 @@ Deno.serve(async (req) => {
               .eq('organization_id', ORG_ID)
             if (calError) {
               console.error('[scanner_contract_v1] calendar evidence read failed', calError?.code)
-              return new Response(JSON.stringify({ success: false, code: 'scanner_contract_calendar_read_failed', error: 'Kunde inte läsa kalenderbevis' }), { status: 502, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+              calendarReadFailed = true
+            } else {
+              ;(calRows || []).forEach((e: any) => {
+                const list = calendarMap.get(e.booking_id) || []
+                list.push(e)
+                calendarMap.set(e.booking_id, list)
+              })
             }
-            ;(calRows || []).forEach((e: any) => {
-              const list = calendarMap.get(e.booking_id) || []
-              list.push(e)
-              calendarMap.set(e.booking_id, list)
-            })
           }
 
           const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
@@ -1009,10 +1015,11 @@ Deno.serve(async (req) => {
           )
           const wmsFailCounts: Record<string, number> = {}
           wmsResults.forEach((r: any) => { if (!r?.ok) wmsFailCounts[r?.code || 'unknown'] = (wmsFailCounts[r?.code || 'unknown'] || 0) + 1 })
-          console.log(`[scanner_contract_v1] list_active_packings jobs=${filtered.length} wms_ms=${Date.now() - wmsStartedAt} failures=${JSON.stringify(wmsFailCounts)}`)
+          console.log(`[scanner_contract_v1] list_active_packings jobs=${filtered.length} wms_ms=${Date.now() - wmsStartedAt} failures=${JSON.stringify(wmsFailCounts)} booking_read_failed=${bookingReadFailed} calendar_read_failed=${calendarReadFailed}`)
 
           const enriched = filtered.map((p: any, i: number) => {
             const wms = wmsResults[i]
+            const hasBooking = Boolean(p.booking_id)
             const contract = buildScannerContractV1({
               bookingId: p.booking_id ?? null,
               organizationId: ORG_ID,
@@ -1020,6 +1027,8 @@ Deno.serve(async (req) => {
               calendarRows: p.booking_id ? calendarMap.get(p.booking_id) ?? [] : [],
               jobId: p.id ?? null,
               wms,
+              bookingReadFailed: hasBooking && bookingReadFailed,
+              calendarReadFailed: hasBooking && calendarReadFailed,
             })
             return {
               ...p,
