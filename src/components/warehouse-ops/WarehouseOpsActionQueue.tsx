@@ -147,7 +147,6 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
     retry: 1,
   });
   const { data: changedPackings = [] } = useChangedPackings();
-  const { data: syncJobs = [], isError: syncJobsError } = useSyncJobs();
   const today = format(new Date(), "yyyy-MM-dd");
   const horizon = format(addDays(new Date(), 2), "yyyy-MM-dd");
   const { data: preflightData, isError: preflightError } = useQuery({
@@ -171,13 +170,7 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
       title: "WMS-kontroll misslyckades",
       detail: "Blockerande packfel kunde inte kontrolleras.",
     }] : []),
-    ...(syncJobsError ? [{
-      id: "sync-status-unavailable",
-      level: "warning" as const,
-      title: "Synkstatus kunde inte hämtas",
-      detail: "Kontrollera systemövervakningen.",
-    }] : []),
-  ], [attention, preflightError, syncJobsError]);
+  ], [attention, preflightError]);
   const items = useMemo(
     () => queueItems(
       inbox,
@@ -185,10 +178,9 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
       jobs,
       changedPackings as ChangedPacking[],
       preflightData?.bookings || [],
-      syncJobs,
       today,
     ),
-    [changedPackings, inbox, jobs, preflightData?.bookings, syncJobs, systemAttention, today],
+    [changedPackings, inbox, jobs, preflightData?.bookings, systemAttention, today],
   );
 
   return (
