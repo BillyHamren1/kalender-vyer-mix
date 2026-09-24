@@ -284,27 +284,6 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
             );
           }
 
-          if (item.kind === "sync-failed") {
-            const row = item.syncJob;
-            const linkedJob = item.job;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="w-full min-h-[58px] px-3 py-2 flex items-center gap-2.5 text-left hover:bg-accent/35"
-                onClick={() => navigate(linkedJob ? `/warehouse/packing/${linkedJob.packingId}` : "/admin/sync")}
-              >
-                <RefreshCw className="h-4 w-4 shrink-0 text-red-600" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-red-700">SYNK MISSLYCKAD</div>
-                  <div className="text-xs font-semibold truncate">{linkedJob?.bookingNumber || linkedJob?.name || "Bokningssynk"}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{row.error_message || "Kräver ny synkronisering"}</div>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            );
-          }
-
           const row = item.job;
           const title = row.bookingNumber || row.name;
           const isUnstaffed = item.kind === "unstaffed";
