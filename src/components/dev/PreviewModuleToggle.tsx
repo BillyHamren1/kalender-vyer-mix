@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { APP_MODE } from '@/config/appMode';
 
 /**
  * Preview-only module switcher.
@@ -21,7 +22,7 @@ const PreviewModuleToggle: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (!isPreviewHost()) return null;
+  if (!isPreviewHost() || APP_MODE !== 'web') return null;
 
   const isWarehouse = location.pathname.startsWith('/warehouse');
 

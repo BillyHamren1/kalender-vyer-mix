@@ -17,6 +17,7 @@ import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 import { useTenantCacheGuard } from "@/hooks/useTenantCacheGuard";
 import { enforcePersistedCacheOwner } from "@/lib/tenant/tenantCacheGuard";
 import { ModuleThemeMount } from "@/hooks/useModuleTheme";
+import PreviewModuleToggle from "@/components/dev/PreviewModuleToggle";
 
 const LegacyProjectRedirect = () => {
   const { projectId } = useParams();
