@@ -60,7 +60,6 @@ describe("Att lösa nu", () => {
       [],
       [],
       [],
-      [],
       TODAY,
     );
 
@@ -85,7 +84,7 @@ describe("Att lösa nu", () => {
     const future = job("future", "2026-09-20");
     const past = job("past", "2026-09-02");
 
-    const result = queueItems([], [], [nearUnstaffed, nearNoTime, future, past], [], [], [], TODAY);
+    const result = queueItems([], [], [nearUnstaffed, nearNoTime, future, past], [], [], TODAY);
 
     expect(result.map((item) => item.id)).toEqual(expect.arrayContaining(["unstaffed-near", "no-time-near-time"]));
     expect(result.map((item) => item.id)).not.toContain("unstaffed-future");
