@@ -300,6 +300,7 @@ const AppContent = () => {
               {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
               <BrowserRouter>
                 <ShellEntry />
+                <PreviewModuleToggle />
               </BrowserRouter>
             </TooltipProvider>
           </PersistQueryClientProvider>
@@ -310,6 +311,7 @@ const AppContent = () => {
               {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
               <BrowserRouter>
                 <ShellEntry />
+                <PreviewModuleToggle />
               </BrowserRouter>
             </TooltipProvider>
           </QueryClientProvider>
