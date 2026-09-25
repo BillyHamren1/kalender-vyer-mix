@@ -143,3 +143,30 @@ describe("grupprojekt – medlemskap", () => {
     expect(resolvePrimaryBookingId(m, "saknas")).toBe("y");
   });
 });
+
+import { fetchLargeProjects } from "@/services/largeProjectService";
+import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
+
+describe("grupprojekt – projektlista, sök och kalender", () => {
+  it("projektlistan ger EN post med alla medlemmars bokningsnummer/kund för sök", async () => {
+    db.large_projects.push({ id: "lp-1", name: "Mix", status: "planning", deleted_at: null, created_at: "" });
+    db.large_project_bookings.push({ id: "j1", large_project_id: "lp-1", booking_id: "b-1", sort_order: 1, bookings: db.bookings[0] });
+    db.bookings.find((b) => b.id === "b-3")!.large_project_id = "lp-1"; // legacy-only
+    const list = await fetchLargeProjects();
+    expect(list).toHaveLength(1);
+    const tokens = list[0].bookings.map((b: any) => (b.booking || b.bookings)?.booking_number);
+    expect(tokens).toEqual(["2609-1", "2609-3"]);
+    expect(list[0].bookingCount).toBe(2);
+    // Bokningsnumren är oförändrade → gamla bokningssidan /booking/:id fungerar som förut.
+    expect(db.bookings.map((b) => b.booking_number)).toEqual(["2609-1", "2609-2", "2609-3"]);
+  });
+
+  it("kalenderns medlemsupplösning hittar join-only, legacy-only och båda utan dubblett", () => {
+    const m = resolveLargeProjectMembershipFromRows(
+      ["b-1", "b-2", "b-3"],
+      [{ large_project_id: "lp-1", booking_id: "b-1" }, { large_project_id: "lp-1", booking_id: "b-2" }],
+      new Map([["b-2", { id: "b-2", large_project_id: "lp-1" }], ["b-3", { id: "b-3", large_project_id: "lp-1" }]]),
+    );
+    expect([...m.entries()]).toEqual([["b-1", "lp-1"], ["b-2", "lp-1"], ["b-3", "lp-1"]]);
+  });
+});
