@@ -162,6 +162,43 @@ describe("grupprojekt – medlemskap", () => {
     expect(await loadLargeProjectMemberIds(project.id)).toEqual(["b-1"]);
   });
 
+  it("regression: misslyckad legacy-rensning vid borttagning återställer länken (ingen halv relation)", async () => {
+    const { project } = await createLargeProjectFromBooking("b-1", { name: "Mässa" });
+    await addBookingToLargeProject(project.id, "b-2");
+    const before = JSON.parse(JSON.stringify(db.large_project_bookings));
+    failBookingUpdate = true;
+    await expect(removeBookingFromLargeProject(project.id, "b-2")).rejects.toThrow(/inget ändrat/);
+    expect(db.large_project_bookings).toEqual(expect.arrayContaining(before));
+    expect(db.large_project_bookings).toHaveLength(before.length);
+    expect(db.bookings.find((b) => b.id === "b-2")!.large_project_id).toBe(project.id);
+  });
+
+  it("snapshot: add/remove ändrar endast large_project_id/länk – orderrader, kalender, WMS orörda", async () => {
+    db.booking_products = [{ id: "bp1", booking_id: "b-2", name: "Tält", quantity: 3 }];
+    db.calendar_events = [{ id: "ce1", booking_id: "b-2", event_type: "rig", start_time: "2026-10-01T07:00:00Z", resource_id: "team-1" }];
+    db.packing_projects = [{ id: "pp1", booking_id: "b-2", status: "planning" }];
+    db.packing_list_items = [{ id: "pli1", packing_id: "pp1", booking_product_id: "bp1" }];
+    const snap = () => JSON.parse(JSON.stringify({
+      booking: { ...db.bookings.find((b) => b.id === "b-2"), large_project_id: undefined },
+      bp: db.booking_products, ce: db.calendar_events, pp: db.packing_projects, pli: db.packing_list_items,
+    }));
+    const s0 = snap();
+    const { project } = await createLargeProjectFromBooking("b-1", { name: "Mässa" });
+    await addBookingToLargeProject(project.id, "b-2");
+    expect(snap()).toEqual(s0);
+    await removeBookingFromLargeProject(project.id, "b-2");
+    expect(snap()).toEqual(s0);
+    expect(db.bookings.find((b) => b.id === "b-2")!.large_project_id).toBeNull();
+  });
+
+  it("RPC-fel (behörighet) ger tydligt fel och ingen halv relation", async () => {
+    db.large_projects.push({ id: "lp-x", name: "X", status: "planning", deleted_at: null });
+    rpcMode = "error";
+    await expect(addBookingToLargeProject("lp-x", "b-3")).rejects.toThrow();
+    expect(db.large_project_bookings).toHaveLength(0);
+    expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
+  });
+
   it("ren merge och grundbokning", () => {
     const m = mergeLargeProjectMembers("lp", [{ booking_id: "x", sort_order: 2 }, { booking_id: "y", sort_order: 1 }], ["x", "z"]);
     expect(m.map((r) => r.booking_id)).toEqual(["y", "x", "z"]);

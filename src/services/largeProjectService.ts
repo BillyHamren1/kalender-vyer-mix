@@ -483,6 +483,15 @@ export async function createLargeProjectFromBooking(
  * Legacy-fältet nollas endast om det pekar på just detta projekt.
  */
 export async function removeBookingFromLargeProject(largeProjectId: string, bookingId: string): Promise<void> {
+  // Spara join-raderna så att de kan återställas om legacy-rensningen
+  // misslyckas (ingen halv relation).
+  const { data: existing, error: readErr } = await supabase
+    .from('large_project_bookings')
+    .select('*')
+    .eq('large_project_id', largeProjectId)
+    .eq('booking_id', bookingId);
+  if (readErr) throw readErr;
+
   const { error } = await supabase
     .from('large_project_bookings')
     .delete()
@@ -496,7 +505,18 @@ export async function removeBookingFromLargeProject(largeProjectId: string, book
     .update({ large_project_id: null })
     .eq('id', bookingId)
     .eq('large_project_id', largeProjectId);
-  if (legacyErr) throw new Error(`Länken togs bort men bokningens projektfält kunde inte rensas: ${legacyErr.message}`);
+  if (legacyErr) {
+    let restored = true;
+    for (const row of (existing as any[]) || []) {
+      const { error: reErr } = await supabase.from('large_project_bookings').insert(row as any);
+      if (reErr) restored = false;
+    }
+    throw new Error(
+      restored
+        ? `Bokningen kunde inte tas bort från projektet (inget ändrat): ${legacyErr.message}`
+        : `Bokningens projektfält kunde inte rensas och länken kunde inte återställas: ${legacyErr.message}`,
+    );
+  }
 }
 
 export async function updateBookingDisplayName(id: string, displayName: string): Promise<void> {
