@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       idChunks.length = 0;
       for (let i = 0; i < bookingIds.length; i += ID_CHUNK) idChunks.push(bookingIds.slice(i, i + ID_CHUNK));
       if (bookingIds.length === 0) {
-        return new Response(JSON.stringify({ data: {} }), {
+        return new Response(JSON.stringify({}), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
