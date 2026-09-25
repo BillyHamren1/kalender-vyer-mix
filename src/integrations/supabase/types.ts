@@ -3549,6 +3549,7 @@ export type Database = {
           name: string
           organization_id: string
           planning_status: Database["public"]["Enums"]["project_planning_status"]
+          primary_booking_id: string | null
           project_leader: string | null
           project_number: string | null
           start_date: string[] | null
@@ -3576,6 +3577,7 @@ export type Database = {
           name: string
           organization_id?: string
           planning_status?: Database["public"]["Enums"]["project_planning_status"]
+          primary_booking_id?: string | null
           project_leader?: string | null
           project_number?: string | null
           start_date?: string[] | null
@@ -3603,6 +3605,7 @@ export type Database = {
           name?: string
           organization_id?: string
           planning_status?: Database["public"]["Enums"]["project_planning_status"]
+          primary_booking_id?: string | null
           project_leader?: string | null
           project_number?: string | null
           start_date?: string[] | null
@@ -3615,6 +3618,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_projects_primary_booking_id_fkey"
+            columns: ["primary_booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_projects_primary_booking_id_fkey"
+            columns: ["primary_booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
             referencedColumns: ["id"]
           },
         ]
@@ -11391,6 +11408,14 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      link_booking_to_large_project: {
+        Args: {
+          p_booking_id: string
+          p_large_project_id: string
+          p_make_primary?: boolean
+        }
+        Returns: string
+      }
       lp_rep_booking_id: { Args: { _lp: string }; Returns: string }
       mark_booking_changes_seen: {
         Args: { p_booking_id: string }
