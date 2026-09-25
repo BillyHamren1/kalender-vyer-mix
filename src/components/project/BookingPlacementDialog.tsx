@@ -28,7 +28,7 @@ import {
 } from '@/services/largeProjectPlannerService';
 import {
   fetchLargeProjects,
-  createLargeProject,
+  createLargeProjectFromBooking,
   addBookingToLargeProject,
 } from '@/services/largeProjectService';
 import { deleteProject } from '@/services/projectService';
@@ -286,12 +286,12 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
 
       if (isLarge) {
         if (largeMode === 'new') {
-          const created = await createLargeProject({ name: largeNewName.trim() });
+          const { project: created } = await createLargeProjectFromBooking(booking.id, { name: largeNewName.trim() });
           largeProjectId = created.id;
         } else {
           largeProjectId = largeExistingId;
+          await addBookingToLargeProject(largeProjectId!, booking.id);
         }
-        await addBookingToLargeProject(largeProjectId!, booking.id);
 
         if (booking.assigned_project_id) {
           await deleteProject(booking.assigned_project_id);

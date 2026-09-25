@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, Combine, RefreshCw } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, Combine, RefreshCw, ExternalLink } from "lucide-react";
 import { useRefreshLargeProjectBookings } from "@/hooks/useRefreshLargeProjectBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
