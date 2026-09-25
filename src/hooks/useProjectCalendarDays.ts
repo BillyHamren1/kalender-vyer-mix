@@ -47,20 +47,14 @@ async function resolveScope(args: UseProjectCalendarDaysArgs): Promise<ResolvedS
   const { projectId, bookingId, isLargeProject } = args;
   if (!projectId) return { bookingIds: [], standaloneBookingId: null };
 
-  // Large project — fan out to sibling bookings.
+  // Large project — kanonisk medlemslista (join-tabell + legacy-fält, utan dubbletter).
   if (isLargeProject) {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('large_project_id', projectId);
-    if (error) {
-      console.warn('[useProjectCalendarDays] sibling lookup failed', error);
+    try {
+      return { bookingIds: await loadLargeProjectMemberIds(projectId), standaloneBookingId: null };
+    } catch (error) {
+      console.warn('[useProjectCalendarDays] member lookup failed', error);
       return { bookingIds: [], standaloneBookingId: null };
     }
-    return {
-      bookingIds: (data || []).map((b) => b.id).filter(Boolean) as string[],
-      standaloneBookingId: null,
-    };
   }
 
   // Medium / single — explicit bookingId wins, otherwise look up the project.

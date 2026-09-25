@@ -29,6 +29,10 @@ export interface LargeProjectBooking {
   display_name: string | null;
   sort_order: number;
   created_at: string;
+  /** Grundbokning i grupprojektet (härleds av kanonisk medlemsloader). */
+  is_primary?: boolean;
+  /** 'join' = large_project_bookings, 'legacy' = endast bookings.large_project_id */
+  member_source?: 'join' | 'legacy';
   // Joined booking data
   booking?: {
     id: string;

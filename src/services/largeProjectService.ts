@@ -11,6 +11,13 @@ import type {
   LargeProjectBudget,
   LargeProjectStatus 
 } from "@/types/largeProject";
+import {
+  mergeLargeProjectMembers,
+  resolvePrimaryBookingId,
+  findActiveLargeProjectForBooking,
+  LargeProjectMembershipConflictError,
+} from "@/lib/largeProject/largeProjectMembers";
+export { LargeProjectMembershipConflictError };
 
 // ============================================
 // LARGE PROJECT CRUD
