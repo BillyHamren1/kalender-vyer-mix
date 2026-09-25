@@ -20,6 +20,8 @@ ALTER TABLE public.large_projects
 
 -- 2) Atomisk koppling: konfliktkontroll mot AKTIVA (ej soft-raderade) projekt,
 --    join-rad + legacy-fält i samma transaktion, org-scope via RLS (SECURITY INVOKER).
+--    Utöver RLS jämförs bokningens organization_id explicit mot projektets innan
+--    någon insert/update sker — en bokning får aldrig kopplas över tenant-gräns.
 CREATE OR REPLACE FUNCTION public.link_booking_to_large_project(
   p_large_project_id uuid,
   p_booking_id text,
@@ -31,17 +33,26 @@ SET search_path = public
 AS $$
 DECLARE
   v_org uuid;
+  v_booking_org uuid;
   v_conflict uuid;
   v_link uuid;
   v_next int;
 BEGIN
-  -- Lås bokningsraden så samtidiga kopplingar serialiseras.
-  PERFORM 1 FROM public.bookings WHERE id = p_booking_id FOR UPDATE;
+  -- Lås bokningsraden så samtidiga kopplingar serialiseras, och hämta dess
+  -- organization_id i samma SELECT för explicit tenant-jämförelse.
+  SELECT organization_id INTO v_booking_org FROM public.bookings
+   WHERE id = p_booking_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'BOOKING_NOT_FOUND' USING ERRCODE = 'P0002'; END IF;
 
   SELECT organization_id INTO v_org FROM public.large_projects
    WHERE id = p_large_project_id AND deleted_at IS NULL;
   IF v_org IS NULL THEN RAISE EXCEPTION 'PROJECT_NOT_FOUND' USING ERRCODE = 'P0002'; END IF;
+
+  -- Explicit tenant-kontroll (komplement till RLS): avvisa cross-org-koppling
+  -- innan någon insert/update sker.
+  IF v_booking_org IS DISTINCT FROM v_org THEN
+    RAISE EXCEPTION 'ORGANIZATION_MISMATCH' USING ERRCODE = 'P0001';
+  END IF;
 
   SELECT lp.id INTO v_conflict
     FROM public.large_projects lp
