@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { BookingLargeProjectButton } from './BookingLargeProjectButton';
 import StatusChangeForm from '@/components/booking/StatusChangeForm';
 
 interface BookingDetailHeaderProps {
@@ -40,6 +41,7 @@ export const BookingDetailHeader: React.FC<BookingDetailHeaderProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <BookingLargeProjectButton bookingId={bookingId} bookingClient={client} />
           {status && (
             <StatusChangeForm
               currentStatus={status}
