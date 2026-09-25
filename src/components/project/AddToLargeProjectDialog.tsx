@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Building2, Plus, Calendar, MapPin } from 'lucide-react';
 import { 
   fetchLargeProjects, 
-  createLargeProject, 
+  createLargeProjectFromBooking, 
   addBookingToLargeProject 
 } from '@/services/largeProjectService';
 import { toast } from 'sonner';
@@ -53,8 +53,8 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
       let projectId = selectedProjectId;
       
       if (mode === 'new') {
-        const newProject = await createLargeProject({ name: newProjectName });
-        projectId = newProject.id;
+        const { project: newProject } = await createLargeProjectFromBooking(bookingId, { name: newProjectName });
+        return newProject.id;
       }
       
       if (!projectId) throw new Error('Inget projekt valt');
@@ -72,8 +72,10 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
     onError: (error: any) => {
       if (error?.message === 'BOOKING_ALREADY_ADDED') {
         toast.error('Bokningen är redan tillagd i detta projekt');
+      } else if (error?.code === 'BOOKING_IN_OTHER_PROJECT') {
+        toast.error(error.message);
       } else {
-        toast.error('Kunde inte lägga till bokning i projekt');
+        toast.error(error?.message || 'Kunde inte lägga till bokning i projekt');
       }
     },
   });

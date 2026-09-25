@@ -1,3 +1,4 @@
+import { loadLargeProjectMemberIds } from '@/lib/largeProject/largeProjectMembers';
 import { supabase } from '@/integrations/supabase/client';
 
 export type LargeProjectPhase = 'rig' | 'event' | 'rigDown';
@@ -129,23 +130,7 @@ export async function moveLargeProjectDay({
   }
 
   // 2. Collect bookingIds from BOTH link table and direct bookings.large_project_id
-  const [linksRes, directRes] = await Promise.all([
-    supabase
-      .from('large_project_bookings')
-      .select('booking_id')
-      .eq('large_project_id', largeProjectId),
-    supabase
-      .from('bookings')
-      .select('id')
-      .eq('large_project_id', largeProjectId),
-  ]);
-  if (linksRes.error) throw linksRes.error;
-  if (directRes.error) throw directRes.error;
-
-  const bookingIdSet = new Set<string>();
-  (linksRes.data || []).forEach((l: any) => l?.booking_id && bookingIdSet.add(l.booking_id));
-  (directRes.data || []).forEach((b: any) => b?.id && bookingIdSet.add(b.id));
-  const bookingIds = Array.from(bookingIdSet);
+  const bookingIds = await loadLargeProjectMemberIds(largeProjectId);
 
   const bookingDateCol = PHASE_TO_BOOKING_DATE[phase];
   const bookingTimes = PHASE_TO_BOOKING_TIMES[phase];

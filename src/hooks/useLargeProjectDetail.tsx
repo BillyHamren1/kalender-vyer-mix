@@ -243,7 +243,7 @@ export const useLargeProjectDetail = (projectId: string) => {
       queryClient.invalidateQueries({ queryKey: ['available-bookings-for-large-project'] });
       toast.success('Bokning tillagd');
     },
-    onError: () => toast.error('Kunde inte lägga till bokning'),
+    onError: (e: any) => toast.error(e?.message || 'Kunde inte lägga till bokning'),
   });
 
   const removeBookingMutation = useMutation({
@@ -251,9 +251,9 @@ export const useLargeProjectDetail = (projectId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['available-bookings-for-large-project'] });
-      toast.success('Bokning borttagen');
+      toast.success('Länken borttagen – bokningen finns kvar');
     },
-    onError: () => toast.error('Kunde inte ta bort bokning'),
+    onError: (e: any) => toast.error(e?.message || 'Kunde inte ta bort länken'),
   });
 
   // Gantt mutation — also syncs project date arrays + propagates to all sub-bookings

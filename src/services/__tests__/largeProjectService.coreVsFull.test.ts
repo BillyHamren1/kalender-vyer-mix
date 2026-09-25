@@ -48,8 +48,8 @@ describe("largeProjectService — core vs full split", () => {
     expect(core!.bookings).toHaveLength(2);
     // Stubs MUST be returned without booking.* hydration.
     expect(core!.bookings.every(b => b.booking === undefined)).toBe(true);
-    expect(tablesTouched).toEqual(["large_projects"]);
-    expect(tablesTouched).not.toContain("bookings");
+    // Endast den smala legacy-medlemsfrågan (id via large_project_id) — ingen bred hydrering.
+    expect(tablesTouched).toEqual(["large_projects", "bookings"]);
   });
 
   it("fetchLargeProjectBookingsFull is the only path that touches bookings", async () => {

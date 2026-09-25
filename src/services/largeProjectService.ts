@@ -11,6 +11,13 @@ import type {
   LargeProjectBudget,
   LargeProjectStatus 
 } from "@/types/largeProject";
+import {
+  mergeLargeProjectMembers,
+  resolvePrimaryBookingId,
+  findActiveLargeProjectForBooking,
+  LargeProjectMembershipConflictError,
+} from "@/lib/largeProject/largeProjectMembers";
+export { LargeProjectMembershipConflictError };
 
 // ============================================
 // LARGE PROJECT CRUD
@@ -41,15 +48,41 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
 
   if (error) throw error;
 
-  return (data || []).map(project => ({
-    ...project,
-    status: project.status as LargeProjectStatus,
-    bookings: (project.large_project_bookings || []).map((b: any) => ({
-      ...b,
-      large_project_id: b.large_project_id || project.id
-    })) as LargeProjectBooking[],
-    bookingCount: project.large_project_bookings?.length || 0
-  }));
+  // Legacy-only medlemmar (endast bookings.large_project_id) — samma
+  // sammanslagning som kanoniska loadern, så sök/antal blir tillförlitliga.
+  const projectIds = (data || []).map((p) => p.id);
+  const legacyByProject = new Map<string, Array<{ id: string; booking_number: string | null; client: string | null; status: string | null }>>();
+  if (projectIds.length > 0) {
+    const { data: legacy, error: legacyErr } = await supabase
+      .from('bookings')
+      .select('id, booking_number, client, status, large_project_id')
+      .in('large_project_id', projectIds);
+    if (legacyErr) throw legacyErr;
+    for (const b of (legacy || []) as any[]) {
+      const arr = legacyByProject.get(b.large_project_id) || [];
+      arr.push(b);
+      legacyByProject.set(b.large_project_id, arr);
+    }
+  }
+
+  return (data || []).map(project => {
+    const joinRows = (project.large_project_bookings || []) as any[];
+    const legacy = legacyByProject.get(project.id) || [];
+    const members = mergeLargeProjectMembers(project.id, joinRows, legacy.map((b) => b.id));
+    const primaryId = resolvePrimaryBookingId(members, (project as any).primary_booking_id);
+    const bookings = members.map((m) => {
+      const joinRow = joinRows.find((r) => r.booking_id === m.booking_id);
+      const nested = joinRow?.bookings || legacy.find((b) => b.id === m.booking_id) || undefined;
+      const { source, ...rest } = m;
+      return { ...rest, member_source: source, is_primary: m.booking_id === primaryId, booking: nested, bookings: nested };
+    }) as unknown as LargeProjectBooking[];
+    return {
+      ...project,
+      status: project.status as LargeProjectStatus,
+      bookings,
+      bookingCount: bookings.length,
+    };
+  });
 }
 
 /**
@@ -81,37 +114,25 @@ export async function fetchLargeProjectCore(id: string): Promise<LargeProjectWit
     throw error;
   }
 
-  // Stubs only — booking.* is intentionally undefined and will be
-  // hydrated by a follow-up query. Consumers must handle the
-  // "stub only" intermediate state gracefully (`lpb.booking?.…`).
-  const bookingStubs: LargeProjectBooking[] = (data.large_project_bookings || []).map((lpb: any) => ({
-    ...lpb,
-    large_project_id: lpb.large_project_id || id,
-    booking: undefined,
-  }));
-
-  // Fallback (read-only self-heal): bookings that point at this large
-  // project via `bookings.large_project_id` but are missing from the
-  // membership table would otherwise render as an empty list while the
-  // rest of the UI still shows the project as populated.
-  const knownIds = new Set(bookingStubs.map(s => s.booking_id).filter(Boolean));
+  // Stubs only — booking.* is hydrated separately. Join-tabellen är master,
+  // legacy bookings.large_project_id läggs till utan dubbletter.
   const { data: fkRows } = await supabase
     .from('bookings')
     .select('id')
     .eq('large_project_id', id);
-  for (const row of (fkRows || []) as Array<{ id: string }>) {
-    if (knownIds.has(row.id)) continue;
-    knownIds.add(row.id);
-    bookingStubs.push({
-      id: `fk-${row.id}`,
-      large_project_id: id,
-      booking_id: row.id,
-      display_name: null,
-      sort_order: bookingStubs.length,
-      created_at: new Date().toISOString(),
-      booking: undefined,
-    } as unknown as LargeProjectBooking);
-  }
+  const members = mergeLargeProjectMembers(
+    id,
+    (data.large_project_bookings || []) as any[],
+    ((fkRows || []) as Array<{ id: string }>).map((r) => r.id),
+  );
+  const primaryId = resolvePrimaryBookingId(members, (data as any).primary_booking_id);
+  const bookingStubs: LargeProjectBooking[] = members.map(({ source, ...m }) => ({
+    ...m,
+    sort_order: m.sort_order ?? 0,
+    is_primary: m.booking_id === primaryId,
+    member_source: source,
+    booking: undefined,
+  } as unknown as LargeProjectBooking));
 
   return {
     ...data,
@@ -264,30 +285,49 @@ export async function fetchDeletedLargeProjects() {
 // BOOKING MANAGEMENT
 // ============================================
 
+/**
+ * Kopplar en bokning till ett grupprojekt.
+ * - Idempotent: redan kopplad till samma projekt → returnerar befintlig länk
+ *   (och läker legacy-fältet om det saknas).
+ * - Konflikt: bokningen ligger i ett annat aktivt projekt → LargeProjectMembershipConflictError.
+ * - Dual-write: join-rad + bookings.large_project_id. Misslyckas legacy-skrivningen
+ *   tas den nya join-raden bort igen och ett riktigt fel kastas (ingen halv koppling).
+ * - Bokningen själv (UUID, nummer, orderrader, status) ändras aldrig utöver large_project_id.
+ */
 export async function addBookingToLargeProject(
-  largeProjectId: string, 
-  bookingId: string, 
+  largeProjectId: string,
+  bookingId: string,
   displayName?: string
 ): Promise<LargeProjectBooking> {
-  // Check if booking is already added to this project
-  const { data: existingLink } = await supabase
+  const other = await findActiveLargeProjectForBooking(bookingId);
+  if (other && other.id !== largeProjectId) {
+    throw new LargeProjectMembershipConflictError(other.id, other.name);
+  }
+
+  const { data: existingLink, error: exErr } = await supabase
     .from('large_project_bookings')
-    .select('id')
+    .select('*')
     .eq('large_project_id', largeProjectId)
     .eq('booking_id', bookingId)
     .maybeSingle();
+  if (exErr) throw exErr;
 
   if (existingLink) {
-    throw new Error('BOOKING_ALREADY_ADDED');
+    const { error: healErr } = await supabase
+      .from('bookings')
+      .update({ large_project_id: largeProjectId })
+      .eq('id', bookingId);
+    if (healErr) throw new Error(`Kopplingen finns men bokningen kunde inte uppdateras: ${healErr.message}`);
+    return existingLink as LargeProjectBooking;
   }
 
-  // Get the max sort_order
-  const { data: existing } = await supabase
+  const { data: existing, error: ordErr } = await supabase
     .from('large_project_bookings')
     .select('sort_order')
     .eq('large_project_id', largeProjectId)
     .order('sort_order', { ascending: false })
     .limit(1);
+  if (ordErr) throw ordErr;
 
   const nextOrder = (existing?.[0]?.sort_order || 0) + 1;
 
@@ -298,17 +338,21 @@ export async function addBookingToLargeProject(
       booking_id: bookingId,
       display_name: displayName || null,
       sort_order: nextOrder
-    })
+    } as any)
     .select()
     .single();
 
   if (error) throw error;
 
-  // Also update the booking's large_project_id reference
-  await supabase
+  const { error: legacyErr } = await supabase
     .from('bookings')
     .update({ large_project_id: largeProjectId })
     .eq('id', bookingId);
+  if (legacyErr) {
+    // Kompensera: ta bort den nya join-raden så vi inte lämnar halv koppling.
+    await supabase.from('large_project_bookings').delete().eq('id', (data as any).id);
+    throw new Error(`Kunde inte koppla bokningen till projektet: ${legacyErr.message}`);
+  }
 
   // If project has no dates, inherit from the first booking
   const { data: project } = await supabase
@@ -336,9 +380,37 @@ export async function addBookingToLargeProject(
     }
   }
 
-  return data;
+  return data as LargeProjectBooking;
 }
 
+/**
+ * Skapar ett nytt grupprojekt från en bokning. Bokningen blir grundbokning
+ * (första medlem). Om kopplingen misslyckas soft-raderas det nya tomma projektet.
+ */
+export async function createLargeProjectFromBooking(
+  bookingId: string,
+  project: { name: string; description?: string; project_leader?: string },
+): Promise<{ project: LargeProject; link: LargeProjectBooking }> {
+  const other = await findActiveLargeProjectForBooking(bookingId);
+  if (other) throw new LargeProjectMembershipConflictError(other.id, other.name);
+  const created = await createLargeProject(project);
+  try {
+    const link = await addBookingToLargeProject(created.id, bookingId);
+    // Explicit grundbokning om kolumnen finns (additiv migration, se
+    // .lovable/pending-migrations/large-project-primary-booking.sql).
+    // Saknas kolumnen gäller "första medlem" som grundbokning.
+    await supabase.from('large_projects').update({ primary_booking_id: bookingId } as any).eq('id', created.id);
+    return { project: created, link };
+  } catch (e) {
+    await supabase.from('large_projects').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
+    throw e;
+  }
+}
+
+/**
+ * Tar bort en medlemslänk. Raderar aldrig bokningen eller dess data.
+ * Legacy-fältet nollas endast om det pekar på just detta projekt.
+ */
 export async function removeBookingFromLargeProject(largeProjectId: string, bookingId: string): Promise<void> {
   const { error } = await supabase
     .from('large_project_bookings')
@@ -348,11 +420,12 @@ export async function removeBookingFromLargeProject(largeProjectId: string, book
 
   if (error) throw error;
 
-  // Remove the booking's large_project_id reference
-  await supabase
+  const { error: legacyErr } = await supabase
     .from('bookings')
     .update({ large_project_id: null })
-    .eq('id', bookingId);
+    .eq('id', bookingId)
+    .eq('large_project_id', largeProjectId);
+  if (legacyErr) throw new Error(`Länken togs bort men bokningens projektfält kunde inte rensas: ${legacyErr.message}`);
 }
 
 export async function updateBookingDisplayName(id: string, displayName: string): Promise<void> {
