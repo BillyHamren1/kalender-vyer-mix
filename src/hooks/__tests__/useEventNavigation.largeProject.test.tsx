@@ -65,3 +65,30 @@ describe('kalenderklick – stora projekt', () => {
     expect(navigateMock).toHaveBeenCalledWith('/booking/b2');
   });
 });
+
+describe('personalkalenderns samlade projektpost – handleProjectEventClick', () => {
+  beforeEach(() => { navigateMock.mockReset(); writes.length = 0; });
+
+  it('klick på projektposten leder till /large-project/:id', async () => {
+    rows = { large_projects: [{ id: 'lp1', deleted_at: null }], bookings: [{ id: 'b1', large_project_id: 'lp1' }], projects: [] };
+    const { result } = renderHook(() => useEventNavigation());
+    await result.current.handleProjectEventClick(info({ bookingId: 'b1', largeProjectId: 'lp1' }));
+    expect(navigateMock).toHaveBeenCalledWith('/large-project/lp1');
+    expect(writes).toEqual([]);
+  });
+
+  it('sekundär medlemsbokning (legacy-fält) leder till samma projekt', async () => {
+    rows = { large_projects: [{ id: 'lp1', deleted_at: null }], bookings: [{ id: 'b2', large_project_id: 'lp1' }], projects: [] };
+    const { result } = renderHook(() => useEventNavigation());
+    await result.current.handleProjectEventClick(info({ bookingId: 'b2' }));
+    expect(navigateMock).toHaveBeenCalledWith('/large-project/lp1');
+  });
+
+  it('raderat projekt: öppnar aldrig bokningsvyn och ändrar ingen koppling', async () => {
+    rows = { large_projects: [{ id: 'lp1', deleted_at: '2026-09-01' }], bookings: [{ id: 'b1', large_project_id: 'lp1' }], projects: [] };
+    const { result } = renderHook(() => useEventNavigation());
+    await result.current.handleProjectEventClick(info({ bookingId: 'b1', largeProjectId: 'lp1' }));
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+});
