@@ -1,3 +1,4 @@
+import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
 /**
  * Canonical staff calendar derivation.
  *
