@@ -138,12 +138,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { data: scopedBookings, error: scopedBookingsError } = await serviceClient
-        .from('bookings')
-        .select('id')
-        .eq('organization_id', orgId)
-        .in('id', bookingIds);
-      if (scopedBookingsError) throw scopedBookingsError;
+      // Chunk IN-lists: hundreds of UUIDs in one URL overflow the request line.
+      const ID_CHUNK = 100;
+      const idChunks: string[][] = [];
+      for (let i = 0; i < bookingIds.length; i += ID_CHUNK) idChunks.push(bookingIds.slice(i, i + ID_CHUNK));
+      const scopedBookings: { id: string }[] = [];
+      for (const chunk of idChunks) {
+        const { data, error: scopedBookingsError } = await serviceClient
+          .from('bookings')
+          .select('id')
+          .eq('organization_id', orgId)
+          .in('id', chunk);
+        if (scopedBookingsError) throw scopedBookingsError;
+        scopedBookings.push(...(data ?? []));
+      }
       const allowedIds = new Set((scopedBookings ?? []).map((booking: { id: string }) => booking.id));
       if (bookingIds.some((bookingId) => !allowedIds.has(bookingId))) {
         return new Response(JSON.stringify({ error: 'Booking access denied' }), {
@@ -152,11 +160,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { data: cached } = await serviceClient
-        .from('economy_cache')
-        .select('booking_id, data, cached_at')
-        .eq('organization_id', orgId)
-        .in('booking_id', bookingIds);
+      const cached: any[] = [];
+      for (const chunk of idChunks) {
+        const { data } = await serviceClient
+          .from('economy_cache')
+          .select('booking_id, data, cached_at')
+          .eq('organization_id', orgId)
+          .in('booking_id', chunk);
+        cached.push(...(data ?? []));
+      }
 
       const uncachedIds: string[] = [];
 
