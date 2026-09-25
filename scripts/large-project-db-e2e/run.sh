@@ -22,4 +22,11 @@ for f in "$H/00_fixture.sql" "$ROOT"/supabase/migrations/20260925103906_*.sql "$
   $P -d lp -f "$f"
 done
 $P -d lp -tA -F' | ' -f "$H/10_tests.sql" | grep -E '^(PASS|FAIL)' | tee "$DIR/results.txt"
+# Samtidighetstester på nyseedad databas (egna sessioner krävs för låsning).
+$P -c "drop database lp" -c "create database lp"
+for f in "$H/00_fixture.sql" "$ROOT"/supabase/migrations/20260925103906_*.sql "$ROOT"/supabase/migrations/20260925104140_*.sql "$H/01_seed.sql"; do
+  $P -d lp -f "$f"
+done
+bash "$H/20_race.sh" "$P" "$DIR/results.txt"
+echo "TOTALT: $(grep -c '^PASS' "$DIR/results.txt") PASS, $(grep -c '^FAIL' "$DIR/results.txt") FAIL"
 ! grep -q '^FAIL' "$DIR/results.txt"

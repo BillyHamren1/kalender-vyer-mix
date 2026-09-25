@@ -24,6 +24,7 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { fetchRecentBookingChanges, getFieldChangeType, BookingChange } from '@/services/booking/bookingChangeService';
+import { matchesBookingSearch } from '@/lib/booking/bookingSearch';
 import { toast } from 'sonner';
 import { RefreshCcw, Search, CalendarDays, AlertTriangle, Filter, CalendarRange, Calendar } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -243,11 +244,7 @@ const BookingList = () => {
     .filter(booking => booking.viewed)
     .filter(booking => !recentlyUpdatedBookingIds.includes(booking.id)) // Exclude recently updated
     .filter(booking => !statusChangedBookingIds.includes(booking.id)) // Exclude status changed
-    .filter(booking => 
-      searchTerm === '' ? false : // Don't show any if no search term
-      booking.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      booking.client.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    .filter(booking => matchesBookingSearch(booking, searchTerm));
   
   return (
     <div className="min-h-screen bg-gray-50">
