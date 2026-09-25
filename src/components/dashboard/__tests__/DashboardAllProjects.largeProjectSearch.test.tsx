@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@/services/jobService', () => ({ fetchJobs: async () => [] }), );
-vi.mock('@/services/jobsService', () => ({ fetchJobs: async () => [] }));
 vi.mock('@/services/projectService', () => ({ fetchProjects: async () => [] }));
 vi.mock('@/services/largeProjectService', () => ({
   fetchLargeProjects: async () => [
