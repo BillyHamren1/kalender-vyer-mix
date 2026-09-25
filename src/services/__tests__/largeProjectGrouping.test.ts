@@ -182,6 +182,7 @@ describe("grupprojekt – soft-delete/restore", () => {
     expect(db.large_project_bookings.some((r) => r.large_project_id === a.id && r.booking_id === "b-1")).toBe(true);
     db.bookings.find((b) => b.id === "b-1")!.large_project_id = null; // som recomputeBookingAssignment gör
     const { project: b } = await createLargeProjectFromBooking("b-1", { name: "B" });
+    console.log("DBG", JSON.stringify(db.large_projects.map(p=>[p.id,p.deleted_at])), JSON.stringify(db.large_project_bookings.map(r=>[r.large_project_id,r.booking_id])));
     await expect(restoreLargeProject(a.id)).rejects.toBeInstanceOf(LargeProjectMembershipConflictError);
     expect(db.large_projects.find((p) => p.id === a.id)!.deleted_at).not.toBeNull();
     await removeBookingFromLargeProject(b.id, "b-1");
