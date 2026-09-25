@@ -13,6 +13,7 @@
  *
  * Renamed from useProjectGanttEvents — there is no longer a Gantt UI.
  */
+import { loadLargeProjectMemberIds } from "@/lib/largeProject/largeProjectMembers";
 import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
