@@ -65,3 +65,26 @@ RESET ROLE; SELECT CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END, name, coalesce(deta
 DROP TRIGGER e2e_fail ON bookings; DROP FUNCTION e2e_fail();
 INSERT INTO r SELECT 'T12 snapshot efter alla tester', e2e_snapshot()=:'snap0' and (select count(*) from large_project_bookings)=1, null;
 SELECT CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END, name, coalesce(detail,'') FROM r;
+
+-- T13 soft-delete + restore av projekt: länkar och bokningar oförändrade
+BEGIN; SELECT pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+SELECT link_booking_to_large_project('11111111-0000-0000-0000-000000000001','e2e-a1',true);
+SELECT link_booking_to_large_project('11111111-0000-0000-0000-000000000001','e2e-a2',false);
+CREATE TEMP VIEW lp_state AS SELECT md5(coalesce((select string_agg((large_project_id,booking_id,sort_order)::text,'|' order by booking_id,large_project_id) from large_project_bookings),'')
+  || coalesce((select string_agg((id,large_project_id,booking_number,status)::text,'|' order by id) from bookings),'')) h;
+SELECT h AS h0 FROM lp_state \gset
+UPDATE large_projects SET deleted_at=now() WHERE id='11111111-0000-0000-0000-000000000001';
+INSERT INTO r SELECT 'T13a soft-delete: länkar+bokningar oförändrade', (select h from lp_state)=:'h0'
+ and (select count(*) from large_project_bookings where large_project_id='11111111-0000-0000-0000-000000000001')=2, null;
+UPDATE large_projects SET deleted_at=null WHERE id='11111111-0000-0000-0000-000000000001';
+INSERT INTO r SELECT 'T13b restore: länkar+bokningar oförändrade, grundbokning kvar', (select h from lp_state)=:'h0'
+ and (select primary_booking_id from large_projects where id='11111111-0000-0000-0000-000000000001')='e2e-a1', null;
+-- T13c: raderat igen, medlem återanvänds i P2 -> restore-kontrollen (samma fråga som findActiveLargeProjectForBooking) hittar konflikt
+UPDATE large_projects SET deleted_at=now() WHERE id='11111111-0000-0000-0000-000000000001';
+SELECT link_booking_to_large_project('11111111-0000-0000-0000-000000000002','e2e-a2',false);
+INSERT INTO r SELECT 'T13c restore blockeras när medlem ligger i annat aktivt projekt',
+ exists(select 1 from large_project_bookings l join large_projects p on p.id=l.large_project_id
+        where l.booking_id='e2e-a2' and p.deleted_at is null and p.id<>'11111111-0000-0000-0000-000000000001')
+ and (select count(*) from large_project_bookings where large_project_id='11111111-0000-0000-0000-000000000001')=2,
+ 'gamla länkraden kvar';
+RESET ROLE; SELECT CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END, name, coalesce(detail,'') FROM r WHERE name LIKE 'T13%'; ROLLBACK;
