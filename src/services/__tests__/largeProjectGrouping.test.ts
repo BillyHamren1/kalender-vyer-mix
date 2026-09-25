@@ -11,6 +11,13 @@ function fakeRpc(fn: string, args: any) {
   if (rpcMode === "missing") return Promise.resolve({ data: null, error: { code: "PGRST202", message: "Could not find the function" } });
   if (rpcMode === "error") return Promise.resolve({ data: null, error: { code: "42501", message: "permission denied" } });
   // "ok": simulera RPC:ns atomiska beteende i minnet.
+  // Explicit tenant-kontroll (speglar ORGANIZATION_MISMATCH i SQL): avvisa
+  // cross-org-koppling innan någon skrivning.
+  const bk = db.bookings.find((b) => b.id === args.p_booking_id);
+  const lp0 = db.large_projects.find((p) => p.id === args.p_large_project_id);
+  if (bk?.organization_id != null && lp0?.organization_id != null && bk.organization_id !== lp0.organization_id) {
+    return Promise.resolve({ data: null, error: { code: "P0001", message: "ORGANIZATION_MISMATCH" } });
+  }
   const active = (db.large_project_bookings || []).find((r) => r.booking_id === args.p_booking_id && r.large_project_id !== args.p_large_project_id
     && db.large_projects.some((p) => p.id === r.large_project_id && !p.deleted_at));
   if (active) return Promise.resolve({ data: null, error: { code: "23505", message: `BOOKING_IN_OTHER_PROJECT:${active.large_project_id}` } });
@@ -218,6 +225,16 @@ describe("grupprojekt – soft-delete/restore", () => {
     expect(code).toMatch(/deleted_at IS NULL/);
     expect(code).toMatch(/FOR UPDATE/);
     expect(code).toMatch(/SECURITY INVOKER/);
+    // Tenant-säkerhet: bokningens organization_id hämtas i samma låsande SELECT
+    // och jämförs explicit mot projektets innan någon insert/update.
+    expect(code).toMatch(/SELECT organization_id INTO v_booking_org FROM public\.bookings\s+WHERE id = p_booking_id FOR UPDATE/);
+    expect(code).toMatch(/IF v_booking_org IS DISTINCT FROM v_org THEN\s+RAISE EXCEPTION 'ORGANIZATION_MISMATCH'/);
+    const mismatchIdx = code.indexOf("ORGANIZATION_MISMATCH");
+    const insertIdx = code.indexOf("INSERT INTO public.large_project_bookings");
+    const updateIdx = code.indexOf("UPDATE public.bookings");
+    expect(mismatchIdx).toBeGreaterThan(-1);
+    expect(mismatchIdx).toBeLessThan(insertIdx);
+    expect(mismatchIdx).toBeLessThan(updateIdx);
   });
 });
 
@@ -252,6 +269,23 @@ describe("grupprojekt – atomisk RPC", () => {
     await expect(addBookingToLargeProject("lp-e", "b-3")).rejects.toThrow(/permission denied/);
     expect(db.large_project_bookings).toHaveLength(0);
     expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
+  });
+
+  it("cross-org-koppling avvisas (ORGANIZATION_MISMATCH) utan skrivningar", async () => {
+    db.bookings.find((b) => b.id === "b-3")!.organization_id = "org-1";
+    db.large_projects.push({ id: "lp-x", name: "X", status: "planning", deleted_at: null, organization_id: "org-2" });
+    rpcMode = "ok";
+    await expect(addBookingToLargeProject("lp-x", "b-3")).rejects.toThrow(/ORGANIZATION_MISMATCH/);
+    expect(db.large_project_bookings).toHaveLength(0);
+    expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
+  });
+
+  it("samma org tillåts när organization_id matchar", async () => {
+    db.bookings.find((b) => b.id === "b-3")!.organization_id = "org-1";
+    db.large_projects.push({ id: "lp-y", name: "Y", status: "planning", deleted_at: null, organization_id: "org-1" });
+    rpcMode = "ok";
+    await addBookingToLargeProject("lp-y", "b-3");
+    expect(db.large_project_bookings.filter((r) => r.booking_id === "b-3")).toHaveLength(1);
   });
 
   it("RPC-konflikt mappas till konfliktfel", async () => {
