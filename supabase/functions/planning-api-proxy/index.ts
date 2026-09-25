@@ -153,9 +153,17 @@ Deno.serve(async (req) => {
         scopedBookings.push(...(data ?? []));
       }
       const allowedIds = new Set((scopedBookings ?? []).map((booking: { id: string }) => booking.id));
-      if (bookingIds.some((bookingId) => !allowedIds.has(bookingId))) {
-        return new Response(JSON.stringify({ error: 'Booking access denied' }), {
-          status: 403,
+      // Fail-closed per ID: IDs outside the caller's org (or deleted/unknown) are
+      // dropped instead of failing the whole batch. Only allowed IDs are processed.
+      const deniedCount = bookingIds.length - allowedIds.size;
+      if (deniedCount > 0) console.warn(`[multi_batch] skipped ${deniedCount} booking id(s) not in org ${orgId}`);
+      const permittedIds = bookingIds.filter((id) => allowedIds.has(id));
+      bookingIds.length = 0;
+      bookingIds.push(...permittedIds);
+      idChunks.length = 0;
+      for (let i = 0; i < bookingIds.length; i += ID_CHUNK) idChunks.push(bookingIds.slice(i, i + ID_CHUNK));
+      if (bookingIds.length === 0) {
+        return new Response(JSON.stringify({ data: {} }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
