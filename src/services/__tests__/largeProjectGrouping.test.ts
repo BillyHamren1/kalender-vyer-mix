@@ -170,3 +170,34 @@ describe("grupprojekt – projektlista, sök och kalender", () => {
     expect([...m.entries()]).toEqual([["b-1", "lp-1"], ["b-2", "lp-1"], ["b-3", "lp-1"]]);
   });
 });
+
+import { deleteLargeProject, restoreLargeProject } from "@/services/largeProjectService";
+import { readFileSync } from "node:fs";
+
+describe("grupprojekt – soft-delete/restore", () => {
+  it("bokning kan återanvändas efter soft-delete; restore stoppas vid konflikt", async () => {
+    const { project: a } = await createLargeProjectFromBooking("b-1", { name: "A" });
+    await deleteLargeProject(a.id);
+    // Medlemsraden finns kvar (för restore), men blockerar inte ny koppling.
+    expect(db.large_project_bookings.some((r) => r.large_project_id === a.id && r.booking_id === "b-1")).toBe(true);
+    db.bookings.find((b) => b.id === "b-1")!.large_project_id = null; // som recomputeBookingAssignment gör
+    const { project: b } = await createLargeProjectFromBooking("b-1", { name: "B" });
+    await expect(restoreLargeProject(a.id)).rejects.toBeInstanceOf(LargeProjectMembershipConflictError);
+    expect(db.large_projects.find((p) => p.id === a.id)!.deleted_at).not.toBeNull();
+    await removeBookingFromLargeProject(b.id, "b-1");
+    await restoreLargeProject(a.id);
+    expect(db.large_projects.find((p) => p.id === a.id)!.deleted_at).toBeNull();
+  });
+
+  it("väntande SQL: ingen ovillkorlig unik index, rätt typer, aktiv-kontroll mot deleted_at", () => {
+    const sql = readFileSync(".lovable/pending-migrations/large-project-primary-booking.sql", "utf8");
+    const code = sql.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+    expect(code).not.toMatch(/UNIQUE\s+INDEX[^;]*\(\s*booking_id\s*\)/i);
+    expect(code).toMatch(/primary_booking_id text\s+REFERENCES public\.bookings\(id\)/);
+    expect(code).toMatch(/p_large_project_id uuid/);
+    expect(code).toMatch(/p_booking_id text/);
+    expect(code).toMatch(/deleted_at IS NULL/);
+    expect(code).toMatch(/FOR UPDATE/);
+    expect(code).toMatch(/SECURITY INVOKER/);
+  });
+});
