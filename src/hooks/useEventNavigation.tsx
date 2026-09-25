@@ -70,8 +70,8 @@ export const useEventNavigation = () => {
         navigate(`/large-project/${lp.id}`);
         return true;
       }
-      // Stale reference — clear it so future clicks fall through correctly
-      await supabase.from('bookings').update({ large_project_id: null }).eq('id', bookingId);
+      // Projektet är mjukraderat/saknas: rör INTE bokningens koppling.
+      // Länken måste finnas kvar för restoreLargeProject. Fall igenom till bokningen.
     }
 
     if (booking?.assigned_project_id) {
