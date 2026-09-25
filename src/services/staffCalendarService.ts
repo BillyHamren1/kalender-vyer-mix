@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { deriveStaffEvents } from "@/lib/staffCalendar/deriveStaffEvents";
 import { validateLargeProjectGrouping } from "@/lib/staffCalendar/validateLargeProjectGrouping";
 import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
+import { normalizeLargeProjectBookingRows } from "@/lib/largeProject/largeProjectMembers";
 import { formatTeamLabel } from "@/lib/teamLabel";
 
 export interface StaffResource {
@@ -236,6 +237,11 @@ export const getStaffCalendarEvents = async (
         .or(`large_project_id.in.(${lpIds.join(',')})${memberIds.size ? `,id.in.(${Array.from(memberIds).join(',')})` : ''}`);
       if (memberErr) console.error('[staffCalendar] large project member bookings fetch error:', memberErr);
       (memberRows || []).forEach((b: any) => { if (!bookings.has(b.id)) bookings.set(b.id, b); });
+
+      // Kombinerad medlemslista före derive: join vinner, legacy som fallback, dedupe.
+      // Ingen projektfiltrering här: befintlig guard-semantik behålls även om
+      // projekthämtningen fallerar (fail-closed mot fristående tiles).
+      largeProjectBookings = normalizeLargeProjectBookingRows(largeProjectBookings, bookings.values());
     }
 
     // Dev log: surface large-project grouping inputs for debugging

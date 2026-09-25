@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+import { normalizeLargeProjectBookingRows } from "@/lib/largeProject/largeProjectMembers";
 import { deriveStaffEvents, type BookingLite, type DeriveInput } from "@/lib/staffCalendar/deriveStaffEvents";
 
 const LP = { id: "lp-1", name: "Mässan", address: "Hallen", start_date: ["2026-10-01"], end_date: ["2026-10-05"] };
@@ -66,5 +67,41 @@ describe("global personalkalender – grupprojekt", () => {
     const lp = evs.filter((e) => e.isLargeProject);
     expect(summary(lp)).toEqual(expected);
     expect(lp.find((e) => e.date === "2026-10-02")!.consolidatedBookingIds).toContain("B");
+  });
+});
+
+describe("staffCalendarService-normalisering → derive", () => {
+  it("legacy-only sekundärbokning med egna datum ger projektpost på alla datum, ingen fristående dubblett", () => {
+    // Projektets egna datum: rigg 10-01, nedrigg 10-05. Sekundärbokning S (endast
+    // bookings.large_project_id) har rigg 10-03 och nedrigg 10-08.
+    const P = A();
+    const S = b("S", { large_project_id: "lp-1", rigdaydate: "2026-10-03", rigdowndate: "2026-10-08" });
+    const bookings = new Map<string, BookingLite>([["A", P], ["S", S]]);
+    const joinRows = [{ large_project_id: "lp-1", booking_id: "A" }];
+    const normalized = normalizeLargeProjectBookingRows(joinRows, bookings.values());
+    expect(normalized).toEqual([
+      { large_project_id: "lp-1", booking_id: "A" },
+      { large_project_id: "lp-1", booking_id: "S" },
+    ]);
+    const evs = deriveStaffEvents({
+      ...input([P, S], normalized),
+      largeProjectStaff: [{ staff_id: "s1", large_project_id: "lp-1" }],
+      bookingAssignments: assignAll(["S"], ["2026-10-03", "2026-10-08"]),
+    });
+    expect(evs.filter((e) => !e.isLargeProject)).toEqual([]);
+    const noTeam = evs.filter((e) => !e.teamId);
+    expect(summary(noTeam)).toEqual([
+      "lp-1|2026-10-01|rig", "lp-1|2026-10-03|rig", "lp-1|2026-10-05|rigDown", "lp-1|2026-10-08|rigDown",
+    ]);
+    const keys = evs.map((e) => `${e.date}|${e.phase}|${e.teamId ?? ""}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("join vinner över motstridigt legacy-fält och ingen bokning dubbleras", () => {
+    const rows = normalizeLargeProjectBookingRows(
+      [{ large_project_id: "lp-1", booking_id: "A" }, { large_project_id: "lp-1", booking_id: "A" }],
+      [{ id: "A", large_project_id: "lp-2" }, { id: "C", large_project_id: null }],
+    );
+    expect(rows).toEqual([{ large_project_id: "lp-1", booking_id: "A" }]);
   });
 });

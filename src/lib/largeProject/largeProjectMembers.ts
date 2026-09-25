@@ -132,3 +132,30 @@ export async function findActiveLargeProjectForBooking(
   if (error) throw error;
   return ((data || [])[0] as any) ?? null;
 }
+
+/**
+ * Normaliserar medlemsrader för flera projekt: join-rader vinner, legacy
+ * `bookings.large_project_id` läggs till som fallback endast när bokningen
+ * saknar join-rad. En bokning mappas till högst ett projekt, inga dubbletter.
+ * Begränsas till `lpIds` (t.ex. inlästa, ej raderade projekt).
+ */
+export function normalizeLargeProjectBookingRows(
+  joinRows: Array<{ large_project_id: string; booking_id: string }>,
+  bookings: Iterable<{ id: string; large_project_id?: string | null }>,
+  lpIds?: Set<string>,
+): Array<{ large_project_id: string; booking_id: string }> {
+  const out: Array<{ large_project_id: string; booking_id: string }> = [];
+  const seen = new Set<string>();
+  const allowed = (lp: string) => !lpIds || lpIds.has(lp);
+  for (const r of joinRows) {
+    if (!r.booking_id || !r.large_project_id || seen.has(r.booking_id) || !allowed(r.large_project_id)) continue;
+    seen.add(r.booking_id);
+    out.push({ large_project_id: r.large_project_id, booking_id: r.booking_id });
+  }
+  for (const b of bookings) {
+    if (!b.id || !b.large_project_id || seen.has(b.id) || !allowed(b.large_project_id)) continue;
+    seen.add(b.id);
+    out.push({ large_project_id: b.large_project_id, booking_id: b.id });
+  }
+  return out;
+}

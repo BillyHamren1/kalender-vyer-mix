@@ -14,6 +14,7 @@ import type {
 import {
   mergeLargeProjectMembers,
   resolvePrimaryBookingId,
+  loadLargeProjectMembers,
   findActiveLargeProjectForBooking,
   LargeProjectMembershipConflictError,
 } from "@/lib/largeProject/largeProjectMembers";
@@ -264,12 +265,9 @@ export async function deleteLargeProject(id: string, performedBy?: string): Prom
 export async function restoreLargeProject(id: string): Promise<void> {
   // Soft-delete lämnar medlemsraderna kvar. Har någon medlem under tiden
   // kopplats till ett annat aktivt projekt stoppas återställningen.
-  const { data: links, error: linkErr } = await supabase
-    .from('large_project_bookings')
-    .select('booking_id')
-    .eq('large_project_id', id);
-  if (linkErr) throw linkErr;
-  for (const l of (links || []) as Array<{ booking_id: string }>) {
+  // Kanonisk loader: join-rader + legacy bookings.large_project_id.
+  const links = await loadLargeProjectMembers(id);
+  for (const l of links) {
     const other = await findActiveLargeProjectForBooking(l.booking_id);
     if (other && other.id !== id) throw new LargeProjectMembershipConflictError(other.id, other.name);
   }
@@ -306,15 +304,75 @@ export async function fetchDeletedLargeProjects() {
  *   tas den nya join-raden bort igen och ett riktigt fel kastas (ingen halv koppling).
  * - Bokningen själv (UUID, nummer, orderrader, status) ändras aldrig utöver large_project_id.
  */
+/** PostgREST/Postgres-koder som betyder att RPC:n inte finns ännu (före migration). */
+const RPC_MISSING_CODES = new Set(['PGRST202', '42883']);
+/** Koder som betyder att kolumnen primary_booking_id saknas (före migration). */
+const COLUMN_MISSING_CODES = new Set(['PGRST204', '42703']);
+
+type RpcOutcome = { kind: 'ok'; linkId: string } | { kind: 'missing' };
+
+/**
+ * Försöker den atomiska DB-RPC:n. Endast "funktionen saknas" ger fallback;
+ * alla andra fel (konflikt, RLS, not found) kastas vidare – aldrig tystade.
+ */
+async function linkViaRpc(largeProjectId: string, bookingId: string, makePrimary: boolean): Promise<RpcOutcome> {
+  const { data, error } = await (supabase as any).rpc('link_booking_to_large_project', {
+    p_large_project_id: largeProjectId,
+    p_booking_id: bookingId,
+    p_make_primary: makePrimary,
+  });
+  if (!error) return { kind: 'ok', linkId: data as string };
+  if (RPC_MISSING_CODES.has(error.code)) return { kind: 'missing' };
+  const msg = String(error.message || '');
+  const m = msg.match(/BOOKING_IN_OTHER_PROJECT:([0-9a-f-]+)/i);
+  if (m) throw new LargeProjectMembershipConflictError(m[1]);
+  throw new Error(`Kunde inte koppla bokningen till projektet: ${msg || error.code}`);
+}
+
 export async function addBookingToLargeProject(
   largeProjectId: string,
   bookingId: string,
-  displayName?: string
+  displayName?: string,
+  options: { makePrimary?: boolean } = {},
 ): Promise<LargeProjectBooking> {
   const other = await findActiveLargeProjectForBooking(bookingId);
   if (other && other.id !== largeProjectId) {
     throw new LargeProjectMembershipConflictError(other.id, other.name);
   }
+
+  const rpc = await linkViaRpc(largeProjectId, bookingId, !!options.makePrimary);
+  if (rpc.kind === 'ok') {
+    if (displayName) {
+      const { error: dnErr } = await supabase.from('large_project_bookings').update({ display_name: displayName }).eq('id', rpc.linkId);
+      if (dnErr) throw dnErr;
+    }
+    await inheritProjectDatesIfEmpty(largeProjectId, bookingId);
+    const { data: row, error: rowErr } = await supabase.from('large_project_bookings').select('*').eq('id', rpc.linkId).single();
+    if (rowErr) throw rowErr;
+    return row as LargeProjectBooking;
+  }
+
+  // ── Kompatibilitetsfallback (endast om RPC:n saknas före migration) ──
+  const link = await linkViaClientWrites(largeProjectId, bookingId, displayName);
+  if (options.makePrimary) await setPrimaryIfColumnExists(largeProjectId, bookingId);
+  return link;
+}
+
+async function setPrimaryIfColumnExists(largeProjectId: string, bookingId: string): Promise<void> {
+  const { error } = await supabase
+    .from('large_projects')
+    .update({ primary_booking_id: bookingId } as any)
+    .eq('id', largeProjectId);
+  if (error && !COLUMN_MISSING_CODES.has(error.code)) {
+    throw new Error(`Kunde inte markera grundbokning: ${error.message}`);
+  }
+}
+
+async function linkViaClientWrites(
+  largeProjectId: string,
+  bookingId: string,
+  displayName?: string,
+): Promise<LargeProjectBooking> {
 
   const { data: existingLink, error: exErr } = await supabase
     .from('large_project_bookings')
@@ -366,6 +424,11 @@ export async function addBookingToLargeProject(
     throw new Error(`Kunde inte koppla bokningen till projektet: ${legacyErr.message}`);
   }
 
+  await inheritProjectDatesIfEmpty(largeProjectId, bookingId);
+  return data as LargeProjectBooking;
+}
+
+async function inheritProjectDatesIfEmpty(largeProjectId: string, bookingId: string): Promise<void> {
   // If project has no dates, inherit from the first booking
   const { data: project } = await supabase
     .from('large_projects')
@@ -391,8 +454,6 @@ export async function addBookingToLargeProject(
         .eq('id', largeProjectId);
     }
   }
-
-  return data as LargeProjectBooking;
 }
 
 /**
@@ -407,11 +468,9 @@ export async function createLargeProjectFromBooking(
   if (other) throw new LargeProjectMembershipConflictError(other.id, other.name);
   const created = await createLargeProject(project);
   try {
-    const link = await addBookingToLargeProject(created.id, bookingId);
-    // Explicit grundbokning om kolumnen finns (additiv migration, se
-    // .lovable/pending-migrations/large-project-primary-booking.sql).
-    // Saknas kolumnen gäller "första medlem" som grundbokning.
-    await supabase.from('large_projects').update({ primary_booking_id: bookingId } as any).eq('id', created.id);
+    // Grundbokning: RPC sätter primary_booking_id atomiskt; i fallback sätts
+    // den om kolumnen finns, annars gäller "första medlem".
+    const link = await addBookingToLargeProject(created.id, bookingId, undefined, { makePrimary: true });
     return { project: created, link };
   } catch (e) {
     await supabase.from('large_projects').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
