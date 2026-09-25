@@ -35,6 +35,7 @@ function builder(table: string) {
     let m = matched();
     if (orderKey) m = [...m].sort((a, b) => ((a[orderKey!] ?? 0) - (b[orderKey!] ?? 0)) * (orderAsc ? 1 : -1));
     if (limitN != null) m = m.slice(0, limitN);
+    if (table === "large_projects") m = m.map((r) => ({ ...r, large_project_bookings: (db.large_project_bookings || []).filter((j) => j.large_project_id === r.id) }));
     return { data: m, error: null };
   };
   const chain: any = {
