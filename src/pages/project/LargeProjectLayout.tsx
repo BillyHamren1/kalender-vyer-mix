@@ -571,8 +571,13 @@ const LargeProjectLayout = () => {
                                 </Badge>
                               )}
                               <div className="flex flex-col min-w-0">
-                                <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
+                                <span className={cn("text-sm font-medium truncate flex items-center gap-2", isCancelled && "line-through text-muted-foreground")}>
                                   {getLargeProjectBookingLabel(lpb)}
+                                  {lpb.is_primary && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4" data-testid="primary-booking-badge">
+                                      Grundbokning
+                                    </Badge>
+                                  )}
                                 </span>
                                 {b?.title && (
                                   <span className={cn("text-xs text-muted-foreground truncate", isCancelled && "line-through")}>
@@ -609,10 +614,23 @@ const LargeProjectLayout = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                title="Öppna bokningen"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm("Ta bort bokningen från projektet?")) {
+                                  window.open(`/booking/${lpb.booking_id}`, '_blank');
+                                }}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                title="Ta bort länken (bokningen raderas inte)"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm("Ta bort länken till projektet? Bokningen och dess data finns kvar.")) {
                                     detail.removeBooking(lpb.booking_id);
                                   }
                                 }}

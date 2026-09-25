@@ -48,15 +48,41 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
 
   if (error) throw error;
 
-  return (data || []).map(project => ({
-    ...project,
-    status: project.status as LargeProjectStatus,
-    bookings: (project.large_project_bookings || []).map((b: any) => ({
-      ...b,
-      large_project_id: b.large_project_id || project.id
-    })) as LargeProjectBooking[],
-    bookingCount: project.large_project_bookings?.length || 0
-  }));
+  // Legacy-only medlemmar (endast bookings.large_project_id) — samma
+  // sammanslagning som kanoniska loadern, så sök/antal blir tillförlitliga.
+  const projectIds = (data || []).map((p) => p.id);
+  const legacyByProject = new Map<string, Array<{ id: string; booking_number: string | null; client: string | null; status: string | null }>>();
+  if (projectIds.length > 0) {
+    const { data: legacy, error: legacyErr } = await supabase
+      .from('bookings')
+      .select('id, booking_number, client, status, large_project_id')
+      .in('large_project_id', projectIds);
+    if (legacyErr) throw legacyErr;
+    for (const b of (legacy || []) as any[]) {
+      const arr = legacyByProject.get(b.large_project_id) || [];
+      arr.push(b);
+      legacyByProject.set(b.large_project_id, arr);
+    }
+  }
+
+  return (data || []).map(project => {
+    const joinRows = (project.large_project_bookings || []) as any[];
+    const legacy = legacyByProject.get(project.id) || [];
+    const members = mergeLargeProjectMembers(project.id, joinRows, legacy.map((b) => b.id));
+    const primaryId = resolvePrimaryBookingId(members, (project as any).primary_booking_id);
+    const bookings = members.map((m) => {
+      const joinRow = joinRows.find((r) => r.booking_id === m.booking_id);
+      const nested = joinRow?.bookings || legacy.find((b) => b.id === m.booking_id) || undefined;
+      const { source, ...rest } = m;
+      return { ...rest, member_source: source, is_primary: m.booking_id === primaryId, booking: nested, bookings: nested };
+    }) as unknown as LargeProjectBooking[];
+    return {
+      ...project,
+      status: project.status as LargeProjectStatus,
+      bookings,
+      bookingCount: bookings.length,
+    };
+  });
 }
 
 /**
