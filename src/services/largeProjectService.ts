@@ -262,6 +262,18 @@ export async function deleteLargeProject(id: string, performedBy?: string): Prom
 }
 
 export async function restoreLargeProject(id: string): Promise<void> {
+  // Soft-delete lämnar medlemsraderna kvar. Har någon medlem under tiden
+  // kopplats till ett annat aktivt projekt stoppas återställningen.
+  const { data: links, error: linkErr } = await supabase
+    .from('large_project_bookings')
+    .select('booking_id')
+    .eq('large_project_id', id);
+  if (linkErr) throw linkErr;
+  for (const l of (links || []) as Array<{ booking_id: string }>) {
+    const other = await findActiveLargeProjectForBooking(l.booking_id);
+    if (other && other.id !== id) throw new LargeProjectMembershipConflictError(other.id, other.name);
+  }
+
   const { error } = await supabase.from('large_projects').update({ deleted_at: null }).eq('id', id);
   if (error) throw error;
 

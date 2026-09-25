@@ -1,3 +1,4 @@
+import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
 /**
  * Canonical staff calendar derivation.
  *
@@ -181,11 +182,18 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
   // large project can be redirected to the consolidated project row).
   const bookingToLP = new Map<string, string>();
   const bookingsByLP = new Map<string, string[]>();
-  for (const row of largeProjectBookings) {
-    bookingToLP.set(row.booking_id, row.large_project_id);
-    const arr = bookingsByLP.get(row.large_project_id) || [];
-    arr.push(row.booking_id);
-    bookingsByLP.set(row.large_project_id, arr);
+  // Samma kontrakt som resolveLargeProjectMembership: join-tabellen är master,
+  // bookings.large_project_id fallback endast när join-rad saknas. Inga dubbletter.
+  const membership = resolveLargeProjectMembershipFromRows(
+    Array.from(bookings.keys()),
+    largeProjectBookings,
+    bookings as Map<string, BookingLite>,
+  );
+  for (const [bookingId, lpId] of membership) {
+    bookingToLP.set(bookingId, lpId);
+    const arr = bookingsByLP.get(lpId) || [];
+    if (!arr.includes(bookingId)) arr.push(bookingId);
+    bookingsByLP.set(lpId, arr);
   }
 
   const out = new Map<string, DerivedStaffEvent>();
@@ -386,14 +394,28 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
     const project = largeProjects.get(lps.large_project_id);
     if (!project) continue;
 
-    const phaseDates: Array<{ date: string; phase: Phase }> = [
-      ...((project.start_date || []).map(d => ({ date: d, phase: 'rig' as Phase }))),
-      // event_date utelämnas medvetet — event-dagen visas inte i personalkalendern.
-      ...((project.end_date || []).map(d => ({ date: d, phase: 'rigDown' as Phase }))),
-    ].filter(p => p.date && inRange(p.date, startDate, endDate));
-
     const linkedBookingIds = bookingsByLP.get(lps.large_project_id) || [];
     const firstBooking = linkedBookingIds[0];
+
+    // Projektets datum = projektets arrays ∪ varje medlemsboknings rigg/nedrigg
+    // (bokningar i samma projekt kan ha olika datum). En post per datum+fas.
+    const seenPD = new Set<string>();
+    const phaseDates: Array<{ date: string; phase: Phase }> = [];
+    const pushPD = (date: string | null | undefined, phase: Phase) => {
+      if (!date || !inRange(date, startDate, endDate)) return;
+      const k = `${date}|${phase}`;
+      if (seenPD.has(k)) return;
+      seenPD.add(k);
+      phaseDates.push({ date, phase });
+    };
+    (project.start_date || []).forEach(d => pushPD(d, 'rig'));
+    // event_date utelämnas medvetet — event-dagen visas inte i personalkalendern.
+    (project.end_date || []).forEach(d => pushPD(d, 'rigDown'));
+    for (const bid of linkedBookingIds) {
+      const b = bookings.get(bid);
+      pushPD(b?.rigdaydate, 'rig');
+      pushPD(b?.rigdowndate, 'rigDown');
+    }
 
     for (const { date, phase } of phaseDates) {
       // Prefer a calendar_event from any linked booking for enrichment

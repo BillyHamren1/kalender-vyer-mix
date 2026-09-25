@@ -226,6 +226,16 @@ export const getStaffCalendarEvents = async (
       if (lpbErr) console.error('[staffCalendar] large_project_bookings fetch error:', lpbErr);
       (lpRows || []).forEach((p: any) => largeProjects.set(p.id, p));
       largeProjectBookings = (lpbRows || []) as any[];
+
+      // Read-only: alla medlemsbokningar (join + legacy bookings.large_project_id)
+      // behövs för att projektets post ska täcka varje medlems rigg-/nedriggdatum.
+      const memberIds = new Set(largeProjectBookings.map(r => r.booking_id));
+      const { data: memberRows, error: memberErr } = await supabase
+        .from('bookings')
+        .select('id, client, booking_number, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress')
+        .or(`large_project_id.in.(${lpIds.join(',')})${memberIds.size ? `,id.in.(${Array.from(memberIds).join(',')})` : ''}`);
+      if (memberErr) console.error('[staffCalendar] large project member bookings fetch error:', memberErr);
+      (memberRows || []).forEach((b: any) => { if (!bookings.has(b.id)) bookings.set(b.id, b); });
     }
 
     // Dev log: surface large-project grouping inputs for debugging
@@ -245,7 +255,10 @@ export const getStaffCalendarEvents = async (
     //    Pull every calendar_event linked to any relevant booking — including
     //    sub-bookings of large projects we have memberships for — so timing,
     //    team and address info is preserved when present.
-    const lpLinkedBookingIds = largeProjectBookings.map(r => r.booking_id);
+    const lpLinkedBookingIds = [
+      ...largeProjectBookings.map(r => r.booking_id),
+      ...Array.from(bookings.values()).filter((b: any) => b.large_project_id && largeProjects.has(b.large_project_id)).map((b: any) => b.id),
+    ];
     const allBookingIdsForEnrichment = Array.from(new Set([
       ...bookingIds,
       ...lpLinkedBookingIds,
