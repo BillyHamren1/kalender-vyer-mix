@@ -20,6 +20,8 @@ import {
   addBookingToLargeProject 
 } from '@/services/largeProjectService';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
+import { describeLargeProjectLinkError } from '@/lib/largeProject/linkErrorMessage';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -41,6 +43,7 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
+  const [makePrimary, setMakePrimary] = useState(false);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['large-projects'],
@@ -59,7 +62,7 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
       
       if (!projectId) throw new Error('Inget projekt valt');
       
-      await addBookingToLargeProject(projectId, bookingId);
+      await addBookingToLargeProject(projectId, bookingId, undefined, { makePrimary });
       return projectId;
     },
     onSuccess: (projectId) => {
@@ -69,14 +72,8 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
       onOpenChange(false);
       navigate(`/large-project/${projectId}`);
     },
-    onError: (error: any) => {
-      if (error?.message === 'BOOKING_ALREADY_ADDED') {
-        toast.error('Bokningen är redan tillagd i detta projekt');
-      } else if (error?.code === 'BOOKING_IN_OTHER_PROJECT') {
-        toast.error(error.message);
-      } else {
-        toast.error(error?.message || 'Kunde inte lägga till bokning i projekt');
-      }
+    onError: (error: unknown) => {
+      toast.error(describeLargeProjectLinkError(error));
     },
   });
 
@@ -105,6 +102,7 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
     setMode('existing');
     setSelectedProjectId(null);
     setNewProjectName('');
+    setMakePrimary(false);
   };
 
   return (
@@ -208,6 +206,16 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
                   ))}
                 </RadioGroup>
               )}
+              {projects.length > 0 && (
+                <label className="flex items-center gap-2 text-sm pt-2 cursor-pointer">
+                  <Checkbox
+                    checked={makePrimary}
+                    onCheckedChange={(v) => setMakePrimary(v === true)}
+                    aria-label="Markera som grundbokning"
+                  />
+                  Markera som grundbokning (om projektet saknar en)
+                </label>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -219,6 +227,7 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
                 onChange={(e) => setNewProjectName(e.target.value)}
                 autoFocus
               />
+              <p className="text-xs text-muted-foreground">Bokningen blir grundbokning i det nya projektet.</p>
             </div>
           )}
         </div>
