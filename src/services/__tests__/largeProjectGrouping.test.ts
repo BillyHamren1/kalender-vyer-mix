@@ -271,6 +271,23 @@ describe("grupprojekt – atomisk RPC", () => {
     expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
   });
 
+  it("cross-org-koppling avvisas (ORGANIZATION_MISMATCH) utan skrivningar", async () => {
+    db.bookings.find((b) => b.id === "b-3")!.organization_id = "org-1";
+    db.large_projects.push({ id: "lp-x", name: "X", status: "planning", deleted_at: null, organization_id: "org-2" });
+    rpcMode = "ok";
+    await expect(addBookingToLargeProject("lp-x", "b-3")).rejects.toThrow(/ORGANIZATION_MISMATCH/);
+    expect(db.large_project_bookings).toHaveLength(0);
+    expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
+  });
+
+  it("samma org tillåts när organization_id matchar", async () => {
+    db.bookings.find((b) => b.id === "b-3")!.organization_id = "org-1";
+    db.large_projects.push({ id: "lp-y", name: "Y", status: "planning", deleted_at: null, organization_id: "org-1" });
+    rpcMode = "ok";
+    await addBookingToLargeProject("lp-y", "b-3");
+    expect(db.large_project_bookings.filter((r) => r.booking_id === "b-3")).toHaveLength(1);
+  });
+
   it("RPC-konflikt mappas till konfliktfel", async () => {
     db.large_projects.push({ id: "lp-a", name: "A", status: "planning", deleted_at: null }, { id: "lp-b", name: "B", status: "planning", deleted_at: null });
     db.large_project_bookings.push({ id: "x", large_project_id: "lp-a", booking_id: "b-3", sort_order: 1 });
