@@ -239,12 +239,9 @@ export const getStaffCalendarEvents = async (
       (memberRows || []).forEach((b: any) => { if (!bookings.has(b.id)) bookings.set(b.id, b); });
 
       // Kombinerad medlemslista före derive: join vinner, legacy som fallback, dedupe.
-      // Endast inlästa (ej soft-raderade) projekt.
-      largeProjectBookings = normalizeLargeProjectBookingRows(
-        largeProjectBookings,
-        bookings.values(),
-        new Set(largeProjects.keys()),
-      );
+      // Ingen projektfiltrering här: befintlig guard-semantik behålls även om
+      // projekthämtningen fallerar (fail-closed mot fristående tiles).
+      largeProjectBookings = normalizeLargeProjectBookingRows(largeProjectBookings, bookings.values());
     }
 
     // Dev log: surface large-project grouping inputs for debugging

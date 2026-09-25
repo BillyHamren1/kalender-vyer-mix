@@ -4,6 +4,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 type Row = Record<string, any>;
 const db: Record<string, Row[]> = {};
 let failBookingUpdate = false;
+let rpcMode: "missing" | "ok" | "error" = "missing";
+const rpcCalls: Array<{ fn: string; args: any }> = [];
+function fakeRpc(fn: string, args: any) {
+  rpcCalls.push({ fn, args });
+  if (rpcMode === "missing") return Promise.resolve({ data: null, error: { code: "PGRST202", message: "Could not find the function" } });
+  if (rpcMode === "error") return Promise.resolve({ data: null, error: { code: "42501", message: "permission denied" } });
+  // "ok": simulera RPC:ns atomiska beteende i minnet.
+  const active = (db.large_project_bookings || []).find((r) => r.booking_id === args.p_booking_id && r.large_project_id !== args.p_large_project_id
+    && db.large_projects.some((p) => p.id === r.large_project_id && !p.deleted_at));
+  if (active) return Promise.resolve({ data: null, error: { code: "23505", message: `BOOKING_IN_OTHER_PROJECT:${active.large_project_id}` } });
+  let link = db.large_project_bookings.find((r) => r.booking_id === args.p_booking_id && r.large_project_id === args.p_large_project_id);
+  if (!link) { link = { id: `rpc-${++idSeq}`, large_project_id: args.p_large_project_id, booking_id: args.p_booking_id, sort_order: 1 }; db.large_project_bookings.push(link); }
+  db.bookings.find((b) => b.id === args.p_booking_id)!.large_project_id = args.p_large_project_id;
+  const lp = db.large_projects.find((p) => p.id === args.p_large_project_id)!;
+  if (args.p_make_primary && !lp.primary_booking_id) lp.primary_booking_id = args.p_booking_id;
+  return Promise.resolve({ data: link.id, error: null });
+}
 let idSeq = 0;
 
 function builder(table: string) {
@@ -55,7 +72,7 @@ function builder(table: string) {
   return chain;
 }
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => builder(t) } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => builder(t), rpc: (f: string, a: any) => fakeRpc(f, a) } }));
 vi.mock("@/services/bookingAssignmentService", () => ({ recomputeBookingAssignment: vi.fn() }));
 
 import {
@@ -72,6 +89,8 @@ const booking = (id: string, nr: string, extra: Row = {}) => ({ id, booking_numb
 beforeEach(() => {
   for (const k of Object.keys(db)) delete db[k];
   failBookingUpdate = false;
+  rpcMode = "missing";
+  rpcCalls.length = 0;
   db.bookings = [booking("b-1", "2609-1"), booking("b-2", "2609-2"), booking("b-3", "2609-3")];
   db.large_projects = [];
   db.large_project_bookings = [];
@@ -199,5 +218,60 @@ describe("grupprojekt – soft-delete/restore", () => {
     expect(code).toMatch(/deleted_at IS NULL/);
     expect(code).toMatch(/FOR UPDATE/);
     expect(code).toMatch(/SECURITY INVOKER/);
+  });
+});
+
+describe("grupprojekt – atomisk RPC", () => {
+  it("service anropar RPC med p_make_primary=true vid skapande och sätter primary_booking_id", async () => {
+    rpcMode = "ok";
+    const { project } = await createLargeProjectFromBooking("b-1", { name: "RPC" });
+    expect(rpcCalls).toEqual([{ fn: "link_booking_to_large_project", args: { p_large_project_id: project.id, p_booking_id: "b-1", p_make_primary: true } }]);
+    expect(db.large_projects.find((p) => p.id === project.id)!.primary_booking_id).toBe("b-1");
+  });
+
+  it("länkning till befintligt projekt anropar RPC med p_make_primary=false; grundbokning oförändrad", async () => {
+    rpcMode = "ok";
+    const { project } = await createLargeProjectFromBooking("b-1", { name: "RPC" });
+    await addBookingToLargeProject(project.id, "b-2");
+    expect(rpcCalls[1].args).toEqual({ p_large_project_id: project.id, p_booking_id: "b-2", p_make_primary: false });
+    expect(db.large_projects.find((p) => p.id === project.id)!.primary_booking_id).toBe("b-1");
+    expect(db.bookings.find((b) => b.id === "b-2")!.large_project_id).toBe(project.id);
+  });
+
+  it("fallback när RPC saknas: klientskrivningar + primary_booking_id", async () => {
+    rpcMode = "missing";
+    const { project } = await createLargeProjectFromBooking("b-1", { name: "Fallback" });
+    expect(rpcCalls).toHaveLength(1);
+    expect(db.large_project_bookings.filter((r) => r.booking_id === "b-1")).toHaveLength(1);
+    expect(db.large_projects.find((p) => p.id === project.id)!.primary_booking_id).toBe("b-1");
+  });
+
+  it("RPC-fel tystas inte och ger ingen klientfallback", async () => {
+    db.large_projects.push({ id: "lp-e", name: "E", status: "planning", deleted_at: null });
+    rpcMode = "error";
+    await expect(addBookingToLargeProject("lp-e", "b-3")).rejects.toThrow(/permission denied/);
+    expect(db.large_project_bookings).toHaveLength(0);
+    expect(db.bookings.find((b) => b.id === "b-3")!.large_project_id).toBeNull();
+  });
+
+  it("RPC-konflikt mappas till konfliktfel", async () => {
+    db.large_projects.push({ id: "lp-a", name: "A", status: "planning", deleted_at: null }, { id: "lp-b", name: "B", status: "planning", deleted_at: null });
+    db.large_project_bookings.push({ id: "x", large_project_id: "lp-a", booking_id: "b-3", sort_order: 1 });
+    rpcMode = "ok";
+    // Klientens förkontroll fångar redan konflikten; RPC:n är andra försvarslinjen.
+    await expect(addBookingToLargeProject("lp-b", "b-3")).rejects.toBeInstanceOf(LargeProjectMembershipConflictError);
+  });
+});
+
+describe("grupprojekt – restore via kanonisk loader", () => {
+  it("legacy-only medlem som under soft-delete kopplats aktivt till annat projekt stoppar restore", async () => {
+    db.large_projects.push({ id: "lp-old", name: "Gammal", status: "planning", deleted_at: "2026-09-01T00:00:00Z" });
+    db.large_projects.push({ id: "lp-new", name: "Ny", status: "planning", deleted_at: null });
+    // b-3 är legacy-only medlem i lp-old (ingen join-rad där)...
+    db.bookings.find((b) => b.id === "b-3")!.large_project_id = "lp-old";
+    // ...och har under soft-delete fått en aktiv join-koppling till lp-new.
+    db.large_project_bookings.push({ id: "j-new", large_project_id: "lp-new", booking_id: "b-3", sort_order: 1 });
+    await expect(restoreLargeProject("lp-old")).rejects.toBeInstanceOf(LargeProjectMembershipConflictError);
+    expect(db.large_projects.find((p) => p.id === "lp-old")!.deleted_at).not.toBeNull();
   });
 });
