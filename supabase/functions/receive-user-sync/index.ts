@@ -127,15 +127,20 @@ Deno.serve(async (req) => {
     }, { onConflict: "user_id" });
     if (profileError) return json({ success: false, error: "PROFILE_SYNC_FAILED", details: profileError.message }, 500);
 
-    // Tenant-safe role sync: never touch roles in another organization.
-    const { error: deleteError } = await admin.from("user_roles")
-      .delete().eq("user_id", localUserId).eq("organization_id", organizationId);
-    if (deleteError) return json({ success: false, error: "ROLE_DELETE_FAILED", details: deleteError.message }, 500);
-
-    const { error: roleError } = await admin.from("user_roles").insert(
+    // Tenant-safe, idempotent role sync: upsert on (user_id, role, organization_id)
+    // so retries/parallel reloads never hit the unique key, then prune only
+    // roles in THIS organization that are no longer granted.
+    const { error: roleError } = await admin.from("user_roles").upsert(
       roles.map((role) => ({ user_id: localUserId, role, organization_id: organizationId })),
+      { onConflict: "user_id,role,organization_id" },
     );
-    if (roleError) return json({ success: false, error: "ROLE_INSERT_FAILED", details: roleError.message }, 500);
+    if (roleError) return json({ success: false, error: "ROLE_UPSERT_FAILED", details: roleError.message }, 500);
+
+    let pruneQuery = admin.from("user_roles").delete()
+      .eq("user_id", localUserId).eq("organization_id", organizationId);
+    if (roles.length > 0) pruneQuery = pruneQuery.not("role", "in", `(${roles.join(",")})`);
+    const { error: deleteError } = await pruneQuery;
+    if (deleteError) return json({ success: false, error: "ROLE_DELETE_FAILED", details: deleteError.message }, 500);
 
     return json({
       success: true,
