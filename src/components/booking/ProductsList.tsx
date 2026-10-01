@@ -212,7 +212,7 @@ const ProductGroupItem = ({
             <div data-testid="package-members">
               <SectionLabel>Paketinnehåll</SectionLabel>
               {members.map((m) => (
-                <ProductItem key={m.id} product={m} isAccessory showPricing={false} />
+                <ProductItem key={m.id} product={m} isPackageMember showPricing={false} />
               ))}
             </div>
           )}
@@ -235,7 +235,7 @@ export const ProductsList = ({
   showPricing = true,
   embedded = false,
   packageMembers,
-  defaultOpen = false,
+  defaultOpen = true,
 }: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
   const groups = hasProducts ? groupProducts(products) : [];
