@@ -9,9 +9,10 @@ interface ProductsListProps {
   products: BookingProduct[];
   showPricing?: boolean; // New prop to control pricing visibility
   embedded?: boolean;
-  /** Paketmedlemmar per huvudrads-id; visas före tillbehören. */
+  /** Paketmedlemmar per huvudrads-id; dolda som standard, tillbehören visas alltid. */
   packageMembers?: Record<string, BookingProduct[]>;
-  defaultOpen?: boolean;
+  /** Paketinnehållet öppnat från början. Standard: stängt. */
+  defaultOpenMembers?: boolean;
 }
 
 interface ProductGroup {
@@ -157,14 +158,14 @@ const ProductGroupItem = ({
   group,
   showPricing = true,
   members = [],
-  defaultOpen = false,
+  defaultOpenMembers = false,
 }: {
   group: ProductGroup;
   showPricing?: boolean;
   members?: BookingProduct[];
-  defaultOpen?: boolean;
+  defaultOpenMembers?: boolean;
 }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [membersOpen, setMembersOpen] = useState(defaultOpenMembers);
   const hasAccessories = group.accessories.length > 0;
   const hasMembers = members.length > 0;
 
@@ -177,56 +178,74 @@ const ProductGroupItem = ({
   }
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border-b border-border last:border-b-0">
-      <CollapsibleTrigger className="w-full text-left hover:bg-muted/50 rounded transition-colors">
-        <div className="py-2 flex items-center gap-2">
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-          <div className="flex-1 flex justify-between items-center">
-            <span className="text-sm font-medium">{cleanProductName(group.parent.name)}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
-                +{group.accessories.length + members.length}
-              </span>
-              <span className="text-xs text-muted-foreground">Antal: {group.parent.quantity}</span>
-            </div>
+    <div className="border-b border-border last:border-b-0">
+      <div className="py-2 flex items-center gap-2">
+        <div className="flex-1 flex justify-between items-center">
+          <span className="text-sm font-medium">{cleanProductName(group.parent.name)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
+              +{group.accessories.length + members.length}
+            </span>
+            <span className="text-xs text-muted-foreground">Antal: {group.parent.quantity}</span>
           </div>
         </div>
-        {showPricing && group.parent.unitPrice && (
-          <p className="text-xs text-muted-foreground mt-0.5 pl-6 pb-1">
-            {group.parent.unitPrice.toLocaleString('sv-SE')} kr/st
-            {group.parent.totalPrice && (
-              <span className="font-medium text-foreground ml-2">
-                = {group.parent.totalPrice.toLocaleString('sv-SE')} kr
+      </div>
+      {showPricing && group.parent.unitPrice && (
+        <p className="text-xs text-muted-foreground mt-0.5 pb-1">
+          {group.parent.unitPrice.toLocaleString('sv-SE')} kr/st
+          {group.parent.totalPrice && (
+            <span className="font-medium text-foreground ml-2">
+              = {group.parent.totalPrice.toLocaleString('sv-SE')} kr
+            </span>
+          )}
+        </p>
+      )}
+
+      {hasMembers && (
+        <Collapsible
+          open={membersOpen}
+          onOpenChange={setMembersOpen}
+          className="pl-2 border-l-2 border-muted ml-2"
+        >
+          <CollapsibleTrigger
+            data-testid="package-members-toggle"
+            aria-label={`Visa paketinnehåll (${members.length} delar)`}
+            className="w-full text-left hover:bg-muted/50 rounded transition-colors"
+          >
+            <div className="py-1.5 flex items-center gap-1.5">
+              {membersOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              )}
+              <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Paketinnehåll
               </span>
+              <span className="text-[11px] text-muted-foreground">({members.length})</span>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            {membersOpen && (
+              <div data-testid="package-members">
+                {members.map((m) => (
+                  <ProductItem key={m.id} product={m} isPackageMember showPricing={false} />
+                ))}
+              </div>
             )}
-          </p>
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pl-2 border-l-2 border-muted ml-2 mb-2">
-          {hasMembers && (
-            <div data-testid="package-members">
-              <SectionLabel>Paketinnehåll</SectionLabel>
-              {members.map((m) => (
-                <ProductItem key={m.id} product={m} isPackageMember showPricing={false} />
-              ))}
-            </div>
-          )}
-          {hasAccessories && (
-            <div data-testid="package-accessories">
-              {hasMembers && <SectionLabel>Tillbehör</SectionLabel>}
-              {group.accessories.map((accessory) => (
-                <ProductItem key={accessory.id} product={accessory} isAccessory showPricing={showPricing} />
-              ))}
-            </div>
-          )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {hasAccessories && (
+        <div data-testid="package-accessories" className="pl-2 border-l-2 border-muted ml-2 mb-2">
+          {hasMembers && <SectionLabel>Tillbehör</SectionLabel>}
+          {group.accessories.map((accessory) => (
+            <ProductItem key={accessory.id} product={accessory} isAccessory showPricing={showPricing} />
+          ))}
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      )}
+    </div>
   );
 };
 
@@ -235,7 +254,7 @@ export const ProductsList = ({
   showPricing = true,
   embedded = false,
   packageMembers,
-  defaultOpen = true,
+  defaultOpenMembers = false,
 }: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
   const groups = hasProducts ? groupProducts(products) : [];
@@ -250,7 +269,7 @@ export const ProductsList = ({
                 group={group}
                 showPricing={showPricing}
                 members={packageMembers?.[group.parent.id] ?? []}
-                defaultOpen={defaultOpen}
+                defaultOpenMembers={defaultOpenMembers}
               />
             ))}
           </div>

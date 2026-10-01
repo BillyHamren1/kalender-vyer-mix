@@ -62,7 +62,6 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
         packageMembers={packageMembers}
         showPricing={false}
         embedded
-        defaultOpen
       />
     </>
   );
