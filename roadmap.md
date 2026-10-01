@@ -1,5 +1,8 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
+## Projektets orderrader
+- [ ] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
+
 ## Pågående visuellt
 - [x] Matcha alla knappar och aktiva tabbar mot Planning-ikonens lila lyster, ljus och djup; verifierat i preview och tester.
 
