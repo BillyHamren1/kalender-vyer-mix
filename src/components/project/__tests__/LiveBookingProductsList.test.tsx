@@ -8,6 +8,9 @@ import { mapCanonicalBookingToPlanning } from "@/lib/booking/canonicalBooking";
 vi.mock("@/services/booking/liveBookingService", () => ({
   fetchLiveBookingById: vi.fn(),
 }));
+vi.mock("@/services/booking/packageMembersService", () => ({
+  fetchWmsPackageRows: vi.fn().mockResolvedValue([]),
+}));
 
 const bookingFromActualExportShape = mapCanonicalBookingToPlanning({
   id: "booking-1",
@@ -41,7 +44,6 @@ describe("LiveBookingProductsList", () => {
     renderList();
 
     const parent = await screen.findByText("UNIFLEX 10x20 /380 (svart)");
-    fireEvent.click(parent.closest("button") as HTMLButtonElement);
 
     expect(await screen.findByText("Uniflex - Glasvägg Svart /380")).toBeInTheDocument();
     expect(screen.getByText("Antal: 64")).toBeInTheDocument();
