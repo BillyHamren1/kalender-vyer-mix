@@ -3,19 +3,26 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import LiveBookingProductsList from "../LiveBookingProductsList";
 import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
+import { mapCanonicalBookingToPlanning } from "@/lib/booking/canonicalBooking";
 
 vi.mock("@/services/booking/liveBookingService", () => ({
   fetchLiveBookingById: vi.fn(),
 }));
 
-const products = [
-  { id: "parent", name: "UNIFLEX 10x20 /380 (svart)", quantity: 1 },
-  { id: "gable", name: "↳ U10 Gaveltriangel, transparent (svart ram)", quantity: 2, parentProductId: "parent", isPackageComponent: true },
-  { id: "roof", name: "↳ U10 Takduk Transparent", quantity: 4, parentProductId: "parent", isPackageComponent: true },
-  { id: "glass", name: "↳ Uniflex - Glasvägg Svart /380", quantity: 64, parentProductId: "parent", isPackageComponent: true },
-  { id: "door", name: "↳ Uniflex - Dörr Svart", quantity: 4, parentProductId: "parent", isPackageComponent: true },
-  { id: "transport", name: "Transport - hämtas hos oss", quantity: 1 },
-];
+const bookingFromActualExportShape = mapCanonicalBookingToPlanning({
+  id: "booking-1",
+  booking_number: "2609-39",
+  clientName: "Tavet AB",
+  status: "Confirmed",
+  products: [
+    { booking_product_id: "parent", product_name: "UNIFLEX 10x20 /380 (svart)", quantity: 1, inventory_package_id: "package-definition" },
+    { booking_product_id: "gable", product_name: "  ↳ U10 Gaveltriangel, transparent (svart ram)", quantity: 2, parent_product_id: "parent", inventory_package_id: "package-definition", is_package_component: true },
+    { booking_product_id: "roof", product_name: "  ↳ U10 Takduk Transparent", quantity: 4, parent_product_id: "parent", inventory_package_id: "package-definition", is_package_component: true },
+    { booking_product_id: "glass", product_name: "  ↳ Uniflex - Glasvägg Svart /380", quantity: 64, parent_product_id: "parent", inventory_package_id: "package-definition", is_package_component: true },
+    { booking_product_id: "door", product_name: "  ↳ Uniflex - Dörr Svart", quantity: 4, parent_product_id: "parent", inventory_package_id: "package-definition", is_package_component: true },
+    { booking_product_id: "transport", product_name: "Transport - hämtas hos oss", quantity: 1 },
+  ],
+});
 
 const renderList = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,7 +37,7 @@ describe("LiveBookingProductsList", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("visar Bookings aktuella antal och ordning utan WMS-dubletter", async () => {
-    vi.mocked(fetchLiveBookingById).mockResolvedValue({ products } as never);
+    vi.mocked(fetchLiveBookingById).mockResolvedValue(bookingFromActualExportShape);
     renderList();
 
     const parent = await screen.findByText("UNIFLEX 10x20 /380 (svart)");
