@@ -21,10 +21,10 @@ interface ProductGroup {
  */
 const cleanProductName = (name: string): string => {
   return name
+    .trimStart()
     .replace(/^[└↳]\s*,?\s*/, '')
     .replace(/^L,\s*/, '')
     .replace(/^⦿\s*/, '')
-    .replace(/^\s+/, '')
     .trim();
 };
 
