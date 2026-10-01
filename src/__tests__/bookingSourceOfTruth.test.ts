@@ -50,6 +50,7 @@ const canonical: CanonicalBooking = {
       total: 0,
       parent_product_id: 'bp1',
       is_package_component: true,
+      inventory_package_id: 'pkg1',
     },
   ],
   attachments: [
@@ -106,9 +107,10 @@ describe('kanonisk läsväg från Booking', () => {
       quantity: 5,
       unitPrice: 100,
       totalPrice: 500,
-      parentPackageId: 'pkg1',
+      parentPackageId: undefined,
     });
     expect(b.products?.[1]).toMatchObject({ id: 'bp2', parentProductId: 'bp1', isPackageComponent: true });
+    expect(b.products?.[1]?.parentPackageId).toBeUndefined();
     expect(b.products?.every((p) => p.id && p.name)).toBe(true);
   });
 
