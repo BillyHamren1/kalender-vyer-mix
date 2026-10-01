@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['supabase/functions/_shared/project-personnel-cost.test.ts'],
+    include: [
+      'supabase/functions/_shared/project-personnel-cost.test.ts',
+      'supabase/functions/_shared/finance-project-invoice.test.ts',
+      'supabase/functions/_shared/project-cost-obligations.test.ts',
+      'supabase/functions/_shared/project-personnel-ingestion*.test.ts',
+    ],
   },
 });

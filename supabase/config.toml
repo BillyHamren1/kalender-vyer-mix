@@ -213,3 +213,8 @@ verify_jwt = false
 
 [functions.planning-brain-read]
 verify_jwt = false
+
+
+[functions.project-personnel-cost-publish]
+# Internal bearer is rechecked by the handler; boundary is disabled by default.
+verify_jwt = false

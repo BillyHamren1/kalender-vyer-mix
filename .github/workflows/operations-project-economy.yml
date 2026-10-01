@@ -2,8 +2,11 @@ name: Operations project economy synthetic runtime
 on:
   pull_request:
     paths:
-      - 'supabase/functions/_shared/project-personnel-cost*'
-      - 'supabase/migrations/*operations_personnel_cost_evidence.sql'
+      - 'supabase/functions/_shared/project-personnel-*'
+      - 'supabase/functions/_shared/finance-project-invoice*'
+      - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/project-personnel-cost-publish/**'
+      - 'supabase/migrations/*operations_personnel_cost*.sql'
       - 'scripts/project-economy/operations-*'
       - '.github/workflows/operations-project-economy.yml'
   workflow_dispatch:
@@ -14,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: postgres:15.19
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: synthetic-test-only
@@ -44,7 +47,7 @@ jobs:
       - run: npm ci
       - name: Typecheck and adverse calculation cases
         run: |
-          deno check supabase/functions/_shared/project-personnel-cost.ts
+          deno check supabase/functions/_shared/project-personnel-cost.ts supabase/functions/project-personnel-cost-publish/index.ts
           npx vitest run --config scripts/project-economy/operations-vitest.config.ts
       - name: Generate actual Operations calculation fixtures
         run: deno run scripts/project-economy/operations-fixture.ts > /tmp/operations-fixtures.json
@@ -59,3 +62,15 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-postgres-test.sql'],check=True)
           PY
+      - name: Actual outbox lease, receipt and atomicity SQL runtime
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-transport-seed.sql
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/operations-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-outbox-postgres-test.sql'],check=True)
+          PY
+
