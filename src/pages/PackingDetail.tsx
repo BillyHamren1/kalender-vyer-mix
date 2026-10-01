@@ -1,3 +1,4 @@
+import OrderFlowStatusPanel from "@/components/order-flow/OrderFlowStatusPanel";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal, CheckCircle2, AlertCircle } from "lucide-react";
@@ -483,6 +484,9 @@ const PackingDetail = () => {
             </div>
           </div>
 
+          {(isMultiBooking ? linkedBookingIds : packing.booking_id ? [packing.booking_id] : []).map(bookingId => (
+            <OrderFlowStatusPanel key={bookingId} bookingId={bookingId} view="lager" />
+          ))}
           <Tabs value={activeTab || defaultTab} onValueChange={setActiveTab} className="space-y-4">
             <div className="overflow-x-auto">
               <TabsList className="h-auto p-1.5 bg-muted/50 rounded-xl border border-border/40 gap-1 w-full justify-start">
@@ -691,3 +695,4 @@ const PackingDetail = () => {
 };
 
 export default PackingDetail;
+

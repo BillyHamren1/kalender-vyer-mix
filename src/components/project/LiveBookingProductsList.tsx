@@ -1,3 +1,4 @@
+import OrderFlowStatusPanel from "@/components/order-flow/OrderFlowStatusPanel";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
 import { ProductsList } from "@/components/booking/ProductsList";
@@ -51,6 +52,7 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
 
   return (
     <>
+      <OrderFlowStatusPanel bookingId={bookingId} view="planning" />
       {membersQuery.isError && (
         <div role="alert" className="flex items-start gap-2 py-2 text-xs text-destructive">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -68,3 +70,4 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
 };
 
 export default LiveBookingProductsList;
+
