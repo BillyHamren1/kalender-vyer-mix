@@ -88,10 +88,10 @@ describe("LiveBookingProductsList — paketinnehåll dolt, tillbehör synliga", 
     expect(pos(accessories, screen.getByText("Transport - hämtas hos oss"))).toBeTruthy();
 
     // Paketdelarna ligger djupare än tillbehören.
-    const memberRow = within(members).getByText("U sprinter bult Lång").closest("div");
-    const accessoryRow = within(accessories).getByText("U10 Gaveltriangel").closest("div");
-    expect(memberRow?.className).toContain("pl-8");
-    expect(accessoryRow?.className).toContain("pl-4");
+    expect(within(members).getByText("U sprinter bult Lång").closest(".pl-8")).not.toBeNull();
+    const accessoryText = within(accessories).getByText("U10 Gaveltriangel");
+    expect(accessoryText.closest(".pl-4")).not.toBeNull();
+    expect(accessoryText.closest(".pl-8")).toBeNull();
   });
 
   it("visar Bookings orderrader även om paketinnehållet inte kan läsas", async () => {
