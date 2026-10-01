@@ -22,7 +22,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -45,7 +45,7 @@ jobs:
       - name: Typecheck and adverse calculation cases
         run: |
           deno check supabase/functions/_shared/project-personnel-cost.ts
-          npx vitest run supabase/functions/_shared/project-personnel-cost.test.ts --environment node
+          npx vitest run --config scripts/project-economy/operations-vitest.config.ts
       - name: Generate actual Operations calculation fixtures
         run: deno run scripts/project-economy/operations-fixture.ts > /tmp/operations-fixtures.json
       - name: Isolated PostgreSQL migration and RPC tests
