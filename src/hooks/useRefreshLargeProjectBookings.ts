@@ -29,6 +29,7 @@ export function useRefreshLargeProjectBookings(
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: ["large-project-bookings-full", largeProjectId] });
       queryClient.invalidateQueries({ queryKey: ["large-project", largeProjectId] });
+      queryClient.invalidateQueries({ queryKey: ["live-booking-products", bookingId] });
       queryClient.invalidateQueries({ queryKey: ["unseen-booking-updates"] });
     };
 
@@ -77,6 +78,9 @@ export function useRefreshLargeProjectBookings(
       }
       queryClient.invalidateQueries({ queryKey: ["large-project-bookings-full", largeProjectId] });
       queryClient.invalidateQueries({ queryKey: ["large-project", largeProjectId] });
+      for (const bookingId of bookingIds) {
+        queryClient.invalidateQueries({ queryKey: ["live-booking-products", bookingId] });
+      }
     } catch (err: any) {
       console.error("[useRefreshLargeProjectBookings] refreshOne failed:", err);
       toast.error("Kunde inte uppdatera bokning: " + (err?.message || "okänt fel"));

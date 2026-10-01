@@ -8,6 +8,7 @@ import { BookingProduct } from '@/types/booking';
 interface ProductsListProps {
   products: BookingProduct[];
   showPricing?: boolean; // New prop to control pricing visibility
+  embedded?: boolean;
 }
 
 interface ProductGroup {
@@ -181,19 +182,12 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
   );
 };
 
-export const ProductsList = ({ products, showPricing = true }: ProductsListProps) => {
+export const ProductsList = ({ products, showPricing = true, embedded = false }: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
   const groups = hasProducts ? groupProducts(products) : [];
 
-  return (
-    <Card className="shadow-sm">
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="flex items-center gap-1.5 text-base">
-          <Package className="h-4 w-4" />
-          <span>Produkter ({hasProducts ? products.length : 0})</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
+  const content = (
+    <>
         {hasProducts ? (
           <div>
             {groups.map((group) => (
@@ -205,6 +199,21 @@ export const ProductsList = ({ products, showPricing = true }: ProductsListProps
             <p className="text-sm">Inga produkter tillagda</p>
           </div>
         )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Package className="h-4 w-4" />
+          <span>Produkter ({hasProducts ? products.length : 0})</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0 px-4 pb-3">
+        {content}
       </CardContent>
     </Card>
   );

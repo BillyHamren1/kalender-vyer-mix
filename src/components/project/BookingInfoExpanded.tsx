@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
-import ProjectProductsList from "./ProjectProductsList";
 import CustomerInfoBlock from "./CustomerInfoBlock";
+import LiveBookingProductsList from "./LiveBookingProductsList";
 
 interface BookingAttachment {
   id: string;
@@ -82,7 +82,7 @@ const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true, 
               <p className="mt-1 text-xs text-muted-foreground">Produkter, tjänster, antal och tillbehör från den aktuella bokningen.</p>
             </div>
           )}
-          <ProjectProductsList bookingId={booking.id} showGroupingControls={false} showSummary={false} />
+          <LiveBookingProductsList bookingId={booking.id} />
         </div>
       </Card>
     </>
