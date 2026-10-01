@@ -43,6 +43,7 @@ export const useRefreshBooking = (bookingId: string | null, projectId: string) =
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["project-files", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["booking-attachments", bookingId] });
+      await queryClient.invalidateQueries({ queryKey: ["live-booking-products", bookingId] });
 
       if (imported > 0 || updated > 0) {
         const parts: string[] = [];
