@@ -1,0 +1,61 @@
+name: Operations project economy synthetic runtime
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/project-personnel-cost*'
+      - 'supabase/migrations/*operations_personnel_cost_evidence.sql'
+      - 'scripts/project-economy/operations-*'
+      - '.github/workflows/operations-project-economy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frozen-cost-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_economy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: operations_economy_test
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - run: npm ci
+      - name: Typecheck and adverse calculation cases
+        run: |
+          deno check supabase/functions/_shared/project-personnel-cost.ts
+          npx vitest run supabase/functions/_shared/project-personnel-cost.test.ts --environment node
+      - name: Generate actual Operations calculation fixtures
+        run: deno run scripts/project-economy/operations-fixture.ts > /tmp/operations-fixtures.json
+      - name: Isolated PostgreSQL migration and RPC tests
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-postgres-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/operations-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-postgres-test.sql'],check=True)
+          PY
