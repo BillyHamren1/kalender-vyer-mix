@@ -90,9 +90,10 @@ Deno.serve(async (req) => {
       .eq('organization_id', organizationId)
       .maybeSingle();
 
-    return json({ booking: canonical, planning_local: local ?? null, source: 'booking_export' });
+    return json({ booking: canonical, planning_local: local ?? null, source: 'booking_export', product_flow: canonical.product_flow ?? null });
   } catch (error) {
     console.error('[booking-source-read]', error);
     return json({ error: (error as Error).message ?? 'Internal server error' }, 500);
   }
 });
+
