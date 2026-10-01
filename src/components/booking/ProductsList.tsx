@@ -9,6 +9,9 @@ interface ProductsListProps {
   products: BookingProduct[];
   showPricing?: boolean; // New prop to control pricing visibility
   embedded?: boolean;
+  /** Paketmedlemmar per huvudrads-id; visas före tillbehören. */
+  packageMembers?: Record<string, BookingProduct[]>;
+  defaultOpen?: boolean;
 }
 
 interface ProductGroup {
@@ -25,6 +28,7 @@ const cleanProductName = (name: string): string => {
     .replace(/^[└↳]\s*,?\s*/, '')
     .replace(/^L,\s*/, '')
     .replace(/^⦿\s*/, '')
+    .replace(/^--\s*/, '')
     .trim();
 };
 
@@ -129,11 +133,26 @@ const ProductItem = ({ product, isAccessory: isAcc, showPricing = true }: { prod
   );
 };
 
-const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; showPricing?: boolean }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const hasAccessories = group.accessories.length > 0;
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <p className="pl-4 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</p>
+);
 
-  if (!hasAccessories) {
+const ProductGroupItem = ({
+  group,
+  showPricing = true,
+  members = [],
+  defaultOpen = false,
+}: {
+  group: ProductGroup;
+  showPricing?: boolean;
+  members?: BookingProduct[];
+  defaultOpen?: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const hasAccessories = group.accessories.length > 0;
+  const hasMembers = members.length > 0;
+
+  if (!hasAccessories && !hasMembers) {
     return (
       <div className="border-b border-border last:border-b-0">
         <ProductItem product={group.parent} showPricing={showPricing} />
@@ -154,7 +173,7 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
             <span className="text-sm font-medium">{cleanProductName(group.parent.name)}</span>
             <div className="flex items-center gap-2">
               <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
-                +{group.accessories.length}
+                +{group.accessories.length + members.length}
               </span>
               <span className="text-xs text-muted-foreground">Antal: {group.parent.quantity}</span>
             </div>
@@ -173,16 +192,35 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pl-2 border-l-2 border-muted ml-2 mb-2">
-          {group.accessories.map((accessory) => (
-            <ProductItem key={accessory.id} product={accessory} isAccessory showPricing={showPricing} />
-          ))}
+          {hasMembers && (
+            <div data-testid="package-members">
+              <SectionLabel>Paketinnehåll</SectionLabel>
+              {members.map((m) => (
+                <ProductItem key={m.id} product={m} isAccessory showPricing={false} />
+              ))}
+            </div>
+          )}
+          {hasAccessories && (
+            <div data-testid="package-accessories">
+              {hasMembers && <SectionLabel>Tillbehör</SectionLabel>}
+              {group.accessories.map((accessory) => (
+                <ProductItem key={accessory.id} product={accessory} isAccessory showPricing={showPricing} />
+              ))}
+            </div>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
   );
 };
 
-export const ProductsList = ({ products, showPricing = true, embedded = false }: ProductsListProps) => {
+export const ProductsList = ({
+  products,
+  showPricing = true,
+  embedded = false,
+  packageMembers,
+  defaultOpen = false,
+}: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
   const groups = hasProducts ? groupProducts(products) : [];
 
@@ -191,7 +229,13 @@ export const ProductsList = ({ products, showPricing = true, embedded = false }:
         {hasProducts ? (
           <div>
             {groups.map((group) => (
-              <ProductGroupItem key={group.parent.id} group={group} showPricing={showPricing} />
+              <ProductGroupItem
+                key={group.parent.id}
+                group={group}
+                showPricing={showPricing}
+                members={packageMembers?.[group.parent.id] ?? []}
+                defaultOpen={defaultOpen}
+              />
             ))}
           </div>
         ) : (
