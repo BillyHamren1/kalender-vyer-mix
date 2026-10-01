@@ -9,6 +9,10 @@ export interface BookingProduct {
   parentProductId?: string;
   isPackageComponent?: boolean;
   parentPackageId?: string;
+  /** Paketdefinitionen raden hör till (delas av förälder och komponenter). */
+  inventoryPackageId?: string;
+  /** Paketets medlemmar enligt Booking (per paket, oskalade). */
+  packageComponents?: Array<{ name: string; quantity: number; sku?: string }>;
   sku?: string;
   // Cost fields for budget calculation
   laborCost?: number;

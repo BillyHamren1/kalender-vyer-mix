@@ -155,6 +155,16 @@ const mapProducts = (rows: any[] | null | undefined): BookingProduct[] | undefin
         // inventory_package_id identifies the package definition shared by both
         // the parent and its components. It is not a parent-row relationship.
         parentPackageId: p?.parent_package_id ? String(p.parent_package_id) : undefined,
+        inventoryPackageId: p?.inventory_package_id ? String(p.inventory_package_id) : undefined,
+        packageComponents: Array.isArray(p?.package_components)
+          ? p.package_components
+              .filter((c: any) => c && typeof c.name === 'string' && c.name.trim().length > 0)
+              .map((c: any) => ({
+                name: String(c.name),
+                quantity: toNumber(c.quantity) ?? 1,
+                sku: c.sku ?? undefined,
+              }))
+          : undefined,
         sku: p?.sku ?? undefined,
       } as BookingProduct;
     })
