@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Package, ChevronDown, ChevronRight } from 'lucide-react';
+import { Package, ChevronDown, ChevronRight, CornerDownRight } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { BookingProduct } from '@/types/booking';
@@ -105,15 +105,31 @@ const groupProducts = (products: BookingProduct[]): ProductGroup[] => {
   return groups;
 };
 
-const ProductItem = ({ product, isAccessory: isAcc, showPricing = true }: { product: BookingProduct; isAccessory?: boolean; showPricing?: boolean }) => {
-  const hasNotes = product.notes && 
-                  typeof product.notes === 'string' && 
+const ProductItem = ({
+  product,
+  isAccessory: isAcc,
+  isPackageMember = false,
+  showPricing = true,
+}: {
+  product: BookingProduct;
+  isAccessory?: boolean;
+  isPackageMember?: boolean;
+  showPricing?: boolean;
+}) => {
+  const hasNotes = product.notes &&
+                  typeof product.notes === 'string' &&
                   product.notes.trim().length > 0;
 
+  const indent = isPackageMember ? 'pl-8' : isAcc ? 'pl-4' : '';
+
   return (
-    <div className={`py-2 ${isAcc ? 'pl-4 text-muted-foreground' : ''}`}>
+    <div className={`py-2 ${indent} ${isAcc || isPackageMember ? 'text-muted-foreground' : ''}`}>
       <div className="flex justify-between">
-        <span className={`text-sm ${isAcc ? '' : 'font-medium'}`}>{cleanProductName(product.name)}</span>
+        <span className={`text-sm flex items-center gap-1.5 ${isAcc || isPackageMember ? '' : 'font-medium'}`}>
+          {isPackageMember && <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {isAcc && !isPackageMember && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {cleanProductName(product.name)}
+        </span>
         <span className="text-xs text-muted-foreground">Antal: {product.quantity}</span>
       </div>
       {showPricing && product.unitPrice && (
