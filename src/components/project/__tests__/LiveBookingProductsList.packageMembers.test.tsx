@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import LiveBookingProductsList from "../LiveBookingProductsList";
@@ -38,32 +38,60 @@ const renderList = () =>
     </QueryClientProvider>,
   );
 
-describe("LiveBookingProductsList — tält, paketinnehåll, tillbehör", () => {
+const pos = (a: Node, b: Node) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING;
+
+describe("LiveBookingProductsList — paketinnehåll dolt, tillbehör synliga", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("visar tältet, sedan alla paketmedlemmar, sedan tillbehören", async () => {
+  it("visar tillbehören direkt utan klick medan paketinnehållet är dolt", async () => {
     vi.mocked(fetchLiveBookingById).mockResolvedValue(booking);
     vi.mocked(fetchWmsPackageRows).mockResolvedValue(wmsRows as never);
     renderList();
 
+    // Tillbehören syns direkt — inget klick krävs.
+    const accessories = await screen.findByTestId("package-accessories");
+    expect(within(accessories).getByText("U10 Gaveltriangel")).toBeInTheDocument();
+    expect(within(accessories).getByText("Uniflex - Glasvägg Svart /380")).toBeInTheDocument();
+    expect(screen.getByText("Antal: 64")).toBeInTheDocument();
+
+    // Paketinnehållet är stängt från början.
+    expect(screen.queryByTestId("package-members")).not.toBeInTheDocument();
+    const toggle = screen.getByTestId("package-members-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(toggle).getByText("Paketinnehåll")).toBeInTheDocument();
+    expect(within(toggle).getByText("(2)")).toBeInTheDocument();
+
+    // Gamla WMS-kopior visas aldrig.
+    expect(screen.queryByText("Antal: 36")).not.toBeInTheDocument();
+    expect(screen.queryByText("Antal: 212")).not.toBeInTheDocument();
+    expect(screen.getAllByText("UNIFLEX 10x20 /380 (svart)")).toHaveLength(1);
+  });
+
+  it("paketinnehållet öppnas vid klick och ligger före tillbehören", async () => {
+    vi.mocked(fetchLiveBookingById).mockResolvedValue(booking);
+    vi.mocked(fetchWmsPackageRows).mockResolvedValue(wmsRows as never);
+    renderList();
+
+    const toggle = await screen.findByTestId("package-members-toggle");
+    fireEvent.click(toggle);
+
     const members = await screen.findByTestId("package-members");
     expect(within(members).getByText("U sprinter bult Lång")).toBeInTheDocument();
     expect(within(members).getByText("U Banan 5m Svart")).toBeInTheDocument();
-    const accessories = screen.getByTestId("package-accessories");
-    expect(within(accessories).getByText("U10 Gaveltriangel")).toBeInTheDocument();
-    expect(within(accessories).getByText("Uniflex - Glasvägg Svart /380")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-    // Ordning: tält → paketinnehåll → tillbehör → transport
+    const accessories = screen.getByTestId("package-accessories");
     const tent = screen.getByText("UNIFLEX 10x20 /380 (svart)");
-    const pos = (a: Node, b: Node) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING;
+    // Ordning: tält → paketinnehåll → tillbehör → transport
     expect(pos(tent, members)).toBeTruthy();
     expect(pos(members, accessories)).toBeTruthy();
     expect(pos(accessories, screen.getByText("Transport - hämtas hos oss"))).toBeTruthy();
 
-    expect(screen.getByText("Antal: 64")).toBeInTheDocument();
-    expect(screen.queryByText("Antal: 36")).not.toBeInTheDocument();
-    expect(screen.queryByText("Antal: 212")).not.toBeInTheDocument();
-    expect(screen.getAllByText("UNIFLEX 10x20 /380 (svart)")).toHaveLength(1);
+    // Paketdelarna ligger djupare än tillbehören.
+    const memberRow = within(members).getByText("U sprinter bult Lång").closest("div");
+    const accessoryRow = within(accessories).getByText("U10 Gaveltriangel").closest("div");
+    expect(memberRow?.className).toContain("pl-8");
+    expect(accessoryRow?.className).toContain("pl-4");
   });
 
   it("visar Bookings orderrader även om paketinnehållet inte kan läsas", async () => {
@@ -74,5 +102,6 @@ describe("LiveBookingProductsList — tält, paketinnehåll, tillbehör", () => 
     expect(await screen.findByText("Paketinnehållet kunde inte läsas just nu.")).toBeInTheDocument();
     expect(screen.getByText("Antal: 64")).toBeInTheDocument();
     expect(screen.queryByTestId("package-members")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("package-members-toggle")).not.toBeInTheDocument();
   });
 });
