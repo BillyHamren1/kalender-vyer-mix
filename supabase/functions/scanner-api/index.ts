@@ -1044,6 +1044,22 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(filtered), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'get_operation_status': {
+        const operationId = typeof params.operationId === 'string' ? params.operationId : ''
+        if (!/^op-[0-9a-f-]{36}$/u.test(operationId)) {
+          return new Response(JSON.stringify({ error: 'invalid_operation_id' }), { status: 400, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+        }
+        // Planning lagrar aldrig egen packstatus. Bundle exponerar ännu ingen
+        // statusfråga per operation_id, så svaret är ärligt "okänt". Scanner
+        // avklarar genom att skicka samma operation_id igen (idempotent kvitto).
+        return new Response(JSON.stringify({
+          operation_id: operationId, organization_id: ORG_ID,
+          status: 'unknown', receipt: null,
+          blockers: [{ code: 'bundle_operation_status_endpoint_missing', entity_id: operationId }],
+          resolve_by: 'resend_same_operation_id',
+        }), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       case 'get_packing': {
         const { id } = params
         const { data: packing, error } = await supabase
