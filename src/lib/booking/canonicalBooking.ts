@@ -152,7 +152,9 @@ const mapProducts = (rows: any[] | null | undefined): BookingProduct[] | undefin
         totalPrice: total,
         parentProductId: p?.parent_product_id ? String(p.parent_product_id) : undefined,
         isPackageComponent: p?.is_package_component === true,
-        parentPackageId: p?.inventory_package_id ? String(p.inventory_package_id) : undefined,
+        // inventory_package_id identifies the package definition shared by both
+        // the parent and its components. It is not a parent-row relationship.
+        parentPackageId: p?.parent_package_id ? String(p.parent_package_id) : undefined,
         sku: p?.sku ?? undefined,
       } as BookingProduct;
     })
