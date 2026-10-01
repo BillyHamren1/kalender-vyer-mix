@@ -8,6 +8,8 @@ export default defineConfig({
       'supabase/functions/_shared/project-personnel-cost.test.ts',
       'supabase/functions/_shared/finance-project-invoice.test.ts',
       'supabase/functions/_shared/project-cost-obligations.test.ts',
+      'supabase/functions/_shared/catering-project-evidence.test.ts',
+      'supabase/functions/_shared/project-personnel-project-review.test.ts',
       'supabase/functions/_shared/project-personnel-ingestion*.test.ts',
     ],
   },

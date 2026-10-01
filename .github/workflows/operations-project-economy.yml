@@ -5,8 +5,9 @@ on:
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/catering-project-evidence*'
       - 'supabase/functions/project-personnel-cost-publish/**'
-      - 'supabase/migrations/*operations_personnel_cost*.sql'
+      - 'supabase/migrations/*operations_personnel*.sql'
       - 'scripts/project-economy/operations-*'
       - '.github/workflows/operations-project-economy.yml'
   workflow_dispatch:
@@ -74,3 +75,15 @@ jobs:
                           '-f','scripts/project-economy/operations-outbox-postgres-test.sql'],check=True)
           PY
 
+      - name: Authenticated project review ledger and fingerprint parity
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-project-review-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001232438_operations_personnel_project_reviews.sql
+          deno run --allow-read scripts/project-economy/operations-project-review-fixture.ts /tmp/operations-fixtures.json > /tmp/project-review-fixtures.json
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-review-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-project-review-postgres-test.sql'],check=True)
+          PY

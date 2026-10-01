@@ -191,6 +191,50 @@ export function calculatePersonnelAmountMinor(
   if (result > BigInt(Number.MAX_SAFE_INTEGER)) fail('amount_overflow');
   return Number(result);
 }
+/** Shared Operations selection; no current-rate fallback and exclusive valid-to. */
+export interface HistoricalRateBinding {
+  organization_id: string;
+  worker_id: string;
+  category: 'work' | 'travel';
+  currency: string;
+  work_date: string;
+}
+export function validateHistoricalPersonnelRates(
+  rates: readonly HistoricalPersonnelRate[],
+  ctx: Pick<HistoricalRateBinding, 'organization_id' | 'worker_id'>,
+): void {
+  // A malformed or foreign rate is never silently ignored as if it were absent.
+  for (const rate of rates) {
+    if (
+      rate.organization_id !== ctx.organization_id ||
+      rate.worker_id !== ctx.worker_id ||
+      !['work', 'travel'].includes(rate.category) || !currency(rate.currency) ||
+      !text(rate.rate_revision) ||
+      rate.rate_revision.length > 200 ||
+      !int(rate.hourly_rate_minor) || !date(rate.effective_from) ||
+      (rate.effective_to !== null &&
+        (!date(rate.effective_to) || rate.effective_to <= rate.effective_from))
+    ) fail('invalid_historical_rate');
+  }
+}
+export function resolveHistoricalPersonnelRate(
+  rates: readonly HistoricalPersonnelRate[],
+  binding: HistoricalRateBinding,
+): HistoricalPersonnelRate | undefined {
+  if (!uuid(binding.organization_id) || !uuid(binding.worker_id) ||
+      !['work', 'travel'].includes(binding.category) ||
+      !currency(binding.currency) || !date(binding.work_date)) {
+    fail('invalid_rate_binding');
+  }
+  validateHistoricalPersonnelRates(rates, binding);
+  const matching = rates.filter((rate) =>
+    rate.category === binding.category && rate.currency === binding.currency &&
+    rate.effective_from <= binding.work_date &&
+    (rate.effective_to === null || binding.work_date < rate.effective_to)
+  );
+  if (matching.length > 1) fail('ambiguous_historical_rate');
+  return matching[0];
+}
 export async function calculatePersonnelCostSnapshot(
   snapshot: FrozenTimeSnapshot,
   ctx: PersonnelCalculationContext,
@@ -238,19 +282,7 @@ export async function calculatePersonnelCostSnapshot(
     targetKey(allocation.target);
     allocations.set(allocation.source_time_line_id, allocation);
   }
-  // A malformed or foreign rate is never silently ignored as if it were absent.
-  for (const rate of ctx.rates) {
-    if (
-      rate.organization_id !== ctx.organization_id ||
-      rate.worker_id !== ctx.worker_id ||
-      !['work', 'travel'].includes(rate.category) || !currency(rate.currency) ||
-      !text(rate.rate_revision) ||
-      rate.rate_revision.length > 200 ||
-      !int(rate.hourly_rate_minor) || !date(rate.effective_from) ||
-      (rate.effective_to !== null &&
-        (!date(rate.effective_to) || rate.effective_to <= rate.effective_from))
-    ) fail('invalid_historical_rate');
-  }
+  validateHistoricalPersonnelRates(ctx.rates, ctx);
   const seen = new Set<string>();
   const used = new Set<string>();
   const lines: PersonnelCostLine[] = [];
@@ -283,13 +315,13 @@ export async function calculatePersonnelCostSnapshot(
       !snapshot.attestation.targetKeys.includes(confirmation)
     ) fail('target_confirmation_missing');
     used.add(block.id);
-    const matching = ctx.rates.filter((rate) =>
-      rate.category === block.kind && rate.currency === allocation.currency &&
-      rate.effective_from <= snapshot.workDate &&
-      (rate.effective_to === null || snapshot.workDate < rate.effective_to)
-    );
-    if (matching.length > 1) fail('ambiguous_historical_rate');
-    const rate = matching[0];
+    const rate = resolveHistoricalPersonnelRate(ctx.rates, {
+      organization_id: ctx.organization_id,
+      worker_id: ctx.worker_id,
+      category: block.kind as 'work' | 'travel',
+      currency: allocation.currency,
+      work_date: snapshot.workDate,
+    });
     lines.push({
       source_time_line_id: block.id,
       source_project_id: allocation.source_project_id,
