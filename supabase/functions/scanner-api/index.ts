@@ -3,7 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { computePackingProgress, deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
-import { fetchScannerBundleProjection } from '../_shared/scannerBundleProjection.ts'
+import { buildTimeWmsProjectionRequest, fetchTimeWmsProjection } from '../_shared/timeWmsProjection.ts'
+import { mapTimeWmsProjectionForScanner } from '../_shared/scannerTimeWmsPacking.ts'
 import {
   activeScannerSessionMatches,
   resolveScannerTokenTransport,
@@ -1043,6 +1044,22 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(filtered), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'get_operation_status': {
+        const operationId = typeof params.operationId === 'string' ? params.operationId : ''
+        if (!/^op-[0-9a-f-]{36}$/u.test(operationId)) {
+          return new Response(JSON.stringify({ error: 'invalid_operation_id' }), { status: 400, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+        }
+        // Planning lagrar aldrig egen packstatus. Bundle exponerar ännu ingen
+        // statusfråga per operation_id, så svaret är ärligt "okänt". Scanner
+        // avklarar genom att skicka samma operation_id igen (idempotent kvitto).
+        return new Response(JSON.stringify({
+          operation_id: operationId, organization_id: ORG_ID,
+          status: 'unknown', receipt: null,
+          blockers: [{ code: 'bundle_operation_status_endpoint_missing', entity_id: operationId }],
+          resolve_by: 'resend_same_operation_id',
+        }), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       case 'get_packing': {
         const { id } = params
         const { data: packing, error } = await supabase
@@ -1097,77 +1114,37 @@ Deno.serve(async (req) => {
             );
           }
 
-          const projection = await fetchScannerBundleProjection(
-            packing.booking_id,
-            {
-              baseUrl: Deno.env.get("BUNDLE_SUPABASE_FUNCTIONS_URL") || "",
-              secret: Deno.env.get("EVENTFLOW_SCANNER_BUNDLE_SECRET") || "",
-              organizationId: ORG_ID,
-            }
-          );
-
-          if (!projection.ok) {
-            return new Response(
-              JSON.stringify({
-                contract_version: "scanner_packing_items_v2",
-                packing_id: packingId,
-                booking_id: packing.booking_id ?? null,
-                reservation_id: null,
-                resolution_code: projection.code,
-                blockers: [{ code: projection.code, entity_id: null }],
-                lines: [],
-              }),
-              {
-                status: 503,
-                headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
-              }
-            );
-          }
-
-          return new Response(
-            JSON.stringify({
-              contract_version: "scanner_packing_items_v2",
-              packing_id: packingId,
-              booking_id: projection.bookingId,
-              reservation_id: projection.reservationId,
-              wms_snapshot: {
-                kind: "CONTENT_SHA256",
-                fingerprint: projection.snapshotFingerprint,
-                monotonic: projection.snapshotMonotonic,
-              },
-              wms_operational_status: projection.operationalStatus,
-              wms_return_state: projection.returnState,
-              resolution_code: projection.blockers.length > 0
-                ? "wms_projection_blocked"
-                : null,
-              blockers: projection.blockers.map((blocker) => ({
-                code: blocker.code,
-                entity_id: blocker.entityId,
-              })),
-              lines: projection.lines.map((line) => ({
-                identity_kind: line.packageComponentId
-                  ? "package_component"
-                  : "reservation_line",
-                physical_kind: line.packageComponentId
-                  ? "package_component"
-                  : "inventory_type",
-                reservation_line_id: line.reservationLineId,
-                parent_reservation_line_id: line.parentReservationLineId,
-                package_id: line.packageId,
-                package_component_id: line.packageComponentId,
-                inventory_type_id: line.inventoryTypeId,
-                quantity_reserved: line.quantityReserved,
-                quantity_picked: line.quantityPicked,
-                quantity_returned: line.quantityReturned,
-                allocated_instance_ids: line.allocatedInstanceIds,
-                is_packable: line.isPackable,
-                packability_source: line.packabilitySource,
-                packability_revision: line.packabilityRevision,
-                source: "bundle_wms_projection_v1",
-              })),
+          const { data: bk } = await supabase
+            .from("bookings").select("id, booking_number")
+            .eq("id", packing.booking_id).eq("organization_id", ORG_ID).maybeSingle()
+          const bookingNumber = typeof bk?.booking_number === "string" ? bk.booking_number : null
+          const fail = (code: string, status: number) => new Response(JSON.stringify({
+            contract_version: "scanner_packing_items_v2", packing_id: packingId,
+            booking_id: packing.booking_id ?? null, reservation_id: null,
+            resolution_code: code, blockers: [{ code, entity_id: null }], lines: [],
+          }), { status, headers: { ...responseCorsHeaders, "Content-Type": "application/json" } })
+          if (!bookingNumber) return fail("planning_booking_number_missing", 404)
+          const wms = await fetchTimeWmsProjection(
+            buildTimeWmsProjectionRequest({
+              bookingId: packing.booking_id, bookingNumber,
+              deviceId: String(params.deviceId || "eventflow-scanner"),
+              actor: { organizationId: ORG_ID, personnelId: auth.staffId, label: auth.staffName },
             }),
-            { headers: { ...responseCorsHeaders, "Content-Type": "application/json" } }
-          );
+            { hmacSecret: Deno.env.get("PLANNING_WMS_HMAC_SECRET") || "" },
+          )
+          if (!wms.ok) return fail(wms.code, 503)
+          const p = mapTimeWmsProjectionForScanner(wms.body)
+          return new Response(JSON.stringify({
+            contract_version: "scanner_packing_items_v2",
+            packing_id: packingId, booking_id: packing.booking_id,
+            booking_number: bookingNumber,
+            reservation_id: p.reservationId,
+            wms_reservation_status: p.reservationStatus,
+            wms_reservation_revision: p.reservationRevision,
+            wms_reservation_updated_at: p.reservationUpdatedAt,
+            resolution_code: p.blockers.length > 0 ? "wms_projection_blocked" : null,
+            blockers: p.blockers, lines: p.lines,
+          }), { headers: { ...responseCorsHeaders, "Content-Type": "application/json" } })
         }
 
         // Validation only — get_packing_items MUST stay read-only.
