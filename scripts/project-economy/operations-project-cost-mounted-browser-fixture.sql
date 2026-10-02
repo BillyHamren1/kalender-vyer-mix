@@ -34,7 +34,7 @@ begin
   if s->>'organization_id' is distinct from org::text or s->>'source_revision' is distinct from '1' or s->>'time_snapshot_version' is distinct from '1' or jsonb_array_length(s->'lines')<>1
   or s#>>'{lines,0,source_project_id}' is distinct from project::text or s#>'{lines,0,source_booking_id}' is distinct from 'null'::jsonb
   or s#>>'{lines,0,currency}' is distinct from 'SEK' or s#>>'{lines,0,status}' is distinct from 'preliminary'
-  or s->>'worker_id' is distinct from case when k='known' then '00000000-0000-4000-8000-000000007001' else '00000000-0000-4000-8000-000000007002' end
+  or s->>'worker_id' is distinct from (case when k='known' then '00000000-0000-4000-8000-000000007001' else '00000000-0000-4000-8000-000000007002' end)
   then raise exception 'fixed_personnel_selector_required' using errcode='22023';end if;
   if k='known' and (s#>>'{lines,0,amount_minor}' is distinct from '181' or s#>>'{lines,0,coverage}' is distinct from 'complete' or s#>>'{lines,0,minutes}' is distinct from '1')
   or k='missing' and (s#>'{lines,0,amount_minor}' is distinct from 'null'::jsonb or s#>>'{lines,0,coverage}' is distinct from 'missing_rate' or s#>>'{lines,0,minutes}' is distinct from '15')
@@ -50,8 +50,8 @@ begin
  if grant_receipt->>'status' is distinct from 'accepted' or (grant_receipt->>'grant_sequence')::bigint<1 then raise exception 'accepted_real_grant_sequence_required' using errcode='55000';end if;
  reply:=public.read_operations_project_cost_evidence_v1(org,project);
  if jsonb_array_length(reply->'personnel')<>2 or reply->>'missingPersonnelCostCount'<>'1'
- or (select count(*) from jsonb_array_elements(reply->'personnel')r where r->>'amountMinor'='181' and r->>'coverage'='complete')<>1
- or (select count(*) from jsonb_array_elements(reply->'personnel')r where r->'amountMinor'='null'::jsonb and r->>'coverage'='missing_rate')<>1
+ or (select count(*) from jsonb_array_elements(reply->'personnel') AS line_row(value) where line_row.value->>'amountMinor'='181' and line_row.value->>'coverage'='complete')<>1
+ or (select count(*) from jsonb_array_elements(reply->'personnel') AS line_row(value) where line_row.value->'amountMinor'='null'::jsonb and line_row.value->>'coverage'='missing_rate')<>1
  then raise exception 'actual_native_reader_copy_and_null_required' using errcode='55000';end if;
  execute 'reset role';
  insert into project_cost_mounted_selectors values(jsonb_build_object('schema','operations-project-cost-mounted-selectors.v1','organizationId',org,'actorId','00000000-0000-4000-8000-000000000199','projectId',project,'knownReportId',f#>>'{known,snapshot,source_time_report_id}','missingReportId',f#>>'{missing,snapshot,source_time_report_id}'));
