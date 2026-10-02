@@ -171,6 +171,8 @@ create temporary table catering_v3_read_baseline as select
  (select count(*) from public.operations_catering_cost_publications) as publications,
  (select count(*) from public.operations_catering_cost_outbox) as outbox,
  (select count(*) from public.operations_catering_source_observations) as observations;
+create temporary table catering_v3_grant_receipt(receipt jsonb not null);
+grant select,insert on catering_v3_grant_receipt to authenticated;
 set local role authenticated;
 do $$declare a jsonb;b jsonb;v jsonb;begin
  a:=public.read_operations_catering_project_evidence_v3('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000007');
@@ -183,7 +185,9 @@ do $$declare a jsonb;b jsonb;v jsonb;begin
  or b#>'{currencyTotals,0,knownMinor}'<>'null'::jsonb or b#>'{currencyTotals,0,receivedTotalMinor}'<>'null'::jsonb then raise exception 'new B missing amount fabricated zero';end if;
  -- All unchanged v1/v2 readers stay available.
  if public.read_operations_project_cost_evidence_v2('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000007')->>'schema'<>'operations-project-cost-evidence.v2' then raise exception 'v2 compatibility changed';end if;
- perform public.grant_operations_project_personnel_review_v1('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000092',0,'granted','Isolated Catering reader grant','catering-v3-reader-grant');
+ v:=public.grant_operations_project_personnel_review_v1('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000092',0,'granted','Isolated Catering reader grant','catering-v3-reader-grant');
+ if v->>'status' is distinct from 'accepted' or (v->>'grant_sequence')::bigint<1 then raise exception 'Catering reader grant was not accepted';end if;
+ insert into catering_v3_grant_receipt values(v);
 end;$$;
 reset role;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000092","role":"authenticated"}',true);
@@ -195,7 +199,13 @@ end;$$;
 reset role;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000009","role":"authenticated"}',true);
 set local role authenticated;
-select public.grant_operations_project_personnel_review_v1('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000092',1,'revoked','Isolated Catering reader revoke','catering-v3-reader-revoke');
+-- Global identity sequences advance even when earlier fixtures roll back.
+-- Revoke the exact accepted receipt, never a guessed sequence of 1.
+do $$declare accepted jsonb;revoked jsonb;begin
+ select receipt into strict accepted from catering_v3_grant_receipt;
+ revoked:=public.grant_operations_project_personnel_review_v1('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000092',(accepted->>'grant_sequence')::bigint,'revoked','Isolated Catering reader revoke','catering-v3-reader-revoke');
+ if revoked->>'status' is distinct from 'accepted' or (revoked->>'grant_sequence')::bigint<=(accepted->>'grant_sequence')::bigint then raise exception 'Catering reader revoke was not accepted';end if;
+end;$$;
 reset role;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000092","role":"authenticated"}',true);
 set local role authenticated;
