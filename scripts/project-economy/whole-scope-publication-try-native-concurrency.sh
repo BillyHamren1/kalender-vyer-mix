@@ -109,8 +109,8 @@ except Exception:print('Native receipt assertion failed',file=sys.stderr);sys.ex
 PY
 }
 denied(){ local status=$1 label=$2 code=$3 message=$4
- [[ $status != 0 ]] || { echo 'Native denial unexpectedly succeeded' >&2;return 1; }
- grep -F "$code" "$task_pub_dir/$label.log" >/dev/null && grep -F "$message" "$task_pub_dir/$label.log" >/dev/null || { echo 'Native denial mismatch' >&2;return 1; }
+ [[ $status != 0 ]] || { echo 'TRY_NATIVE_REASON unexpected_success' >&2;echo 'Native denial unexpectedly succeeded' >&2;return 1; }
+ grep -F "$code" "$task_pub_dir/$label.log" >/dev/null && grep -F "$message" "$task_pub_dir/$label.log" >/dev/null || { echo 'TRY_NATIVE_REASON denial_mismatch' >&2;echo 'Native denial mismatch' >&2;return 1; }
 }
 start_pub(){ local label=$1 hold=$2 expected=${3:-$task_pub_revision};task_try_focus=$label
  PGAPPNAME="native_try_pub_$label" psql_run -Atq -f "$task_pub_root/scripts/project-economy/whole-scope-projection-sql-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-transaction-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-try-native-wrapper.sql" -c "begin;set local role authenticated;select set_config('request.jwt.claims','{\"sub\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"role\":\"authenticated\"}',true);
@@ -146,7 +146,8 @@ update public.operations_scope_invoice_kernel_native_fixture set read_request=re
 end;$$;commit;
 SQL
 }
-busy_pub(){ local label=$1 pid=$2 status=0;wait_owned "$pid" || status=$?;denied "$status" "$label" 55P03 native_try_publication_lock_busy
+busy_pub(){ local label=$1 pid=$2 status=0;wait_owned "$pid" || status=$?;[[ $label != baseline_busy ]] || task_try_checkpoint=baseline_busy_denial;denied "$status" "$label" 55P03 native_try_publication_lock_busy
+ [[ $label != baseline_busy ]] || task_try_checkpoint=baseline_busy_state
  assert_state "select (select count(*)=$task_pub_revision from operations_scope_publication_native.publications) and (select count(*)=$task_pub_revision from operations_scope_publication_native.receipts) and (select count(*)=$task_pub_revision and coalesce(bool_and(destination_id is null and wire_payload is null),true) from operations_scope_publication_native.blocked_controls) and (select coalesce(max(publication_revision),0)=$task_pub_revision from operations_scope_publication_native.heads)"; }
 authority_denied(){ local label=$1 message=$2 status=0;start_pub "$label" 0;wait_owned "$task_pub_active_pid" || status=$?;denied "$status" "$label" 42501 "$message"; }
 pause(){ psql_run -q -c "update operations_scope_publication_try_native.controls set pause_stage='$1'" >"$task_pub_dir/pause_$task_pub_revision.log" 2>&1; }
@@ -166,7 +167,10 @@ start_writer project_update <<'SQL'
 begin;update public.projects set deleted_at=now() where id='55555555-5555-4555-8555-555555555555';commit;
 SQL
 updater=$task_pub_writer_pid;task_try_checkpoint=baseline_queue;blocked_by native_try_writer_project_update native_try_writer_baseline
-task_try_checkpoint=baseline_busy;task_try_focus=baseline_busy;busy_pub baseline_busy "$publisher";wait_owned "$writer";receipt baseline accepted revision 2;wait_owned "$updater"
+task_try_checkpoint=baseline_busy;task_try_focus=baseline_busy;busy_pub baseline_busy "$publisher"
+task_try_checkpoint=baseline_writer;task_try_focus=baseline;wait_owned "$writer"
+task_try_checkpoint=baseline_receipt;receipt baseline accepted revision 2
+task_try_checkpoint=baseline_updater;task_try_focus=project_update;wait_owned "$updater"
 task_try_checkpoint=baseline_restore;pause none;authority_denied baseline_authority obligation_project_access_denied
 restore_project;recompose;publish_now baseline_restored
 
