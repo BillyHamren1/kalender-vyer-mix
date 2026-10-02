@@ -80,6 +80,8 @@ on:
       - 'supabase/functions/_shared/whole-scope-product-grant-command-v1*'
       - 'supabase/functions/_shared/whole-scope-product-grant-event-v1*'
       - 'scripts/project-economy/operations-compatible-install-native*'
+      - 'scripts/project-economy/remaining-six-containing-owner-native*'
+      - 'docs/project-economy/remaining-six-containing-owner-native-matrix.md'
       - 'docs/project-economy/operations-compatible-atomic-install-native-contract.md'
   workflow_dispatch:
 permissions:
@@ -1445,5 +1447,161 @@ jobs:
           psql -X --no-password -At -c 'select version()'
           deno --version
           env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-install-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-hired-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_hired_authority_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_hired_authority_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_hired_authority_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine hired containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-credit-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_remaining_six
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_own_credit_remaining_six"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_own_credit_remaining_six
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine credit containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-capacity-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_capacity_remaining_six
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_own_credit_capacity_remaining_six"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_own_credit_capacity_remaining_six
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine capacity containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"

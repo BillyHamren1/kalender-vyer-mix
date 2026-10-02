@@ -9,6 +9,7 @@ import pathlib
 import re
 import tempfile
 import unittest
+import uuid
 from unittest import mock
 
 HERE=pathlib.Path(__file__).resolve().parent
@@ -31,6 +32,20 @@ class Guard(unittest.TestCase):
 
     def test_exact_closure_and_order(self):
         self.assertEqual(len(m.closure_paths()),24)
+
+    def test_fixed_setup_uuid_syntax_and_foreign_project_identity(self):
+        setup=(HERE/'operations-compatible-install-native-setup.sql').read_text()
+        def validate_constants(source):
+            tokens=[value for value in re.findall(r"'([^']*)'",source)
+                    if '-' in value and re.fullmatch(r'[a-f0-9-]+',value)]
+            self.assertGreaterEqual(len(tokens),16)
+            for value in tokens:
+                if str(uuid.UUID(value))!=value:raise ValueError('fixed_uuid_syntax')
+        validate_constants(setup)
+        expected="('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,'88888888-8888-4888-8888-888888888888'::uuid)"
+        self.assertIn(expected,setup)
+        malformed=setup.replace(expected,expected.replace('88888888-8888-4888-8888-888888888888','88888888-8888-4888-888888888888'))
+        with self.assertRaises(ValueError):validate_constants(malformed)
 
     def test_wrong_source_seal_refused(self):
         value=json.loads((HERE/'operations-compatible-install-native-closure.json').read_text())

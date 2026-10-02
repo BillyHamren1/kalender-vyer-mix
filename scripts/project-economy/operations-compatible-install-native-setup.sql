@@ -26,7 +26,7 @@ do $guard$begin
  or exists(select 1 from public.projects where organization_id is null or deleted_at is not null or (id,organization_id) not in (
  ('55555555-5555-4555-8555-555555555555'::uuid,'11111111-1111-4111-8111-111111111111'::uuid),
  ('77777777-7777-4777-8777-777777777777'::uuid,'11111111-1111-4111-8111-111111111111'::uuid),
- ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,'88888888-8888-4888-888888888888'::uuid)))
+ ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,'88888888-8888-4888-8888-888888888888'::uuid)))
  or exists(select 1 from pg_constraint where conrelid='public.user_roles'::regclass and contype='f')
  or to_regclass('public.user_roles_user_role_org_key') is not null
  or exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
