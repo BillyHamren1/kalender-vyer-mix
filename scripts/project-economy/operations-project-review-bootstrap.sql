@@ -12,7 +12,7 @@ grant execute on function auth.uid() to authenticated,service_role;
 create table public.profiles(id uuid primary key default gen_random_uuid(),user_id uuid not null unique,organization_id uuid);
 create type public.app_role as enum ('admin','forsaljning','projekt','lager');
 create table public.user_roles(id uuid primary key default gen_random_uuid(),user_id uuid not null,organization_id uuid not null,role public.app_role not null);
-create table public.projects(id uuid primary key,organization_id uuid not null,deleted_at timestamptz);
+create table if not exists public.projects(id uuid primary key,organization_id uuid not null,deleted_at timestamptz);
 insert into auth.users(id) values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), -- org admin
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), -- project user

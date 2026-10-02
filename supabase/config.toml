@@ -218,3 +218,8 @@ verify_jwt = false
 [functions.project-personnel-cost-publish]
 # Internal bearer is rechecked by the handler; boundary is disabled by default.
 verify_jwt = false
+
+[functions.finance-project-invoice-receive]
+# Enrolled HMAC, raw body, tenant and persistent nonce are verified by the handler.
+# The receiver is disabled by default.
+verify_jwt = false
