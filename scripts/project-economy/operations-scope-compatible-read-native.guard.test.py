@@ -96,6 +96,40 @@ class PublicationNativeBoundary(unittest.TestCase):
             self.assertEqual(wrapper.ClosedFailure('native_sessions',checkpoint='PRIVATE_CONTEXT').checkpoint,'none')
             self.assertEqual(wrapper.ClosedFailure('native_sessions',reason='PRIVATE_CONTEXT').reason,'none')
 
+    def test_generic_owned_exception_has_fixed_phase_and_no_private_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            private=pathlib.Path(temporary);(private/'product_setup').mkdir()
+            def collision(_env):
+                wrapper.private_run(None,'product_setup',[],{},private,1)
+            output=io.StringIO()
+            with mock.patch.object(wrapper,'execute',side_effect=collision),contextlib.redirect_stderr(output):
+                self.assertEqual(wrapper.main(),1)
+            self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL product_setup SQLSTATE=unclassified CHECKPOINT=none REASON=owned_phase_collision\n')
+            self.assertNotIn(temporary,output.getvalue())
+            class PrivateCustomException(Exception):pass
+            wrapper.active_phase('PRIVATE_PHASE');self.assertEqual(wrapper.ACTIVE_PHASE,'guard')
+            self.assertEqual(wrapper.exception_kind(PrivateCustomException('PRIVATE_CONTEXT')),'unknown_exception')
+            getter_calls=[]
+            class HostileClassException(Exception):
+                @property
+                def __class__(self):
+                    getter_calls.append(True);raise RuntimeError('PRIVATE_EXCEPTION_CLASS')
+            hostile=HostileClassException('PRIVATE_CONTEXT')
+            def hostile_raise(_env):
+                wrapper.active_phase('product_setup');raise hostile
+            output=io.StringIO()
+            with mock.patch.object(wrapper,'execute',side_effect=hostile_raise),contextlib.redirect_stderr(output):self.assertEqual(wrapper.main(),1)
+            self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL product_setup SQLSTATE=unclassified CHECKPOINT=none REASON=unknown_exception\n')
+            self.assertEqual(getter_calls,[])
+            self.assertNotIn('PRIVATE',output.getvalue())
+            for error,wanted in ((FileNotFoundError('PRIVATE_PATH'),'missing_owned_path'),(PermissionError('PRIVATE_PATH'),'owned_permission'),(ValueError('PRIVATE_BODY'),'owned_value'),(TypeError('PRIVATE_BODY'),'owned_type'),(AttributeError('PRIVATE_BODY'),'owned_attribute'),(RuntimeError('PRIVATE_BODY'),'unknown_exception')):
+                def raised(_env,error=error):
+                    wrapper.active_phase('http_inventory');raise error
+                output=io.StringIO()
+                with mock.patch.object(wrapper,'execute',side_effect=raised),contextlib.redirect_stderr(output):self.assertEqual(wrapper.main(),1)
+                self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL http_inventory SQLSTATE=unclassified CHECKPOINT=none REASON='+wanted+'\n')
+                self.assertNotIn('PRIVATE',output.getvalue())
+
     def test_json_nonfinite_oversize_symlink_denied(self):
         with tempfile.TemporaryDirectory() as temporary:
             p=pathlib.Path(temporary)/'value';p.write_text('{"value":NaN}')

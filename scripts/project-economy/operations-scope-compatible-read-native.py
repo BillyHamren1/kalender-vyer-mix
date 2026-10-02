@@ -59,6 +59,17 @@ EXTRA=(
 
 CHECKPOINTS={'none','guard','role_acquired','role_read_first','compose_acquired','packing_acquired','packing_read_first','project_acquired','project_read_first','source_acquired','source_read_first','baseline_queue','compound_queue','terminal'}
 FAILURE_REASONS={'none','unexpected_success','denial_mismatch'}
+ACTIVE_PHASE='guard'
+
+def active_phase(phase):
+    global ACTIVE_PHASE
+    ACTIVE_PHASE=phase if phase in PHASES else 'guard'
+
+def exception_kind(error):
+    # Public diagnostics classify only Python types, never exception strings/paths.
+    for cls,label in ((FileExistsError,'owned_phase_collision'),(FileNotFoundError,'missing_owned_path'),(PermissionError,'owned_permission'),(UnicodeError,'owned_utf8'),(UnicodeDecodeError,'owned_utf8'),(UnicodeEncodeError,'owned_utf8'),(UnicodeTranslateError,'owned_utf8'),(OSError,'owned_os_error'),(ValueError,'owned_value'),(TypeError,'owned_type'),(AttributeError,'owned_attribute')):
+        if type(error) is cls:return label
+    return 'unknown_exception'
 
 class ClosedFailure(Exception):
     def __init__(self,phase,code='unclassified',retain_private=False,checkpoint='none',reason='none'):
@@ -70,6 +81,7 @@ class ClosedFailure(Exception):
         super().__init__('closed_publication_failure')
 
 def validate_environment(env):
+    active_phase('guard')
     if any(env.get(k)!=v for k,v in FIXED_ENV.items()) or env.get('GITHUB_REPOSITORY')!='BillyHamren1/kalender-vyer-mix' or not re.fullmatch(r'[0-9]{1,20}',env.get('GITHUB_RUN_ID','')):raise ClosedFailure('guard')
     for key,value in env.items():
         if not value:continue
@@ -81,12 +93,14 @@ def validate_environment(env):
     return deno
 
 def load_module(path,name,expected):
+    active_phase('paths')
     if path.resolve()!=path or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected:raise ClosedFailure('paths')
     spec=importlib.util.spec_from_file_location(name,path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 def load_shared():return load_module(SHARED,'publication_owned_cleanup',SHARED_SHA256)
 
 def closure_paths(root=ROOT,manifest=CLOSURE):
+    active_phase('source_closure')
     try:
         if not manifest.is_file() or manifest.resolve()!=manifest:raise ValueError()
         value=json.loads(manifest.read_text());base=json.loads((root/'scripts/project-economy/whole-scope-reader-permission-native-closure.json').read_text())
@@ -106,6 +120,7 @@ def closure_paths(root=ROOT,manifest=CLOSURE):
     except Exception:raise ClosedFailure('source_closure') from None
 
 def private_run(shared,phase,command,env,private,timeout,stdin=None):
+    active_phase(phase)
     directory=private/phase;directory.mkdir(mode=0o700)
     try:return shared.run_private('authority_sql',command,env,ROOT,directory,timeout,stdin)
     except shared.ClosedFailure as error:
@@ -122,6 +137,7 @@ def private_run(shared,phase,command,env,private,timeout,stdin=None):
         raise ClosedFailure(phase,error.code,error.retain_private,checkpoint,reason) from None
 
 def read_json(path,phase):
+    active_phase(phase)
     try:
         if path.resolve()!=path or not path.is_file() or path.stat().st_size>8*1024*1024:raise ValueError()
         return json.loads(path.read_text(encoding='utf-8'),parse_constant=lambda _v:(_ for _ in ()).throw(ValueError()))
@@ -200,6 +216,7 @@ def terminal_proof(lines):
     return lines
 
 def execute(env):
+    active_phase('guard')
     deno=validate_environment(env);ddl=closure_paths();shared=load_shared()
     private=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-reader-native-',dir='/tmp'));private.chmod(0o700);retain=False
     pg_env=dict(env,PGCONNECT_TIMEOUT='5');deno_env={k:v for k,v in env.items() if not k.startswith('PG')}
@@ -252,10 +269,11 @@ def execute(env):
 def main():
     def stop(_signal,_frame):raise ClosedFailure('guard')
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
+    active_phase('guard')
     try:execute(dict(os.environ))
     except ClosedFailure as error:
         print('operations-scope-compatible-read-native FAIL '+error.phase+' SQLSTATE='+error.code+' CHECKPOINT='+error.checkpoint,file=sys.stderr);return 1
-    except Exception:
-        print('operations-scope-compatible-read-native FAIL guard SQLSTATE=unclassified CHECKPOINT=none',file=sys.stderr);return 1
+    except Exception as error:
+        print('operations-scope-compatible-read-native FAIL '+ACTIVE_PHASE+' SQLSTATE=unclassified CHECKPOINT=none REASON='+exception_kind(error),file=sys.stderr);return 1
     return 0
 if __name__=='__main__':sys.exit(main())
