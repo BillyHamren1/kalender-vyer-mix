@@ -80,7 +80,20 @@ class PublicationNativeBoundary(unittest.TestCase):
             for code,expected in [('22023','22023'),('SECRET','unclassified'),('12345','unclassified')]:
                 output=io.StringIO()
                 with mock.patch.object(wrapper,'execute',side_effect=wrapper.ClosedFailure('native_sessions',code)),contextlib.redirect_stderr(output):self.assertEqual(wrapper.main(),1)
-                self.assertEqual(output.getvalue(),'whole-scope-publication-try-native FAIL native_sessions SQLSTATE='+expected+'\n')
+                self.assertEqual(output.getvalue(),'whole-scope-publication-try-native FAIL native_sessions SQLSTATE='+expected+' CHECKPOINT=none\n')
+
+    def test_closed_native_checkpoint_and_sqlstate_never_expose_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            private=pathlib.Path(temporary);shared=wrapper.load_shared()
+            output=io.StringIO()
+            command=[sys.executable,'-c',"import sys;sys.stderr.write('PRIVATE_BODY\\nTRY_NATIVE_CHECKPOINT baseline_sleep\\nERROR: 42883: PRIVATE_SQL_CONTEXT\\n');sys.exit(1)"]
+            with contextlib.redirect_stdout(output),contextlib.redirect_stderr(output):
+                with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.private_run(shared,'native_sessions',command,dict(os.environ),private,3)
+            self.assertEqual(output.getvalue(),'');self.assertEqual(result.exception.code,'42883');self.assertEqual(result.exception.checkpoint,'baseline_sleep')
+            output=io.StringIO()
+            with mock.patch.object(wrapper,'execute',side_effect=result.exception),contextlib.redirect_stderr(output):self.assertEqual(wrapper.main(),1)
+            self.assertEqual(output.getvalue(),'whole-scope-publication-try-native FAIL native_sessions SQLSTATE=42883 CHECKPOINT=baseline_sleep\n')
+            self.assertEqual(wrapper.ClosedFailure('native_sessions',checkpoint='PRIVATE_CONTEXT').checkpoint,'none')
 
     def test_json_nonfinite_oversize_symlink_denied(self):
         with tempfile.TemporaryDirectory() as temporary:

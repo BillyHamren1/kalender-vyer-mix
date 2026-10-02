@@ -31,11 +31,14 @@ BASE_RUNNER=HERE/'operations-whole-scope-publication-transaction-native.py'
 BASE_RUNNER_SHA256='271add7c5c0f9a4875645bdde3fd80471bb494d8787c9f9d64258a9b25ecb12e'
 EXTRA=('scripts/project-economy/whole-scope-publication-transaction-native-closure.json','scripts/project-economy/whole-scope-publication-try-native-wrapper.sql','scripts/project-economy/whole-scope-publication-try-native-setup.sql','scripts/project-economy/whole-scope-publication-try-native-concurrency.sh','scripts/project-economy/operations-whole-scope-publication-try-native.py','scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py','docs/project-economy/whole-scope-publication-try-native-contract.md')
 
+CHECKPOINTS={'none','guard','baseline_pause','baseline_sleep','baseline_wait','baseline_queue','baseline_busy','baseline_restore','composition_sleep','composition_queue','composition_busy','composition_restore','direct_sleep','direct_queue','direct_busy','direct_restore','compound_sleep','compound_wait','compound_queue','compound_busy','compound_restore','vectors','terminal'}
+
 class ClosedFailure(Exception):
-    def __init__(self,phase,code='unclassified',retain_private=False):
+    def __init__(self,phase,code='unclassified',retain_private=False,checkpoint='none'):
         self.phase=phase if phase in PHASES else 'guard'
         self.code=code if code in PUBLIC_SQLSTATES else 'unclassified'
         self.retain_private=retain_private
+        self.checkpoint=checkpoint if checkpoint in CHECKPOINTS else 'none'
         super().__init__('closed_publication_failure')
 
 def validate_environment(env):
@@ -76,7 +79,16 @@ def closure_paths(root=ROOT,manifest=CLOSURE):
 def private_run(shared,phase,command,env,private,timeout,stdin=None):
     directory=private/phase;directory.mkdir(mode=0o700)
     try:return shared.run_private('authority_sql',command,env,ROOT,directory,timeout,stdin)
-    except shared.ClosedFailure as error:raise ClosedFailure(phase,error.code,error.retain_private) from None
+    except shared.ClosedFailure as error:
+        checkpoint='none'
+        if phase=='native_sessions':
+            try:
+                log=directory/'authority_sql.stderr'
+                if log.resolve()!=log or log.stat().st_size>8*1024*1024:raise ValueError()
+                matches=re.findall(r'^TRY_NATIVE_CHECKPOINT ([a-z_]+)$',log.read_text(),re.M)
+                if matches and matches[-1] in CHECKPOINTS:checkpoint=matches[-1]
+            except Exception:pass
+        raise ClosedFailure(phase,error.code,error.retain_private,checkpoint) from None
 
 def read_json(path,phase):
     try:
@@ -130,9 +142,9 @@ def main():
     signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
     try:execute(dict(os.environ))
     except ClosedFailure as error:
-        print('whole-scope-publication-try-native FAIL '+error.phase+' SQLSTATE='+error.code,file=sys.stderr);return 1
+        print('whole-scope-publication-try-native FAIL '+error.phase+' SQLSTATE='+error.code+' CHECKPOINT='+error.checkpoint,file=sys.stderr);return 1
     except Exception:
-        print('whole-scope-publication-try-native FAIL guard SQLSTATE=unclassified',file=sys.stderr);return 1
+        print('whole-scope-publication-try-native FAIL guard SQLSTATE=unclassified CHECKPOINT=none',file=sys.stderr);return 1
     return 0
 
 if __name__=='__main__':sys.exit(main())
