@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 cd "$(dirname "$0")/../../.."
+TASK_PHASE=preflight
+trap 'echo "Native read harness closed phase: $TASK_PHASE" >&2' ERR
 TASK_ROOT=$(pwd -P)
 TASK_RUNTIME="$TASK_ROOT/scripts/project-economy/project-evidence-http-runtime"
 # Environment and exact source/path checks precede the first Docker command.
@@ -35,6 +37,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+TASK_PHASE=ephemeral_credentials
 python3 - "$TASK_PRIVATE" <<'PY_KEYS'
 from pathlib import Path
 import secrets,sys
@@ -50,6 +53,7 @@ export PROJECT_EVIDENCE_POSTGREST_URL=http://127.0.0.1:55610/
 export PROJECT_EVIDENCE_CONTROL_URL=http://127.0.0.1:55611/
 export PROJECT_EVIDENCE_COMPOSE_NAMESPACE="$TASK_NAMESPACE"
 export PROJECT_EVIDENCE_COMPOSE_PATH="$TASK_RUNTIME/compose.yml"
+TASK_PHASE=database_start
 "${TASK_COMPOSE[@]}" up -d --wait database > "$TASK_PRIVATE/private-start.log" 2>&1
 ready=false
 for attempt in $(seq 1 30); do
@@ -72,6 +76,7 @@ PY_ERROR
     return 1
   }
 }
+TASK_PHASE=fresh_schema
 # A genuinely empty public/Auth domain is required BEFORE seeded canonical DDL.
 cat > "$TASK_PRIVATE/fresh.sql" <<'SQL_FRESH'
 do $$begin
@@ -83,17 +88,23 @@ python3 - "$TASK_RUNTIME/schema-closure.json" > "$TASK_PRIVATE/ordered-paths" <<
 import json,sys
 for path in json.load(open(sys.argv[1]))['ordered_paths']:print(path)
 PY_PATHS
+TASK_PHASE=canonical_schema
 while IFS= read -r path; do apply_sql "$TASK_ROOT/$path"; done < "$TASK_PRIVATE/ordered-paths"
 cat > "$TASK_PRIVATE/canonical-seed.sql" <<'SQL_SEED'
 do $$begin
 if (select count(*) from auth.users)<>4 or (select count(*) from public.profiles)<>4 or (select count(*) from public.user_roles)<>3 or (select count(*) from public.projects)<>3 or (select count(*) from public.bookings)<>1 or (select count(*) from public.large_projects)<>1 or (select count(*) from public.packing_projects)<>1 or (select count(*) from public.large_project_bookings)<>1 or (select count(*) from public.packing_project_bookings)<>1 then raise exception 'exact_canonical_seed_required' using errcode='55000';end if;
 end;$$;
 SQL_SEED
+TASK_PHASE=canonical_identity
 apply_sql "$TASK_PRIVATE/canonical-seed.sql"
+TASK_PHASE=fixture_generator
 deno run --cached-only scripts/project-economy/operations-obligation-fixture.ts > "$TASK_PRIVATE/fixture.json" 2> "$TASK_PRIVATE/private-generator.log"
+TASK_PHASE=fixture_commit
 apply_sql scripts/project-economy/operations-project-evidence-http-fixture.sql -v "fixture=$(cat "$TASK_PRIVATE/fixture.json")"
-if ! rg -q 'project-evidence-http-fixture SETUP PASS' "$TASK_PRIVATE/private-sql.log"; then echo 'Exact project evidence setup proof missing' >&2; exit 1; fi
+if ! grep -Fq 'project-evidence-http-fixture SETUP PASS' "$TASK_PRIVATE/private-sql.log"; then echo 'Exact project evidence setup proof missing' >&2; exit 1; fi
+TASK_PHASE=rest_role
 apply_sql "$TASK_RUNTIME/postgrest-role.sql"
+TASK_PHASE=rest_start
 "${TASK_COMPOSE[@]}" up -d rest gateway > "$TASK_PRIVATE/private-rest-start.log" 2>&1
 ready=false
 for attempt in $(seq 1 40); do
@@ -101,6 +112,7 @@ for attempt in $(seq 1 40); do
   sleep 1
 done
 "$ready" || { echo 'Owned project evidence REST readiness failed' >&2; exit 1; }
+TASK_PHASE=controller_start
 deno run --cached-only --allow-env --allow-run=docker --allow-net=127.0.0.1:55611 \
   "$TASK_RUNTIME/control.ts" > "$TASK_PRIVATE/private-controller.log" 2>&1 &
 TASK_SERVER_PID=$!
@@ -110,14 +122,17 @@ for attempt in $(seq 1 20); do
   sleep 1
 done
 "$ready" || { echo 'Owned project evidence controller readiness failed' >&2; exit 1; }
+TASK_PHASE=exact_engine_versions
 git rev-parse HEAD
 "${TASK_COMPOSE[@]}" exec -T database psql -X -U postgres -d eventflow_project_evidence_http_runtime -At -c 'select version()'
 "${TASK_COMPOSE[@]}" exec -T rest /bin/postgrest --version
 deno --version
 docker image inspect postgres:15.19 postgrest/postgrest:v12.2.3 nginx:1.28.0-alpine --format '{{json .RepoDigests}}'
+TASK_PHASE=authenticated_journey
 timeout 240 deno run --unstable-sloppy-imports --cached-only --allow-env --allow-net=127.0.0.1:55610,127.0.0.1:55611 \
   scripts/project-economy/operations-project-evidence-http-journey.ts > "$TASK_PRIVATE/private-journey.log" 2>&1 || {
     echo 'Native authenticated project evidence journey failed; no partial authorization proof' >&2
     exit 1
   }
+TASK_PHASE=complete_proof
 python3 "$TASK_RUNTIME/proof.py" "$TASK_PRIVATE/private-journey.log"

@@ -23,6 +23,7 @@ export default defineConfig({
       'supabase/functions/_shared/project-operational-eac.test.ts',
       'supabase/functions/_shared/canonical-project-scope.test.ts',
       'supabase/functions/_shared/catering-project-evidence.test.ts',
+      'supabase/functions/_shared/catering-project-reassignment.test.ts',
       'supabase/functions/_shared/catering-project-ingestion.test.ts',
       'supabase/functions/_shared/catering-finance-transport.test.ts',
       'supabase/functions/catering-finance-delivery/handler.test.ts',

@@ -28,6 +28,9 @@ on:
       - 'supabase/migrations/*operations_project_scope*.sql'
       - 'supabase/migrations/*operations_project_forecast*.sql'
       - 'supabase/functions/_shared/catering-project-evidence*'
+      - 'supabase/functions/_shared/catering-project-reassignment*'
+      - 'scripts/project-economy/catering-allocation-*'
+      - 'scripts/project-economy/catering-allocation-native-counterparts/**'
       - 'supabase/functions/_shared/catering-project-ingestion*'
       - 'supabase/functions/catering-project-cost-publish/**'
       - 'supabase/migrations/*operations_catering*.sql'
@@ -577,3 +580,45 @@ jobs:
           deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
       - name: Actual signed authenticated roles and live revocation through native PostgREST
         run: bash scripts/project-economy/project-evidence-http-runtime/run.sh
+
+  catering-allocation-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_catering_allocation_v2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_catering_allocation_v2_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      OPERATIONS_CATERING_ALLOCATION_ISOLATED: '1'
+      TEST_DATABASE_URL: postgresql://postgres:synthetic-test-only@127.0.0.1:5432/eventflow_catering_allocation_v2_ci
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact reviewed Finance source and named-database isolation
+        run: |
+          python3 scripts/project-economy/catering-allocation-native-source-verify.py
+          python3 scripts/project-economy/catering-allocation-native-guard-test.py
+          deno check scripts/project-economy/catering-allocation-native-fixture.ts scripts/project-economy/catering-allocation-sql-vector-check.ts scripts/project-economy/catering-allocation-native-counterparts/finance/src/domain/cateringProjectAllocationDelivery.ts
+          deno cache scripts/project-economy/catering-allocation-native-fixture.ts scripts/project-economy/catering-allocation-sql-vector-check.ts scripts/project-economy/catering-allocation-native-counterparts/finance/src/domain/cateringProjectAllocationDelivery.ts
+      - name: Actual authenticated allocation versus genuine native producer in both transaction orders
+        run: |
+          export CATERING_ALLOCATION_FINANCE_SOURCE_ROOT="$GITHUB_WORKSPACE/scripts/project-economy/catering-allocation-native-counterparts/finance"
+          git rev-parse HEAD
+          psql "$TEST_DATABASE_URL" -X -At -c 'select version()'
+          deno --version
+          bash scripts/project-economy/catering-allocation-native.sh

@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "06bafc8d7e1599d2a493e6b568d94a30b60a9c27e23843579633d7da2c277ecf",
-      "bytes": 33428
+      "sha256": "617d1fdc090ef95927cf540e629c5bde3a06202334a4f1e59db447397cd5e4ac",
+      "bytes": 35810
     },
     {
       "path": "docs/project-economy/project-evidence-authenticated-http-v1.md",
@@ -94,8 +94,8 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/run.sh",
-      "sha256": "05b629a945890e5353ccc4e863b582af46dd32d0bdd10c4efcd75f1be0ae584b",
-      "bytes": 7315
+      "sha256": "7c52e0894a69234f51223eaa078490b48e2fd49e47c0e3e40937157254c151c7",
+      "bytes": 7767
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/schema-closure.json",
