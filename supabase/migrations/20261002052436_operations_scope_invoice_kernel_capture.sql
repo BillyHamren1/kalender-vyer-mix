@@ -1,0 +1,86 @@
+-- Default-off whole canonical scope capture. No budget/coverage/EAC activation.
+-- Composition selects current manual local obligations, never a summed parent budget.
+create table public.operations_scope_invoice_kernel_read_gates(organization_id uuid primary key,enabled boolean not null default false);
+alter table public.operations_scope_invoice_kernel_read_gates enable row level security;
+revoke all on public.operations_scope_invoice_kernel_read_gates from public,anon,authenticated,service_role;
+grant select,insert,update on public.operations_scope_invoice_kernel_read_gates to service_role;
+create trigger operations_scope_invoice_gate_identity before update on public.operations_scope_invoice_kernel_read_gates for each row execute function operations_economy_private.invoice_kernel_read_gate_guard_v1();
+create trigger operations_scope_invoice_gate_no_delete before delete on public.operations_scope_invoice_kernel_read_gates for each row execute function public.operations_personnel_evidence_immutable();
+create trigger operations_scope_invoice_gate_no_truncate before truncate on public.operations_scope_invoice_kernel_read_gates for each statement execute function public.operations_personnel_evidence_immutable();
+create function operations_economy_private.read_scope_invoice_kernel_v1(p jsonb) returns jsonb language plpgsql security definer set search_path='' as $$declare
+ org uuid;scope_id uuid;k text;scope public.operations_project_scope_heads%rowtype;membership public.operations_project_scope_snapshots%rowtype;composition public.operations_scope_obligation_compositions%rowtype;current_composition bigint;
+ ids uuid[];obligations uuid[];selectors jsonb;graph jsonb;members jsonb:='[]';inventory jsonb:='[]';saved_refs jsonb:='[]';fresh_refs jsonb:='[]';diagnostics jsonb:='["category_coverage_unavailable","source_inventory_incomplete","credit_mapping_unavailable","time_and_native_catering_mapping_unavailable"]';reply jsonb;
+ b public.operations_project_obligation_baselines%rowtype;binding public.operations_project_obligation_invoice_bindings%rowtype;policy public.operations_obligation_source_policies%rowtype;
+ child jsonb;source jsonb;entry jsonb;old jsonb;inventory_fp text;matches boolean;mapping text;policy_state text;reason text;member_count int:=0;begin
+ if jsonb_typeof(p) is distinct from 'object' or (select count(*) from jsonb_object_keys(p))<>7 or not(p ?& array['schema_version','organization_id','economic_scope_id','expected_scope_revision','expected_membership_fingerprint','expected_composition_revision','expected_composition_fingerprint']) or p->>'schema_version' is distinct from 'operations-scope-invoice-kernel-read.v1' then raise exception 'exact_scope_invoice_request_required' using errcode='22023';end if;
+ foreach k in array array['organization_id','economic_scope_id'] loop if jsonb_typeof(p->k) is distinct from 'string' or p->>k !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'invalid_scope_invoice_identity' using errcode='22023';end if;end loop;
+ foreach k in array array['expected_scope_revision','expected_composition_revision'] loop if jsonb_typeof(p->k) is distinct from 'number' or (p->>k)::numeric<>trunc((p->>k)::numeric) or (p->>k)::numeric not between 1 and 9007199254740991 then raise exception 'invalid_scope_invoice_revision' using errcode='22023';end if;end loop;
+ foreach k in array array['expected_membership_fingerprint','expected_composition_fingerprint'] loop if jsonb_typeof(p->k) is distinct from 'string' or p->>k !~ '^[0-9a-f]{64}$' then raise exception 'invalid_scope_invoice_fingerprint' using errcode='22023';end if;end loop;
+ org:=(p->>'organization_id')::uuid;scope_id:=(p->>'economic_scope_id')::uuid;
+ perform pg_advisory_xact_lock(hashtextextended('obligation-org:'||org,0));
+ perform 1 from public.operations_scope_invoice_kernel_read_gates where organization_id=org and enabled for share;if not found then raise exception 'scope_invoice_read_gate_disabled' using errcode='42501';end if;
+ -- Select immutable composition IDs before leaf/head locks. Organization barrier
+ -- serializes every composition/local authority writer. Scope enrollment is
+ -- independent, so the locked current scope+graph recheck below is mandatory.
+ select c.* into composition from public.operations_scope_obligation_composition_heads h join public.operations_scope_obligation_compositions c on c.organization_id=h.organization_id and c.economic_scope_id=h.economic_scope_id and c.composition_revision=h.current_revision where h.organization_id=org and h.economic_scope_id=scope_id;
+ if not found or composition.composition_revision<>(p->>'expected_composition_revision')::bigint or composition.fingerprint<>p->>'expected_composition_fingerprint' then raise exception 'current_scope_invoice_composition_required' using errcode='22023';end if;
+ if jsonb_typeof(composition.document->'baseline_events') is distinct from 'array' or jsonb_array_length(composition.document->'baseline_events')>1000 then raise exception 'scope_invoice_member_limit' using errcode='22023';end if;
+ select coalesce(array_agg(c.baseline_event_id order by c.baseline_event_id),'{}'::uuid[]) into ids from public.operations_scope_obligation_baseline_captures c where c.composition_snapshot_id=composition.snapshot_id;
+ if cardinality(ids)<>jsonb_array_length(composition.document->'baseline_events') or cardinality(ids)>1000 then raise exception 'scope_invoice_baseline_capture_mismatch' using errcode='22023';end if;
+ select coalesce(array_agg(ba.obligation_id order by ba.obligation_id),'{}'::uuid[]) into obligations from public.operations_project_obligation_baselines ba where ba.event_id=any(ids) and ba.organization_id=org;
+ if cardinality(obligations)<>cardinality(ids) or cardinality(obligations)<>(select count(distinct x) from unnest(obligations)x) then raise exception 'scope_invoice_duplicate_or_foreign_obligation' using errcode='22023';end if;
+ if (select count(distinct source_anchor) from public.operations_project_obligation_invoice_bindings where organization_id=org and obligation_id=any(obligations))>10000 then raise exception 'scope_invoice_global_anchor_limit' using errcode='22023';end if;
+ select coalesce(jsonb_agg(jsonb_build_object('source_organization_id',x.source_organization_id,'invoice_id',x.invoice_id)),'[]') into selectors from
+ (select distinct latest.source_organization_id,latest.invoice_id from (select distinct on(source_anchor) source_organization_id,invoice_id from public.operations_project_obligation_invoice_bindings where organization_id=org and obligation_id=any(obligations) order by source_anchor,binding_sequence desc) latest)x;
+ if jsonb_array_length(selectors)>100 then raise exception 'scope_invoice_global_selector_limit' using errcode='22023';end if;
+ if jsonb_array_length(selectors)>0 then perform operations_invoice_private.lock_invoice_economic_sources_v1(org,selectors);end if;
+ -- No leaf or protocol-head lock preceded the entire globally sorted source set.
+ select * into scope from public.operations_project_scope_heads where organization_id=org and economic_scope_id=scope_id for share;
+ if not found then raise exception 'enrolled_scope_invoice_root_required' using errcode='42501';end if;
+ select * into strict membership from public.operations_project_scope_snapshots where organization_id=org and economic_scope_id=scope_id and scope_revision=scope.current_revision;
+ graph:=operations_economy_private.scope_membership_v1(org,scope.root_kind,scope.root_id);
+ if scope.current_revision<>(p->>'expected_scope_revision')::bigint or membership.membership_fingerprint<>p->>'expected_membership_fingerprint' or graph<>membership.membership or composition.scope_revision<>scope.current_revision or composition.scope_snapshot_id<>membership.snapshot_id or composition.membership_fingerprint<>membership.membership_fingerprint then raise exception 'current_scope_invoice_graph_required' using errcode='22023';end if;
+ select current_revision into current_composition from public.operations_scope_obligation_composition_heads where organization_id=org and economic_scope_id=scope_id for share;
+ if current_composition<>composition.composition_revision then raise exception 'current_scope_invoice_composition_required' using errcode='22023';end if;
+ for b in select * from public.operations_project_obligation_baselines where event_id=any(ids) order by obligation_id loop
+ perform 1 from public.operations_project_obligation_heads h where h.organization_id=org and h.project_id=b.project_id and h.obligation_id=b.obligation_id and h.current_revision=b.revision for share;
+ if not found or b.currency<>composition.currency or not exists(select 1 from jsonb_array_elements_text(graph->'source_project_ids')m where m::uuid=b.project_id)
+ or not exists(select 1 from public.operations_scope_obligation_ownership o where o.organization_id=org and o.obligation_id=b.obligation_id and o.economic_scope_id=scope_id)
+ or not exists(select 1 from jsonb_array_elements(composition.document->'baseline_events')e where (e->>'baseline_event_id')::uuid=b.event_id and (e->>'project_id')::uuid=b.project_id and (e->>'obligation_id')::uuid=b.obligation_id and (e->>'baseline_revision')::bigint=b.revision and e->>'baseline_fingerprint'=b.fingerprint)
+ then raise exception 'current_scope_invoice_baseline_required' using errcode='22023';end if;
+ child:=operations_economy_private.read_invoice_obligation_kernel_v1(jsonb_build_object('schema_version','operations-invoice-obligation-kernel-read.v1','organization_id',org,'project_id',b.project_id,'obligation_id',b.obligation_id));
+ if (child#>>'{baseline,event_id}')::uuid<>b.event_id or (child#>>'{baseline,revision}')::bigint<>b.revision or child#>>'{baseline,fingerprint}'<>b.fingerprint then raise exception 'scope_invoice_kernel_baseline_mismatch' using errcode='22023';end if;
+ members:=members||jsonb_build_array(jsonb_build_object('project_id',b.project_id,'obligation_id',b.obligation_id,'captured_baseline_event_id',b.event_id,'captured_baseline_revision',b.revision,'captured_baseline_fingerprint',b.fingerprint,'kernel_evidence',child));member_count:=member_count+1;
+ end loop;
+ if member_count<>cardinality(ids) then raise exception 'scope_invoice_member_capture_mismatch' using errcode='22023';end if;
+ for binding in select distinct on(source_anchor collate "C") * from public.operations_project_obligation_invoice_bindings where organization_id=org and obligation_id=any(obligations) order by source_anchor collate "C",binding_sequence desc loop
+ if not exists(select 1 from public.operations_project_obligation_source_ownership o where o.organization_id=org and o.source_anchor=binding.source_anchor and o.obligation_id=binding.obligation_id and o.project_id=binding.project_id) then raise exception 'scope_invoice_permanent_anchor_owner_mismatch' using errcode='22023';end if;
+ select m->'kernel_evidence' into strict child from jsonb_array_elements(members)m where (m->>'obligation_id')::uuid=binding.obligation_id and (m->>'project_id')::uuid=binding.project_id;
+ select value into source from jsonb_array_elements(child->'sources') where value->>'source_anchor'=binding.source_anchor;
+ if child->>'state'='unsupported_basis' then
+ select e.* into policy from public.operations_obligation_source_policy_heads h join public.operations_obligation_source_policies e on e.organization_id=h.organization_id and e.obligation_id=h.obligation_id and e.source_anchor=h.source_anchor and e.policy_revision=h.current_revision where h.organization_id=org and h.obligation_id=binding.obligation_id and h.source_anchor=binding.source_anchor;
+ policy_state:=case when found then 'stale' else 'missing' end;mapping:='unsupported_basis';reason:='unsupported_cost_basis';
+ source:=jsonb_build_object('current_snapshot_id',null,'current_raw_sha256',null,'policy_state',policy_state,'policy_event_id',policy.event_id,'policy_revision',policy.policy_revision,'policy_fingerprint',policy.fingerprint);
+ elsif source is null then raise exception 'scope_invoice_kernel_anchor_missing' using errcode='22023';
+ else mapping:=case when source->'resolved'='true' then 'charging' else 'excluded' end;reason:=source->>'reason';end if;
+ entry:=jsonb_build_object('source_anchor',binding.source_anchor,'project_id',binding.project_id,'obligation_id',binding.obligation_id,'binding_event_id',binding.event_id,'source_organization_id',binding.source_organization_id,'invoice_id',binding.invoice_id,'source_snapshot_id',binding.source_snapshot_id,'source_economic_revision',binding.source_economic_revision,'source_economic_fingerprint',binding.source_economic_fingerprint,'source_raw_sha256',binding.source_raw_body_sha256,
+ 'current_snapshot_id',source->'current_snapshot_id','current_raw_sha256',source->'current_raw_sha256','policy_state',source->'policy_state','policy_event_id',source->'policy_event_id','policy_revision',source->'policy_revision','policy_fingerprint',source->'policy_fingerprint','mapping_state',mapping,'reason',reason);
+ inventory:=inventory||jsonb_build_array(entry);
+ fresh_refs:=fresh_refs||jsonb_build_array(jsonb_build_object('source_anchor',binding.source_anchor,'project_id',binding.project_id,'obligation_id',binding.obligation_id,'binding_event_id',binding.event_id,'source_snapshot_id',source->'current_snapshot_id','source_economic_revision',binding.source_economic_revision,'source_economic_fingerprint',binding.source_economic_fingerprint,'source_raw_sha256',source->'current_raw_sha256','binding_state',case when mapping='charging' then 'bound_original' else 'unresolved' end,'policy_state',source->'policy_state','policy_event_id',source->'policy_event_id','policy_revision',source->'policy_revision','policy_fingerprint',source->'policy_fingerprint'));
+ end loop;
+ if jsonb_typeof(composition.document->'source_inventory') is distinct from 'array' or jsonb_array_length(composition.document->'source_inventory')>10000 then raise exception 'invalid_saved_scope_invoice_inventory' using errcode='22023';end if;
+ for old in select value from jsonb_array_elements(composition.document->'source_inventory') order by value->>'source_anchor' collate "C" loop
+ saved_refs:=saved_refs||jsonb_build_array(jsonb_build_object('source_anchor',old->'source_anchor','project_id',(old->>'project_id')::uuid,'obligation_id',(old->>'obligation_id')::uuid,'binding_event_id',(old->>'binding_event_id')::uuid,'source_snapshot_id',(old->>'source_snapshot_id')::uuid,'source_economic_revision',old->'source_economic_revision','source_economic_fingerprint',old->'source_economic_fingerprint','source_raw_sha256',old->'source_raw_body_sha256',
+ 'binding_state',case when old->>'source_binding_state'='bound_original' then 'bound_original' else 'unresolved' end,'policy_state',case when old->>'policy_event_id' is null then 'missing' when old->>'source_policy_state'='current' then 'current' else 'stale' end,'policy_event_id',(old->>'policy_event_id')::uuid,'policy_revision',old->'policy_revision','policy_fingerprint',old->'policy_fingerprint'));
+ end loop;
+ matches:=saved_refs=fresh_refs;if not matches then diagnostics:=diagnostics||'"captured_inventory_changed"'::jsonb;end if;
+ inventory_fp:=encode(sha256(convert_to('operations-scope-invoice-kernel-inventory-v1'||E'\n'||operations_economy_private.canonical_json_v1(inventory),'UTF8')),'hex');
+ reply:=jsonb_build_object('schema_version','operations-scope-invoice-kernel-evidence.v1','organization_id',org,'economic_scope_id',scope_id,'scope_snapshot_id',membership.snapshot_id,'scope_revision',scope.current_revision,'membership_fingerprint',membership.membership_fingerprint,'composition_snapshot_id',composition.snapshot_id,'composition_revision',composition.composition_revision,'composition_fingerprint',composition.fingerprint,'root_kind',scope.root_kind,'root_id',scope.root_id,'currency',composition.currency,'membership_currentness','as_of_graph','source_currentness','saved_receiver_heads_only','captured_inventory_matches_current',matches,'captured_inventory_fingerprint',inventory_fp,'as_of',clock_timestamp(),'members',members,'source_inventory',inventory,'saved_source_references',saved_refs,'diagnostics',diagnostics,
+ 'category_coverage',jsonb_build_object('personnel','unavailable','supplier','unavailable','catering','unavailable','other','unavailable'),'source_coverage','unavailable','credit_eligible',false,'remaining_minor',null,'eac_minor',null,'budget_minor',null,'shadow_only',true);
+ if octet_length(reply::text)>262144 then raise exception 'scope_invoice_capture_size_limit' using errcode='22023';end if;return reply;
+end;$$;
+revoke all on function operations_economy_private.read_scope_invoice_kernel_v1(jsonb) from public,anon,authenticated;
+grant execute on function operations_economy_private.read_scope_invoice_kernel_v1(jsonb) to service_role;
+create function public.read_operations_scope_invoice_kernel_evidence_v1(p_request jsonb) returns jsonb language sql security invoker set search_path='' as $$select operations_economy_private.read_scope_invoice_kernel_v1(p_request);$$;
+revoke all on function public.read_operations_scope_invoice_kernel_evidence_v1(jsonb) from public,anon,authenticated;
+grant execute on function public.read_operations_scope_invoice_kernel_evidence_v1(jsonb) to service_role;

@@ -6,6 +6,11 @@ on:
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
       - 'supabase/functions/_shared/local-invoice-obligation-kernel-evidence*'
+      - 'supabase/functions/_shared/project-scope-invoice-kernel-evidence*'
+      - 'supabase/migrations/*operations_scope_invoice_kernel_capture*.sql'
+      - 'supabase/migrations/*operations_scope_obligation_drilldown_read*.sql'
+      - 'src/lib/economy/projectScopeObligationDrilldown*'
+      - 'src/components/project/OperationsObligationDrilldownPanel*'
       - 'supabase/migrations/*operations_invoice_obligation_kernel_read*.sql'
       - 'supabase/functions/_shared/project-obligation-credit-assignment*'
       - 'supabase/functions/_shared/project-obligation-credit-capacity*'
@@ -322,6 +327,73 @@ jobs:
           print('Actual native invoice kernel SQL all assertions PASS; six original response strings captured')
           PY_KERNEL
           deno run --allow-read scripts/project-economy/operations-invoice-kernel-vector-test.ts /tmp/invoice-kernel-vectors.json
+      - name: Whole captured split invoice evidence and unchanged frozen kernel
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py vectors /tmp/project-obligation-fixtures.json
+      - name: Authenticated saved single obligation drilldown and unavailable forecast
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py drilldown /tmp/project-obligation-fixtures.json
+  scope-invoice-kernel-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_invoice_kernel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_invoice_kernel_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_scope_invoice_kernel_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_INVOICE_KERNEL_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Actual globally protected whole scope versus policy sources baseline and graph
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002025617_operations_obligation_source_policy.sql \
+            supabase/migrations/20261002030747_operations_scope_obligation_composition.sql \
+            supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql \
+            supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py vectors /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py seed /tmp/scope-native-fixture.json
+          bash scripts/project-economy/operations-scope-invoice-kernel-native-concurrency.sh
+
   invoice-source-barrier-native:
     runs-on: ubuntu-latest
     timeout-minutes: 15
