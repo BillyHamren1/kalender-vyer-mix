@@ -56,7 +56,7 @@ export function createOperationsPersonnelStore(databaseUrl: string, serviceKey: 
       if(rows.length>1000)throw new Error('too_many_rate_histories');return rows;
     },
     publish(snapshot:PersonnelCostSnapshot,raw:TimePersonnelRead['snapshot'],evidence:PersonnelSourceEvidence,expected:number,key:string){
-      return rpc('publish_operations_personnel_cost_outbox_v1',{p_snapshot:snapshot,p_raw_time_snapshot:raw,p_source_evidence:evidence,p_expected_revision:expected,p_idempotency_key:key});
+      return rpc('publish_operations_personnel_cost_ingress_v1',{p_snapshot:snapshot,p_raw_time_snapshot:raw,p_source_evidence:evidence,p_expected_revision:expected,p_idempotency_key:key});
     },
     claim(owner:string,limit:number):Promise<PersonnelOutboxClaim[]>{return rpc('claim_operations_personnel_cost_outbox_v1',{p_owner:owner,p_limit:limit,p_lease_seconds:30});},
     finish(claim:PersonnelOutboxClaim,result:PersonnelDispatchResult){return rpc('finish_operations_personnel_cost_outbox_v1',{

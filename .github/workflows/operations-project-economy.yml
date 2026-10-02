@@ -118,3 +118,14 @@ jobs:
           PY_READ
       - name: Build actual Operations web application
         run: npm run build
+
+      - name: Historical rate enrollment, authorization and immutable saved cost
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql
+          python3 - <<'PY_RATE'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-review-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-rate-admin-postgres-test.sql'],check=True)
+          PY_RATE
