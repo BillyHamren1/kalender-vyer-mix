@@ -1,0 +1,58 @@
+name: Operations compatible full installed catalog native proof
+on:
+  pull_request:
+    paths:
+      - 'scripts/project-economy/**'
+      - 'supabase/migrations/**'
+      - 'docs/project-economy/operations-compatible-full-catalog-native-contract.md'
+      - '.github/workflows/operations-compatible-full-catalog-native.yml'
+permissions:
+  contents: read
+jobs:
+  actual-finite-full-catalog-atomic-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_compatible_install_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_compatible_install_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_compatible_install_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_FULL_CATALOG_ISOLATED_DB: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact finite closure and catalog verifier denial controls
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-full-catalog-native.guard.test.py
+          python3 -I -B scripts/project-economy/operations-compatible-full-catalog-verify.test.py
+      - name: Genuine native metadata install negative controls and full rollback
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          python3 --version
+          PGCONNECT_TIMEOUT=5 PGOPTIONS='-c statement_timeout=5000' psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-full-catalog-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
