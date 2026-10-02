@@ -1191,3 +1191,101 @@ jobs:
           env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-scope-compatible-read-native.py
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
+
+  compatible-selected-catalog-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_CATALOG_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact selected closure and metadata privacy resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-catalog-native.guard.test.py
+          deno check scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/operations-obligation-fixture.ts
+      - name: Fresh selected installed metadata and eleven rollback controls
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-catalog-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-product-publication-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: syntheticProductOnly123_
+          POSTGRES_DB: eventflow_scope_product_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_product_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_product_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: syntheticProductOnly123_
+      EVENTFLOW_WHOLE_SCOPE_PRODUCT_PUBLICATION_ISOLATED_DB: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact product publication sources and owned process Docker HTTP guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-whole-scope-product-publication-native.guard-test.py
+          deno check --no-config --no-lock --no-remote --no-npm scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-whole-scope-product-publication-vector-test.ts
+      - name: Genuine public coherent product publication and causal RR queue matrix
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-whole-scope-product-publication-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
