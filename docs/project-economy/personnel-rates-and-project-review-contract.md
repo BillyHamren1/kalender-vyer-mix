@@ -143,3 +143,40 @@ event referencing its predecessor, never deletion of history.
    to their time-derived costs before both can enter actual totals.
 5. Exact source CI, separate independent review, release approval and rollback
    gates pass. v1 shadow ingestion is not evidence that these gates have passed.
+
+## Implemented v1 project status boundary (shadow only)
+
+`publish_operations_personnel_cost_ingress_v1` is the canonical service boundary
+for a verified Time read. It validates frozen allocations and rate evidence,
+locks the same stream row used by project review commands, and derives every
+project status from the current Operations ledger before the sole publication,
+immutable transport body, durable outbox and per-project proof links commit.
+The existing whole-day Time project review remains source provenance. It cannot
+confirm an unreviewed Operations project. The compatibility outbox RPC remains
+unchanged; switching the service store to the canonical RPC requires its exact
+native SQL proof first.
+
+`publish_operations_project_personnel_reviews_v1` accepts only a stream/project,
+expected source and review sequences, and an idempotency key. It captures the
+actor from `auth.uid()`, checks the live organization/project grant, and derives
+all statuses from saved economics and ledger heads. It exposes no arbitrary
+cost, rate, status, actor or organization inputs. A matching rejected project
+stays rejected during a global `correction_requested`; a matching confirmed
+project becomes preliminary. A new Time snapshot/economic fingerprint invalidates
+both approval and rejection. Global `voided` makes all lines rejected. Missing
+rate evidence remains null, and review never reruns the rate calculator.
+
+Immutable `operations_personnel_project_publication_links` and
+`operations_personnel_project_publication_proofs` retain the previous publication,
+trigger event/actor, matching review event, exact allocation IDs and economic
+fingerprint for each resulting project status. Historical retries acknowledge the
+original immutable body even after newer reviews; malformed producer envelopes
+are rejected before status normalization.
+
+Database-current source evidence is not proof that Time has no later correction.
+Before enabling user attest/publication controls, the application service must
+perform a fresh authenticated Time read and reconcile its latest submission,
+version and global decision sequence into the canonical ingress. No attest UI or
+production transport is activated by these migrations. Actual isolated
+PostgreSQL/PostgREST/HTTPS proof, independently reviewed source, exact-version CI,
+preview, compatible release and rollback gates remain mandatory.

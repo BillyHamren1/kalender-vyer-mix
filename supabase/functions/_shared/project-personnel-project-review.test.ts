@@ -33,6 +33,13 @@ describe('independent Operations project review proposal',()=>{
     expect((await projectPersonnelReviewProjection(s,[review],{sourceRevision:2,submissionState:'voided'})).snapshot.lines.every(l=>l.status==='rejected')).toBe(true);
     expect((await projectPersonnelReviewProjection({...s,source_snapshot_hash:'f'.repeat(64),time_snapshot_version:2},[review],{sourceRevision:2,submissionState:'submitted'})).invalidated_project_ids).toEqual([a]);
   });
+  it('keeps a matching rejection during correction and invalidates it on a new Time snapshot',async()=>{
+    const s=await saved(),review=await projectPersonnelReviewEvidence(s,{event_id:eventId,source_project_id:a,decision:'rejected',actor_system_user_id:actor,reason:'Project allocation rejected',review_sequence:1});
+    const approval=await projectPersonnelReviewEvidence(s,{event_id:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',source_project_id:b,decision:'approved',actor_system_user_id:actor,reason:null,review_sequence:2});
+    expect((await projectPersonnelReviewProjection(s,[review,approval],{sourceRevision:2,submissionState:'correction_requested'})).snapshot.lines.map(l=>l.status)).toEqual(['rejected','preliminary']);
+    const p=await projectPersonnelReviewProjection({...s,source_snapshot_hash:'f'.repeat(64),time_snapshot_version:2},[review,approval],{sourceRevision:3,submissionState:'correction_requested'});
+    expect(p.snapshot.lines.map(l=>l.status)).toEqual(['preliminary','preliminary']);expect(p.invalidated_project_ids).toEqual([a,b]);
+  });
   it('rejects foreign tenant evidence and ambiguous event sequence, with explicit reopen reasons',async()=>{
     const s=await saved(),review=await projectPersonnelReviewEvidence(s,{event_id:eventId,source_project_id:a,decision:'approved',actor_system_user_id:actor,reason:null,review_sequence:1});
     await expect(projectPersonnelReviewProjection(s,[{...review,organization_id:b}],{sourceRevision:2,submissionState:'submitted'})).rejects.toThrow('invalid_project_review_event');

@@ -10,6 +10,9 @@ on:
       - 'supabase/functions/finance-project-invoice-receive/**'
       - 'supabase/migrations/*operations_finance_project_invoice*.sql'
       - 'supabase/migrations/*operations_personnel*.sql'
+      - 'supabase/migrations/*operations_project_cost_read.sql'
+      - 'src/lib/economy/projectCostEvidence*'
+      - 'src/components/project/ProjectCostEvidencePanel.tsx'
       - 'scripts/project-economy/operations-*'
       - '.github/workflows/operations-project-economy.yml'
   workflow_dispatch:
@@ -67,7 +70,6 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-postgres-test.sql'],check=True)
           PY
-
       - name: Destination-scoped invoice receipt, tenant and replay SQL runtime
         run: |
           psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-destination-bootstrap.sql
@@ -89,11 +91,30 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-project-review-bootstrap.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001232438_operations_personnel_project_reviews.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql
           deno run --allow-read scripts/project-economy/operations-project-review-fixture.ts /tmp/operations-fixtures.json > /tmp/project-review-fixtures.json
           python3 - <<'PY'
           import subprocess
           from pathlib import Path
           data=Path('/tmp/project-review-fixtures.json').read_text().strip()
-          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
-                          '-f','scripts/project-economy/operations-project-review-postgres-test.sql'],check=True)
+          for name in ['operations-project-review-postgres-test.sql',
+                       'operations-project-review-publication-postgres-test.sql',
+                       'operations-canonical-ingress-postgres-test.sql']:
+              subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                              '-f','scripts/project-economy/'+name],check=True)
           PY
+
+      - name: Actual authenticated project cost read, correction and withdrawal
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002001842_operations_project_cost_read.sql
+          deno run --allow-read scripts/project-economy/operations-project-cost-read-fixture.ts /tmp/operations-fixtures.json > /tmp/project-cost-read-fixtures.json
+          python3 - <<'PY_READ'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-cost-read-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-project-cost-read-postgres-test.sql'],check=True)
+          PY_READ
+      - name: Build actual Operations web application
+        run: npm run build

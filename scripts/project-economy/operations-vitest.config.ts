@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
+      'src/lib/economy/projectCostEvidence.test.ts',
       'supabase/functions/_shared/project-personnel-cost.test.ts',
       'supabase/functions/_shared/finance-project-invoice.test.ts',
       'supabase/functions/_shared/project-cost-obligations.test.ts',

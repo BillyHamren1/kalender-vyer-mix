@@ -93,7 +93,7 @@ begin
   perform pg_temp.review_assert(result->>'status'='no_current_review','global correction hides obsolete confirmation proof');
   begin update public.operations_project_personnel_reviews set reason='Rewritten history';raise exception 'review updated';exception when sqlstate '55000' then null;end;
   begin delete from public.operations_project_personnel_review_grants;raise exception 'grant history deleted';exception when sqlstate '55000' then null;end;
-  begin truncate public.operations_project_personnel_reviews;raise exception 'review history truncated';exception when sqlstate '55000' then null;end;
+  begin truncate public.operations_project_personnel_reviews cascade;raise exception 'review history truncated';exception when sqlstate '55000' then null;end;
   begin truncate public.operations_project_personnel_review_grants;raise exception 'grant history truncated';exception when sqlstate '55000' then null;end;
 end; $$;
 rollback;

@@ -89,7 +89,11 @@ declare v_actor uuid:=auth.uid(); v_org uuid; v_admin boolean; v_grant text;
 begin
   if v_actor is null or not exists(select 1 from auth.users where id=v_actor) then
     raise exception 'authenticated_system_user_required' using errcode='42501'; end if;
-  select organization_id into v_org from public.profiles where user_id=v_actor;
+  begin
+    select organization_id into strict v_org from public.profiles where user_id=v_actor;
+  exception when no_data_found or too_many_rows then
+    raise exception 'unambiguous_system_profile_required' using errcode='42501';
+  end;
   if v_org is null or not exists(select 1 from public.projects where id=p_project_id and organization_id=v_org and deleted_at is null)
     then raise exception 'organization_project_access_denied' using errcode='42501'; end if;
   select exists(select 1 from public.user_roles where user_id=v_actor and organization_id=v_org and role='admin') into v_admin;

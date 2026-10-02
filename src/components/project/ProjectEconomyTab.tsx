@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useProjectEconomy } from '@/hooks/useProjectEconomy';
 import { EconomySummaryCard } from './EconomySummaryCard';
+import { ProjectCostEvidencePanel } from './ProjectCostEvidencePanel';
 import { StaffCostTable } from './StaffCostTable';
 import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
@@ -264,6 +265,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           </CardContent>
         </Card>
       </div>
+
+      <ProjectCostEvidencePanel projectId={projectId} />
 
       {/* ─── B. Status signals row ─── */}
       <Card className="border-border/40">
