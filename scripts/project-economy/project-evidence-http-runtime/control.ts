@@ -80,7 +80,7 @@ async function runSql(operation: string): Promise<unknown> {
   const input = child.stdin.getWriter();
   const output = child.output();
   // Install the deadline before any write/close/read operation can block.
-  let timer: number | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let completed = false;
   const operationResult = (async () => {
     await input.write(new TextEncoder().encode(fixedSql(operation)));
@@ -121,7 +121,7 @@ async function runSql(operation: string): Promise<unknown> {
         child.kill("SIGKILL");
       } catch { /* exited */ }
       void input.abort().catch(() => {});
-      let reapTimer: number | undefined;
+      let reapTimer: ReturnType<typeof setTimeout> | undefined;
       try {
         const reaped = await Promise.race([
           Promise.allSettled([output, child.status, operationResult]).then(() =>
