@@ -291,9 +291,9 @@
       "size": 3425
     },
     "scripts/project-economy/operations-whole-scope-product-publication-native-cases.py": {
-      "sha256": "18c245afff95d76277026007e115750e07a621dc2c0d641d10a3cc24f69fe939",
+      "sha256": "d854f1af2f88249b93699373bd9f9f5ef8d805bd19f44fa30eec50215e19b6f0",
       "git_blob": null,
-      "size": 15087
+      "size": 15101
     },
     "scripts/project-economy/operations-whole-scope-product-publication-native-setup.sql": {
       "sha256": "d12eee632b5df07052695565a1e4f0ecbfef3fcec8c3a0e54b256189ef77c77e",
@@ -306,9 +306,9 @@
       "size": 28999
     },
     "scripts/project-economy/operations-whole-scope-product-publication-native.guard-test.py": {
-      "sha256": "d47ebfcced3930dbb1a44c064acd43a2b6efaeece39d5c345b2da3a42d623d19",
+      "sha256": "2eefda61b88d51c2e07a7a40695c714f87f81712a37aa1e883177d15c88cc7fe",
       "git_blob": null,
-      "size": 14375
+      "size": 16020
     }
   },
   "provenance": {

@@ -119,8 +119,8 @@
     "scripts/project-economy/operations-compatible-catalog-read.sql": "c079720f73287ee4c0513eab6275f3511b4ebd6534cdb8f4470e3053b032bd20",
     "scripts/project-economy/operations-compatible-catalog-setup.sql": "9bc0e538769a0aa2c2a0e12b80278894aa52d14b1a1712f32bf6d7fde3ed2f62",
     "scripts/project-economy/operations-compatible-catalog-negativecases.sql": "ac23aaa9fb4155ef54ebd61216cf34a2849a54f21e985685a2d61148899c6e3f",
-    "scripts/project-economy/operations-compatible-catalog-native.py": "cbd7fed031d74829161b7c68dcd426a40913149bc20afc9b2b6c59f0a1136122",
-    "scripts/project-economy/operations-compatible-catalog-native.guard.test.py": "2ec0820995e4cdde613a4f72fc18a55928969fed2610fc013ee26dfa9fd4f9f1",
+    "scripts/project-economy/operations-compatible-catalog-native.py": "7385bd410a19559b9eb1ed37f090b8185aa5201d0c98b64778c3f1ca75b3e8a0",
+    "scripts/project-economy/operations-compatible-catalog-native.guard.test.py": "21e6e1f3fbfd1935450f2e879fe2a9f95939256b085118139eff5c60c6993454",
     "docs/project-economy/operations-compatible-catalog-native-contract.md": "dc3e0c3409fc8f8e7176a345776a16fc7c67d4b7b31f28f11639bac6f0834a47"
   }
 }

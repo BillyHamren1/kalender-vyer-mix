@@ -88,6 +88,31 @@ class Guards(unittest.TestCase):
         for revision in [0,1,5,'2',True,None]:
             with self.assertRaises(cases.CaseFailure):subject.producer_sql(revision)
 
+    def test_first_saved_receipt_query_uses_actual_product_schema(self):
+        # Capture the actual case query before any async/native capability.
+        initial={'head':0,'publications':0,'receipts':0,'null_exports':True}
+        observed=[]
+        class Captured(Exception):pass
+        def run(sql,expected_code=None):
+            observed.append(sql)
+            if ' join operations_whole_scope_publication_private.publications p ' in sql:
+                raise Captured()
+            if expected_code=='55000':return None
+            if 'from operations_whole_scope_product_native.commands' in sql:return {}
+            return initial
+        subject=cases.Cases(run,None,None,None,lambda command,status:{'publication_revision':1,'delivery_state':'blocked_missing_export_grant'})
+        with self.assertRaises(Captured):subject.run_all()
+        query=observed[-1]
+        import re
+        references=set(re.findall(r'\bp\.([a-z_]+)',query))
+        ddl=(module.ROOT/'supabase/migrations/20261002143348_operations_whole_scope_product_publication_v1.sql').read_text()
+        columns=ddl.split('create table operations_whole_scope_publication_private.publications (',1)[1].split('\n);',1)[0]
+        for column in references:self.assertRegex(columns,r'\b'+column+r'\s+(?:uuid|bigint|text|jsonb|timestamptz)\b')
+        self.assertIn("r.document->>'source_publication_fingerprint'=p.source_publication_fingerprint",query)
+        self.assertIn("r.document->>'source_evidence_fingerprint'=p.source_evidence_fingerprint",query)
+        self.assertIn("r.document=",query)
+        self.assertIn("h.publication_id=p.publication_id",query)
+
     def test_case_failures_are_fixed_and_partial_is_not_acceptance(self):
         failure=cases.CaseFailure('private recipient proof')
         self.assertEqual((failure.case,str(failure)),(7,'closed_product_native_case_failure'))

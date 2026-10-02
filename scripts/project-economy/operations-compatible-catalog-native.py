@@ -167,7 +167,7 @@ def execute(env):
   if pre.count(":'migration'")!=1:raise ClosedFailure('preflight')
   pre=pre.replace(":'migration'","(select data->>'migration' from pg_temp.fixture_input)")
   out=run_private(shared,'preflight',psql,pg_env,private,45,(options(base)+base.copy_json({'migration':migration})+pre).encode())
-  if out.read_text().splitlines()!=['operations-scope-compatible-read-preflight PASS unexpected_caller_security_search_path_exact_migration_rollback']:raise ClosedFailure('preflight')
+  if out.read_text().splitlines()!=['','operations-scope-compatible-read-preflight PASS unexpected_caller_security_search_path_exact_migration_rollback']:raise ClosedFailure('preflight')
   run_private(shared,'product_setup',psql,pg_env,private,45,(options(base)+migration+(HERE/'operations-scope-compatible-read-native-setup.sql').read_text()).encode())
   run_private(shared,'catalog_setup',psql,pg_env,private,30,(options(base)+(HERE/'operations-compatible-catalog-setup.sql').read_text()).encode())
   source=(HERE/'operations-compatible-catalog-read.sql').read_text();projection=projection_sql(source);mutations=cases_sql((HERE/'operations-compatible-catalog-negativecases.sql').read_text())

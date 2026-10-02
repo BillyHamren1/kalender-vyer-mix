@@ -129,7 +129,7 @@ class Cases:
         self.require(response.get('publication_revision') == 1 and
                      response.get('delivery_state') == 'blocked_missing_export_grant', 0)
         raw_receipt=json.dumps(response,ensure_ascii=False,allow_nan=False,separators=(',',':'))
-        saved=scalar(self.run("select jsonb_build_object('bound',count(*)=1) from operations_whole_scope_publication_private.receipts r join operations_whole_scope_publication_private.publications p using(publication_id) join operations_whole_scope_publication_private.heads h on h.publication_id=p.publication_id where r.document='" + raw_receipt.replace("'","''") + "'::jsonb and p.organization_id='" + ORG + "' and p.economic_scope_id='" + SCOPE + "' and p.publication_revision=1 and r.document->>'source_publication_fingerprint'=p.publication_fingerprint and r.document->>'source_evidence_fingerprint'=p.evidence_fingerprint;"))
+        saved=scalar(self.run("select jsonb_build_object('bound',count(*)=1) from operations_whole_scope_publication_private.receipts r join operations_whole_scope_publication_private.publications p using(publication_id) join operations_whole_scope_publication_private.heads h on h.publication_id=p.publication_id where r.document='" + raw_receipt.replace("'","''") + "'::jsonb and p.organization_id='" + ORG + "' and p.economic_scope_id='" + SCOPE + "' and p.publication_revision=1 and r.document->>'source_publication_fingerprint'=p.source_publication_fingerprint and r.document->>'source_evidence_fingerprint'=p.source_evidence_fingerprint;"))
         self.require(saved == {'bound': True}, 0)
         self.require(self.state() == {'head': 1, 'publications': 1, 'receipts': 1, 'null_exports': True}, 0)
         self.done.append(MARKERS[0])

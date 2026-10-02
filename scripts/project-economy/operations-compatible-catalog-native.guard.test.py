@@ -54,6 +54,22 @@ class CatalogBoundary(unittest.TestCase):
   with mock.patch.object(w,'run_private',side_effect=fake),self.assertRaises(w.ClosedFailure) as result:w.execute(BASE)
   self.assertEqual(seen,['fresh_database']);self.assertEqual(result.exception.phase,'fresh_database')
 
+ def test_complete_preflight_void_row_protocol(self):
+  marker='operations-scope-compatible-read-preflight PASS unexpected_caller_security_search_path_exact_migration_rollback'
+  samples=[('\n'+marker+'\n','product_setup'),(marker+'\n','preflight'),('\n','preflight'),('\n'+marker+'\n'+marker+'\n','preflight'),('PRIVATE_ROW\n\n'+marker+'\n','preflight'),('\n'+marker+'\n\n','preflight')]
+  for response,expected in samples:
+   seen=[]
+   def fake(shared,phase,command,env,private,timeout,stdin=None):
+    seen.append(phase)
+    if phase=='product_setup':raise w.ClosedFailure('product_setup')
+    self.assertGreaterEqual(timeout,20);self.assertEqual(private.parent,pathlib.Path('/tmp'));self.assertEqual(stat.S_IMODE(private.stat().st_mode),0o700)
+    if phase!='obligation_fixture':self.assertEqual(command[:4],['psql','-X','--no-password','--set'])
+    if phase=='preflight':
+     self.assertIn(b'select pg_temp.compatible_preflight_negative(',stdin);self.assertIn(marker.encode(),stdin)
+    out=private/(phase+'.guard.stdout');out.write_text('t\n' if phase=='fresh_database' else '{"synthetic":true}\n' if phase=='obligation_fixture' else response if phase=='preflight' else '');out.chmod(0o600);return out
+   with self.subTest(expected=expected),mock.patch.object(w,'run_private',side_effect=fake),self.assertRaises(w.ClosedFailure) as result:w.execute(BASE)
+   self.assertEqual(result.exception.phase,expected);self.assertEqual(seen[-1],expected)
+
  def test_complete_owned_invocation_signature_binding(self):
   signature=inspect.signature(w.run_private);tree=ast.parse(PATH.read_text());count=0
   for node in ast.walk(tree):
