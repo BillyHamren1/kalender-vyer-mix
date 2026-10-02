@@ -1,0 +1,221 @@
+{
+  "schema": "operations-project-evidence-http-source-closure.v1",
+  "canonical_baseline_commit": "b059d3a1841618d84443d27c02509fcafde547fb",
+  "files": [
+    {
+      "path": ".github/workflows/operations-project-economy.yml",
+      "sha256": "06bafc8d7e1599d2a493e6b568d94a30b60a9c27e23843579633d7da2c277ecf",
+      "bytes": 33428
+    },
+    {
+      "path": "docs/project-economy/project-evidence-authenticated-http-v1.md",
+      "sha256": "c2bb714324bec79c4eb3fb4163556caf4b16add2c34682dbb5507450db312cd3",
+      "bytes": 5775
+    },
+    {
+      "path": "scripts/project-economy/operations-catering-bootstrap.sql",
+      "sha256": "0fe6be94d0f1423dbeedf2b41c1e73c615720253c22688f6a032e959ddd3484c",
+      "bytes": 326
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-fixture.ts",
+      "sha256": "4d2128899addeb0ec5405b05780dc7019e5b9f276f26e8e93c4b2794d3a1c984",
+      "bytes": 2158
+    },
+    {
+      "path": "scripts/project-economy/operations-postgres-bootstrap.sql",
+      "sha256": "198da5f625ee7e34658d9269e8a4b303f887c40a617dd133b74d606192c4de22",
+      "bytes": 180
+    },
+    {
+      "path": "scripts/project-economy/operations-project-evidence-http-fixture.sql",
+      "sha256": "d65b429289d04d17e28176275131a552c5ae79e74c28a1b6fac12f357cb03cc1",
+      "bytes": 17069
+    },
+    {
+      "path": "scripts/project-economy/operations-project-evidence-http-journey.ts",
+      "sha256": "5a869e6d6d8b6516d80362819939ccfa79f7f7ec98ddb7b8d2e59061fd38c8db",
+      "bytes": 16269
+    },
+    {
+      "path": "scripts/project-economy/operations-project-review-bootstrap.sql",
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6",
+      "bytes": 2527
+    },
+    {
+      "path": "scripts/project-economy/operations-scope-bootstrap.sql",
+      "sha256": "eb08814ac11a7911916915552ac7ab7c9ee73ab852f32344d541f07021247506",
+      "bytes": 1931
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/compose.yml",
+      "sha256": "7504bbf7c04dd106d32360eb9cbea881ec2daf2d8a8b016f7ef61adf68ee9509",
+      "bytes": 946
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/control-adversarial.test.py",
+      "sha256": "b7215cc92c1961b54ab269946bdd7721a7c6585d8ac3fdb72aaade4c7e749445",
+      "bytes": 7294
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/control.ts",
+      "sha256": "3e4bb2083937d46477f1ff5b4b252a7606eb20699bfd86e1fec1a7d70fc10baf",
+      "bytes": 8497
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/isolation.py",
+      "sha256": "4228bfa0639158c0439999d9710fde485bb26c6e3fed1cf6959d8032043b5b36",
+      "bytes": 2726
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/isolation.test.py",
+      "sha256": "30efd5d812d6617e6047a91c6179bfef7164ae3a543348f476ef5300bf4f342b",
+      "bytes": 3282
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/nginx.conf",
+      "sha256": "efd30ce20471451b2c2b4f81465da97c898efa7bf4b266aefd5fd68e11a2568d",
+      "bytes": 133
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/postgrest-role.sql",
+      "sha256": "8a72d8aef3a48eb1486f98c5f82021df263b7ec18f63e349e5ffcfabe035f3f8",
+      "bytes": 438
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/proof.py",
+      "sha256": "1e829b527e2370bcc4dc1d275b800364646d91f77e46bacda32b51d9ced97ef0",
+      "bytes": 1726
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/proof.test.py",
+      "sha256": "34dc9ea93467dbe8f0b164272878736744b24b9f6fdde43f46e1dcea4bfae2f1",
+      "bytes": 1703
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/run.sh",
+      "sha256": "05b629a945890e5353ccc4e863b582af46dd32d0bdd10c4efcd75f1be0ae584b",
+      "bytes": 7315
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/schema-closure.json",
+      "sha256": "5088457bef3195bb667e1cfb26ebf14dbe6aeefabe5977268401738c21ceb45b",
+      "bytes": 1751
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/verify-sources.py",
+      "sha256": "aa7f82bc88b337a609e2b632182c817ac5214f973f50aebe0bb900113a0c2dbf",
+      "bytes": 2073
+    },
+    {
+      "path": "src/lib/economy/projectCateringEvidenceParity.ts",
+      "sha256": "15b584b62431e603e9a928548e8cfb9da9cc23cad57cb17baf274a68c9e31f5d",
+      "bytes": 10196
+    },
+    {
+      "path": "src/lib/economy/projectCostEvidence.ts",
+      "sha256": "d012732d5b5bcc003c8e08e266ac4d2a532ee53c25780ac34c9afe4ed010eae9",
+      "bytes": 7502
+    },
+    {
+      "path": "src/lib/economy/projectNativeCostEvidence.ts",
+      "sha256": "c8ee73789f33d809c44e719cf9c8983fe665aa82ca0a38efe74ba28c70e30ff4",
+      "bytes": 3826
+    },
+    {
+      "path": "src/lib/economy/projectScopeObligationEvidence.ts",
+      "sha256": "8cb72c3c7184a5877e4cd9ff665887efc7ae9a2f67137c1ce5748f51f2afc651",
+      "bytes": 15281
+    },
+    {
+      "path": "supabase/functions/_shared/finance-project-invoice-destination.ts",
+      "sha256": "dce12d3bcc12ea40116ef2722ea652cb1e0e08ce18ac002960fe8fce6c5411ac",
+      "bytes": 8481
+    },
+    {
+      "path": "supabase/functions/_shared/finance-project-invoice.ts",
+      "sha256": "aa1507ef4430792842ac1478312dd35839ff0ade1d0db1b6acc6f379c1c84860",
+      "bytes": 8268
+    },
+    {
+      "path": "supabase/functions/_shared/project-cost-obligation-authority.ts",
+      "sha256": "1794f6cf68622719fe2fff364e94e245992072eb255ee46e727751481b93ca0c",
+      "bytes": 4726
+    },
+    {
+      "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235",
+      "bytes": 18483
+    },
+    {
+      "path": "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b",
+      "bytes": 22665
+    },
+    {
+      "path": "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362",
+      "bytes": 22067
+    },
+    {
+      "path": "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql",
+      "sha256": "1f7baf53415f44b791391e25e2888d5e156add42d609748dc63ced08928f60a2",
+      "bytes": 18119
+    },
+    {
+      "path": "supabase/migrations/20261001235558_operations_catering_project_evidence.sql",
+      "sha256": "d3c86dca1531f20396bf167fd99c854f8f710aea147a9f42f52eb1c81c134c13",
+      "bytes": 29225
+    },
+    {
+      "path": "supabase/migrations/20261002001842_operations_project_cost_read.sql",
+      "sha256": "c3fe1c689930de33c96276b5bd3b32dd580ca70aca1f0d6d9277c66cb89c2e20",
+      "bytes": 4549
+    },
+    {
+      "path": "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql",
+      "sha256": "5274e1ee675487797fb5fc12fb8d9afd6cd1c2cf1f3b3e9c8a70d3b0ddf0da60",
+      "bytes": 28308
+    },
+    {
+      "path": "supabase/migrations/20261002023731_operations_project_obligation_authority.sql",
+      "sha256": "6c2f6a22f89932eba0eea8c6ce1b2e51edf92ccba97d31d205cb0586dff5af73",
+      "bytes": 28198
+    },
+    {
+      "path": "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql",
+      "sha256": "bc243755ceb0dd6f1eb7f94cd8d90a0579ac6bde964da64bc47a9d2c51d9a81d",
+      "bytes": 2848
+    },
+    {
+      "path": "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql",
+      "sha256": "871b824efffa449eeb6a524e38bb52b6b1da6691715315384f23229a69c78b1a",
+      "bytes": 27211
+    },
+    {
+      "path": "supabase/migrations/20261002025617_operations_obligation_source_policy.sql",
+      "sha256": "95107e956ef879d15889f8427502152df6c17b4e98849506229b53da143792c9",
+      "bytes": 16002
+    },
+    {
+      "path": "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql",
+      "sha256": "1cb2ff0120d48e8bdce9372169a730f76c741a97767252655ef05a8ae9cb2754",
+      "bytes": 23336
+    },
+    {
+      "path": "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql",
+      "sha256": "2e718d519426098fa1dd641d0a0e91aad0bf9df08d4fd5f5af812f1110e30527",
+      "bytes": 5873
+    },
+    {
+      "path": "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql",
+      "sha256": "e6b6f3e7379d3d161cf31d65a3ba1e68baf9f9fad89c6933cf6054a92fcb1c2a",
+      "bytes": 5462
+    },
+    {
+      "path": "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql",
+      "sha256": "5e3e9b92a7282554a3070bc2940e5c533da9807cf2d4e79b931678a4b1527e0e",
+      "bytes": 8533
+    }
+  ]
+}
