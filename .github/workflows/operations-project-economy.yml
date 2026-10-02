@@ -10,6 +10,9 @@ on:
       - 'supabase/migrations/*operations_obligation_credit_capacity*.sql'
       - 'supabase/migrations/*operations_obligation_credit_assignment*.sql'
       - 'src/lib/economy/projectCateringEvidenceParity*'
+      - 'src/lib/economy/projectScopeObligationEvidence*'
+      - 'src/components/project/OperationsScopeObligationEvidencePanel*'
+      - 'supabase/migrations/*operations_scope_obligation_evidence_read*.sql'
       - 'src/components/project/OperationsCateringEvidenceParityPanel*'
       - 'supabase/functions/_shared/project-cost-obligation-authority*'
       - 'supabase/functions/_shared/project-obligation-source-policy*'
@@ -244,6 +247,16 @@ jobs:
                           '-f','scripts/project-economy/operations-scope-composition-postgres-test.sql'],check=True)
           PY_COMPOSITION
 
+      - name: Authenticated exact scope root saved composition and unavailable forecast read
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql
+          python3 - <<'PY_SCOPE_READ'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-obligation-evidence-read-postgres-test.sql'],check=True)
+          PY_SCOPE_READ
       - name: Native v2 recipient economics, replay and cross-protocol currentness
         run: |
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql

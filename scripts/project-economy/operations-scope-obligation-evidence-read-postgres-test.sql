@@ -1,0 +1,50 @@
+\set ON_ERROR_STOP on
+-- Synthetic fixture, genuine receiver/admin commands/read. Rollback-only.
+begin;
+create temporary table scope_evidence_fixture(data jsonb not null);
+insert into scope_evidence_fixture values(:'fixture'::jsonb);
+grant select on scope_evidence_fixture to authenticated,service_role;
+create function pg_temp.scope_evidence_assert(v boolean,label text) returns void language plpgsql as $$begin if v is distinct from true then raise exception 'scope evidence assertion failed: %',label;end if;end;$$;
+insert into public.operations_finance_invoice_enrollments values('fixture_scope_read','99999999-9999-4999-8999-999999999999','11111111-1111-4111-8111-111111111111',true,now());
+insert into public.operations_finance_invoice_project_scopes values('fixture_scope_read','56565656-5656-4565-8565-565656565656','55555555-5555-4555-8555-555555555555',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
+do $$declare f jsonb;baseline jsonb;r jsonb;preview jsonb;enroll jsonb;compose jsonb;binding jsonb;snapshot uuid;event uuid;scope uuid:='90909090-9090-4909-8909-909090909090';org uuid:='11111111-1111-4111-8111-111111111111';project uuid:='55555555-5555-4555-8555-555555555555';root uuid:='cccccccc-cccc-4ccc-8ccc-cccccccccccc';saved jsonb;count_pub bigint;count_baseline bigint;count_comp bigint;begin
+ select data into f from scope_evidence_fixture;baseline:=f->'baseline';
+ execute 'set local role service_role';r:=public.operations_receive_finance_project_invoice_destination_v1('fixture_scope_read',floor(extract(epoch from clock_timestamp()))::bigint::text,'fixture_scope_read_original_nonce',f->>'rawInvoice');snapshot:=(r->>'snapshot_receipt_id')::uuid;execute 'reset role';
+ execute 'set local role authenticated';
+ r:=public.read_operations_scope_obligation_evidence_v1(org,'project',project);
+ perform pg_temp.scope_evidence_assert(r->>'state'='no_scope' and r->'economicScopeId'='null' and r->'knownEstimateMinor'='null' and r->'eacMinor'='null','unregistered root has no invented zero');
+ preview:=public.preview_operations_project_scope_v1('large_project',root);
+ enroll:=jsonb_build_object('schema','operations-project-scope-enroll.v1','economic_scope_id',scope,'root_kind','large_project','root_id',root,'expected_revision',0,'expected_membership_fingerprint',preview->>'membership_fingerprint','idempotency_key','synthetic-scope-reader-enrollment','reason','Capture the actual root scope');perform public.enroll_operations_project_scope_v1(enroll);
+ r:=public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);perform pg_temp.scope_evidence_assert(r->>'state'='no_evidence' and r->>'economicScopeId'=scope::text and r->'knownCommitmentMinor'='null','enrolled empty scope is not zero');
+ r:=public.append_operations_manual_obligation_baseline_v1(baseline);event:=(r->>'event_id')::uuid;
+ binding:=jsonb_build_object('schema_version','operations-obligation-invoice-bind.v1','project_id',project,'obligation_id',baseline->>'obligation_id','expected_obligation_revision',1,'source_snapshot_id',snapshot,'source_allocation_id',f#>>'{invoice,allocations,0,allocation_id}','expected_economic_revision',1,'expected_economic_fingerprint',repeat('a',64),'idempotency_key','synthetic-scope-reader-binding','reason','Bind actual received allocation');perform public.bind_operations_invoice_obligation_v1(binding);
+ compose:=jsonb_build_object('schema_version','operations-scope-obligation-compose.v1','economic_scope_id',scope,'expected_scope_revision',1,'expected_membership_fingerprint',preview->>'membership_fingerprint','expected_composition_revision',0,'currency','SEK','baseline_event_ids',jsonb_build_array(event),'idempotency_key','synthetic-scope-reader-first','reason','Save partial manual cost evidence');perform public.compose_operations_scope_obligations_v1(compose);
+ saved:=public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);
+ perform pg_temp.scope_evidence_assert(saved->>'state'='evidence' and saved->>'knownEstimateMinor'='1000000' and saved->'knownCommitmentMinor'='null' and saved->'allSelectedEstimatesKnown'='true' and saved->'allSelectedCommitmentsKnown'='false','exact saved manual amounts and unknown commitment');
+ perform pg_temp.scope_evidence_assert(saved#>>'{sources,0,observedAmountMinor}'='540000' and saved#>>'{sources,0,observedStatus}'='preliminary' and saved#>>'{sources,0,sourcePolicyState}'='unresolved','actual receiver copied once, no policy fabrication');
+ perform pg_temp.scope_evidence_assert(saved->'eacMinor'='null' and saved->'budgetMinor'='null' and saved->'marginMinor'='null' and saved->>'coverage'='unavailable' and saved->>'upstreamCurrentness'='unverified' and saved#>>'{baselines,0,authorityScope}'='local_project_only','partial child authority cannot become project forecast');
+ perform pg_temp.scope_evidence_assert(not (saved#>'{sources,0}' ? 'sourceRawBodySha256') and not (saved ? 'actorId') and not (saved ? 'reason') and not (saved ? 'document'),'redaction omits broad raw/actor/reason evidence');
+ r:=public.read_operations_scope_obligation_evidence_v1(org,'project',project);perform pg_temp.scope_evidence_assert(r->>'state'='no_scope','no parent/child fallback from project root');
+ execute 'reset role';select count(*) into count_pub from public.operations_finance_invoice_snapshots;select count(*) into count_baseline from public.operations_project_obligation_baselines;select count(*) into count_comp from public.operations_scope_obligation_compositions;execute 'set local role authenticated';
+ perform public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);execute 'reset role';
+ perform pg_temp.scope_evidence_assert(count_pub=(select count(*) from public.operations_finance_invoice_snapshots) and count_baseline=(select count(*) from public.operations_project_obligation_baselines) and count_comp=(select count(*) from public.operations_scope_obligation_compositions),'reads create no source/baseline/composition costs');
+ execute 'set local role authenticated';
+ perform public.append_operations_manual_obligation_baseline_v1(baseline||jsonb_build_object('expected_revision',1,'estimate_minor',2000000,'idempotency_key','synthetic-scope-reader-changed-baseline'));
+ r:=public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);
+ perform pg_temp.scope_evidence_assert(r#>'{referenceCurrentness,baselines}'='false' and r->>'knownEstimateMinor'='1000000' and r->>'snapshotId'=saved->>'snapshotId','changed baseline preserves captured historical copied amount');
+ execute 'reset role';insert into public.projects(id,organization_id,deleted_at,booking_id) values('81818181-8181-4818-8818-818181818181',org,null,'Legacy-Order-42');execute 'set local role authenticated';
+ r:=public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);perform pg_temp.scope_evidence_assert(r#>'{referenceCurrentness,membership}'='false' and r->>'knownEstimateMinor'='1000000','graph change stays stale while saved amounts remain exact');execute 'reset role';
+ -- Actual admin authority is checked before any root/scope evidence can escape.
+ perform set_config('request.jwt.claims','{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated"}',true);execute 'set local role authenticated';
+ begin perform public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);raise exception 'foreign actor accepted';exception when insufficient_privilege then null;end;execute 'reset role';
+ perform set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);execute 'set local role authenticated';
+ begin perform public.read_operations_scope_obligation_evidence_v1('22222222-2222-4222-8222-222222222222','large_project',root);raise exception 'foreign org accepted';exception when insufficient_privilege then null;end;
+ begin perform public.read_operations_scope_obligation_evidence_v1(org,'project','99999999-9999-4999-8999-999999999999');raise exception 'foreign root accepted';exception when insufficient_privilege then null;end;execute 'reset role';
+ delete from public.user_roles where user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and organization_id=org and role='admin';execute 'set local role authenticated';
+ begin perform public.read_operations_scope_obligation_evidence_v1(org,'large_project',root);raise exception 'revoked admin accepted';exception when insufficient_privilege then null;end;execute 'reset role';
+ perform set_config('request.jwt.claims','{"role":"authenticated"}',true);execute 'set local role authenticated';begin perform public.read_operations_scope_obligation_evidence_v1(org,'project',project);raise exception 'missing actor accepted';exception when insufficient_privilege then null;end;execute 'reset role';
+ perform pg_temp.scope_evidence_assert(has_function_privilege('authenticated','public.read_operations_scope_obligation_evidence_v1(uuid,text,uuid)','execute') and not has_function_privilege('anon','public.read_operations_scope_obligation_evidence_v1(uuid,text,uuid)','execute') and not has_function_privilege('service_role','public.read_operations_scope_obligation_evidence_v1(uuid,text,uuid)','execute'),'auth-only new wrapper, old service reader unchanged');
+end;$$;
+rollback;
+select 'operations-scope-obligation-evidence-read-postgres PASS' as result;

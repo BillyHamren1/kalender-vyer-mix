@@ -8,6 +8,6 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   test: {
     environment: 'jsdom',
-    include: ['src/components/project/ProjectCostEvidencePanel.rendered.test.tsx', 'src/components/project/NativeCateringCostEvidencePanel.rendered.test.tsx', 'src/components/project/OperationsCateringEvidenceParityPanel.rendered.test.tsx'],
+    include: ['src/components/project/ProjectCostEvidencePanel.rendered.test.tsx', 'src/components/project/NativeCateringCostEvidencePanel.rendered.test.tsx', 'src/components/project/OperationsCateringEvidenceParityPanel.rendered.test.tsx', 'src/components/project/OperationsScopeObligationEvidencePanel.rendered.test.tsx'],
   },
 });

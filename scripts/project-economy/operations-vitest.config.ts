@@ -8,6 +8,7 @@ export default defineConfig({
       'src/lib/economy/projectCostEvidence.test.ts',
       'src/lib/economy/projectNativeCostEvidence.test.ts',
       'src/lib/economy/projectCateringEvidenceParity.test.ts',
+      'src/lib/economy/projectScopeObligationEvidence.test.ts',
       'supabase/functions/_shared/project-booking-commercial-read.test.ts',
       'supabase/functions/_shared/project-booking-commercial-read-client.test.ts',
       'supabase/functions/_shared/project-personnel-cost.test.ts',

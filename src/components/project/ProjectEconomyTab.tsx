@@ -17,6 +17,7 @@ import { EconomySummaryCard } from './EconomySummaryCard';
 import { ProjectCostEvidencePanel } from './ProjectCostEvidencePanel';
 import { NativeCateringCostEvidencePanel } from './NativeCateringCostEvidencePanel';
 import { OperationsCateringEvidenceParityPanel } from './OperationsCateringEvidenceParityPanel';
+import { OperationsScopeObligationEvidencePanel } from './OperationsScopeObligationEvidencePanel';
 import { StaffCostTable } from './StaffCostTable';
 import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
@@ -268,6 +269,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         </Card>
       </div>
 
+      <OperationsScopeObligationEvidencePanel projectId={projectId} />
       <ProjectCostEvidencePanel projectId={projectId} />
       {import.meta.env.VITE_OPERATIONS_CATERING_PARITY_ENABLED === 'true' ? (
         <OperationsCateringEvidenceParityPanel projectId={projectId} />
