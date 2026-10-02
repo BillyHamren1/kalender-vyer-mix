@@ -931,3 +931,54 @@ jobs:
           python3 -B scripts/project-economy/operations-whole-scope-projection-native.py
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-publication-transaction-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_PUBLICATION_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact test-only publication closure and private boundary guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -B scripts/project-economy/operations-whole-scope-publication-transaction-native.guard.test.py
+          bash -n scripts/project-economy/whole-scope-publication-transaction-native-concurrency.sh
+          deno check scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual PostgreSQL atomic source capture and publication lock orders
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          python3 -B scripts/project-economy/operations-whole-scope-publication-transaction-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"

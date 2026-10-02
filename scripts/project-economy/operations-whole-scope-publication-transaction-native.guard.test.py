@@ -1,0 +1,104 @@
+"""Disposable runner boundaries; no real DB connection or source mutation."""
+import contextlib
+import csv
+import importlib.util
+import io
+import json
+import os
+import pathlib
+import shutil
+import stat
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+PATH=pathlib.Path(__file__).with_name('operations-whole-scope-publication-transaction-native.py')
+spec=importlib.util.spec_from_file_location('publication_native_guard',PATH)
+wrapper=importlib.util.module_from_spec(spec);spec.loader.exec_module(wrapper)
+BASE={**wrapper.FIXED_ENV,'GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1234','PATH':os.environ['PATH']}
+
+class PublicationNativeBoundary(unittest.TestCase):
+    def test_hostile_environment_has_no_child_capability(self):
+        hostile=[{'CI':'false'},{'EVENTFLOW_SCOPE_PUBLICATION_ISOLATED_DB':'false'},{'PGHOST':'remote.example'},{'PGHOST':'localhost'},{'PGPORT':'6543'},{'PGUSER':'service_role'},{'PGDATABASE':'postgres'},{'PGDATABASE':wrapper.DATABASE+'_other'},{'PGOPTIONS':'PRIVATE'},{'PGHOSTADDR':'127.0.0.1'},{'PGSERVICE':'PRIVATE'},{'PGSERVICEFILE':'/private'},{'PGPASSFILE':'/private'},{'PGCONNECT_TIMEOUT':'99'},{'SUPABASE_URL':'PRIVATE'},{'PGRST_DB_URI':'PRIVATE'},{'DOCKER_HOST':'PRIVATE'},{'COMPOSE_FILE':'PRIVATE'},{'DATABASE_URL':'PRIVATE'},{'DB_URL':'PRIVATE'},{'TMPDIR':'/private'},{'TMP':'/private'},{'TEMP':'/private'},{'EVENTFLOW_SCOPE_PUBLICATION_DENO_BIN':'relative/deno'},{'EVENTFLOW_SCOPE_PUBLICATION_DB_URL':'PRIVATE'},{'GITHUB_REPOSITORY':'wrong/repo'},{'GITHUB_RUN_ID':'1;command'}]
+        with mock.patch.object(wrapper,'private_run',side_effect=AssertionError('child forbidden')) as child:
+            for change in hostile:
+                with self.subTest(keys=list(change)),self.assertRaises(wrapper.ClosedFailure) as result:wrapper.execute({**BASE,**change})
+                self.assertEqual(result.exception.phase,'guard')
+            child.assert_not_called()
+
+    def test_exact_closure_hash_order_and_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=pathlib.Path(temporary)/'owned';root.mkdir();closure=json.loads(wrapper.CLOSURE.read_text())
+            for name in closure['files']:
+                p=root/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(wrapper.ROOT/name,p)
+            manifest=root/'closure.json';manifest.write_text(json.dumps(closure))
+            self.assertEqual(len(wrapper.closure_paths(root,manifest)),23)
+            p=root/closure['ordered_schema_paths'][0];original=p.read_bytes();p.write_bytes(original+b'\n')
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.closure_paths(root,manifest)
+            p.write_bytes(original);p.unlink();p.symlink_to(wrapper.ROOT/closure['ordered_schema_paths'][0])
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.closure_paths(root,manifest)
+            p.unlink();p.write_bytes(original)
+            changed=json.loads(json.dumps(closure));changed['ordered_schema_paths'].reverse();manifest.write_text(json.dumps(changed))
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.closure_paths(root,manifest)
+            changed=json.loads(json.dumps(closure));changed['files']['../outside']='a'*64;manifest.write_text(json.dumps(changed))
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.closure_paths(root,manifest)
+
+    def test_nonfresh_db_never_reaches_ddl(self):
+        phases=[]
+        def fake(shared,phase,command,env,private,timeout,stdin=None):
+            phases.append(phase);self.assertEqual(phase,'fresh_database');self.assertNotIn(b'create ',stdin.lower());self.assertNotIn(b'insert ',stdin.lower())
+            output=private/'fresh.result';output.write_text('f\n');return output
+        with mock.patch.object(wrapper,'private_run',side_effect=fake):
+            with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.execute(BASE)
+        self.assertEqual(phases,['fresh_database']);self.assertEqual(result.exception.phase,'fresh_database')
+
+    def test_fixture_copy_cannot_inject_sql_or_psql(self):
+        value={'text':"'\\.\nDROP TABLE public.customer;\n\\! private_command 😀\n\""}
+        sql=wrapper.copy_json(value);parts=sql.splitlines();self.assertEqual(parts[-1],'\\.')
+        rows=list(csv.reader(io.StringIO('\n'.join(parts[2:-1])+'\n')));self.assertEqual(len(rows),1);self.assertEqual(json.loads(rows[0][0]),value)
+        source=(wrapper.HERE/'whole-scope-publication-transaction-native-setup.sql').read_text();prepared=wrapper.setup_sql(source,value)
+        self.assertNotIn(":'fixture'",prepared);self.assertIn('(select data from pg_temp.fixture_input)',prepared);self.assertIn('begin;',prepared);self.assertIn('commit;',prepared)
+        with self.assertRaises(wrapper.ClosedFailure):wrapper.setup_sql(source+"\nselect :'fixture';",value)
+        with self.assertRaises(wrapper.ClosedFailure):wrapper.copy_json({'value':float('nan')})
+
+    def test_direct_sql_preserves_assertions_and_rollback(self):
+        sql=wrapper.direct_sql();self.assertIn('rollback;',sql);self.assertIn('native_publication_injected_after_insert',sql);self.assertIn('pause_after_barriers',sql);self.assertIn('pg_temp.publish_scope_native',sql)
+        self.assertEqual(sql.count("\\echo '"+wrapper.DIRECT_MARKER+"'"),1)
+        with tempfile.TemporaryDirectory() as temporary:
+            path=pathlib.Path(temporary)/'direct.result';rows=[{'label':'direct_1'},{'label':'direct_2'}]
+            path.write_text(json.dumps(rows)+'\n'+wrapper.DIRECT_MARKER+'\n');self.assertEqual(wrapper.direct_vectors(path),rows)
+            for content in [json.dumps(rows)+'\nPRIVATE_CONTEXT\n',json.dumps(rows[:1])+'\n'+wrapper.DIRECT_MARKER+'\n',json.dumps(rows[::-1])+'\n'+wrapper.DIRECT_MARKER+'\n','[]\n'+wrapper.DIRECT_MARKER+'\nextra\n']:
+                path.write_text(content)
+                with self.assertRaises(wrapper.ClosedFailure):wrapper.direct_vectors(path)
+
+    def test_private_child_error_is_redacted_and_permissioned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            private=pathlib.Path(temporary);private.chmod(0o700);capture=io.StringIO();shared=wrapper.load_shared()
+            with contextlib.redirect_stdout(capture),contextlib.redirect_stderr(capture):
+                with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.private_run(shared,'direct_sql',[sys.executable,'-c',"import sys;print('PRIVATE_BODY');print('ERROR: 22023: PRIVATE_SQL_CONTEXT',file=sys.stderr);sys.exit(1)"],dict(os.environ),private,3)
+            self.assertEqual(capture.getvalue(),'');self.assertEqual(result.exception.code,'22023');self.assertEqual(result.exception.phase,'direct_sql')
+            self.assertEqual(stat.S_IMODE((private/'direct_sql').stat().st_mode),0o700)
+            for p in (private/'direct_sql').iterdir():self.assertEqual(stat.S_IMODE(p.stat().st_mode),0o600)
+
+    def test_owned_timeout_and_public_failure_protocol(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            private=pathlib.Path(temporary);pidfile=private/'pid';shared=wrapper.load_shared()
+            command=[sys.executable,'-c',"import os,pathlib,sys,time;pathlib.Path(sys.argv[1]).write_text(str(os.getpid()));time.sleep(30)",str(pidfile)]
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.private_run(shared,'native_sessions',command,dict(os.environ),private,.3)
+            with self.assertRaises(ProcessLookupError):os.kill(int(pidfile.read_text()),0)
+            for code,expected in [('22023','22023'),('SECRET','unclassified'),('12345','unclassified')]:
+                output=io.StringIO()
+                with mock.patch.object(wrapper,'execute',side_effect=wrapper.ClosedFailure('native_sessions',code)),contextlib.redirect_stderr(output):self.assertEqual(wrapper.main(),1)
+                self.assertEqual(output.getvalue(),'whole-scope-publication-transaction-native FAIL native_sessions SQLSTATE='+expected+'\n')
+
+    def test_json_nonfinite_oversize_symlink_denied(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            p=pathlib.Path(temporary)/'value';p.write_text('{"value":NaN}')
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
+            p.write_text('x'*(8*1024*1024+1))
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
+            p.unlink();p.symlink_to(wrapper.CLOSURE)
+            with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
+
+if __name__=='__main__':unittest.main()
