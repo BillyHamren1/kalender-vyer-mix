@@ -75,9 +75,6 @@ begin
   perform pg_temp.publication_assert((select current_revision=4 from public.operations_personnel_cost_streams) and
     (select count(*)=4 from public.operations_personnel_cost_publications) and (select count(*)=4 from public.operations_personnel_cost_outbox) and
     (select count(*)=3 from public.operations_personnel_project_publication_links),'failed proof insertion rolls back head, cost, outbox and link');
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',actor,'role','authenticated')::text,true);execute 'set local role authenticated';
-  reopen_a:=public.review_operations_project_personnel_v1(stream,a,4,(reopen_a->>'review_sequence')::bigint,'rejected','A allocation is rejected','synthetic-publication-reject-a');
-  execute 'reset role';
   -- A current explicit rejection remains noncharging during a source correction;
   -- only still-confirmed approvals are downgraded. Rejection is fingerprint-bound.
   perform set_config('request.jwt.claims',jsonb_build_object('sub',actor,'role','authenticated')::text,true);execute 'set local role authenticated';
