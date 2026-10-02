@@ -326,8 +326,8 @@
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-cases.py": {
       "git_blob": null,
-      "sha256": "34cc684268e4ee5b9613ba4a3cdf2ff310c33d34b737e009f58f0e765c737266",
-      "size": 18037
+      "sha256": "9355950e6c6b291de0b2110a43e9d62053be355ee67d12c3f589e350b0b009f3",
+      "size": 18036
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-guard-test.py": {
       "git_blob": null,
