@@ -56,6 +56,64 @@ const tablePaths = new Set(
 );
 const scopeRpc = '/rest/v1/rpc/read_operations_scope_obligation_evidence_v1';
 const leafRpc = '/rest/v1/rpc/read_operations_scope_obligation_drilldown_v1';
+const writeKinds = [
+  'auth_post',
+  'rpc_post',
+  'function_post',
+  'rest_write',
+  'browser_origin_write',
+  'foreign_write',
+  'other_source_write',
+];
+const forwardStages = [
+  'headers',
+  'authorization',
+  'rpc_shape',
+  'native_fetch',
+  'native_body',
+  'native_fulfill',
+];
+const readKinds = [
+  ...[...tablePaths].map((path) => path.slice('/rest/v1/'.length)),
+  'scope',
+  'leaf',
+  'unknown_leaf',
+  'preflight',
+];
+export function classifyMountedWrite(url, app) {
+  const u = new URL(url);
+  if (u.origin === app) return 'browser_origin_write';
+  if (u.origin !== SOURCE_ORIGIN) return 'foreign_write';
+  if (u.pathname.startsWith('/auth/v1/')) return 'auth_post';
+  if (u.pathname.startsWith('/rest/v1/rpc/')) return 'rpc_post';
+  if (u.pathname.startsWith('/functions/v1/')) return 'function_post';
+  if (u.pathname.startsWith('/rest/v1/')) return 'rest_write';
+  return 'other_source_write';
+}
+export function mountedFailureCounts(writes, failures) {
+  const writeCounts = Object.fromEntries(writeKinds.map((key) => [key, 0]));
+  const forwardCounts = Object.fromEntries(
+    forwardStages.map((key) => [key, 0]),
+  );
+  const forwardKinds = Object.fromEntries(readKinds.map((key) => [key, 0]));
+  for (const kind of writes) {
+    assert(Object.hasOwn(writeCounts, kind));
+    writeCounts[kind] = Math.min(1000, writeCounts[kind] + 1);
+  }
+  for (const failure of failures) {
+    exact(failure, ['stage', 'kind']);
+    assert(
+      Object.hasOwn(forwardCounts, failure.stage) &&
+        Object.hasOwn(forwardKinds, failure.kind),
+    );
+    forwardCounts[failure.stage] = Math.min(
+      1000,
+      forwardCounts[failure.stage] + 1,
+    );
+    forwardKinds[failure.kind] = Math.min(1000, forwardKinds[failure.kind] + 1);
+  }
+  return { writeCounts, forwardCounts, forwardKinds };
+}
 export function allowedMountedRead(url, method) {
   const u = new URL(url);
   if (u.origin !== SOURCE_ORIGIN || u.username || u.password || u.hash)
@@ -233,17 +291,31 @@ async function setupBrowser(browser, app, backend, secret, actor, selectors) {
     }
     if (!allowedMountedRead(req.url(), method)) {
       if (!['GET', 'HEAD', 'OPTIONS'].includes(method))
-        refusedWrites.push(u.pathname);
+        refusedWrites.push(classifyMountedWrite(req.url(), app));
       await route.abort('blockedbyclient');
       return;
     }
+    let forwardingStage = 'headers';
+    let diagnosticKind =
+      method === 'OPTIONS'
+        ? 'preflight'
+        : tablePaths.has(u.pathname)
+          ? u.pathname.slice('/rest/v1/'.length)
+          : u.pathname === scopeRpc
+            ? 'scope'
+            : 'leaf';
     try {
       const headers = await req.allHeaders();
+      forwardingStage = 'authorization';
       if (method !== 'OPTIONS')
         assert(headers.authorization === `Bearer ${signed}`);
       let kind = 'table';
-      if (method === 'POST')
+      if (method === 'POST') {
+        forwardingStage = 'rpc_shape';
         kind = validateMountedRpc(u.pathname, req.postData(), selectors);
+        diagnosticKind = kind;
+      }
+      forwardingStage = 'native_fetch';
       const response = await fetch(
         `${backend}${u.pathname.slice('/rest/v1'.length)}${u.search}`,
         {
@@ -254,6 +326,7 @@ async function setupBrowser(browser, app, backend, secret, actor, selectors) {
           ...(method === 'POST' ? { body: req.postDataBuffer() } : {}),
         },
       );
+      forwardingStage = 'native_body';
       const body = await boundedBody(response);
       const responseHeaders = Object.fromEntries(response.headers.entries());
       for (const key of [
@@ -265,13 +338,14 @@ async function setupBrowser(browser, app, backend, secret, actor, selectors) {
       if (method !== 'OPTIONS')
         observations.push({ kind, path: u.pathname, status: response.status });
       // Body and HTTP status originate exclusively from genuine native PostgREST.
+      forwardingStage = 'native_fulfill';
       await route.fulfill({
         status: response.status,
         headers: responseHeaders,
         body,
       });
     } catch {
-      failures.push('genuine_forward_boundary');
+      failures.push({ stage: forwardingStage, kind: diagnosticKind });
       await route.abort('failed');
     }
   });
@@ -304,6 +378,8 @@ async function setupBrowser(browser, app, backend, secret, actor, selectors) {
 }
 let phase = 'isolated mounted guard',
   count = 0;
+let failedBoundary = 'unknown',
+  diagnosticSource = null;
 const passed = () => {
   count++;
   console.log(JSON.stringify({ case: phase, result: 'PASS' }));
@@ -355,6 +431,7 @@ async function main() {
       selectors,
     );
     contexts.push(test.context);
+    diagnosticSource = test;
     const { page } = test;
     await page.goto(`${app}/project/${selectors.projectId}/economy`, {
       waitUntil: 'domcontentloaded',
@@ -533,6 +610,7 @@ async function main() {
           selectors,
         );
         contexts.push(foreign.context);
+        diagnosticSource = foreign;
         await foreign.page.goto(
           `${app}/project/${selectors.projectId}/economy`,
           { waitUntil: 'domcontentloaded', timeout: 30000 },
@@ -557,6 +635,7 @@ async function main() {
           selectors,
         );
         contexts.push(projectUser.context);
+        diagnosticSource = projectUser;
         await projectUser.page.goto(
           `${app}/project/${selectors.projectId}/economy`,
           { waitUntil: 'domcontentloaded', timeout: 30000 },
@@ -580,6 +659,7 @@ async function main() {
         );
         passed();
         phase = 'native admin role revocation denies fresh mounted scope read';
+        diagnosticSource = test;
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
         await expect(scope).toBeVisible({ timeout: 30000 });
         await scope
@@ -612,7 +692,12 @@ async function main() {
     }
     phase =
       'actual route journey sends no financial writes and preserves saved evidence';
-    assert(test.refusedWrites.length === 0 && test.failures.length === 0);
+    diagnosticSource = test;
+    failedBoundary = 'writes';
+    assert(test.refusedWrites.length === 0);
+    failedBoundary = 'forward';
+    assert(test.failures.length === 0);
+    failedBoundary = 'evidence_state';
     const after = await control(controls, privateToken, 'state');
     assert(JSON.stringify(before) === JSON.stringify(after));
     passed();
@@ -639,6 +724,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         result: 'FAIL',
         case: phase,
         reason: 'mounted browser proof failed',
+        boundary: failedBoundary,
+        ...mountedFailureCounts(
+          diagnosticSource?.refusedWrites ?? [],
+          diagnosticSource?.failures ?? [],
+        ),
       }),
     );
     process.exitCode = 1;

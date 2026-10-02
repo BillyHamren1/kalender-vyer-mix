@@ -134,6 +134,33 @@ class BoundaryTests(unittest.TestCase):
                     json.dumps({'case': module.CASES['enabled'][0], 'result': 'PASS', 'invoice': 'PRIVATE_BODY'})):
             self.assertEqual(module.failed_browser_phase(raw, 'enabled'), 'actual_mounted_browser_enabled; accepted_prefix=unclassified')
 
+    def test_closed_actual_boundary_split_preserves_failure_and_rejects_private_fields(self):
+        raw = json.dumps(proof('disabled')[0])
+        diagnostic = {'result': 'FAIL', 'case': module.COMMON, 'reason': 'mounted browser proof failed',
+                      'boundary': 'writes', 'writeCounts': dict.fromkeys(module.WRITE_KINDS, 0),
+                      'forwardCounts': dict.fromkeys(module.FORWARD_STAGES, 0),
+                      'forwardKinds': dict.fromkeys(module.READ_KINDS, 0)}
+        diagnostic['writeCounts']['auth_post'] = 2
+        label = module.failed_browser_phase(raw, 'disabled', json.dumps(diagnostic))
+        self.assertIn('accepted_prefix=1', label)
+        self.assertIn('boundary=writes; writeCounts=auth_post:2', label)
+        self.assertIn('forwardCounts=none; forwardKinds=none', label)
+        bad_values = []
+        for field, value in [('case', 'PRIVATE_PATH'), ('reason', 'PRIVATE_ERROR'), ('boundary', 'PRIVATE_SECRET')]:
+            bad_values.append(dict(diagnostic, **{field: value}))
+        bad_values.append(dict(diagnostic, rawBody='PRIVATE_BODY'))
+        bad = copy.deepcopy(diagnostic)
+        bad['writeCounts']['auth_post'] = True
+        bad_values.append(bad)
+        bad = copy.deepcopy(diagnostic)
+        bad['forwardKinds']['PRIVATE_PATH'] = 1
+        bad_values.append(bad)
+        for bad in bad_values:
+            with self.subTest(bad=bad):
+                actual = module.failed_browser_phase(raw, 'disabled', json.dumps(bad))
+                self.assertTrue(actual.endswith('; boundary=unclassified'))
+                self.assertNotIn('PRIVATE', actual)
+
     def test_build_settings_independent_gates_no_secrets_or_other_cost_flags(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allowedMountedRead,
+  classifyMountedWrite,
+  mountedFailureCounts,
   assertMountedEndpoint,
   validateMountedRpc,
   validateMountedSelectors,
@@ -60,6 +62,46 @@ test('exact loopback endpoints refuse foreign host/ports/paths before any networ
   } finally {
     globalThis.fetch = saved;
   }
+});
+test('closed diagnostic buckets never contain a request path, secret or exception', () => {
+  const app = 'http://127.0.0.1:55612';
+  for (const [url, kind] of [
+    [`${origin}/auth/v1/token?secret=PRIVATE`, 'auth_post'],
+    [`${origin}/rest/v1/rpc/PRIVATE_RPC`, 'rpc_post'],
+    [`${origin}/functions/v1/PRIVATE_FUNCTION`, 'function_post'],
+    [`${origin}/rest/v1/PRIVATE_TABLE`, 'rest_write'],
+    [`${origin}/PRIVATE_PATH`, 'other_source_write'],
+    [`${app}/PRIVATE_PATH`, 'browser_origin_write'],
+    ['https://PRIVATE.invalid/PRIVATE_PATH', 'foreign_write'],
+  ])
+    assert.equal(classifyMountedWrite(url, app), kind);
+  const counts = mountedFailureCounts(
+    ['auth_post', 'auth_post', 'rpc_post'],
+    [
+      { stage: 'authorization', kind: 'profiles' },
+      { stage: 'native_fulfill', kind: 'project_labor_costs' },
+    ],
+  );
+  assert.equal(counts.writeCounts.auth_post, 2);
+  assert.equal(counts.writeCounts.rpc_post, 1);
+  assert.equal(counts.forwardCounts.authorization, 1);
+  assert.equal(counts.forwardKinds.project_labor_costs, 1);
+  assert.equal(JSON.stringify(counts).includes('PRIVATE'), false);
+  assert.equal(
+    mountedFailureCounts(Array(1001).fill('auth_post'), []).writeCounts
+      .auth_post,
+    1000,
+  );
+  assert.throws(() => mountedFailureCounts(['PRIVATE_PATH'], []));
+  assert.throws(() =>
+    mountedFailureCounts([], [{ stage: 'PRIVATE_ERROR', kind: 'profiles' }]),
+  );
+  assert.throws(() =>
+    mountedFailureCounts(
+      [],
+      [{ stage: 'native_fetch', kind: 'PRIVATE_TABLE' }],
+    ),
+  );
 });
 test('only exact native read paths and methods may be forwarded', () => {
   assert.equal(

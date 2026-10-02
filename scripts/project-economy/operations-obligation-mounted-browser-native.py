@@ -45,6 +45,14 @@ CASES = {
 FIXED = {'PROJECT_EVIDENCE_DATABASE_NAME': DATABASE,
          'PROJECT_EVIDENCE_POSTGREST_URL': 'http://127.0.0.1:55610/',
          'PROJECT_EVIDENCE_CONTROL_URL': 'http://127.0.0.1:55611/'}
+WRITE_KINDS = ('auth_post', 'rpc_post', 'function_post', 'rest_write',
+               'browser_origin_write', 'foreign_write', 'other_source_write')
+FORWARD_STAGES = ('headers', 'authorization', 'rpc_shape', 'native_fetch', 'native_body', 'native_fulfill')
+READ_KINDS = ('profiles', 'user_roles', 'projects', 'bookings', 'large_projects',
+              'project_budget', 'project_purchases', 'project_labor_costs',
+              'project_staff_time_cost_lines', 'product_cost_overrides', 'project_billing',
+              'project_tasks', 'project_files', 'project_activity_log',
+              'scope', 'leaf', 'unknown_leaf', 'preflight')
 
 
 class ClosedFailure(RuntimeError):
@@ -105,7 +113,7 @@ def proof(raw, mode):
     return values
 
 
-def failed_browser_phase(raw, mode):
+def failed_browser_phase(raw, mode, diagnostic_raw=''):
     """Only an exact accepted prefix count/fixed next label; never print raw errors."""
     try:
         require(len(raw.encode()) <= 16384, 'bounded_failure_prefix')
@@ -114,7 +122,28 @@ def failed_browser_phase(raw, mode):
         require(values == [{'case': case, 'result': 'PASS'} for case in CASES[mode][:len(values)]],
                 'exact_failure_prefix')
         next_case = CASES[mode][len(values)] if len(values) < len(CASES[mode]) else 'terminal completion'
-        return 'actual_mounted_browser_' + mode + '; accepted_prefix=' + str(len(values)) + '; next=' + next_case
+        label = 'actual_mounted_browser_' + mode + '; accepted_prefix=' + str(len(values)) + '; next=' + next_case
+        if not diagnostic_raw:
+            return label
+        try:
+            require(len(diagnostic_raw.encode()) <= 8192, 'bounded_failure_diagnostic')
+            diagnostic = json.loads(diagnostic_raw)
+            require(isinstance(diagnostic, dict) and set(diagnostic) ==
+                    {'result', 'case', 'reason', 'boundary', 'writeCounts', 'forwardCounts', 'forwardKinds'}, 'exact_failure_diagnostic')
+            require(diagnostic['result'] == 'FAIL' and diagnostic['reason'] == 'mounted browser proof failed'
+                    and diagnostic['case'] in (*CASES[mode], 'isolated mounted guard')
+                    and diagnostic['boundary'] in ('unknown', 'writes', 'forward', 'evidence_state'), 'fixed_failure_diagnostic')
+            for field, keys in (('writeCounts', WRITE_KINDS), ('forwardCounts', FORWARD_STAGES), ('forwardKinds', READ_KINDS)):
+                counts = diagnostic[field]
+                require(isinstance(counts, dict) and set(counts) == set(keys)
+                        and all(type(counts[key]) is int and 0 <= counts[key] <= 1000 for key in keys), 'fixed_diagnostic_counts')
+            label += '; boundary=' + diagnostic['boundary']
+            for field, keys in (('writeCounts', WRITE_KINDS), ('forwardCounts', FORWARD_STAGES), ('forwardKinds', READ_KINDS)):
+                entries = [key + ':' + str(diagnostic[field][key]) for key in keys if diagnostic[field][key]]
+                label += '; ' + field + '=' + (','.join(entries) if entries else 'none')
+            return label
+        except Exception:
+            return label + '; boundary=unclassified'
     except Exception:
         return 'actual_mounted_browser_' + mode + '; accepted_prefix=unclassified'
 
@@ -239,7 +268,7 @@ def command(args, env, phase, timeout=30, data=None):
         require(out.stat().st_size <= 4194304 and err.stat().st_size <= 4194304, phase)
         if child.returncode != 0:
             mode = next((mode for mode in CASES if phase == 'actual_mounted_browser_' + mode), None)
-            label = failed_browser_phase(out.read_text(), mode) if mode is not None else phase
+            label = failed_browser_phase(out.read_text(), mode, err.read_text()) if mode is not None else phase
             raise ClosedFailure(label)
         return out.read_text()
     except (OSError, ValueError):
