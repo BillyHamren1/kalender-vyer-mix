@@ -5,6 +5,8 @@ on:
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/local-invoice-obligation-kernel-evidence*'
+      - 'supabase/migrations/*operations_invoice_obligation_kernel_read*.sql'
       - 'supabase/functions/_shared/project-obligation-credit-assignment*'
       - 'supabase/functions/_shared/project-obligation-credit-capacity*'
       - 'supabase/migrations/*operations_obligation_credit_capacity*.sql'
@@ -296,6 +298,26 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002035730_operations_catering_project_read_v3.sql
           psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-project-read-v3-postgres-test.sql
+      - name: Actual captured invoice evidence to unchanged Operations obligation kernel
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql
+          deno check scripts/project-economy/operations-invoice-kernel-vector-test.ts
+          python3 - <<'PY_KERNEL'
+          import subprocess,json
+          from pathlib import Path
+          fixture=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          source=Path('scripts/project-economy/operations-invoice-obligation-kernel-postgres-test.sql').read_text()
+          old='select label,evidence::text from kernel_vectors order by label;'
+          if source.count(old)!=1:raise SystemExit('Exact kernel vector output selector required')
+          source=source.replace(old,"select jsonb_agg(jsonb_build_object('label',label,'evidence',evidence::text) order by label)::text from kernel_vectors;")
+          result=subprocess.run(['psql','-X','-At','-v','ON_ERROR_STOP=1','-v','fixture='+fixture],input=source,text=True,capture_output=True)
+          if result.returncode:raise SystemExit('Actual isolated kernel SQL failed; no partial vector acceptance')
+          rows=[json.loads(line) for line in result.stdout.splitlines() if line.startswith('[{')]
+          if len(rows)!=1 or len(rows[0])!=6 or 'operations-invoice-obligation-kernel-postgres PASS' not in result.stdout:raise SystemExit('Six native SQL vectors and complete fixture result required')
+          Path('/tmp/invoice-kernel-vectors.json').write_text(json.dumps(rows[0]))
+          print('Actual native invoice kernel SQL all assertions PASS; six original response strings captured')
+          PY_KERNEL
+          deno run --allow-read scripts/project-economy/operations-invoice-kernel-vector-test.ts /tmp/invoice-kernel-vectors.json
   invoice-source-barrier-native:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -464,3 +486,67 @@ jobs:
           PY_NATIVE_OWN
           PGOPTIONS='-c eventflow.credit_capacity_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-capacity-native-setup.sql
           bash scripts/project-economy/operations-credit-capacity-native-concurrency.sh
+
+  invoice-kernel-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_kernel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_kernel_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_INVOICE_KERNEL_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Actual invoice kernel read versus policy, baseline and source transactions
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql \
+            supabase/migrations/20261002025617_operations_obligation_source_policy.sql \
+            supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          PGOPTIONS='-c eventflow.invoice_kernel_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-kernel-native-setup.sql
+          bash scripts/project-economy/operations-invoice-kernel-native-concurrency.sh
+
