@@ -1,0 +1,64 @@
+name: Operations compatible catalog restricted HTTP native proof
+on:
+  pull_request:
+    paths:
+      - 'scripts/project-economy/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/_shared/project-scope-invoice-*.ts'
+      - 'docs/project-economy/operations-compatible-catalog-http-native-contract.md'
+      - '.github/workflows/operations-compatible-catalog-http-native.yml'
+permissions:
+  contents: read
+jobs:
+  actual-finite-catalog-restricted-http-readers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_compatible_install_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_compatible_install_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_compatible_install_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_CATALOG_HTTP_ISOLATED_DB: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact finite closure and restricted HTTP resource denial controls
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-catalog-http-native.guard.test.py
+          deno check --no-config scripts/project-economy/operations-compatible-catalog-http-journey.ts
+          deno test --no-config scripts/project-economy/operations-compatible-catalog-http-journey.test.ts
+      - name: Actual restricted connection eight public HTTP readers and complete neutrality
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          python3 --version
+          deno --version
+          PGCONNECT_TIMEOUT=5 PGOPTIONS='-c statement_timeout=5000' psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-catalog-http-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
