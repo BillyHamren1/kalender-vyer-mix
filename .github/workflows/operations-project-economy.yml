@@ -5,6 +5,12 @@ on:
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/project-obligation-credit-assignment*'
+      - 'supabase/functions/_shared/project-obligation-credit-capacity*'
+      - 'supabase/migrations/*operations_obligation_credit_capacity*.sql'
+      - 'supabase/migrations/*operations_obligation_credit_assignment*.sql'
+      - 'src/lib/economy/projectCateringEvidenceParity*'
+      - 'src/components/project/OperationsCateringEvidenceParityPanel*'
       - 'supabase/functions/_shared/project-cost-obligation-authority*'
       - 'supabase/functions/_shared/project-obligation-source-policy*'
       - 'supabase/functions/_shared/project-scope-obligation-composition*'
@@ -253,6 +259,30 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024013_operations_catering_finance_delivery_v1.sql
           CATERING_PROJECT_ECONOMY_ISOLATED_TEST=true deno run --allow-env scripts/project-economy/catering-finance-fixture.ts > /tmp/catering-finance-fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f /tmp/catering-finance-fixture.sql -f scripts/project-economy/catering-finance-delivery-postgres-test.sql
+      - name: Actual authenticated own credit assignment and immutable source relationship proof
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql
+          python3 - <<'PY_OWN_CREDIT'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-assignment-postgres-test.sql'],check=True)
+          PY_OWN_CREDIT
+      - name: Actual immutable own credit capacity and retained source reservations
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002042005_operations_obligation_credit_capacity.sql
+          python3 - <<'PY_CAPACITY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-credit-capacity-postgres-test.sql'],check=True)
+          PY_CAPACITY
+      - name: Native Catering protected current rows and persistent opaque withdrawal
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002035730_operations_catering_project_read_v3.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-project-read-v3-postgres-test.sql
   invoice-source-barrier-native:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -300,3 +330,124 @@ jobs:
           done
           PGOPTIONS='-c eventflow.invoice_barrier_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-barrier-native-setup.sql
           bash scripts/project-economy/operations-invoice-barrier-native-concurrency.sh
+  own-credit-authority-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_OWN_CREDIT_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Genuine authenticated own credit source assignment concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          bash scripts/project-economy/operations-own-credit-native-concurrency.sh
+
+  own-credit-capacity-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_capacity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_capacity_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_CREDIT_CAPACITY_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Genuine distinct credit original capacity and source correction concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql \
+            supabase/migrations/20261002042005_operations_obligation_credit_capacity.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          PGOPTIONS='-c eventflow.credit_capacity_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-capacity-native-setup.sql
+          bash scripts/project-economy/operations-credit-capacity-native-concurrency.sh

@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       'src/lib/economy/projectCostEvidence.test.ts',
       'src/lib/economy/projectNativeCostEvidence.test.ts',
+      'src/lib/economy/projectCateringEvidenceParity.test.ts',
       'supabase/functions/_shared/project-booking-commercial-read.test.ts',
       'supabase/functions/_shared/project-booking-commercial-read-client.test.ts',
       'supabase/functions/_shared/project-personnel-cost.test.ts',
@@ -14,6 +15,8 @@ export default defineConfig({
       'supabase/functions/_shared/project-cost-obligations.test.ts',
       'supabase/functions/_shared/project-cost-obligation-authority.test.ts',
       'supabase/functions/_shared/project-obligation-source-policy.test.ts',
+      'supabase/functions/_shared/project-obligation-credit-assignment.test.ts',
+      'supabase/functions/_shared/project-obligation-credit-capacity.test.ts',
       'supabase/functions/_shared/project-scope-obligation-composition.test.ts',
       'supabase/functions/_shared/project-operational-eac.test.ts',
       'supabase/functions/_shared/canonical-project-scope.test.ts',
