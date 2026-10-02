@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fresh finite installed readers through a restricted actual HTTP connection."""
-import hashlib, http.client, importlib.util, json, os, pathlib, re, secrets, shutil, socket, sys, tempfile, time
+import hashlib, http.client, importlib.util, json, os, pathlib, re, secrets, shutil, socket, stat, sys, tempfile, time
 ROOT=pathlib.Path(__file__).resolve().parent.parent.parent
 PREFIX='scripts/project-economy/operations-compatible-catalog-http-'
 BASE='scripts/project-economy/operations-compatible-full-catalog-native-closure.json'
@@ -16,9 +16,29 @@ PHASES={'guard','closure','fresh','schema','setup','first','six','fixture','conn
 CODES={'unclassified','22023','42501','55000','P0001','55P03','57014','40P01','25P02','PT409'}
 HTTP_MARKERS=['operations-compatible-catalog-http PASS exact_eight_public_and_one_absence_copied_null_evidence','operations-compatible-catalog-http PASS denials18_roles_signature_expiry_tenant_metadata_stale_private']
 CONTROL_MARKERS={s:'operations-compatible-catalog-http PASS control_'+s+'_actual_denial' for s in ('gate_disabled','admin_removed','profile_foreign')}
+CHECKPOINTS={'none','capture_tablelist','capture_snapshot'}
+REASONS={'unclassified','owned_output_at_cap'}
 class ClosedFailure(Exception):
- def __init__(self,phase,code='unclassified'):
-  self.phase=phase if type(phase) is str and phase in PHASES else 'guard';self.code=code if type(code) is str and code in CODES else 'unclassified';super().__init__('closed_catalog_http_failure')
+ def __init__(self,phase,code='unclassified',checkpoint='none',reason='unclassified'):
+  self.phase=phase if type(phase) is str and phase in PHASES else 'guard';self.code=code if type(code) is str and code in CODES else 'unclassified';self.checkpoint=checkpoint if type(checkpoint) is str and checkpoint in CHECKPOINTS else 'none';self.reason=reason if type(reason) is str and reason in REASONS else 'unclassified';super().__init__('closed_catalog_http_failure')
+def failed_child_output_reason(where,parent_identity):
+ # No output bytes or exception properties are read. Frozen child cleanup has completed.
+ descriptor=None
+ try:
+  parent=where.lstat()
+  if where.resolve()!=where or not stat.S_ISDIR(parent.st_mode) or stat.S_IMODE(parent.st_mode)!=0o700 or parent.st_uid!=os.geteuid() or (parent.st_dev,parent.st_ino)!=parent_identity:return 'unclassified'
+  descriptor=os.open(where/'authority_sql.stdout',os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+  info=os.fstat(descriptor);leaf=(where/'authority_sql.stdout').lstat()
+  if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode)!=0o600 or info.st_uid!=os.geteuid() or info.st_nlink!=1 or info.st_size!=8388608:return 'unclassified'
+  if (leaf.st_dev,leaf.st_ino)!= (info.st_dev,info.st_ino):return 'unclassified'
+  last=os.fstat(descriptor);final=(where/'authority_sql.stdout').lstat();parent=where.lstat()
+  if (parent.st_dev,parent.st_ino)!=parent_identity or parent.st_uid!=os.geteuid() or stat.S_IMODE(parent.st_mode)!=0o700 or not stat.S_ISDIR(parent.st_mode):return 'unclassified'
+  if (final.st_dev,final.st_ino,final.st_uid,final.st_nlink,final.st_mode,final.st_size)!=(last.st_dev,last.st_ino,last.st_uid,last.st_nlink,last.st_mode,last.st_size) or not stat.S_ISREG(last.st_mode) or last.st_uid!=os.geteuid() or last.st_nlink!=1 or stat.S_IMODE(last.st_mode)!=0o600 or last.st_size!=8388608:return 'unclassified'
+  return 'owned_output_at_cap'
+ except Exception:return 'unclassified'
+ finally:
+  if descriptor is not None:os.close(descriptor)
+
 def module(path,name):
  spec=importlib.util.spec_from_file_location(name,path);v=importlib.util.module_from_spec(spec);spec.loader.exec_module(v);return v
 def validate_environment(env):
@@ -71,19 +91,19 @@ def remove_private(private):
  except Exception:raise ClosedFailure('cleanup') from None
 def run_native(env):
  validate_environment(env);closure=load_source();base=module(ROOT/BASE_RUNNER,'catalog_http_frozen_full');atomic=base.module(ROOT/base.RUNNER,'catalog_http_frozen_atomic');shared=atomic.shared_module();verify=base.module(ROOT/(base.PREFIX+'verify.py'),'catalog_http_frozen_verifier')
- private=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-catalog-http-',dir='/tmp'));private.chmod(0o700);serial=0;retain=True
+ private=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-catalog-http-',dir='/tmp'));private.chmod(0o700);serial=0;retain=True;checkpoint='none'
  pg=dict(env,PGCONNECT_TIMEOUT='5',LC_ALL='C');psql=['psql','-X','--no-password','--set','ON_ERROR_STOP=1','--set','VERBOSITY=verbose','-Atq']
  name='operations-catalog-http-'+secrets.token_hex(12);label=secrets.token_hex(32);container_id=None;attempted=False
  def call(phase,command,child_env,timeout=90,stdin=None):
   nonlocal serial
-  serial+=1;where=private/(str(serial)+'-'+phase);where.mkdir(mode=0o700)
+  serial+=1;where=private/(str(serial)+'-'+phase);where.mkdir(mode=0o700);parent=where.lstat();parent_identity=(parent.st_dev,parent.st_ino)
   try:return shared.run_private('authority_sql',command,child_env,ROOT,where,timeout,stdin)
-  except Exception as e:raise ClosedFailure(phase,e.code if type(e) is shared.ClosedFailure else 'unclassified') from None
+  except Exception as e:raise ClosedFailure(phase,e.code if type(e) is shared.ClosedFailure else 'unclassified',checkpoint if phase=='capture' else 'none',failed_child_output_reason(where,parent_identity) if phase=='capture' else 'unclassified') from None
  def sql(phase,text,child_env=pg):return call(phase,psql,child_env,90,text.encode())
  def json_line(path):
-  if path.stat().st_size>8388608:raise ClosedFailure('capture')
+  if path.stat().st_size>8388608:raise ClosedFailure('capture',checkpoint=checkpoint)
   lines=path.read_text().splitlines()
-  if len(lines)!=1:raise ClosedFailure('capture')
+  if len(lines)!=1:raise ClosedFailure('capture',checkpoint=checkpoint)
   return json.loads(lines[0])
  def expect_denied(statement,child_env):
   try:sql('connection',statement,child_env)
@@ -127,18 +147,21 @@ def run_native(env):
   fixture=json_line(sql('fixture',options()+"select jsonb_agg(jsonb_build_object('slot',slot,'document',document) order by slot) from operations_catalog_http_fixture.capture;"))
   fixture_path=private/'fixture.json';fixture_path.write_text(json.dumps(fixture,separators=(',',':')));fixture_path.chmod(0o600)
   table_query="select coalesce(jsonb_agg(n.nspname||'.'||c.relname order by n.nspname collate \"C\",c.relname collate \"C\"),'[]'::jsonb) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname not in ('pg_catalog','information_schema') and n.nspname !~ '^pg_(toast|temp)' and c.relkind in ('r','p');"
+  checkpoint='capture_tablelist'
   tables=json_line(sql('capture',options()+table_query))
-  if type(tables) is not list or not tables or len(tables)>256 or len(set(tables))!=len(tables) or any(type(t) is not str or not re.fullmatch(r'[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*',t) for t in tables):raise ClosedFailure('capture')
+  if type(tables) is not list or not tables or len(tables)>256 or len(set(tables))!=len(tables) or any(type(t) is not str or not re.fullmatch(r'[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*',t) for t in tables):raise ClosedFailure('capture',checkpoint=checkpoint)
   def capture():
+   nonlocal checkpoint
+   checkpoint='capture_snapshot'
    query=options()+'begin isolation level repeatable read read only;'+table_query+'\n'+(ROOT/(base.PREFIX+'read.sql')).read_text()+'\n'
    for t in tables:
     schema,table=t.split('.');query+="select jsonb_build_object('identity',"+atomic.sql_string(t)+",'count',count(*),'sha256',encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text collate \"C\"),'[]'::jsonb)::text,'UTF8')),'hex')) from \""+schema+'"."'+table+'" t;\n'
    path=sql('capture',query+'commit;')
-   if path.stat().st_size>8388608:raise ClosedFailure('capture')
+   if path.stat().st_size>8388608:raise ClosedFailure('capture',checkpoint=checkpoint)
    lines=path.read_text().splitlines()
-   if len(lines)!=len(tables)+2 or json.loads(lines[0])!=tables:raise ClosedFailure('capture')
+   if len(lines)!=len(tables)+2 or json.loads(lines[0])!=tables:raise ClosedFailure('capture',checkpoint=checkpoint)
    metadata=verify.parse(lines[1]);business=[json.loads(s) for s in lines[2:]]
-   if [r.get('identity') for r in business]!=tables or any(set(r)!={'identity','count','sha256'} or type(r['count']) is not int or not 0<=r['count']<=10000 or type(r['sha256']) is not str or not re.fullmatch(r'[0-9a-f]{64}',r['sha256']) for r in business):raise ClosedFailure('capture')
+   if [r.get('identity') for r in business]!=tables or any(set(r)!={'identity','count','sha256'} or type(r['count']) is not int or not 0<=r['count']<=10000 or type(r['sha256']) is not str or not re.fullmatch(r'[0-9a-f]{64}',r['sha256']) for r in business):raise ClosedFailure('capture',checkpoint=checkpoint)
    return metadata,business
   before,business=capture()
   budget=call('budget',['deno','test','--no-config',str(ROOT/(PREFIX+'journey.test.ts'))],env,90)
@@ -188,5 +211,6 @@ def main(env=None):
   return 0
  except Exception as e:
   phase=e.phase if type(e) is ClosedFailure else 'guard';code=e.code if type(e) is ClosedFailure else 'unclassified'
-  print('operations-compatible-catalog-http-native FAIL '+phase+' SQLSTATE='+code);return 1
+  checkpoint=e.checkpoint if type(e) is ClosedFailure else 'none';reason=e.reason if type(e) is ClosedFailure else 'unclassified'
+  print('operations-compatible-catalog-http-native FAIL '+phase+' SQLSTATE='+code+' CHECKPOINT='+checkpoint+' REASON='+reason);return 1
 if __name__=='__main__':sys.exit(main())

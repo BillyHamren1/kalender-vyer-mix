@@ -137,8 +137,8 @@
     "scripts/project-economy/operations-compatible-catalog-http-setup.sql": "98c4b24689acacbc344175750b0f5fdb0410377b6a1e42c1a622361bb080d1f1",
     "scripts/project-economy/operations-compatible-catalog-http-journey.ts": "b129836b8bb36182585fe044020b5d72b1957d254dac41ace1be98b8ea25155c",
     "scripts/project-economy/operations-compatible-catalog-http-journey.test.ts": "8b9e79ec9e79688ac72a7fb448c0d464491cea04682ddabf0f0e00e23bea1c85",
-    "scripts/project-economy/operations-compatible-catalog-http-native.py": "a874d484ee0f12d0ad4e2cfc5edfad0a48a1d6c7a8f449a03d0d735e505e313b",
-    "scripts/project-economy/operations-compatible-catalog-http-native.guard.test.py": "bc49e763a3ca3ce92a5d9a161675ebf7a5029440e76c35c71f8e46b3fbae421a",
+    "scripts/project-economy/operations-compatible-catalog-http-native.py": "3a57fee9d88e9a7d02759fc0e1adf8b9a89865b5516b32be75244eed8e43db67",
+    "scripts/project-economy/operations-compatible-catalog-http-native.guard.test.py": "11a541df97945a913d03651a625912b077ef2c79bdedfc84e965db9f01ae36d8",
     "docs/project-economy/operations-compatible-catalog-http-native-contract.md": "905599e765e3b262057800fbd6d2fc637c884cbe78cf6cc20c99d7615df91449"
   }
 }

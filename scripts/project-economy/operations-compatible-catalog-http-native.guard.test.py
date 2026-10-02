@@ -54,7 +54,7 @@ class Guards(unittest.TestCase):
   for e in (Hostile(),FileExistsError('PRIVATE_PATH')):
    out=io.StringIO()
    with mock.patch.object(r,'run_native',side_effect=e),contextlib.redirect_stdout(out):self.assertEqual(r.main(environment()),1)
-   self.assertEqual(out.getvalue(),'operations-compatible-catalog-http-native FAIL guard SQLSTATE=unclassified\n')
+   self.assertEqual(out.getvalue(),'operations-compatible-catalog-http-native FAIL guard SQLSTATE=unclassified CHECKPOINT=none REASON=unclassified\n')
   self.assertEqual(calls,[])
  def test_setup_retains_actual_null_command_and_authenticator_restrictions(self):
   text=(r.ROOT/(r.PREFIX+'setup.sql')).read_text()
@@ -94,7 +94,7 @@ class Guards(unittest.TestCase):
      if scenario=='recreated':real(path);path.mkdir();(path/'recovery').write_text('PRIVATE_REPLACED_RECOVERY')
     out=io.StringIO()
     with mock.patch.object(r.shutil,'rmtree',side_effect=mutate),mock.patch.object(r,'run_native',side_effect=lambda env:r.remove_private(private)),contextlib.redirect_stdout(out):self.assertEqual(r.main(environment()),1)
-    self.assertEqual(out.getvalue(),'operations-compatible-catalog-http-native FAIL cleanup SQLSTATE=unclassified\n');self.assertTrue((private/'recovery').exists());self.assertNotIn('PRIVATE',out.getvalue())
+    self.assertEqual(out.getvalue(),'operations-compatible-catalog-http-native FAIL cleanup SQLSTATE=unclassified CHECKPOINT=none REASON=unclassified\n');self.assertTrue((private/'recovery').exists());self.assertNotIn('PRIVATE',out.getvalue())
  def lifecycle(self,fault=None):
   calls=[];owner={};table='operations_catalog_http_fixture.capture'
   class ChildFailure(Exception):
@@ -108,8 +108,18 @@ class Guards(unittest.TestCase):
     elif text.startswith("set statement_timeout='5s';set role ") and ('set role postgres;' in text or 'select * from public.operations_project_obligation_baselines' in text or 'select operations_economy_private.' in text or 'insert into public.operations_scope_obligation_composition_heads' in text):raise ChildFailure('42501')
     elif "select session_user||':'||current_user" in text:value=r.AUTHENTICATOR+':'+next(role for role in ('anon','authenticated','service_role') if 'set role '+role+';' in text)+'\n'
     elif 'select jsonb_agg(jsonb_build_object(\'slot\'' in text:value='[]\n'
-    elif text.startswith(r.options()+'begin isolation level repeatable read read only;'):value=json.dumps([table])+'\n{}\n'+json.dumps({'identity':table,'count':0,'sha256':'a'*64})+'\n'
-    elif 'jsonb_agg(n.nspname' in text:value=json.dumps([table])+'\n'
+    elif text.startswith(r.options()+'begin isolation level repeatable read read only;'):
+     if fault in ('snapshot_cap','snapshot_below_cap'):
+      p=where/'authority_sql.stdout';p.touch();p.chmod(0o600)
+      with p.open('r+b') as output:output.truncate(8388608 if fault=='snapshot_cap' else 8388607)
+      raise ChildFailure('unclassified')
+     value=json.dumps([table])+'\n{}\n'+json.dumps({'identity':table,'count':0,'sha256':'a'*64})+'\n'
+    elif 'jsonb_agg(n.nspname' in text:
+     if fault=='tablelist_cap':
+      p=where/'authority_sql.stdout';p.touch();p.chmod(0o600)
+      with p.open('r+b') as output:output.truncate(8388608)
+      raise ChildFailure('unclassified')
+     value=json.dumps([table])+'\n'
     elif 'select to_jsonb(r)' in text:value='{}\n'
    elif command[:2]==['deno','test']:value='ok | 8 passed | 0 failed\n'
    elif command[:2]==['deno','run']:
@@ -134,7 +144,9 @@ class Guards(unittest.TestCase):
    with mock.patch.object(r,'module',return_value=fake_base),mock.patch.object(r,'health'),mock.patch.object(r.socket,'socket'),mock.patch.object(r.tempfile,'mkdtemp',return_value=str(private)):
     if fault:
      with self.assertRaises(r.ClosedFailure) as denied:r.run_native(environment())
-     self.assertEqual(denied.exception.phase,'docker_verify' if fault=='wrong_version' else 'cleanup')
+     if fault in ('snapshot_cap','snapshot_below_cap','tablelist_cap'):
+      self.assertEqual(denied.exception.phase,'capture');self.assertEqual(denied.exception.code,'unclassified');self.assertEqual(denied.exception.checkpoint,'capture_tablelist' if fault=='tablelist_cap' else 'capture_snapshot');self.assertEqual(denied.exception.reason,'unclassified' if fault=='snapshot_below_cap' else 'owned_output_at_cap')
+     else:self.assertEqual(denied.exception.phase,'docker_verify' if fault=='wrong_version' else 'cleanup')
      return calls
     result=r.run_native(environment())
   self.assertEqual(len(result),3);self.assertEqual(sum(c[0][:2]==['deno','run'] for c in calls),5);self.assertEqual(sum(c[0][:4]==r.DOCKER+['rm'] for c in calls),1)
@@ -142,6 +154,40 @@ class Guards(unittest.TestCase):
   for command,env,stdin in calls:
    self.assertNotIn(env.get('EVENTFLOW_COMPATIBLE_CATALOG_HTTP_JWT_SECRET','PRIVATE_NEVER_MATCH'),command)
   return calls
+ def test_actual_owned_failed_child_cap_checkpoints_do_not_reach_docker_or_http(self):
+  for fault in ('tablelist_cap','snapshot_cap','snapshot_below_cap'):
+   calls=self.lifecycle(fault);self.assertFalse(any(command[0] in ('docker','deno') for command,env,stdin in calls))
+ def test_closed_output_metadata_refuses_symlink_missing_and_near_cap(self):
+  with tempfile.TemporaryDirectory() as td:
+   where=pathlib.Path(td);where.chmod(0o700);info=where.lstat();identity=(info.st_dev,info.st_ino);p=where/'authority_sql.stdout'
+   self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified')
+   for size in (0,8388607,8388608,8388609):
+    with p.open('wb') as output:output.truncate(size)
+    p.chmod(0o600)
+    self.assertEqual(r.failed_child_output_reason(where,identity),'owned_output_at_cap' if size==8388608 else 'unclassified')
+   p.unlink();target=where/'PRIVATE_FOREIGN';target.touch()
+   with target.open('r+b') as output:output.truncate(8388608)
+   p.symlink_to(target);self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified')
+ def test_output_cap_rejects_foreign_metadata_hardlinks_and_replaced_identity(self):
+  with tempfile.TemporaryDirectory() as td:
+   where=pathlib.Path(td);where.chmod(0o700);parent=where.lstat();identity=(parent.st_dev,parent.st_ino);p=where/'authority_sql.stdout'
+   with p.open('wb') as output:output.truncate(8388608)
+   p.chmod(0o600);self.assertEqual(r.failed_child_output_reason(where,identity),'owned_output_at_cap')
+   p.chmod(0o644);self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified');p.chmod(0o600)
+   where.chmod(0o755);self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified');where.chmod(0o700)
+   with mock.patch.object(r.os,'geteuid',return_value=p.lstat().st_uid+1):self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified')
+   q=where/'PRIVATE_HARDLINK';r.os.link(p,q);self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified');q.unlink()
+   self.assertEqual(r.failed_child_output_reason(where,(identity[0],identity[1]+1)),'unclassified')
+   original=r.os.fstat
+   def replace(fd):
+    info=original(fd);p.unlink()
+    with p.open('wb') as output:output.truncate(8388608)
+    p.chmod(0o600);return info
+   with mock.patch.object(r.os,'fstat',side_effect=replace):self.assertEqual(r.failed_child_output_reason(where,identity),'unclassified')
+ def test_fixed_diagnostics_never_emit_unknown_private_values(self):
+  e=r.ClosedFailure('capture','unclassified','PRIVATE_CHECKPOINT','PRIVATE_REASON');out=io.StringIO()
+  with mock.patch.object(r,'run_native',side_effect=e),contextlib.redirect_stdout(out):self.assertEqual(r.main(environment()),1)
+  self.assertEqual(out.getvalue(),'operations-compatible-catalog-http-native FAIL capture SQLSTATE=unclassified CHECKPOINT=none REASON=unclassified\n')
  def test_restricted_no_password_in_child_arguments_and_full_lifecycle(self):self.lifecycle()
  def test_foreign_name_or_replaced_id_never_started_or_removed(self):
   for fault in ('foreign_name','replaced_id'):
