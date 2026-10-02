@@ -509,7 +509,11 @@ async function main() {
           test.observations.some((o) => o.kind === 'leaf' && o.status === 200),
         );
         failedBoundary = 'saved_legacy_headline';
-        await expect(costCard).toHaveText(originalHeadline);
+        // Compare the same rendered-text API used by the original snapshot.
+        await expect(costCard).toHaveText(originalHeadline, {
+          useInnerText: true,
+        });
+        await expect(costCard).toContainText(/700\s*kr/);
         failedBoundary = 'unknown';
         passed();
         phase =
