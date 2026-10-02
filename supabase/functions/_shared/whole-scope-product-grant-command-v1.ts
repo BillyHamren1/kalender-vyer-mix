@@ -42,6 +42,7 @@ const fields = [
   "schema_version",
 ] as const;
 const encoder = new TextEncoder();
+const hasOwn = Object.hasOwn;
 function invalid(): never {
   throw new Error("Invalid whole-scope product grant command");
 }
@@ -117,7 +118,7 @@ export function validateWholeScopeProductGrantCommand(
     )
       invalid();
     const descriptor = descriptors[key];
-    if (!descriptor || !descriptor.enumerable || !("value" in descriptor))
+    if (!descriptor || !descriptor.enumerable || !hasOwn(descriptor, "value"))
       invalid();
     input[key] = descriptor.value;
   }

@@ -337,3 +337,51 @@ Deno.test(
     }
   },
 );
+
+Deno.test(
+  "grant rejects inherited descriptor values without reading them",
+  async () => {
+    let inheritedReads = 0;
+    for (const hostile of [true, false]) {
+      const input = fixture();
+      Object.defineProperty(input, "reason", {
+        enumerable: true,
+        get() {
+          throw new Error("PRIVATE_OWN_ACCESSOR_SENTINEL");
+        },
+      });
+      if (hostile)
+        Object.defineProperty(Object.prototype, "value", {
+          configurable: true,
+          get() {
+            inheritedReads++;
+            throw new Error("PRIVATE_DESCRIPTOR_SENTINEL");
+          },
+        });
+      else
+        Object.defineProperty(Object.prototype, "value", {
+          configurable: true,
+          value: "Inherited valid reason",
+        });
+      try {
+        for (const encode of [
+          validateWholeScopeProductGrantCommand,
+          wholeScopeProductGrantCommandBytes,
+          wholeScopeProductGrantCommandFingerprintBytes,
+          wholeScopeProductGrantCommandFingerprint,
+        ]) {
+          let message = "";
+          try {
+            await encode(input);
+          } catch (error) {
+            message = error instanceof Error ? error.message : "unknown";
+          }
+          assert(message === "Invalid whole-scope product grant command");
+        }
+      } finally {
+        delete (Object.prototype as { value?: unknown }).value;
+      }
+    }
+    assert(inheritedReads === 0);
+  },
+);
