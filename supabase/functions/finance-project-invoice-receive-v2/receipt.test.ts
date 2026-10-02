@@ -54,7 +54,11 @@ Deno.test("unit expired flag rejects response synchronously completed by abort",
   let cancelled = false;
   const fetchImpl: typeof fetch = (_url, init) =>
     new Promise((resolve) => {
-      init?.signal?.addEventListener("abort", () =>
+      const options = init as { signal?: AbortSignal | null } | undefined;
+      if (!(options?.signal instanceof AbortSignal)) {
+        throw new Error("Expected actual AbortSignal");
+      }
+      options.signal.addEventListener("abort", () =>
         resolve(
           new Response(
             new ReadableStream({
