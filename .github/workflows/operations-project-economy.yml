@@ -5,6 +5,11 @@ on:
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/project-cost-obligation-authority*'
+      - 'supabase/functions/_shared/project-obligation-source-policy*'
+      - 'supabase/functions/_shared/project-credit-link-v2-destination*'
+      - 'supabase/migrations/*operations_project_obligation*.sql'
+      - 'supabase/migrations/*operations_obligation_source_policy*.sql'
       - 'supabase/functions/_shared/project-operational-eac*'
       - 'supabase/functions/_shared/canonical-project-scope*'
       - 'supabase/migrations/*operations_project_scope*.sql'
@@ -71,6 +76,7 @@ jobs:
           deno check supabase/functions/finance-project-invoice-receive/index.ts
           deno check supabase/functions/_shared/project-booking-commercial-read.ts supabase/functions/_shared/project-booking-commercial-read-client.ts
           deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
+          deno test supabase/functions/_shared/project-credit-link-v2-destination.test.ts
       - name: Actual evidence DOM, null costs and actor/tenant cache isolation
         run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
       - name: Generate actual Operations calculation fixtures
@@ -186,3 +192,26 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-scope-postgres-test.sql'],check=True)
           PY_SCOPE
+
+      - name: Actual admin local obligation baseline and permanent positive source ownership
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002023731_operations_project_obligation_authority.sql
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/project-obligation-fixtures.json
+          python3 - <<'PY_OBLIGATION'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-obligation-postgres-test.sql'],check=True)
+          PY_OBLIGATION
+
+      - name: Actual admin captured replacement and commitment consumption policy
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002025617_operations_obligation_source_policy.sql
+          python3 - <<'PY_POLICY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-source-policy-postgres-test.sql'],check=True)
+          PY_POLICY

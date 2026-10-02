@@ -12,6 +12,8 @@ export default defineConfig({
       'supabase/functions/_shared/project-personnel-cost.test.ts',
       'supabase/functions/_shared/finance-project-invoice.test.ts',
       'supabase/functions/_shared/project-cost-obligations.test.ts',
+      'supabase/functions/_shared/project-cost-obligation-authority.test.ts',
+      'supabase/functions/_shared/project-obligation-source-policy.test.ts',
       'supabase/functions/_shared/project-operational-eac.test.ts',
       'supabase/functions/_shared/canonical-project-scope.test.ts',
       'supabase/functions/_shared/catering-project-evidence.test.ts',
