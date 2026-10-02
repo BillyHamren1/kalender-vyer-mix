@@ -79,6 +79,8 @@ on:
       - 'supabase/migrations/20261002145349_operations_remaining_six_compatible_read_entries.sql'
       - 'supabase/functions/_shared/whole-scope-product-grant-command-v1*'
       - 'supabase/functions/_shared/whole-scope-product-grant-event-v1*'
+      - 'scripts/project-economy/operations-compatible-install-native*'
+      - 'docs/project-economy/operations-compatible-atomic-install-native-contract.md'
   workflow_dispatch:
 permissions:
   contents: read
@@ -1391,5 +1393,57 @@ jobs:
           deno check --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-event-v1.ts supabase/functions/_shared/whole-scope-product-grant-event-v1.deno-test.ts
           deno test --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-event-v1.deno-test.ts
           echo 'PASS pure event23 encoding only; saved grant writer, source export and Finance admission remain closed'
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  compatible-atomic-install-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_compatible_install_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_compatible_install_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_compatible_install_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_INSTALL_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact atomic install source and bounded rollback resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-install-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+      - name: Genuine late migration failures full rollback and sequential success
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-install-native.py
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
