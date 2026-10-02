@@ -44,6 +44,7 @@ on:
       - 'scripts/project-economy/catering-allocation-*'
       - 'scripts/project-economy/catering-allocation-native-counterparts/**'
       - 'supabase/functions/_shared/catering-project-ingestion*'
+      - 'supabase/functions/_shared/catering-reconciliation-*'
       - 'supabase/functions/catering-project-cost-publish/**'
       - 'supabase/migrations/*operations_catering*.sql'
       - 'supabase/functions/project-personnel-cost-publish/**'
@@ -120,6 +121,10 @@ jobs:
           deno check supabase/functions/finance-project-invoice-receive-v2/index.ts supabase/functions/catering-finance-delivery/index.ts
           deno check supabase/functions/catering-allocation-finance-delivery/index.ts
           deno test supabase/functions/finance-project-invoice-receive-v2/handler.test.ts supabase/functions/finance-project-invoice-receive-v2/receipt.test.ts
+      - name: Bounded reconciliation signed cursor and domain-separated command controls
+        run: |
+          deno check supabase/functions/_shared/catering-reconciliation-contract.ts supabase/functions/_shared/catering-reconciliation-cursor.ts
+          deno test supabase/functions/_shared/catering-reconciliation-contract.test.ts supabase/functions/_shared/catering-reconciliation-cursor.test.ts
       - name: Actual evidence DOM, null costs and actor/tenant cache isolation
         run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
       - name: Generate actual Operations calculation fixtures
