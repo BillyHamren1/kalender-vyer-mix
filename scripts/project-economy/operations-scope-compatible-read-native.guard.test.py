@@ -140,6 +140,31 @@ class PublicationNativeBoundary(unittest.TestCase):
             p.unlink();p.symlink_to(wrapper.CLOSURE)
             with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
 
+    def test_complete_http_child_invocation_uses_owned_directory_and_timeout(self):
+        owner='a'*64;container='b'*64
+        with tempfile.TemporaryDirectory() as temporary:
+            private=pathlib.Path(temporary);calls=[]
+            wanted=['operations-scope-compatible-read-http PASS '+case for case in wrapper.HTTP_CASES]+['operations-scope-compatible-read-http PASS TOTAL 20']
+            # Exact signature exercises the complete orchestration path; no network/SQL is invoked.
+            def fake(shared,phase,command,env,directory,timeout,stdin=None):
+                self.assertEqual(directory,private);calls.append(phase);out=private/(phase+'.out')
+                if phase=='http_health':out.write_text(json.dumps({'request':{},'composition':'90909090-9090-4909-8909-909090909090'}))
+                elif phase=='http_health_probe':out.write_text('operations-scope-compatible-read-http-health PASS fixed_loopback_no_redirect\n')
+                elif phase=='http_requests':
+                    self.assertEqual(timeout,240)
+                    self.assertEqual(command,['deno','run','--unstable-sloppy-imports','--allow-env','--allow-net=127.0.0.1:55407',str(wrapper.HERE/'operations-scope-compatible-read-http-journey.ts')])
+                    self.assertEqual(env['EVENTFLOW_SCOPE_COMPATIBLE_READ_HTTP_BASE_URL'],'http://127.0.0.1:55407/')
+                    self.assertEqual(env['PGDATABASE'],wrapper.DATABASE);self.assertNotIn('PGHOST',env)
+                    out.write_text('\n'.join(wanted)+'\n')
+                elif phase=='http_cleanup_inventory':out.write_text(container+'\t'+owner+'\n')
+                elif phase=='http_cleanup':
+                    self.assertEqual(command,['docker','--host','unix:///var/run/docker.sock','rm','-f',container]);out.write_text('')
+                else:out.write_text('')
+                return out
+            with mock.patch.object(wrapper,'private_run',side_effect=fake),mock.patch.object(wrapper.secrets,'token_hex',return_value=owner),mock.patch.object(wrapper.socket,'socket'):
+                self.assertEqual(wrapper.http(None,[],BASE,BASE,'deno',private),wanted)
+            self.assertEqual(calls,['http_inventory','http_roles','http_health','http_create','http_start','http_health_probe','http_requests','http_cleanup_inventory','http_cleanup'])
+
     def test_partial_create_is_cleaned_only_by_verified_owned_container_id(self):
         owner='a'*64;container='b'*64
         for cleanup_fails,foreign in ((False,False),(True,False),(False,True)):

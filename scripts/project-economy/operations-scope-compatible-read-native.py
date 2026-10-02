@@ -192,7 +192,7 @@ def http(shared,psql,pg_env,env,deno,private):
         if output.read_text().splitlines()!=['operations-scope-compatible-read-http-health PASS fixed_loopback_no_redirect']:raise ClosedFailure('http_health')
         child=dict(env,EVENTFLOW_SCOPE_COMPATIBLE_READ_HTTP_ISOLATED='true',EVENTFLOW_SCOPE_COMPATIBLE_READ_HTTP_BASE_URL='http://127.0.0.1:55407/',EVENTFLOW_SCOPE_COMPATIBLE_READ_HTTP_JWT_SECRET=secret,EVENTFLOW_SCOPE_COMPATIBLE_READ_COMPOSITION_SNAPSHOT_ID=value['composition'],EVENTFLOW_SCOPE_COMPATIBLE_READ_SERVICE_REQUEST=json.dumps(value['request'],separators=(',',':')))
         child={k:v for k,v in child.items() if not k.startswith('PG') or k=='PGDATABASE'}
-        output=private_run(shared,'http_requests',[deno,'run','--unstable-sloppy-imports','--allow-env','--allow-net=127.0.0.1:55407',str(HERE/'operations-scope-compatible-read-http-journey.ts')],child,240)
+        output=private_run(shared,'http_requests',[deno,'run','--unstable-sloppy-imports','--allow-env','--allow-net=127.0.0.1:55407',str(HERE/'operations-scope-compatible-read-http-journey.ts')],child,private,240)
         wanted=['operations-scope-compatible-read-http PASS '+case for case in HTTP_CASES]+['operations-scope-compatible-read-http PASS TOTAL 20']
         if output.read_text().splitlines()!=wanted:raise ClosedFailure('http_requests')
         return wanted
