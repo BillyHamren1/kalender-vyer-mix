@@ -2,7 +2,7 @@
 // Actual React/query DOM with explicitly synthetic Auth/session/RPC; not native authority proof.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, dehydrate } from '@tanstack/react-query';
 import { OperationsCateringEvidenceParityPanel } from './OperationsCateringEvidenceParityPanel';
 const state = vi.hoisted(() => ({
   actor: '00000000-0000-4000-8000-000000000009' as string | null,
@@ -138,6 +138,38 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe('actual parity component synthetic-session/RPC DOM', () => {
+  it('keeps loaded sensitive rows in memory while excluding them from application persistence', async () => {
+    state.read.mockResolvedValue({ data: evidence(), error: null });
+    const view = mount();
+    await screen.findByText('105 min');
+    const active = view.client.getQueryCache().find({
+      queryKey: ['operations-catering-project-evidence-v3'],
+      exact: false,
+    })!;
+    expect(active.state.status).toBe('success');
+    expect(active.state.data).toMatchObject({
+      lines: [{ streamKey: 'a'.repeat(64), amountMinor: 52502, minutes: 105 }],
+      currencyTotals: [{ receivedTotalMinor: 52502 }],
+    });
+    expect(active.meta?.persist).toBe(false);
+    view.client.setQueryData(['public-reference-catalog'], {
+      marker: 'public-reference-only',
+    });
+    // App.tsx allows successful JSON-safe queries unless this exact opt-out is set.
+    // The component remains mounted: gcTime=0 cannot remove its active query.
+    expect(dehydrate(view.client).queries).toHaveLength(2);
+    const persisted = dehydrate(view.client, {
+      shouldDehydrateQuery: (q) =>
+        q.state.status === 'success' && q.meta?.persist !== false,
+    });
+    expect(persisted.queries).toHaveLength(1);
+    expect(persisted.queries[0].queryKey).toEqual(['public-reference-catalog']);
+    const serialized = JSON.stringify(persisted);
+    expect(serialized).toContain('public-reference-only');
+    expect(serialized).not.toContain('52502');
+    expect(serialized).not.toContain('a'.repeat(64));
+    expect(serialized).not.toContain('operations-catering-project-evidence-v3');
+  });
   it('defaultoff starts no reads or hooks/data', () => {
     vi.stubEnv('VITE_OPERATIONS_CATERING_PARITY_ENABLED', 'false');
     expect(mount().container.textContent).toBe('');

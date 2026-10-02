@@ -46,6 +46,10 @@ on:
       - 'supabase/functions/finance-project-invoice-receive/**'
       - 'supabase/functions/finance-project-invoice-receive-v2/**'
       - 'supabase/functions/_shared/catering-finance-*'
+      - 'supabase/functions/_shared/catering-allocation-*'
+      - 'supabase/functions/catering-allocation-finance-delivery/**'
+      - 'supabase/functions/_shared/hired-personnel-authority*'
+      - 'supabase/migrations/*operations_hired_personnel_authority.sql'
       - 'supabase/functions/catering-finance-delivery/**'
       - 'supabase/migrations/*operations_finance_credit*.sql'
       - 'supabase/migrations/*operations_invoice_economic*.sql'
@@ -110,6 +114,7 @@ jobs:
           deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
           deno test supabase/functions/_shared/project-credit-link-v2-destination.test.ts
           deno check supabase/functions/finance-project-invoice-receive-v2/index.ts supabase/functions/catering-finance-delivery/index.ts
+          deno check supabase/functions/catering-allocation-finance-delivery/index.ts
           deno test supabase/functions/finance-project-invoice-receive-v2/handler.test.ts supabase/functions/finance-project-invoice-receive-v2/receipt.test.ts
       - name: Actual evidence DOM, null costs and actor/tenant cache isolation
         run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
@@ -702,3 +707,78 @@ jobs:
           psql "$TEST_DATABASE_URL" -X -At -c 'select version()'
           deno --version
           bash scripts/project-economy/catering-allocation-native.sh
+
+  catering-allocation-dispatch-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_catering_allocation_v2_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_catering_allocation_v2_ci"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      OPERATIONS_CATERING_ALLOCATION_ISOLATED: '1'
+      OPERATIONS_CATERING_DISPATCH_ISOLATED: 'true'
+      TEST_DATABASE_URL: postgresql://postgres:synthetic-test-only@127.0.0.1:5432/eventflow_catering_allocation_v2_ci
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Genuine native dispatch SQL and explicitly synthetic acknowledgement controls
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/catering-allocation-native-guard-test.py
+          python3 scripts/project-economy/catering-allocation-dispatch-native.test.py
+          deno check supabase/functions/catering-allocation-finance-delivery/index.ts
+          git rev-parse HEAD
+          psql "$TEST_DATABASE_URL" -X -At -c 'select version()'
+          python3 scripts/project-economy/catering-allocation-dispatch-native.py
+
+  hired-personnel-authority-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_hired_authority_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_hired_authority_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_hired_authority_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_HIRED_PERSONNEL_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Actual hired source authority and both publisher assignment lock orders
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/operations-hired-personnel-native-guard.test.py
+          python3 scripts/project-economy/operations-hired-personnel-native.wrapperguard.test.py
+          deno test supabase/functions/_shared/hired-personnel-authority.test.ts
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          python3 scripts/project-economy/operations-hired-personnel-native.py

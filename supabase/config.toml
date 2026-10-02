@@ -236,3 +236,7 @@ verify_jwt = false
 [functions.catering-finance-delivery]
 # Dedicated internal dispatch bearer and captured immutable native publication; default-off.
 verify_jwt = false
+
+[functions.catering-allocation-finance-delivery]
+# Dedicated v2 internal dispatch secret and captured HMAC purpose; disabled by default.
+verify_jwt = false

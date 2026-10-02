@@ -111,6 +111,7 @@ function CateringForSession({
       ),
     staleTime: 0,
     gcTime: 0,
+    meta: { persist: false },
     refetchInterval: 30_000,
     refetchOnWindowFocus: 'always',
     retry: false,

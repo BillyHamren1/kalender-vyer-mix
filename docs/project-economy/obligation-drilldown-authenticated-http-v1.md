@@ -73,7 +73,7 @@ command. Root extends its exact path/method whitelist without weakening old test
 New POST bodies are exactly `{ "fixture": "project-evidence-drilldown-http-v1" }`;
 the existing private `x-project-evidence-control-token` authenticates the fixed
 disposable controller, not production read requests. Successful mutation replies
-are exactly `{ "status": "accepted", "operation": "/drilldown/<operation>" }`.
+are exactly `{ "status": "accepted", "operation": "drilldown/<operation>" }`.
 State has exactly databaseName, cateringPublications, cateringObservations,
 cateringOutbox, invoiceSnapshots, baselines, bindings, sourcePolicies, compositions.
 Before/after counts must match. Intentional profile/role/root/policy controls are

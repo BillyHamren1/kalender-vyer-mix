@@ -167,7 +167,7 @@ async function control(base: string, secret: string, operation: string) {
     const result = exact(r.data, ["status", "operation"]);
     requireTrue(
       result.status === "accepted" &&
-        result.operation === `/drilldown/${operation}`,
+        result.operation === `drilldown/${operation}`,
     );
   }
   return r.data;

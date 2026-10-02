@@ -4,13 +4,13 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "39af77982858197016788e4d5e2a79c6f6784b3bdafc4074787244e3840e232e",
-      "bytes": 40785
+      "sha256": "3c6af387143483de4a9da580f360f0ec41e28759aae5bac355bfce1b871df785",
+      "bytes": 44168
     },
     {
       "path": "docs/project-economy/obligation-drilldown-authenticated-http-v1.md",
-      "sha256": "c1bc46e19113c17a25d86e8324624b436b6b7cf5f54dc3759f3b4edb77c0cbbb",
-      "bytes": 8317
+      "sha256": "e75fdf541eb88b429488220adb944f636ae6b73585f100fe6f9da24ee0f0c972",
+      "bytes": 8316
     },
     {
       "path": "docs/project-economy/project-evidence-authenticated-http-v1.md",
@@ -29,8 +29,8 @@
     },
     {
       "path": "scripts/project-economy/operations-obligation-drilldown-http-journey.ts",
-      "sha256": "09267ca20f017cd01773fb19064fd3017a51cb64d1cae3a8777c234aaf58f5c2",
-      "bytes": 13576
+      "sha256": "841c19740d4cbfa3be38ca8438ad167e810987f694c8cc3b2d0cb306f5078b60",
+      "bytes": 13575
     },
     {
       "path": "scripts/project-economy/operations-obligation-fixture.ts",
