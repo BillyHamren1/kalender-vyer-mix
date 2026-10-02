@@ -120,6 +120,11 @@ def fixtures(h):
   if len(raw.encode())>262144:raise Refusal('generator')
   values[name]=json.loads(raw)
  return values
+def original_fixture_marker(mode,output):
+ markers={'credit':'operations-own-credit-assignment-postgres PASS','capacity':'operations-obligation-credit-capacity-postgres PASS'}
+ if type(mode) is not str or type(output) is not str or mode not in markers:raise Refusal('proof')
+ actual=[line for line in output.splitlines() if line.endswith(' PASS') or line.startswith('PASS ')]
+ if actual!=[markers[mode]]:raise Refusal('proof')
 def original_sql(h,mode,values):
  prefix=''
  if mode=='hired':
@@ -133,7 +138,9 @@ def original_sql(h,mode,values):
   if source.count(":'fixture'")!=1:raise Refusal('source')
   source=source.replace(":'fixture'",literal(values['operations-obligation-fixture.ts']))
  before=h.state();out=h.sql('direct',prefix+source,90)
- if not any(s.startswith('PASS ') for s in out.splitlines()):raise Refusal('proof')
+ if mode=='hired':
+  if not any(s.startswith('PASS ') for s in out.splitlines()):raise Refusal('proof')
+ else:original_fixture_marker(mode,out)
  unchanged(before,h.state())
 def setup(h,mode,values):
  if mode=='hired':

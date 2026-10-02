@@ -148,5 +148,42 @@ class Guards(unittest.TestCase):
  def test_sql_literal_preserves_quotes_and_backslashes(self):
   value={'a':"x'\\y"};out=m.literal(value)
   self.assertTrue(out.startswith("'"));self.assertTrue(out.endswith("'::jsonb"));self.assertIn("x''",out)
+ def test_actual_original_credit_capacity_source_sentinels(self):
+  fixtures={'credit':('operations-own-credit-assignment-postgres-test.sql','operations-own-credit-assignment-postgres PASS'),'capacity':('operations-credit-capacity-postgres-test.sql','operations-obligation-credit-capacity-postgres PASS')}
+  for mode,(name,marker) in fixtures.items():
+   source=(HERE/name).read_text()
+   self.assertEqual(source.count("select '"+marker+"' as result;"),1)
+   self.assertIsNone(m.original_fixture_marker(mode,'\n'+marker+'\n'))
+   self.assertFalse(any(s.startswith('PASS ') for s in marker.splitlines()))
+ def test_original_wrong_missing_duplicate_or_unapproved_sentinel_refuses(self):
+  credit='operations-own-credit-assignment-postgres PASS';capacity='operations-obligation-credit-capacity-postgres PASS'
+  for mode,expected,wrong in [('credit',credit,capacity),('capacity',capacity,credit)]:
+   for output in ['',wrong,'PASS forged',expected+'\n'+expected,expected+'\n'+wrong,expected+'\noperations-unapproved PASS',expected+'\nPASS forged',expected+' extra']:
+    with self.assertRaises(m.Refusal):m.original_fixture_marker(mode,output)
+ def test_original_sentinel_never_reads_accessor_or_private_string_subclass(self):
+  calls=[]
+  class Hostile(str):
+   @property
+   def __class__(self):calls.append('class');raise RuntimeError('PRIVATE_SENTINEL')
+   def splitlines(self,*args,**kwargs):calls.append('split');raise RuntimeError('PRIVATE_SENTINEL')
+   def __str__(self):calls.append('str');raise RuntimeError('PRIVATE_SENTINEL')
+  for mode,output in [(Hostile('credit'),'operations-own-credit-assignment-postgres PASS'),('credit',Hostile('operations-own-credit-assignment-postgres PASS')),('unknown','operations-own-credit-assignment-postgres PASS')]:
+   with self.assertRaises(m.Refusal):m.original_fixture_marker(mode,output)
+  self.assertEqual(calls,[])
+ def test_named_fixture_success_still_requires_complete_rollback_state(self):
+  values={'operations-obligation-fixture.ts':{},'operations-fixture.ts':{}}
+  for mode,marker in [('credit','operations-own-credit-assignment-postgres PASS'),('capacity','operations-obligation-credit-capacity-postgres PASS')]:
+   calls=[]
+   def sql(*args):calls.append(args);return marker+'\n'
+   h=SimpleNamespace(state=lambda:{'full_selected_state':'unchanged'},sql=sql)
+   m.original_sql(h,mode,values);self.assertEqual(len(calls),1);self.assertNotIn(":'fixture'",calls[0][1])
+   states=iter([{'full_selected_state':'before'},{'full_selected_state':'changed'}]);h.state=lambda:next(states)
+   with self.assertRaises(m.Refusal):m.original_sql(h,mode,values)
+ def test_hired_original_marker_branch_remains_unchanged(self):
+  source=(HERE/'operations-hired-personnel-authority-postgres-test.sql').read_text()
+  self.assertIn("select 'PASS hired personnel actual invoice/Time metadata authority and correction; native concurrency/currentness/EAC gates open' as result;",source)
+  h=SimpleNamespace(state=lambda:{'full_selected_state':'unchanged'},sql=lambda *args:'PASS hired personnel actual invoice/Time metadata authority and correction; native concurrency/currentness/EAC gates open\n')
+  with patch.object(m,'original_fixture_marker',side_effect=AssertionError('hired branch changed')):
+   m.original_sql(h,'hired',{'operations-obligation-fixture.ts':{},'operations-fixture.ts':{}})
 
 if __name__=='__main__':unittest.main()
