@@ -5,6 +5,8 @@ on:
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/project-operational-eac*'
+      - 'supabase/migrations/*operations_project_forecast*.sql'
       - 'supabase/functions/_shared/catering-project-evidence*'
       - 'supabase/functions/_shared/catering-project-ingestion*'
       - 'supabase/functions/catering-project-cost-publish/**'
@@ -139,3 +141,21 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-bootstrap.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001235558_operations_catering_project_evidence.sql
           psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-postgres-test.sql
+
+      - name: Native-only Catering rate authority and denied project scopes
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002011313_operations_catering_rate_admin_authority.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-rate-authority-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-project-negatives-postgres-test.sql
+
+      - name: Operations-owned isolated immutable EAC and source lineage
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002010107_operations_project_forecast_evidence.sql
+          deno run --allow-read scripts/project-economy/operations-forecast-fixture.ts /tmp/project-review-fixtures.json > /tmp/project-forecast-fixtures.json
+          python3 - <<'PY_FORECAST'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-forecast-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-forecast-postgres-test.sql'],check=True)
+          PY_FORECAST
