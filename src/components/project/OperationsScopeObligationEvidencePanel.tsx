@@ -12,6 +12,7 @@ import {
   type ScopeObligationEvidence,
 } from '@/lib/economy/projectScopeObligationEvidence';
 import { OperationsObligationDrilldownPanel } from './OperationsObligationDrilldownPanel';
+import { OperationsScopeInvoiceCapturePanel } from './OperationsScopeInvoiceCapturePanel';
 export function OperationsScopeObligationEvidencePanel({
   projectId,
 }: {
@@ -182,6 +183,10 @@ function SavedScopeRows({ d }: { d: ScopeObligationEvidence }) {
         Beloppen gäller de sparade manuella posterna. Alla projektets kostnader
         är ännu inte verifierade.
       </p>
+      <p>
+        Underlagen är separata från den befintliga ekonomisammanställningen.
+        Mottaget underlag betyder inte att alla kostnader från källorna har kommit in.
+      </p>
       {!current && (
         <p role="alert">
           Aktualiteten är inte fullt verifierad. Beloppen visar det sparade
@@ -204,6 +209,10 @@ function SavedScopeRows({ d }: { d: ScopeObligationEvidence }) {
         <p>Åtagande saknas för en eller flera sparade poster.</p>
       )}
       <p>Prognos saknas. Budget och marginal kan ännu inte visas.</p>
+      <p>
+        Fullständig kostnadstäckning saknas för personal, leverantörer, Catering
+        och övriga kostnader.
+      </p>
       <p>
         Sparat {new Date(d.publishedAt!).toLocaleString('sv-SE')} · Version{' '}
         {d.compositionRevision}
@@ -270,6 +279,20 @@ function SavedScopeRows({ d }: { d: ScopeObligationEvidence }) {
           }}
         />
       )}
+      {d.referenceCurrentness.membership === true &&
+        (d.baselines.length === 0 || d.referenceCurrentness.baselines === true) &&
+        d.snapshotId ? (
+        <OperationsScopeInvoiceCapturePanel
+          selection={{
+            organizationId: d.organizationId,
+            rootKind: d.rootKind,
+            rootId: d.rootId,
+            compositionSnapshotId: d.snapshotId,
+          }}
+        />
+      ) : import.meta.env.VITE_OPERATIONS_SCOPE_INVOICE_CAPTURE_ENABLED === 'true' ? (
+        <p>Hämta ett aktuellt sparat underlag för att visa projektsamlingens fakturakostnader.</p>
+      ) : null}
       {d.sources.length > 0 && (
         <table>
           <caption>Kopierade leverantörsbelopp</caption>

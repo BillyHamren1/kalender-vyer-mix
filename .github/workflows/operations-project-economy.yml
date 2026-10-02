@@ -25,6 +25,7 @@ on:
       - 'src/lib/economy/projectCateringEvidenceParity*'
       - 'src/lib/economy/projectScopeObligationEvidence*'
       - 'src/components/project/OperationsScopeObligationEvidencePanel*'
+      - 'src/components/project/OperationsScopeInvoiceCapturePanel*'
       - 'supabase/migrations/*operations_scope_obligation_evidence_read*.sql'
       - 'src/components/project/OperationsCateringEvidenceParityPanel*'
       - 'supabase/functions/_shared/project-cost-obligation-authority*'

@@ -9,9 +9,15 @@ const state = vi.hoisted(() => ({
   authLoading: false, orgLoading: false, orgError: null as Error | null,
   rpc: vi.fn(),
 }));
-vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: state.actor ? { id: state.actor } : null, isLoading: state.authLoading }) }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: state.actor ? { id: state.actor } : null, session: state.actor ? { access_token: 'synthetic-evidence-token', user: { id: state.actor } } : null, isLoading: state.authLoading }) }));
 vi.mock('@/hooks/useOrganizationId', () => ({ useOrganizationId: () => ({ organizationId: state.org, isLoading: state.orgLoading, error: state.orgError }) }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: state.rpc } }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: {
+  auth: { getSession: async () => ({ data: { session: state.actor ? { access_token: 'synthetic-evidence-token', user: { id: state.actor } } : null }, error: null }) },
+  rpc: (name: string, args: unknown) => ({ setHeader: (header: string, value: string) => {
+    if (header !== 'Authorization' || value !== 'Bearer synthetic-evidence-token') throw new Error('Synthetic fixture header mismatch');
+    return { abortSignal: (_signal: AbortSignal) => state.rpc(name, args) };
+  } }),
+} }));
 
 const orgA = '11111111-1111-4111-8111-111111111111';
 const orgB = '33333333-3333-4333-8333-333333333333';
