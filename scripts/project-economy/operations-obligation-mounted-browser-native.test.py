@@ -166,6 +166,23 @@ class BoundaryTests(unittest.TestCase):
                 self.assertTrue(actual.endswith('; boundary=unclassified'))
                 self.assertNotIn('PRIVATE', actual)
 
+    def test_exact_saved_row_assertion_checkpoints_are_closed_and_keep_failure_prefix(self):
+        raw = json.dumps(proof('enabled')[0])
+        for checkpoint in ('saved_row_click', 'saved_copied_amount', 'saved_leaf_receipt', 'saved_legacy_headline'):
+            diagnostic = {'result': 'FAIL', 'case': module.CASES['enabled'][1],
+                          'reason': 'mounted browser proof failed', 'boundary': checkpoint,
+                          'writeCounts': dict.fromkeys(module.WRITE_KINDS, 0),
+                          'forwardCounts': dict.fromkeys(module.FORWARD_STAGES, 0),
+                          'forwardKinds': dict.fromkeys(module.READ_KINDS, 0)}
+            actual = module.failed_browser_phase(raw, 'enabled', json.dumps(diagnostic))
+            self.assertIn('accepted_prefix=1', actual)
+            self.assertIn('boundary=' + checkpoint, actual)
+            self.assertIn('writeCounts=none', actual)
+            diagnostic['boundary'] = checkpoint + '/PRIVATE_VALUE'
+            refused = module.failed_browser_phase(raw, 'enabled', json.dumps(diagnostic))
+            self.assertTrue(refused.endswith('; boundary=unclassified'))
+            self.assertNotIn('PRIVATE', refused)
+
     def test_build_settings_independent_gates_no_secrets_or_other_cost_flags(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

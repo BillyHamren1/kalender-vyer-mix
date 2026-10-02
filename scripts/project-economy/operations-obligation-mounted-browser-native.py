@@ -48,6 +48,8 @@ FIXED = {'PROJECT_EVIDENCE_DATABASE_NAME': DATABASE,
 WRITE_KINDS = ('auth_post', 'rpc_post', 'report_diagnostic', 'mapbox_token', 'other_function', 'rest_write',
                'browser_origin_write', 'foreign_write', 'other_source_write')
 FORWARD_STAGES = ('headers', 'authorization', 'rpc_shape', 'native_fetch', 'native_body', 'native_fulfill')
+FAILURE_BOUNDARIES = ('unknown', 'writes', 'forward', 'evidence_state',
+                      'saved_row_click', 'saved_copied_amount', 'saved_leaf_receipt', 'saved_legacy_headline')
 READ_KINDS = ('profiles', 'user_roles', 'projects', 'bookings', 'large_projects',
               'project_budget', 'project_purchases', 'project_labor_costs',
               'project_staff_time_cost_lines', 'product_cost_overrides', 'project_billing',
@@ -132,7 +134,7 @@ def failed_browser_phase(raw, mode, diagnostic_raw=''):
                     {'result', 'case', 'reason', 'boundary', 'writeCounts', 'forwardCounts', 'forwardKinds'}, 'exact_failure_diagnostic')
             require(diagnostic['result'] == 'FAIL' and diagnostic['reason'] == 'mounted browser proof failed'
                     and diagnostic['case'] in (*CASES[mode], 'isolated mounted guard')
-                    and diagnostic['boundary'] in ('unknown', 'writes', 'forward', 'evidence_state'), 'fixed_failure_diagnostic')
+                    and diagnostic['boundary'] in FAILURE_BOUNDARIES, 'fixed_failure_diagnostic')
             for field, keys in (('writeCounts', WRITE_KINDS), ('forwardCounts', FORWARD_STAGES), ('forwardKinds', READ_KINDS)):
                 counts = diagnostic[field]
                 require(isinstance(counts, dict) and set(counts) == set(keys)

@@ -494,18 +494,23 @@ async function main() {
         const detail = page.getByRole('region', { name: 'Kostnadspost' });
         phase =
           'displayed saved row opens genuine copied invoice without changing legacy total';
+        failedBoundary = 'saved_row_click';
         await scope
           .getByRole('button', {
             name: `Visa detaljer för kostnadspost ${selectors.baselineRowIndex}`,
           })
           .click();
+        failedBoundary = 'saved_copied_amount';
         await expect(
           detail.getByText(/Preliminär kostnad:\s*1\s*800,00\s*kr/),
         ).toBeVisible({ timeout: 30000 });
+        failedBoundary = 'saved_leaf_receipt';
         assert(
           test.observations.some((o) => o.kind === 'leaf' && o.status === 200),
         );
+        failedBoundary = 'saved_legacy_headline';
         await expect(costCard).toHaveText(originalHeadline);
+        failedBoundary = 'unknown';
         passed();
         phase =
           'actual App persistence excludes loaded protected scope and leaf';
