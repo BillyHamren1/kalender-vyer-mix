@@ -28,6 +28,7 @@ SCHEMA_PATHS = [
     "supabase/migrations/20261002023731_operations_project_obligation_authority.sql",
     "supabase/migrations/20261002024013_operations_catering_finance_delivery_v1.sql",
     "supabase/migrations/20261002044059_operations_catering_allocation_authority_v2.sql",
+    "supabase/migrations/20261002052437_operations_catering_allocation_delivery_v2.sql",
 ]
 
 
@@ -190,7 +191,10 @@ def main():
         observer.execute((root / "scripts/project-economy/catering-allocation-hash-parity-postgres-test.sql").read_text())
         observer.execute("select set_config('test.catering_allocation_fixture'," + literal(json.dumps(controls["first"], ensure_ascii=False)) + ",false);")
         fixture_sql = (root / "scripts/project-economy/catering-allocation-authority-postgres-test.sql").read_text()
-        results = observer.execute(fixture_sql)
+        rollback_boundary = "\nrollback;\n"
+        require(fixture_sql.count(rollback_boundary) == 1, "exact authority rollback boundary required")
+        capture_fixture = (root / "scripts/project-economy/catering-allocation-delivery-postgres-test.sql").read_text()
+        results = observer.execute(fixture_sql.replace(rollback_boundary, "\n" + capture_fixture + rollback_boundary))
         vectors = [line.split("\x1f") for line in results if "\x1f" in line]
         require(len(vectors) == 1 and len(vectors[0]) == 2, "actual native SQL parity row missing")
         with tempfile.TemporaryDirectory(prefix="catering-allocation-native-") as private:
@@ -200,6 +204,7 @@ def main():
             run_deno(root, ["run", "--allow-read=" + str(root) + "," + str(finance) + "," + private,
                             "scripts/project-economy/catering-allocation-sql-vector-check.ts", str(vector_path), str(finance)], env)
         print("PASS native authority positive/negative/private SQL Operations Finance hash parity")
+        print("PASS native default-off immutable allocation capture and synthetic predecessor receipt control; Finance v2 delivery not proven")
         marker = "set local role authenticated;\ndo $$begin\n begin perform public.reassign_operations_catering_project_v2"
         require(fixture_sql.count(marker) >= 1, "frozen seed boundary missing")
         seed = fixture_sql.split(marker, 1)[0]

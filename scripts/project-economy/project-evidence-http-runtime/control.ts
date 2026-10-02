@@ -1,4 +1,5 @@
 // Fixed disposable identity controls; never a replacement for an application reader.
+import { drilldownFixtureGuard, drilldownMutations, drilldownStateSql } from './drilldown-controls.ts';
 const database = "eventflow_project_evidence_http_runtime";
 const namespace = Deno.env.get("PROJECT_EVIDENCE_COMPOSE_NAMESPACE");
 const runId = Deno.env.get("GITHUB_RUN_ID");
@@ -22,6 +23,7 @@ if (
 const guard =
   `if current_database()<>'${database}' then raise exception 'wrong_isolated_database' using errcode='42501';end if;`;
 const mutations: Record<string, string> = {
+  ...drilldownMutations,
   "move-admin-org":
     "if not exists(select 1 from public.profiles where user_id='00000000-0000-4000-8000-000000000093' and organization_id='00000000-0000-4000-8000-000000000099') or not exists(select 1 from public.user_roles where user_id='00000000-0000-4000-8000-000000000093' and organization_id='00000000-0000-4000-8000-000000000099' and role='admin') or not exists(select 1 from public.projects where id='00000000-0000-4000-8000-000000000098' and organization_id='00000000-0000-4000-8000-000000000099' and deleted_at is null) then raise exception 'exact_foreign_fixture_required' using errcode='55000';end if;update public.profiles set organization_id='00000000-0000-4000-8000-000000000099' where user_id='00000000-0000-4000-8000-000000000009' and organization_id='00000000-0000-4000-8000-000000000001';",
   "restore-admin-org":
@@ -41,10 +43,11 @@ select json_build_object('databaseName',current_database(),
 'compositions',(select count(*) from public.operations_scope_obligation_compositions))::text;`;
 function fixedSql(operation: string): string {
   if (operation === "state") return stateSql;
+  if (operation === "drilldown/state") return drilldownStateSql;
   if (!Object.hasOwn(mutations, operation)) {
     throw new Error("Unknown fixed operation");
   }
-  return `begin;do $$declare n integer;begin ${guard} ${
+  return `begin;do $$declare n integer;begin ${guard} ${operation.startsWith('drilldown/') ? drilldownFixtureGuard : ''} ${
     mutations[operation]
   } get diagnostics n=row_count;if n<>1 then raise exception 'isolated_identity_cas_conflict' using errcode='40001';end if;end;$$;commit;`;
 }
@@ -91,7 +94,7 @@ async function runSql(operation: string): Promise<unknown> {
       !result.success || result.stdout.length > 8192 ||
       result.stderr.length > 65536
     ) throw new Error("Owned control failed");
-    if (operation === "state") {
+    if (operation === "state" || operation === "drilldown/state") {
       return JSON.parse(
         new TextDecoder("utf-8", { fatal: true }).decode(result.stdout).trim(),
       );
@@ -138,7 +141,7 @@ async function runSql(operation: string): Promise<unknown> {
     }
   }
 }
-async function bodyMatches(request: Request): Promise<boolean> {
+async function bodyMatches(request: Request, purpose: string): Promise<boolean> {
   const reader = request.body?.getReader();
   if (!reader) return false;
   let bytes = 0, chunks = 0, expired = false;
@@ -166,7 +169,7 @@ async function bodyMatches(request: Request): Promise<boolean> {
     );
     return !expired && !!value && typeof value === "object" &&
       !Array.isArray(value) && Object.keys(value).length === 1 &&
-      value.fixture === "project-evidence-http-v1";
+      value.fixture === purpose;
   } catch {
     return false;
   } finally {
@@ -185,15 +188,16 @@ const server = Deno.serve({
     request.headers.get("x-project-evidence-control-token") !== token
   ) return new Response(null, { status: 403 });
   const operation = url.pathname.slice(1);
+  const isState = operation === 'state' || operation === 'drilldown/state';
   if (
-    operation === "state"
+    isState
       ? request.method !== "GET" || request.body !== null ||
         (request.headers.has("content-length") &&
           request.headers.get("content-length") !== "0") ||
         request.headers.has("transfer-encoding")
       : request.method !== "POST" || !Object.hasOwn(mutations, operation)
   ) return new Response(null, { status: 400 });
-  if (operation !== "state" && !await bodyMatches(request)) {
+  if (!isState && !await bodyMatches(request, operation.startsWith('drilldown/') ? 'project-evidence-drilldown-http-v1' : 'project-evidence-http-v1')) {
     return new Response(null, { status: 400 });
   }
   try {

@@ -4,8 +4,13 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "d7c63bd169f3afe6c479c05241a5ba054f6912ec44164db54c5a6c994a4d2ce6",
-      "bytes": 39896
+      "sha256": "e274d42f6ee11236f907c3383c4b42d9b7af46dbb27886028a4006fc74e531ba",
+      "bytes": 40588
+    },
+    {
+      "path": "docs/project-economy/obligation-drilldown-authenticated-http-v1.md",
+      "sha256": "c1bc46e19113c17a25d86e8324624b436b6b7cf5f54dc3759f3b4edb77c0cbbb",
+      "bytes": 8317
     },
     {
       "path": "docs/project-economy/project-evidence-authenticated-http-v1.md",
@@ -16,6 +21,16 @@
       "path": "scripts/project-economy/operations-catering-bootstrap.sql",
       "sha256": "0fe6be94d0f1423dbeedf2b41c1e73c615720253c22688f6a032e959ddd3484c",
       "bytes": 326
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-drilldown-http-fixture.sql",
+      "sha256": "465b78f344735c42959befd626886e50a9b3537271385399e146cc5fb7b4aeb2",
+      "bytes": 10306
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-drilldown-http-journey.ts",
+      "sha256": "09267ca20f017cd01773fb19064fd3017a51cb64d1cae3a8777c234aaf58f5c2",
+      "bytes": 13576
     },
     {
       "path": "scripts/project-economy/operations-obligation-fixture.ts",
@@ -59,8 +74,23 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/control.ts",
-      "sha256": "7a45132a5a7f2a4ed59fbebb8e2f20b21b297c902bf9255875683c2fe051a66a",
-      "bytes": 8543
+      "sha256": "a92435ece48a666409c370d5acfe6c066cc86ffbfa54ac7c9a9865e59ab8c8ef",
+      "bytes": 8990
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-controls.ts",
+      "sha256": "dba33fca304bf454ac01dca07b7d2ffd21bc7b7fc2b23fcbe6f02739e01ea0c0",
+      "bytes": 3295
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-proof.py",
+      "sha256": "413a46b9e1864f9509d6578788600469cb17023981c348c284ea868966fd8da3",
+      "bytes": 2102
+    },
+    {
+      "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-proof.test.py",
+      "sha256": "8c345623697b31895b68302fc9d37db321659448de391f7f7b56b11208ab3f91",
+      "bytes": 1877
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/isolation.py",
@@ -94,17 +124,17 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/run.sh",
-      "sha256": "7c52e0894a69234f51223eaa078490b48e2fd49e47c0e3e40937157254c151c7",
-      "bytes": 7767
+      "sha256": "faf98e297878878e6720e97cd057faa65bc79d425a7067859b4d341499c3c080",
+      "bytes": 9679
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/schema-closure.json",
-      "sha256": "5088457bef3195bb667e1cfb26ebf14dbe6aeefabe5977268401738c21ceb45b",
-      "bytes": 1751
+      "sha256": "62761562c12ab01e1883bd9b96011182c5ba8d59ebc47cd9e1fa9bb9dc1069d9",
+      "bytes": 1931
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/verify-sources.py",
-      "sha256": "aa7f82bc88b337a609e2b632182c817ac5214f973f50aebe0bb900113a0c2dbf",
+      "sha256": "aae2901417cde092f2597183aa185f2ea4a331d2c4af8a4e2e6230238120596d",
       "bytes": 2073
     },
     {
@@ -121,6 +151,11 @@
       "path": "src/lib/economy/projectNativeCostEvidence.ts",
       "sha256": "c8ee73789f33d809c44e719cf9c8983fe665aa82ca0a38efe74ba28c70e30ff4",
       "bytes": 3826
+    },
+    {
+      "path": "src/lib/economy/projectScopeObligationDrilldown.ts",
+      "sha256": "9c0eb8d60621b65d843bc2ffdeeb565130f188649acb498959d8047178612ac9",
+      "bytes": 14940
     },
     {
       "path": "src/lib/economy/projectScopeObligationEvidence.ts",
@@ -216,6 +251,16 @@
       "path": "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql",
       "sha256": "5e3e9b92a7282554a3070bc2940e5c533da9807cf2d4e79b931678a4b1527e0e",
       "bytes": 8533
+    },
+    {
+      "path": "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql",
+      "sha256": "93126c37db47794ca5f4780070f56e7216d73544422f33e7221d1e29fb6747f0",
+      "bytes": 10609
+    },
+    {
+      "path": "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql",
+      "sha256": "4e67b0c5f534992c9c45798731067d2dc94e67811aca63d4728f29df978a0651",
+      "bytes": 11856
     }
   ]
 }

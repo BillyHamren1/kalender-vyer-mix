@@ -24,7 +24,7 @@ for row in manifest['files']:
 closure=json.loads((runtime/'schema-closure.json').read_text())
 if set(closure)!={'schema','database','canonical_baseline_commit','ordered_paths'} or closure['schema']!='operations-project-evidence-http-schema-closure.v1' or closure['database']!='eventflow_project_evidence_http_runtime' or closure['canonical_baseline_commit']!=manifest['canonical_baseline_commit']:
     raise SystemExit('Wrong schema closure')
-if len(closure['ordered_paths'])!=19 or len(set(closure['ordered_paths']))!=19 or not set(closure['ordered_paths']).issubset(seen):raise SystemExit('Incomplete selected schema closure')
+if len(closure['ordered_paths'])!=21 or len(set(closure['ordered_paths']))!=21 or not set(closure['ordered_paths']).issubset(seen):raise SystemExit('Incomplete selected schema closure')
 expected_runtime={p.relative_to(root).as_posix() for p in runtime.iterdir() if p.is_file() and p.name!='source-manifest.json'}
 if not expected_runtime.issubset(seen):raise SystemExit('Unreviewed runtime source')
 print('PASS exact canonical Operations selected HTTP source bytes and named schema closure')

@@ -7,6 +7,9 @@ on:
       - 'supabase/functions/_shared/project-cost-obligations*'
       - 'supabase/functions/_shared/local-invoice-obligation-kernel-evidence*'
       - 'supabase/functions/_shared/project-scope-invoice-kernel-evidence*'
+      - 'supabase/functions/_shared/project-scope-invoice-capture-admin*'
+      - 'supabase/migrations/*operations_scope_invoice_capture_admin_read.sql'
+      - 'src/lib/economy/projectScopeInvoiceCapture*'
       - 'supabase/migrations/*operations_scope_invoice_kernel_capture*.sql'
       - 'supabase/migrations/*operations_scope_obligation_drilldown_read*.sql'
       - 'src/lib/economy/projectScopeObligationDrilldown*'
@@ -392,6 +395,8 @@ jobs:
           deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/scope-native-fixture.json
           python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py vectors /tmp/scope-native-fixture.json
           python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py seed /tmp/scope-native-fixture.json
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py admin /tmp/scope-native-fixture.json
           bash scripts/project-economy/operations-scope-invoice-kernel-native-concurrency.sh
 
   invoice-source-barrier-native:
@@ -645,11 +650,12 @@ jobs:
           python3 scripts/project-economy/project-evidence-http-runtime/verify-sources.py
           python3 scripts/project-economy/project-evidence-http-runtime/isolation.test.py
           python3 scripts/project-economy/project-evidence-http-runtime/proof.test.py
+          python3 scripts/project-economy/project-evidence-http-runtime/drilldown-proof.test.py
           python3 scripts/project-economy/project-evidence-http-runtime/control-adversarial.test.py
       - name: Check and cache unchanged actual reader models and native fixture graphs
         run: |
-          deno check --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
-          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-drilldown-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-drilldown-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
       - name: Actual signed authenticated roles and live revocation through native PostgREST
         run: bash scripts/project-economy/project-evidence-http-runtime/run.sh
 

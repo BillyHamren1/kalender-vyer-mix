@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 077
 cd "$(dirname "$0")/../../.."
 TASK_PHASE=preflight
 trap 'echo "Native read harness closed phase: $TASK_PHASE" >&2' ERR
@@ -136,3 +137,26 @@ timeout 240 deno run --unstable-sloppy-imports --cached-only --allow-env --allow
   }
 TASK_PHASE=complete_proof
 python3 "$TASK_RUNTIME/proof.py" "$TASK_PRIVATE/private-journey.log"
+TASK_PHASE=drilldown_fixture_commit
+apply_sql scripts/project-economy/operations-obligation-drilldown-http-fixture.sql -v "fixture=$(cat "$TASK_PRIVATE/fixture.json")"
+python3 - "$TASK_PRIVATE/private-sql.log" "$TASK_PRIVATE/drilldown-selectors.json" <<'PY_DRILLDOWN'
+import json,sys
+from pathlib import Path
+raw=Path(sys.argv[1]).read_text()
+prefix='DRILLDOWN_HTTP_SELECTORS='
+rows=[line.strip()[len(prefix):] for line in raw.splitlines() if line.strip().startswith(prefix)]
+if len(rows)!=1 or len(rows[0].encode())>=16384 or 'operations-obligation-drilldown-http-fixture SETUP PASS' not in raw:raise SystemExit('Complete native drilldown fixture selectors required')
+value=json.loads(rows[0])
+if set(value)!={'schema','organizationId','actorId','requests'} or value['schema']!='operations-obligation-drilldown-http-selectors.v1' or value['organizationId']!='00000000-0000-4000-8000-000000000001' or value['actorId']!='00000000-0000-4000-8000-000000000199':raise SystemExit('Exact actual synthetic selector boundary required')
+if set(value['requests'])!={'project','large','packing','baselineChanged','superseded','membershipChanged'}:raise SystemExit('Complete actual root selector set required')
+Path(sys.argv[2]).write_text(json.dumps(value,separators=(',',':')))
+PY_DRILLDOWN
+export PROJECT_EVIDENCE_DRILLDOWN_SELECTORS="$(cat "$TASK_PRIVATE/drilldown-selectors.json")"
+TASK_PHASE=drilldown_authenticated_journey
+timeout 240 deno run --unstable-sloppy-imports --cached-only --allow-env --allow-net=127.0.0.1:55610,127.0.0.1:55611 \
+  scripts/project-economy/operations-obligation-drilldown-http-journey.ts > "$TASK_PRIVATE/private-drilldown-journey.log" 2>&1 || {
+    echo 'Native authenticated drilldown journey failed; no partial authorization proof' >&2
+    exit 1
+  }
+TASK_PHASE=drilldown_complete_proof
+python3 "$TASK_RUNTIME/drilldown-proof.py" "$TASK_PRIVATE/private-drilldown-journey.log"

@@ -43,11 +43,12 @@ class NativeGuardTests(unittest.TestCase):
         for key in ["PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGOPTIONS"]:
             self.assertNotIn(key, child)
 
-    def test_schema_has_exact_twelve_ordered_sources_and_no_capture_endpoint(self):
-        self.assertEqual(len(native.SCHEMA_PATHS), 12)
-        self.assertEqual(len(set(native.SCHEMA_PATHS)), 12)
-        self.assertTrue(native.SCHEMA_PATHS[-1].endswith("allocation_authority_v2.sql"))
-        self.assertFalse(any("allocation_delivery" in p for p in native.SCHEMA_PATHS))
+    def test_schema_has_exact_thirteen_ordered_sources_and_no_dispatch_endpoint(self):
+        self.assertEqual(len(native.SCHEMA_PATHS), 13)
+        self.assertEqual(len(set(native.SCHEMA_PATHS)), 13)
+        self.assertEqual(native.SCHEMA_PATHS[-2], "supabase/migrations/20261002044059_operations_catering_allocation_authority_v2.sql")
+        self.assertEqual(native.SCHEMA_PATHS[-1], "supabase/migrations/20261002052437_operations_catering_allocation_delivery_v2.sql")
+        self.assertFalse(any("allocation_dispatch" in p or "allocation_receiver" in p for p in native.SCHEMA_PATHS))
 
 
 if __name__ == "__main__":
