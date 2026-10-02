@@ -117,9 +117,20 @@ class PublicationNativeBoundary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             p=pathlib.Path(temporary)/'value';p.write_text('{"value":NaN}')
             with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
+
             p.write_text('x'*(8*1024*1024+1))
             with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
             p.unlink();p.symlink_to(wrapper.CLOSURE)
             with self.assertRaises(wrapper.ClosedFailure):wrapper.read_json(p,'proof')
+
+    def test_terminal_branch_ledger_matches_exact_saved_count(self):
+        for baseline,compound in ((0,0),(0,1),(1,0),(1,1)):
+            count=4+baseline+compound
+            rows=['whole-scope-publication-transaction-vectors PASS '+str(count)+' actual_saved_sql_to_unchanged_kernel','whole-scope-publication-try-branches PASS baseline_as_of='+str(baseline)+' compound_as_of='+str(compound)+' saved='+str(count),wrapper.NATIVE_MARKER]
+            self.assertEqual(wrapper.terminal_proof(rows),rows)
+            for changed in ([rows[0],rows[1].replace('saved='+str(count),'saved=9'),rows[2]],['PRIVATE_CONTEXT',rows[1],rows[2]],rows+['PRIVATE_BODY'],[rows[0],rows[1],rows[2]+' PRIVATE_CONTEXT']):
+                with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.terminal_proof(changed)
+                self.assertEqual(result.exception.phase,'proof')
+        with self.assertRaises(wrapper.ClosedFailure):wrapper.terminal_proof(['whole-scope-publication-transaction-vectors PASS 6 actual_saved_sql_to_unchanged_kernel','whole-scope-publication-try-branches PASS baseline_as_of=0 compound_as_of=1 saved=6',wrapper.NATIVE_MARKER])
 
 if __name__=='__main__':unittest.main()

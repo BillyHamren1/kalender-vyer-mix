@@ -1030,7 +1030,7 @@ jobs:
           bash -n scripts/project-economy/whole-scope-publication-try-native-concurrency.sh
           deno check scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
           deno cache scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
-      - name: Actual four queued writer families and bounded busy rollback without deadlocks
+      - name: Actual four queued writer families with protected as-of or bounded busy rollback
         run: |
           set -euo pipefail
           umask 077

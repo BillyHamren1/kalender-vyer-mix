@@ -85,7 +85,9 @@ begin
  if pause='after_barriers' then perform pg_sleep(4);end if;
  begin
  -- Exact existing live row identities, SAME SHARE mode as frozen readers.
- -- Any queued permission change refuses immediately instead of joining it.
+ -- An acquired incompatible row lock refuses immediately. Compatible SHARE
+ -- may join existing SHARE even when an UPDATE is queued; the held barriers
+ -- still protect the exact saved as-of evidence until this transaction ends.
  perform 1 from operations_scope_publication_native.gates where organization_id=org and economic_scope_id=scope_id
  and enabled and not fault_after_publication and not pause_after_barriers for share nowait;
  if not found then raise exception 'native_publication_gate_disabled' using errcode='42501';end if;

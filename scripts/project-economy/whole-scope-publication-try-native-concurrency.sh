@@ -73,6 +73,8 @@ observe(){ local private_log=/dev/null;if [[ -n $task_pub_dir ]];then private_lo
 task_pub_dir=$(mktemp -d)
 declare -A task_pub_pids=()
 task_pub_revision=0
+task_pub_baseline_as_of=0
+task_pub_compound_as_of=0
 wait_owned(){ local pid=$1 status=0;wait "$pid" || status=$?;unset 'task_pub_pids[$pid]';return "$status"; }
 owned_live(){ local pid job live;live=$(jobs -rp;jobs -sp);for pid in "${!task_pub_pids[@]}";do while read -r job;do [[ $job == "$pid" ]] && printf '%s\n' "$pid";done <<< "$live";done;return 0; }
 cleanup(){ local pending pid round;pending=$(owned_live)
@@ -113,9 +115,26 @@ denied(){ local status=$1 label=$2 code=$3 message=$4
  grep -F "$code" "$task_pub_dir/$label.log" >/dev/null && grep -F "$message" "$task_pub_dir/$label.log" >/dev/null || { echo 'TRY_NATIVE_REASON denial_mismatch' >&2;echo 'Native denial mismatch' >&2;return 1; }
 }
 start_pub(){ local label=$1 hold=$2 expected=${3:-$task_pub_revision};task_try_focus=$label
- PGAPPNAME="native_try_pub_$label" psql_run -Atq -f "$task_pub_root/scripts/project-economy/whole-scope-projection-sql-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-transaction-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-try-native-wrapper.sql" -c "begin;set local role authenticated;select set_config('request.jwt.claims','{\"sub\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"role\":\"authenticated\"}',true);
- select pg_temp.publish_scope_native_try_v1((read_request-'organization_id')||jsonb_build_object('schema_version','operations-scope-publication-native.v1','expected_publication_revision',$expected,'idempotency_key','native-atomic-publication-$label','reason','Native atomic source publication')) from public.operations_scope_invoice_kernel_native_fixture;
- select pg_sleep($hold);commit;" >"$task_pub_dir/$label.log" 2>&1 &
+ observe "select jsonb_build_object('scope_snapshot_id',m.snapshot_id,'scope_revision',m.scope_revision,'membership_fingerprint',m.membership_fingerprint,'composition_snapshot_id',c.snapshot_id,'composition_revision',c.composition_revision,'composition_fingerprint',c.fingerprint,'baselines',(select jsonb_agg(jsonb_build_array(b.project_id,b.obligation_id,b.event_id,b.revision,b.fingerprint) order by b.project_id,b.obligation_id) from public.operations_scope_obligation_baseline_captures x join public.operations_project_obligation_baselines b on b.event_id=x.baseline_event_id where x.composition_snapshot_id=c.snapshot_id)) from public.operations_scope_invoice_kernel_native_fixture f join public.operations_scope_obligation_compositions c on c.organization_id=(f.read_request->>'organization_id')::uuid and c.economic_scope_id=(f.read_request->>'economic_scope_id')::uuid and c.composition_revision=(f.read_request->>'expected_composition_revision')::bigint and c.fingerprint=f.read_request->>'expected_composition_fingerprint' join public.operations_project_scope_snapshots m on m.snapshot_id=c.scope_snapshot_id" >"$task_pub_dir/${label}_hint.json"
+ cat >"$task_pub_dir/${label}_pub.sql" <<SQL
+begin;
+create temporary table native_try_receipt(data jsonb not null);
+grant insert,select on native_try_receipt to authenticated;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
+insert into native_try_receipt select pg_temp.publish_scope_native_try_v1((read_request-'organization_id')||jsonb_build_object('schema_version','operations-scope-publication-native.v1','expected_publication_revision',$expected,'idempotency_key','native-atomic-publication-$label','reason','Native atomic source publication')) from public.operations_scope_invoice_kernel_native_fixture;
+reset role;
+select data from native_try_receipt;
+select data from native_try_receipt
+\\g $task_pub_dir/${label}_held_receipt.json
+select jsonb_build_array(jsonb_build_object('label','native_'||publication_revision,'capture',capture::text,'projection',projection::text,'document',document::text,'evidence_fingerprint',evidence_fingerprint,'publication_fingerprint',publication_fingerprint)) from operations_scope_publication_native.publications where publication_revision=$expected+1
+\\g $task_pub_dir/${label}_held_vector.json
+select jsonb_build_object('schema','native-held-publication-state.v1','head_revision',(select publication_revision from operations_scope_publication_native.heads),'publications',(select count(*) from operations_scope_publication_native.publications),'receipts',(select count(*) from operations_scope_publication_native.receipts),'controls',(select count(*) from operations_scope_publication_native.blocked_controls),'blocked_only',(select count(*)=$expected+1 and bool_and(destination_id is null and wire_payload is null) from operations_scope_publication_native.blocked_controls),'receipt_matches',(select r.document from operations_scope_publication_native.receipts r join operations_scope_publication_native.publications p on p.publication_id=r.publication_id where p.publication_revision=$expected+1)=(select data from native_try_receipt))
+\\g $task_pub_dir/${label}_held_state.json
+select pg_sleep($hold);
+commit;
+SQL
+ PGAPPNAME="native_try_pub_$label" psql_run -Atq -f "$task_pub_root/scripts/project-economy/whole-scope-projection-sql-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-transaction-prototype.sql" -f "$task_pub_root/scripts/project-economy/whole-scope-publication-try-native-wrapper.sql" -f "$task_pub_dir/${label}_pub.sql" >"$task_pub_dir/$label.log" 2>&1 &
  task_pub_active_pid=$!;task_pub_pids["$task_pub_active_pid"]=1
 }
 finish_pub(){ local label=$1 pid=$2;wait_owned "$pid" || { echo 'Native publication transaction failed' >&2;return 1; }
@@ -155,9 +174,47 @@ blocked_by(){ wait_query "select exists(select 1 from pg_stat_activity w join pg
 restore_project(){ psql_run -q -c "update public.projects set deleted_at=null where id='55555555-5555-4555-8555-555555555555'" >"$task_pub_dir/restore_project_$task_pub_revision.log" 2>&1; }
 restore_root(){ psql_run -q -c "update public.large_projects set deleted_at=null where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'" >"$task_pub_dir/restore_root_$task_pub_revision.log" 2>&1; }
 
+# Compatible SHARE may be acquired while a conflicting UPDATE is only queued.
+# Success is accepted ONLY with saved proof inspected while the publisher is
+# still open and both actual writer/UPDATE queues remain observed. Conflicting
+# acquired locks still require exact55P03 and full rollback.
+compatible_pub(){ local label=$1 pid=$2 writer_app=$3 updater_app=$4 now deadline live;task_pub_compatible_accepted=0
+ now=$(monotonic_ns);deadline=$((now+6000000000))
+ while :;do
+  if [[ -s $task_pub_dir/${label}_held_receipt.json && -s $task_pub_dir/${label}_held_vector.json && -s $task_pub_dir/${label}_held_state.json ]];then break;fi
+  live=$(owned_live);if ! grep -Fx "$pid" <<< "$live" >/dev/null;then busy_pub "$label" "$pid";return;fi
+  now=$(monotonic_ns);[[ $now -lt $deadline ]] || { echo 'Native compatible publication observation deadline' >&2;return 1; };sleep 0.05
+ done
+ task_try_checkpoint=${label%_busy}_held
+ pub_sleep "$label";blocked_by "$writer_app" "native_try_pub_$label";blocked_by "$updater_app" "$writer_app"
+ python3 - "$task_pub_dir" "$label" "$((task_pub_revision+1))" 2>>"$task_pub_dir/held_proofs.log" <<'PY'
+import json,pathlib,sys
+try:
+ directory=pathlib.Path(sys.argv[1]);label=sys.argv[2];revision=int(sys.argv[3])
+ def read(suffix):
+  path=directory/(label+suffix+'.json')
+  if path.resolve()!=path or not path.is_file() or path.stat().st_size>8*1024*1024:raise ValueError()
+  return json.loads(path.read_text())
+ hint=read('_hint');receipt=read('_held_receipt');vectors=read('_held_vector');state=read('_held_state')
+ if receipt.get('schema_version')!='operations-scope-publication-native-receipt.v1' or receipt.get('outcome')!='accepted' or receipt.get('publication_revision')!=revision or receipt.get('historical_only') is not False or receipt.get('delivery_state')!='blocked_missing_authoritative_destination':raise ValueError()
+ if not isinstance(vectors,list) or len(vectors)!=1:raise ValueError()
+ capture=json.loads(vectors[0]['capture'])
+ for key in ('scope_snapshot_id','scope_revision','membership_fingerprint','composition_snapshot_id','composition_revision','composition_fingerprint'):
+  if capture[key]!=hint[key]:raise ValueError()
+ actual=sorted([m['project_id'],m['obligation_id'],m['captured_baseline_event_id'],m['captured_baseline_revision'],m['captured_baseline_fingerprint']] for m in capture['members'])
+ if actual!=hint['baselines'] or len(actual)!=3:raise ValueError()
+ if set(state)!={'schema','head_revision','publications','receipts','controls','blocked_only','receipt_matches'} or state['schema']!='native-held-publication-state.v1' or any(type(state[k]) is not int or state[k]!=revision for k in ('head_revision','publications','receipts','controls')) or state['blocked_only'] is not True or state['receipt_matches'] is not True:raise ValueError()
+except Exception:print('Native held publication proof mismatch',file=sys.stderr);sys.exit(1)
+PY
+ "$task_pub_deno" run --allow-read="$task_pub_dir/${label}_held_vector.json" "$task_pub_root/scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts" "$task_pub_dir/${label}_held_vector.json" >"$task_pub_dir/${label}_held_kernel.log" 2>&1
+ grep -Fx 'whole-scope-publication-transaction-vectors PASS 1 actual_saved_sql_to_unchanged_kernel' "$task_pub_dir/${label}_held_kernel.log" >/dev/null
+ pub_sleep "$label";blocked_by "$writer_app" "native_try_pub_$label";blocked_by "$updater_app" "$writer_app"
+ finish_pub "$label" "$pid";task_pub_compatible_accepted=1
+}
+
 # 1: real baseline owns project SHARE before org; queued UPDATE is observed.
 task_try_checkpoint=baseline_pause
-pause after_barriers;start_pub baseline_busy 0;publisher=$task_pub_active_pid;task_try_checkpoint=baseline_sleep;pub_sleep baseline_busy
+pause after_barriers;start_pub baseline_busy 7;publisher=$task_pub_active_pid;task_try_checkpoint=baseline_sleep;pub_sleep baseline_busy
 start_writer baseline <<'SQL'
 begin;set local role authenticated;select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
 select public.append_operations_manual_obligation_baseline_v1(baseline_command) from public.operations_scope_invoice_kernel_native_fixture;commit;
@@ -167,7 +224,7 @@ start_writer project_update <<'SQL'
 begin;update public.projects set deleted_at=now() where id='55555555-5555-4555-8555-555555555555';commit;
 SQL
 updater=$task_pub_writer_pid;task_try_checkpoint=baseline_queue;blocked_by native_try_writer_project_update native_try_writer_baseline
-task_try_checkpoint=baseline_busy;task_try_focus=baseline_busy;busy_pub baseline_busy "$publisher"
+task_try_checkpoint=baseline_busy;task_try_focus=baseline_busy;compatible_pub baseline_busy "$publisher" native_try_writer_baseline native_try_writer_project_update;task_pub_baseline_as_of=$task_pub_compatible_accepted
 task_try_checkpoint=baseline_writer;task_try_focus=baseline;wait_owned "$writer"
 task_try_checkpoint=baseline_receipt;receipt baseline accepted revision 2
 task_try_checkpoint=baseline_updater;task_try_focus=project_update;wait_owned "$updater"
@@ -214,7 +271,7 @@ task_try_checkpoint=direct_restore;authority_denied direct_authority scope_root_
 restore_root;recompose;publish_now direct_restored
 
 # 4: supported compound preview→enroll retains root BEFORE economic barrier.
-task_try_checkpoint=compound_sleep;pause after_barriers;start_pub compound_busy 0;publisher=$task_pub_active_pid;pub_sleep compound_busy
+task_try_checkpoint=compound_sleep;pause after_barriers;start_pub compound_busy 7;publisher=$task_pub_active_pid;pub_sleep compound_busy
 start_writer compound_enrollment <<'SQL'
 begin;set local role authenticated;select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
 select public.enroll_operations_project_scope_v1(enroll_command||jsonb_build_object('expected_revision',2,'expected_membership_fingerprint',public.preview_operations_project_scope_v1('large_project','cccccccc-cccc-4ccc-8ccc-cccccccccccc')->'membership_fingerprint','idempotency_key','native-try-compound-enrollment')) from public.operations_scope_invoice_kernel_native_fixture;commit;
@@ -224,15 +281,16 @@ start_writer compound_root_update <<'SQL'
 begin;update public.large_projects set deleted_at=now() where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';commit;
 SQL
 updater=$task_pub_writer_pid;task_try_checkpoint=compound_queue;blocked_by native_try_writer_compound_root_update native_try_writer_compound_enrollment
-task_try_checkpoint=compound_busy;task_try_focus=compound_busy;busy_pub compound_busy "$publisher";wait_owned "$writer";receipt compound_enrollment accepted scope_revision 3;wait_owned "$updater"
+task_try_checkpoint=compound_busy;task_try_focus=compound_busy;compatible_pub compound_busy "$publisher" native_try_writer_compound_enrollment native_try_writer_compound_root_update;task_pub_compound_as_of=$task_pub_compatible_accepted;wait_owned "$writer";receipt compound_enrollment accepted scope_revision 3;wait_owned "$updater"
 task_try_checkpoint=compound_restore;pause none;authority_denied compound_authority scope_root_missing_or_foreign
 restore_root;recompose;publish_now compound_restored
 
 task_try_checkpoint=vectors
-[[ $task_pub_revision == 4 ]] || { echo 'Exact TRY native publication count required' >&2;exit 1; }
+[[ $task_pub_baseline_as_of =~ ^[01]$ && $task_pub_compound_as_of =~ ^[01]$ && $task_pub_revision == $((4+task_pub_baseline_as_of+task_pub_compound_as_of)) ]] || { echo 'Exact TRY native branch publication count required' >&2;exit 1; }
 observe "select jsonb_agg(jsonb_build_object('label','native_'||publication_revision,'capture',capture::text,'projection',projection::text,'document',document::text,'evidence_fingerprint',evidence_fingerprint,'publication_fingerprint',publication_fingerprint) order by publication_revision)::text from operations_scope_publication_native.publications" >"$task_pub_dir/vectors.json"
 "$task_pub_deno" run --allow-read="$task_pub_dir/vectors.json" "$task_pub_root/scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts" "$task_pub_dir/vectors.json" >"$task_pub_dir/vector_result.log" 2>&1 || { echo 'Native saved TRY publication vector verification failed' >&2;exit 1; }
-grep -Fx "whole-scope-publication-transaction-vectors PASS 4 actual_saved_sql_to_unchanged_kernel" "$task_pub_dir/vector_result.log"
-assert_state "select (select count(*)=4 and bool_and(destination_id is null and wire_payload is null) from operations_scope_publication_native.blocked_controls) and (select count(*)=1 and bool_and(publication_revision=4) from operations_scope_publication_native.heads) and (select count(*)=4 from operations_scope_publication_native.publications) and (select count(*)=4 from operations_scope_publication_native.receipts) and (select current_revision=3 from public.operations_project_scope_heads) and (select current_revision=5 from public.operations_scope_obligation_composition_heads) and (select count(*)=2 and bool_and(current_revision=1) from public.operations_finance_invoice_streams) and not exists(select 1 from public.operations_finance_credit_v2_streams) and (select count(*)=3 and bool_and(current_revision=case when obligation_id='abababab-abab-4aba-8aba-abababababab' then 2 else 1 end) from public.operations_project_obligation_heads) and (select count(*)=1 and bool_and(pause_stage='none') from operations_scope_publication_try_native.controls)"
+grep -Fx "whole-scope-publication-transaction-vectors PASS $task_pub_revision actual_saved_sql_to_unchanged_kernel" "$task_pub_dir/vector_result.log"
+assert_state "select (select count(*)=$task_pub_revision and bool_and(destination_id is null and wire_payload is null) from operations_scope_publication_native.blocked_controls) and (select count(*)=1 and bool_and(publication_revision=$task_pub_revision) from operations_scope_publication_native.heads) and (select count(*)=$task_pub_revision from operations_scope_publication_native.publications) and (select count(*)=$task_pub_revision from operations_scope_publication_native.receipts) and (select current_revision=3 from public.operations_project_scope_heads) and (select current_revision=5 from public.operations_scope_obligation_composition_heads) and (select count(*)=2 and bool_and(current_revision=1) from public.operations_finance_invoice_streams) and not exists(select 1 from public.operations_finance_credit_v2_streams) and (select count(*)=3 and bool_and(current_revision=case when obligation_id='abababab-abab-4aba-8aba-abababababab' then 2 else 1 end) from public.operations_project_obligation_heads) and (select count(*)=1 and bool_and(pause_stage='none') from operations_scope_publication_try_native.controls)"
 task_try_checkpoint=terminal
-echo 'whole-scope-publication-try-native PASS four_actual_queued_writer_families_busy_rollback_saved4_no_authority_activation'
+printf 'whole-scope-publication-try-branches PASS baseline_as_of=%s compound_as_of=%s saved=%s\n' "$task_pub_baseline_as_of" "$task_pub_compound_as_of" "$task_pub_revision"
+echo 'whole-scope-publication-try-native PASS four_actual_queued_writer_families_protected_as_of_or_busy_rollback_no_authority_activation'

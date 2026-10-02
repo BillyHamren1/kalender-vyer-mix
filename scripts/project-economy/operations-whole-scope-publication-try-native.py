@@ -18,9 +18,7 @@ FIXED_ENV={'CI':'true','EVENTFLOW_SCOPE_PUBLICATION_TRY_ISOLATED_DB':'true','PGH
 ALLOWED_PG={'PGHOST','PGPORT','PGUSER','PGDATABASE','PGPASSWORD'}
 PUBLIC_SQLSTATES={'22023','23505','23503','23514','42501','40001','55000','55P03','57014','22003','22P02','42883','42P01','42703','40P01','25P02','PT409'}
 PHASES={'guard','paths','source_closure','fresh_database','schema','obligation_fixture','setup','try_setup','native_sessions','proof'}
-NATIVE_VECTOR='whole-scope-publication-transaction-vectors PASS 4 actual_saved_sql_to_unchanged_kernel'
-NATIVE_MARKER='whole-scope-publication-try-native PASS four_actual_queued_writer_families_busy_rollback_saved4_no_authority_activation'
-EXPECTED=[NATIVE_VECTOR,NATIVE_MARKER]
+NATIVE_MARKER='whole-scope-publication-try-native PASS four_actual_queued_writer_families_protected_as_of_or_busy_rollback_no_authority_activation'
 HERE=pathlib.Path(__file__).absolute().parent
 ROOT=HERE.parent.parent
 CLOSURE=HERE/'whole-scope-publication-try-native-closure.json'
@@ -31,7 +29,7 @@ BASE_RUNNER=HERE/'operations-whole-scope-publication-transaction-native.py'
 BASE_RUNNER_SHA256='271add7c5c0f9a4875645bdde3fd80471bb494d8787c9f9d64258a9b25ecb12e'
 EXTRA=('scripts/project-economy/whole-scope-publication-transaction-native-closure.json','scripts/project-economy/whole-scope-publication-try-native-wrapper.sql','scripts/project-economy/whole-scope-publication-try-native-setup.sql','scripts/project-economy/whole-scope-publication-try-native-concurrency.sh','scripts/project-economy/operations-whole-scope-publication-try-native.py','scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py','docs/project-economy/whole-scope-publication-try-native-contract.md')
 
-CHECKPOINTS={'none','guard','baseline_pause','baseline_sleep','baseline_wait','baseline_queue','baseline_busy','baseline_busy_denial','baseline_busy_state','baseline_writer','baseline_receipt','baseline_updater','baseline_restore','composition_sleep','composition_queue','composition_busy','composition_restore','direct_sleep','direct_queue','direct_busy','direct_restore','compound_sleep','compound_wait','compound_queue','compound_busy','compound_restore','vectors','terminal'}
+CHECKPOINTS={'none','guard','baseline_pause','baseline_sleep','baseline_wait','baseline_queue','baseline_busy','baseline_busy_denial','baseline_busy_state','baseline_held','baseline_writer','baseline_receipt','baseline_updater','baseline_restore','composition_sleep','composition_queue','composition_busy','composition_restore','direct_sleep','direct_queue','direct_busy','direct_restore','compound_sleep','compound_wait','compound_queue','compound_busy','compound_held','compound_restore','vectors','terminal'}
 FAILURE_REASONS={'none','unexpected_success','denial_mismatch'}
 
 class ClosedFailure(Exception):
@@ -114,6 +112,13 @@ def setup_sql(source,fixture):
 
 def options():return "set standard_conforming_strings=on;set statement_timeout='30s';set lock_timeout='10s';set idle_in_transaction_session_timeout='35s';set eventflow.scope_publication_isolated='synthetic-disposable';set eventflow.scope_publication_try_isolated='synthetic-disposable';\n"
 
+def terminal_proof(lines):
+    if not isinstance(lines,list) or len(lines)!=3 or lines[2]!=NATIVE_MARKER:raise ClosedFailure('proof')
+    vector=re.fullmatch(r'whole-scope-publication-transaction-vectors PASS ([456]) actual_saved_sql_to_unchanged_kernel',lines[0])
+    branch=re.fullmatch(r'whole-scope-publication-try-branches PASS baseline_as_of=([01]) compound_as_of=([01]) saved=([456])',lines[1])
+    if not vector or not branch or int(vector[1])!=int(branch[3]) or int(branch[3])!=4+int(branch[1])+int(branch[2]):raise ClosedFailure('proof')
+    return lines
+
 def execute(env):
     deno=validate_environment(env)
     if HERE.parts[-2:]!=('scripts','project-economy') or pathlib.Path(__file__).resolve()!=pathlib.Path(__file__).absolute():raise ClosedFailure('paths')
@@ -134,11 +139,11 @@ def execute(env):
         # The shell sets its own bounded PGOPTIONS. Pass original guarded env;
         # never inherit this wrapper's libpq overrides or private output paths.
         output=private_run(shared,'native_sessions',['bash',str(HERE/'whole-scope-publication-try-native-concurrency.sh')],env,private,120)
-        if output.read_text().splitlines()!=[NATIVE_VECTOR,NATIVE_MARKER]:raise ClosedFailure('proof')
+        verified=terminal_proof(output.read_text().splitlines())
     except ClosedFailure as error:retain=error.retain_private;raise
     finally:
         if not retain:shutil.rmtree(private)
-    for marker in EXPECTED:print(marker)
+    for marker in verified:print(marker)
 
 def interrupted(_signal,_frame):raise ClosedFailure('guard')
 
