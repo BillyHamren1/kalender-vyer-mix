@@ -231,7 +231,12 @@ Deno.test("unit credit-v2 accepted/replayed/stale strict receipts preserve raw i
       });
     }
     const fetchImpl: typeof fetch = (_url, init) => {
-      assert(init?.redirect === "error" && init.signal instanceof AbortSignal);
+      const options = init as
+        | { redirect?: string; signal?: AbortSignal | null }
+        | undefined;
+      assert(
+        options?.redirect === "error" && options.signal instanceof AbortSignal,
+      );
       return Promise.resolve(Response.json(receipt));
     };
     const response = await handleFinanceProjectCreditV2Destination(
