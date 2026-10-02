@@ -36,9 +36,9 @@ class Cases:
  def writer(self,command,before=False,after=False):
   sql="begin isolation level repeatable read;select current_revision from public.operations_project_scope_heads where economic_scope_id='"+SCOPE+"';"
   if before:sql+='select pg_sleep(10);'
-  sql+="select set_config('request.jwt.claims','{\"sub\":\""+ACTOR+"\",\"role\":\"authenticated\"}',true);set local role authenticated;select public.publish_operations_whole_scope_granted_product_v2("+literal(command)+");reset role;"
+  sql+="select set_config('request.jwt.claims','{\"sub\":\""+ACTOR+"\",\"role\":\"authenticated\"}',true);set local role authenticated;select public.publish_operations_whole_scope_granted_product_v2("+literal(command)+");"
   if after:sql+='select pg_sleep(10);'
-  return sql+'commit;'
+  return sql+"do $$begin if current_user<>'authenticated' then raise exception 'actual_authenticated_commit_role_required' using errcode='22023';end if;end;$$;commit;"
  def grant(self,label,enabled=True,pause=False):
   if not re.fullmatch('[a-z_]{3,40}',label):raise CaseFailure(9)
   sql="begin isolation level repeatable read;select set_config('request.jwt.claims','{\"sub\":\""+ISSUER+"\",\"role\":\"authenticated\"}',true);create temp table genuine_grant_command(command jsonb) on commit drop;insert into genuine_grant_command select n.command||jsonb_build_object('expected_grant_revision',g.revision,'expected_composition_revision',c.current_revision,'expected_composition_fingerprint',cs.fingerprint,'enabled',"+str(enabled).lower()+",'idempotency_key','successor-native-grant-"+label+"') from operations_whole_scope_grant_native.commands n join operations_whole_scope_export_grant_private.heads g on g.organization_id=n.organization_id and g.economic_scope_id=(n.command->>'economic_scope_id')::uuid join public.operations_scope_obligation_composition_heads c on c.organization_id=g.organization_id and c.economic_scope_id=g.economic_scope_id join public.operations_scope_obligation_compositions cs on cs.organization_id=c.organization_id and cs.economic_scope_id=c.economic_scope_id and cs.composition_revision=c.current_revision where n.label='known';grant select on genuine_grant_command to authenticated;set local role authenticated;select public.write_operations_whole_scope_product_export_grant_v1(command) from genuine_grant_command;reset role;"

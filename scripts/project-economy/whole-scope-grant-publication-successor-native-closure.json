@@ -1,5 +1,5 @@
 {
-  "commit": "3326b45d51576d981dadec64e0c3ecb724a61a53",
+  "commit": "706dc16b6d082a2725805454c12ebe7fcce1b9c3",
   "database": "eventflow_scope_product_publication_runtime",
   "files": {
     "docs/project-economy/whole-scope-grant-publication-successor-source-v2-notes.md": {
@@ -286,6 +286,11 @@
       "git_blob": "cc66634f528c6ffd1435389584e6aa6f5e2ed541",
       "sha256": "c530d153a676a3571c7ad056e56c6fa2893d0e8c74b3cd811cd1069ba133b5a6",
       "size": 55766
+    },
+    "supabase/migrations/20261002224027_operations_granted_publication_deferred_completeness_security_v2.sql": {
+      "git_blob": "20c28e6d688abb2b27d6a81a3c16f877eaac288c",
+      "sha256": "3f6406a102482bae6ec3e1a72213bd5dd24f9c5422ab505825007d859e1374af",
+      "size": 3032
     }
   },
   "ordered_schema_paths": [
@@ -316,13 +321,13 @@
   "owned_paths": {
     "docs/project-economy/whole-scope-grant-publication-successor-native-proof-v2.md": {
       "git_blob": null,
-      "sha256": "c6d8565c96ce0a3feaa0e1c1d96fee58be2965259abbbe67b7e76cba93ca490c",
-      "size": 7080
+      "sha256": "2222793d76d26471b0dad41b9e4c1380ef68ee905c9f6b3fc9d85761223b97bf",
+      "size": 8129
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-cases.py": {
       "git_blob": null,
-      "sha256": "342f2bcb75f5fb8539227379fbb877bc002827fa887233768ffb5eed329b564e",
-      "size": 17633
+      "sha256": "b6fa509915ca87c2208d2a3cb21b7337064205bfdb39ac3c2c912699175dbb83",
+      "size": 17767
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-guard-test.py": {
       "git_blob": null,
@@ -336,8 +341,8 @@
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-runner.py": {
       "git_blob": null,
-      "sha256": "e022ae1760e89c054bc5e81054cee383de03ace16bcd438e5517a5e8ef7b916f",
-      "size": 24155
+      "sha256": "c913dc52117b0e6417d95055e0e5ac3fc0a1e68fd063f42876d8c03ac768dd10",
+      "size": 24414
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-setup.sql": {
       "git_blob": null,
@@ -346,9 +351,10 @@
     }
   },
   "provenance": {
+    "deferred_completeness_repair_capture": "f0625945d4d485a795f73a3c6811f46259011fbdb0d17353ec2e3909716caa33",
     "genuine_source_recursive_truncated": false,
-    "genuine_source_tree": "378a3788677a252ceac6fef4de37053b8f480a0a",
-    "new_native_source_status": "candidate_no_native_execution",
+    "genuine_source_tree": "0db2e9bdb191155af4481188e8f77743e91fd68f",
+    "new_native_source_status": "repaired_candidate_pending_native_execution",
     "predecessor_verified_commit": "72a25cd991f69712eb031e46a25f3eabf1e6f6aa",
     "scope": "Finite actual schema/API source closure only; no protected export, source proof, Finance admission or hosted catalog claim",
     "shared_process_helper": {
