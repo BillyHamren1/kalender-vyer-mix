@@ -68,7 +68,12 @@ test('closed diagnostic buckets never contain a request path, secret or exceptio
   for (const [url, kind] of [
     [`${origin}/auth/v1/token?secret=PRIVATE`, 'auth_post'],
     [`${origin}/rest/v1/rpc/PRIVATE_RPC`, 'rpc_post'],
-    [`${origin}/functions/v1/PRIVATE_FUNCTION`, 'function_post'],
+    [`${origin}/functions/v1/report-diagnostic`, 'report_diagnostic'],
+    [`${origin}/functions/v1/mapbox-token`, 'mapbox_token'],
+    [`${origin}/functions/v1/mapbox-token/PRIVATE_PATH`, 'other_function'],
+    [`${origin}/functions/v1/PRIVATE_FUNCTION`, 'other_function'],
+    [`${origin}/functions/v1/report-diagnostic/PRIVATE_PATH`, 'other_function'],
+    ['https://PRIVATE.invalid/functions/v1/report-diagnostic', 'foreign_write'],
     [`${origin}/rest/v1/PRIVATE_TABLE`, 'rest_write'],
     [`${origin}/PRIVATE_PATH`, 'other_source_write'],
     [`${app}/PRIVATE_PATH`, 'browser_origin_write'],
@@ -76,7 +81,14 @@ test('closed diagnostic buckets never contain a request path, secret or exceptio
   ])
     assert.equal(classifyMountedWrite(url, app), kind);
   const counts = mountedFailureCounts(
-    ['auth_post', 'auth_post', 'rpc_post'],
+    [
+      'auth_post',
+      'auth_post',
+      'rpc_post',
+      'report_diagnostic',
+      'mapbox_token',
+      'other_function',
+    ],
     [
       { stage: 'authorization', kind: 'profiles' },
       { stage: 'native_fulfill', kind: 'project_labor_costs' },
@@ -84,6 +96,17 @@ test('closed diagnostic buckets never contain a request path, secret or exceptio
   );
   assert.equal(counts.writeCounts.auth_post, 2);
   assert.equal(counts.writeCounts.rpc_post, 1);
+  assert.equal(counts.writeCounts.report_diagnostic, 1);
+  assert.equal(counts.writeCounts.mapbox_token, 1);
+  assert.equal(
+    allowedMountedRead(`${origin}/functions/v1/mapbox-token`, 'POST'),
+    false,
+  );
+  assert.equal(counts.writeCounts.other_function, 1);
+  assert.equal(
+    allowedMountedRead(`${origin}/functions/v1/report-diagnostic`, 'POST'),
+    false,
+  );
   assert.equal(counts.forwardCounts.authorization, 1);
   assert.equal(counts.forwardKinds.project_labor_costs, 1);
   assert.equal(JSON.stringify(counts).includes('PRIVATE'), false);

@@ -141,9 +141,11 @@ class BoundaryTests(unittest.TestCase):
                       'forwardCounts': dict.fromkeys(module.FORWARD_STAGES, 0),
                       'forwardKinds': dict.fromkeys(module.READ_KINDS, 0)}
         diagnostic['writeCounts']['auth_post'] = 2
+        diagnostic['writeCounts']['report_diagnostic'] = 1
+        diagnostic['writeCounts']['mapbox_token'] = 1
         label = module.failed_browser_phase(raw, 'disabled', json.dumps(diagnostic))
         self.assertIn('accepted_prefix=1', label)
-        self.assertIn('boundary=writes; writeCounts=auth_post:2', label)
+        self.assertIn('boundary=writes; writeCounts=auth_post:2,report_diagnostic:1,mapbox_token:1', label)
         self.assertIn('forwardCounts=none; forwardKinds=none', label)
         bad_values = []
         for field, value in [('case', 'PRIVATE_PATH'), ('reason', 'PRIVATE_ERROR'), ('boundary', 'PRIVATE_SECRET')]:
@@ -151,6 +153,9 @@ class BoundaryTests(unittest.TestCase):
         bad_values.append(dict(diagnostic, rawBody='PRIVATE_BODY'))
         bad = copy.deepcopy(diagnostic)
         bad['writeCounts']['auth_post'] = True
+        bad_values.append(bad)
+        bad = copy.deepcopy(diagnostic)
+        bad['writeCounts']['function_post'] = 1
         bad_values.append(bad)
         bad = copy.deepcopy(diagnostic)
         bad['forwardKinds']['PRIVATE_PATH'] = 1

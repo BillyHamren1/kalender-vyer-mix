@@ -45,7 +45,7 @@ CASES = {
 FIXED = {'PROJECT_EVIDENCE_DATABASE_NAME': DATABASE,
          'PROJECT_EVIDENCE_POSTGREST_URL': 'http://127.0.0.1:55610/',
          'PROJECT_EVIDENCE_CONTROL_URL': 'http://127.0.0.1:55611/'}
-WRITE_KINDS = ('auth_post', 'rpc_post', 'function_post', 'rest_write',
+WRITE_KINDS = ('auth_post', 'rpc_post', 'report_diagnostic', 'mapbox_token', 'other_function', 'rest_write',
                'browser_origin_write', 'foreign_write', 'other_source_write')
 FORWARD_STAGES = ('headers', 'authorization', 'rpc_shape', 'native_fetch', 'native_body', 'native_fulfill')
 READ_KINDS = ('profiles', 'user_roles', 'projects', 'bookings', 'large_projects',

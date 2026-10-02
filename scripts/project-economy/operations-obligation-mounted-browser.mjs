@@ -59,7 +59,9 @@ const leafRpc = '/rest/v1/rpc/read_operations_scope_obligation_drilldown_v1';
 const writeKinds = [
   'auth_post',
   'rpc_post',
-  'function_post',
+  'report_diagnostic',
+  'mapbox_token',
+  'other_function',
   'rest_write',
   'browser_origin_write',
   'foreign_write',
@@ -86,7 +88,12 @@ export function classifyMountedWrite(url, app) {
   if (u.origin !== SOURCE_ORIGIN) return 'foreign_write';
   if (u.pathname.startsWith('/auth/v1/')) return 'auth_post';
   if (u.pathname.startsWith('/rest/v1/rpc/')) return 'rpc_post';
-  if (u.pathname.startsWith('/functions/v1/')) return 'function_post';
+  if (u.pathname.startsWith('/functions/v1/'))
+    return u.pathname === '/functions/v1/report-diagnostic'
+      ? 'report_diagnostic'
+      : u.pathname === '/functions/v1/mapbox-token'
+        ? 'mapbox_token'
+        : 'other_function';
   if (u.pathname.startsWith('/rest/v1/')) return 'rest_write';
   return 'other_source_write';
 }
