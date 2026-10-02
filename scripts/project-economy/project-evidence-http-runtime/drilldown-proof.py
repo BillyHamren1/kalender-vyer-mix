@@ -37,7 +37,28 @@ def validate(raw):
         raise ValueError('Exact native drilldown completion required')
     return [json.dumps(value, sort_keys=True) for value in values]
 
+
+def failure(raw):
+    """Emit only a fixed failed boundary; this never accepts partial proof."""
+    rows = [json.loads(row) for row in raw.splitlines()]
+    if not 1 <= len(rows) <= 19:
+        raise ValueError('Closed failure evidence required')
+    for value, case in zip(rows[:-1], CASES):
+        if value != {'case': case, 'result': 'PASS'}:
+            raise ValueError('Exact prior boundary required')
+    last = rows[-1]
+    allowed = set(CASES) | {'drilldown isolated guard'}
+    if set(last) != {'case', 'result', 'reason'} or last['case'] not in allowed or last['result'] != 'FAIL' or last['reason'] != 'authenticated drilldown proof failed':
+        raise ValueError('Fixed failure required')
+    return json.dumps({'result': 'FAIL', 'boundary': last['case'], 'accepted': False, 'prior_boundaries': len(rows) - 1}, sort_keys=True)
+
 if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == '--failure':
+        try:
+            print(failure(Path(sys.argv[2]).read_text()))
+        except Exception:
+            print('Native drilldown failed; closed boundary unavailable; no acceptance')
+        raise SystemExit(0)
     try:
         accepted = validate(Path(sys.argv[1]).read_text())
     except Exception:

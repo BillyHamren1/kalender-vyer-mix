@@ -397,6 +397,8 @@ jobs:
           python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py seed /tmp/scope-native-fixture.json
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql
           python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py admin /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-capture-admin-http-native.test.py
+          python3 scripts/project-economy/operations-scope-invoice-capture-admin-http-native.py
           bash scripts/project-economy/operations-scope-invoice-kernel-native-concurrency.sh
 
   invoice-source-barrier-native:

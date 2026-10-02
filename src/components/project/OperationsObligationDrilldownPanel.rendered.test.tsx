@@ -2,7 +2,11 @@
 // Actual React/query rendering with intercepted Auth/RPC; separate from native authorization.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  dehydrate,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import {
   OperationsObligationDrilldownPanel,
   type ObligationDrilldownSelection,
@@ -158,17 +162,15 @@ beforeEach(() => {
   state.signals = [];
   state.read.mockReset().mockResolvedValue({ data: evidence(), error: null });
   state.rpc.mockReset();
-  state.session
-    .mockReset()
-    .mockImplementation(async () => ({
-      data: {
-        session:
-          state.actor && state.token
-            ? { user: { id: state.actor }, access_token: state.token }
-            : null,
-      },
-      error: null,
-    }));
+  state.session.mockReset().mockImplementation(async () => ({
+    data: {
+      session:
+        state.actor && state.token
+          ? { user: { id: state.actor }, access_token: state.token }
+          : null,
+    },
+    error: null,
+  }));
   query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 afterEach(() => {
@@ -177,6 +179,28 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe('one-obligation protected rendered drilldown', () => {
+  it('excludes actual loaded money from the application persistence boundary', async () => {
+    state.read.mockResolvedValue({ data: evidence(), error: null });
+    mount();
+    await screen.findByText('Preliminär kostnad: 5 400,00 kr');
+    const active = query
+      .getQueryCache()
+      .find({
+        queryKey: ['operations-obligation-drilldown-v1'],
+        exact: false,
+      })!;
+    expect(active.state.status).toBe('success');
+    expect(active.meta?.persist).toBe(false);
+    // App.tsx persists successful JSON-safe queries unless this exact opt-out is set.
+    // Prove money exists in memory yet cannot enter that dehydrated persistent state.
+    expect(dehydrate(query).queries).toHaveLength(1);
+    const persisted = dehydrate(query, {
+      shouldDehydrateQuery: (q) =>
+        q.state.status === 'success' && q.meta?.persist !== false,
+    });
+    expect(persisted.queries).toHaveLength(0);
+    expect(JSON.stringify(persisted)).not.toContain('540000');
+  });
   it('stays inert by default and never calls a reader', () => {
     vi.stubEnv('VITE_OPERATIONS_OBLIGATION_DRILLDOWN_ENABLED', 'false');
     mount();

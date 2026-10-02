@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "e274d42f6ee11236f907c3383c4b42d9b7af46dbb27886028a4006fc74e531ba",
-      "bytes": 40588
+      "sha256": "39af77982858197016788e4d5e2a79c6f6784b3bdafc4074787244e3840e232e",
+      "bytes": 40785
     },
     {
       "path": "docs/project-economy/obligation-drilldown-authenticated-http-v1.md",
@@ -84,13 +84,13 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-proof.py",
-      "sha256": "413a46b9e1864f9509d6578788600469cb17023981c348c284ea868966fd8da3",
-      "bytes": 2102
+      "sha256": "2180d337393221b541f05c33aa57f4abfcccbf831821b82e378ff60e37b391f0",
+      "bytes": 3220
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-proof.test.py",
-      "sha256": "8c345623697b31895b68302fc9d37db321659448de391f7f7b56b11208ab3f91",
-      "bytes": 1877
+      "sha256": "c76d8020fdfc0ace507f32cb4e149df3dd9db6815c6719f0f532d5d5f3415912",
+      "bytes": 2409
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/isolation.py",
@@ -124,8 +124,8 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/run.sh",
-      "sha256": "faf98e297878878e6720e97cd057faa65bc79d425a7067859b4d341499c3c080",
-      "bytes": 9679
+      "sha256": "6550eafb05fad3e48b154dd25dfaa1af12c55141c70ece482c9b96c7359ad189",
+      "bytes": 9786
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/schema-closure.json",

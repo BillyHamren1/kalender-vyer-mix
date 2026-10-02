@@ -107,6 +107,7 @@ function SessionDrilldown({
         authority,
         signal,
       ),
+    meta: { persist: false },
     gcTime: 0,
     staleTime: 0,
     retry: false,

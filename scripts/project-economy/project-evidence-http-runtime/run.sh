@@ -156,6 +156,7 @@ TASK_PHASE=drilldown_authenticated_journey
 timeout 240 deno run --unstable-sloppy-imports --cached-only --allow-env --allow-net=127.0.0.1:55610,127.0.0.1:55611 \
   scripts/project-economy/operations-obligation-drilldown-http-journey.ts > "$TASK_PRIVATE/private-drilldown-journey.log" 2>&1 || {
     echo 'Native authenticated drilldown journey failed; no partial authorization proof' >&2
+    python3 "$TASK_RUNTIME/drilldown-proof.py" --failure "$TASK_PRIVATE/private-drilldown-journey.log" >&2
     exit 1
   }
 TASK_PHASE=drilldown_complete_proof

@@ -19,6 +19,13 @@ class PrivateEvidence(unittest.TestCase):
     def test_exact_complete(self):
         self.assertEqual(len(proof.validate('\n'.join(map(json.dumps, self.valid())))), 19)
 
+    def test_failure_diagnostic_never_accepts_or_emits_private_fields(self):
+        rows = [{'case': proof.CASES[0], 'result': 'FAIL', 'reason': 'authenticated drilldown proof failed'}]
+        self.assertEqual(json.loads(proof.failure(json.dumps(rows[0])))['accepted'], False)
+        for changed in [dict(rows[0], authorization='private-fixture'), dict(rows[0], case='private-fixture'), dict(rows[0], reason='private-fixture')]:
+            with self.assertRaises(ValueError):
+                proof.failure(json.dumps(changed))
+
     def test_hostile_logs_emit_nothing(self):
         rows = self.valid()
         mutations = [rows[:-1], rows + [{'private': 'hidden'}], list(reversed(rows)), [rows[0]] + rows[2:], rows[:3] + [rows[0]] + rows[4:]]
