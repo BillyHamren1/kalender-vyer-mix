@@ -7,9 +7,11 @@ on:
       - 'supabase/functions/_shared/project-cost-obligations*'
       - 'supabase/functions/_shared/project-cost-obligation-authority*'
       - 'supabase/functions/_shared/project-obligation-source-policy*'
+      - 'supabase/functions/_shared/project-scope-obligation-composition*'
       - 'supabase/functions/_shared/project-credit-link-v2-destination*'
       - 'supabase/migrations/*operations_project_obligation*.sql'
       - 'supabase/migrations/*operations_obligation_source_policy*.sql'
+      - 'supabase/migrations/*operations_scope_obligation_composition*.sql'
       - 'supabase/functions/_shared/project-operational-eac*'
       - 'supabase/functions/_shared/canonical-project-scope*'
       - 'supabase/migrations/*operations_project_scope*.sql'
@@ -20,6 +22,13 @@ on:
       - 'supabase/migrations/*operations_catering*.sql'
       - 'supabase/functions/project-personnel-cost-publish/**'
       - 'supabase/functions/finance-project-invoice-receive/**'
+      - 'supabase/functions/finance-project-invoice-receive-v2/**'
+      - 'supabase/functions/_shared/catering-finance-*'
+      - 'supabase/functions/catering-finance-delivery/**'
+      - 'supabase/migrations/*operations_finance_credit*.sql'
+      - 'supabase/migrations/*operations_invoice_economic*.sql'
+      - 'scripts/project-economy/catering-finance-*'
+      - 'supabase/config.toml'
       - 'supabase/migrations/*operations_finance_project_invoice*.sql'
       - 'supabase/migrations/*operations_personnel*.sql'
       - 'supabase/migrations/*operations_project_cost_read.sql'
@@ -77,6 +86,8 @@ jobs:
           deno check supabase/functions/_shared/project-booking-commercial-read.ts supabase/functions/_shared/project-booking-commercial-read-client.ts
           deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
           deno test supabase/functions/_shared/project-credit-link-v2-destination.test.ts
+          deno check supabase/functions/finance-project-invoice-receive-v2/index.ts supabase/functions/catering-finance-delivery/index.ts
+          deno test supabase/functions/finance-project-invoice-receive-v2/handler.test.ts supabase/functions/finance-project-invoice-receive-v2/receipt.test.ts
       - name: Actual evidence DOM, null costs and actor/tenant cache isolation
         run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
       - name: Generate actual Operations calculation fixtures
@@ -215,3 +226,77 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-source-policy-postgres-test.sql'],check=True)
           PY_POLICY
+
+      - name: Actual whole-scope composition and captured baseline/source currentness
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002030747_operations_scope_obligation_composition.sql
+          python3 - <<'PY_COMPOSITION'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-composition-postgres-test.sql'],check=True)
+          PY_COMPOSITION
+
+      - name: Native v2 recipient economics, replay and cross-protocol currentness
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-v2-receiver-postgres-test.sql
+      - name: Entry-level invoice source barriers preserve v1 and v2 contracts
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-barrier-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-destination-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-v2-receiver-postgres-test.sql
+      - name: Native Catering durable Finance capture, lease and unchanged parked source
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024013_operations_catering_finance_delivery_v1.sql
+          CATERING_PROJECT_ECONOMY_ISOLATED_TEST=true deno run --allow-env scripts/project-economy/catering-finance-fixture.ts > /tmp/catering-finance-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f /tmp/catering-finance-fixture.sql -f scripts/project-economy/catering-finance-delivery-postgres-test.sql
+  invoice-source-barrier-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_invoice_barrier_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_invoice_barrier_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_INVOICE_BARRIER_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fresh dedicated native invoice barrier concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          PGOPTIONS='-c eventflow.invoice_barrier_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-barrier-native-setup.sql
+          bash scripts/project-economy/operations-invoice-barrier-native-concurrency.sh

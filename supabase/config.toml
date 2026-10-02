@@ -227,3 +227,12 @@ verify_jwt = false
 [functions.catering-project-cost-publish]
 # Dedicated internal secret and scoped native source proof; disabled by default.
 verify_jwt = false
+
+
+[functions.finance-project-invoice-receive-v2]
+# Dedicated v2 purpose-bound HMAC, exact enrollment and persistent nonce; default-off.
+verify_jwt = false
+
+[functions.catering-finance-delivery]
+# Dedicated internal dispatch bearer and captured immutable native publication; default-off.
+verify_jwt = false
