@@ -6,6 +6,8 @@ on:
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
       - 'supabase/functions/_shared/project-operational-eac*'
+      - 'supabase/functions/_shared/canonical-project-scope*'
+      - 'supabase/migrations/*operations_project_scope*.sql'
       - 'supabase/migrations/*operations_project_forecast*.sql'
       - 'supabase/functions/_shared/catering-project-evidence*'
       - 'supabase/functions/_shared/catering-project-ingestion*'
@@ -159,3 +161,16 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-forecast-postgres-test.sql'],check=True)
           PY_FORECAST
+
+      - name: Immutable whole-project membership and authoritative existing relationships
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-scope-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002014937_operations_project_scope_enrollment.sql
+          deno run --allow-read scripts/project-economy/operations-scope-fixture.ts > /tmp/project-scope-fixtures.json
+          python3 - <<'PY_SCOPE'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-scope-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-postgres-test.sql'],check=True)
+          PY_SCOPE

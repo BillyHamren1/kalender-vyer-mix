@@ -10,6 +10,7 @@ export default defineConfig({
       'supabase/functions/_shared/finance-project-invoice.test.ts',
       'supabase/functions/_shared/project-cost-obligations.test.ts',
       'supabase/functions/_shared/project-operational-eac.test.ts',
+      'supabase/functions/_shared/canonical-project-scope.test.ts',
       'supabase/functions/_shared/catering-project-evidence.test.ts',
       'supabase/functions/_shared/catering-project-ingestion.test.ts',
       'supabase/functions/_shared/project-personnel-project-review.test.ts',
