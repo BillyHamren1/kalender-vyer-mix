@@ -157,8 +157,8 @@ function ScopeForSession({
       </p>
       {!current && (
         <p role="alert">
-          Underlaget har ändrade eller ej verifierade referenser. De sparade
-          beloppen visas som historiskt underlag.
+          Aktualiteten är inte fullt verifierad. Beloppen visar det sparade
+          underlaget.
         </p>
       )}
       <dl>
@@ -167,10 +167,13 @@ function ScopeForSession({
         <dt>Sparade åtaganden</dt>
         <dd>{money(d.knownCommitmentMinor)}</dd>
       </dl>
-      {!d.allSelectedEstimatesKnown && (
+      {d.baselines.length === 0 && (
+        <p>Det sparade underlaget innehåller inga kostnadsposter.</p>
+      )}
+      {d.baselines.length > 0 && !d.allSelectedEstimatesKnown && (
         <p>Uppskattning saknas för en eller flera sparade poster.</p>
       )}
-      {!d.allSelectedCommitmentsKnown && (
+      {d.baselines.length > 0 && !d.allSelectedCommitmentsKnown && (
         <p>Åtagande saknas för en eller flera sparade poster.</p>
       )}
       <p>Prognos saknas. Budget och marginal kan ännu inte visas.</p>

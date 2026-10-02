@@ -326,7 +326,9 @@ export function validateScopeObligationEvidence(
     anchors.add(s.sourceAnchor);
     if (
       s.sourcePolicyState === 'current'
-        ? !uuid(s.policyEventId) || !positive(s.policyRevision)
+        ? s.sourceBindingState !== 'bound_original' ||
+          !uuid(s.policyEventId) ||
+          !positive(s.policyRevision)
         : s.policyEventId !== null || s.policyRevision !== null
     )
       return invalid();

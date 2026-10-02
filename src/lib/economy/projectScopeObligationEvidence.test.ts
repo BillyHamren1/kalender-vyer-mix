@@ -92,17 +92,15 @@ const authority: ScopeEvidenceReadAuthority = {
   accessToken: 'isolated-token',
 };
 function client(body: unknown = evidence()) {
-  const session = vi
-    .fn()
-    .mockResolvedValue({
-      data: {
-        session: {
-          access_token: authority.accessToken,
-          user: { id: authority.actorId },
-        },
+  const session = vi.fn().mockResolvedValue({
+    data: {
+      session: {
+        access_token: authority.accessToken,
+        user: { id: authority.actorId },
       },
-      error: null,
-    });
+    },
+    error: null,
+  });
   const abortSignal = vi.fn().mockResolvedValue({ data: body, error: null }),
     setHeader = vi.fn(() => ({ abortSignal })),
     rpc = vi.fn(() => ({ setHeader }));
@@ -115,6 +113,30 @@ function client(body: unknown = evidence()) {
   };
 }
 describe('copied partial scope evidence', () => {
+  it('empty saved composition retains unknown sums and false catalog references', () => {
+    const f = evidence();
+    Object.assign(f, {
+      baselines: [],
+      sources: [],
+      knownEstimateMinor: null,
+      knownCommitmentMinor: null,
+      allSelectedEstimatesKnown: false,
+      allSelectedCommitmentsKnown: false,
+      referenceCurrentness: {
+        membership: true,
+        baselines: false,
+        sources: false,
+      },
+    });
+    expect(parse(f).knownEstimateMinor).toBeNull();
+    f.referenceCurrentness.sources = true;
+    expect(() => parse(f)).toThrow();
+  });
+  it('a current source policy cannot accompany an unresolved binding', () => {
+    const f = evidence();
+    f.sources[0].sourceBindingState = 'unresolved';
+    expect(() => parse(f)).toThrow();
+  });
   it('keeps manual summary and source amount separate with unknown forecast', () => {
     const f = evidence();
     expect(parse(f)).toEqual(f);

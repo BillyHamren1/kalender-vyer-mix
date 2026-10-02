@@ -165,6 +165,29 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe('real React/query DOM with synthetic authority/RPC', () => {
+  it('empty saved composition clearly states no captured cost rows', async () => {
+    const f = evidence();
+    Object.assign(f, {
+      baselines: [],
+      sources: [],
+      knownEstimateMinor: null,
+      knownCommitmentMinor: null,
+      allSelectedEstimatesKnown: false,
+      allSelectedCommitmentsKnown: false,
+      referenceCurrentness: {
+        membership: true,
+        baselines: false,
+        sources: false,
+      },
+    });
+    state.read.mockResolvedValue({ data: f, error: null });
+    mount();
+    await screen.findByText(
+      'Det sparade underlaget innehåller inga kostnadsposter.',
+    );
+    expect(screen.queryByText(/^0,00\s*kr$/)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
   it('default-off does not fetch', () => {
     vi.stubEnv('VITE_OPERATIONS_SCOPE_OBLIGATION_EVIDENCE_ENABLED', 'false');
     expect(mount().container.textContent).toBe('');
