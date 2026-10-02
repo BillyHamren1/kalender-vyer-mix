@@ -1,0 +1,26 @@
+# Disposable fail-fast whole-scope publication follow-up
+
+This is a TEST-only follow-up to the frozen transaction9 at Operations commit 7e733c3176e460498dcc7c80b0dbe15d09775a21. It adds no product migration, public RPC, alias, Finance destination, source pricing or authorization grant. The original native18 job must rerun unchanged as an independent regression. Its accepted authored cases do not establish general reader lock ordering.
+
+The exact nine-field command and actor meaning are unchanged. The entry authenticates the actual user/profile/admin with the same live predicates and SHARE NOWAIT before examining private immutable hints. The immutable expected composition and scope snapshot discover a bounded known row set; they never establish currentness. Actual root identity is read from the scope snapshot's immutable membership JSON, not invented table columns.
+
+All acquisitions in the new entry are fail-fast. It uses the exact existing obligation-org and economic-scope advisory keys with pg_try_advisory_xact_lock, then SHARE NOWAIT for known project/root/packing-policy and gates, followed by all globally sorted invoice-economic-source keys with TRY. Scope/composition/baseline/policy and existing v1/v2 heads use SHARE NOWAIT; the private publication head uses UPDATE NOWAIT. Absent source/publication heads are protected by their canonical advisory keys. No fictitious absent-row lock is claimed. All caught lock contention is fixed SQLSTATE 55P03/native_try_publication_lock_busy and aborts the transaction. Business stale identities remain PT409; deleted/foreign/revoked authorization remains 42501. Neither deadlock40P01, statement timeout57014, an arbitrary55P03, nor no-evidence counts as successful proof.
+
+The full dependency closure is the unchanged native publisher, 052436 whole capture, 030747 composition reader, 044751 leaf reader, 023731 original binding reader and 025617 explicit policy reader. Their actual locked project/root/policy/gate/head identities and modes are preheld, then current heads, exact selected baseline revisions and complete binding inventory are rechecked. The trusted reader/calculator/save runs in the same transaction through the unchanged private pg_temp publisher. The saved projection keeps unavailable category/overall coverage and null EAC/budget/margin. Delivery controls retain null destination and wire payload.
+
+The native matrix uses actual public writer commands and observed blocking PIDs:
+
+| Writer family | Existing ordering exercised | Queued change | Expected new entry |
+| --- | --- | --- | --- |
+| Manual baseline | project SHARE then org | project soft delete | fixed55P03, rollback; baseline and change commit |
+| Scope composition | org then project/root | project soft delete | fixed55P03, rollback; composition and change commit |
+| Direct enrollment | economic key then root | large-project soft delete | fixed55P03, rollback; enrollment and change commit |
+| Compound preview→enroll | root SHARE retained across argument evaluation then economic key | large-project soft delete | fixed55P03, rollback; enrollment and change commit |
+
+Every denial leaves publication/head/receipt/blocked-control counts unchanged. Fresh reads after the committed deletion deny real authorization. After restoring only disposable fixture authority and obtaining genuine current composition receipts, four accepted immutable saved publications are checked against the unchanged strict TypeScript adapter/kernel/fingerprints. No numerical expectations are reconstructed by the runner.
+
+The new independent CI job must use a fresh database named eventflow_scope_publication_runtime, PostgreSQL15.19, Deno2.8.1, current checked-out sources and an exact58-file dependency closure (frozen51 plus its pinned manifest and six hashed follow-up sources; the new manifest is validated separately). Required environment: CI=true, GITHUB_REPOSITORY= BillyHamren1/kalender-vyer-mix (without whitespace), numeric GITHUB_RUN_ID, PGHOST=127.0.0.1, PGPORT=5432, PGUSER=postgres, PGDATABASE=eventflow_scope_publication_runtime, EVENTFLOW_SCOPE_PUBLICATION_TRY_ISOLATED_DB=true and optional absolute EVENTFLOW_SCOPE_PUBLICATION_TRY_DENO_BIN. Ambient libpq, service, database, Docker, temp-directory and unknown task configuration overrides are rejected before connection. All query/capture/error output remains private; public output is the two exact terminal markers.
+
+The runner applies the pinned full23 schema, creates the original genuine authority fixture through its frozen setup, then applies the new guarded test adjunct. Each publisher session loads the frozen calculator and publisher followed by the new wrapper. Only the disposable TEST gate is enabled. Private processes, logs and database sessions have bounded lifetime and owned cleanup. The frozen original9 and all existing runners/workflows remain byte-identical.
+
+Still open: genuine native execution of this follow-up; packing-policy and other permission-row contention beyond the four authored cases; additive safe product/admin/service entries and their entire caller/role closure; real source/upstream currentness; whole cost/category coverage; any Finance-authoritative publication or release. The test wrapper is not a general safe-reader activation.
