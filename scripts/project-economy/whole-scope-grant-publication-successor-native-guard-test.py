@@ -19,6 +19,30 @@ subject=importlib.util.module_from_spec(spec);spec.loader.exec_module(subject)
 ENV=subject.FIXED|{'GITHUB_RUN_ID':'123456','PGPASSWORD':'synthetic_native_password'}
 
 class GuardTests(unittest.TestCase):
+ def test_closed_status_and_checkpoint_diagnostics(self):
+  resource,_=self.resource();cases=subject.load(HERE/'whole-scope-grant-publication-successor-native-cases.py')
+  for value in ('PRIVATE_SENTINEL',True,999,None):
+   self.assertIsNone(subject.Failure('case',http_status=value).http_status)
+  error=subject.Failure('case',http_status=503)
+  mapped=subject.closed_case(error,0,resource.Failure,cases.CaseFailure,'case_0_http_receipt')
+  self.assertEqual((mapped.phase,mapped.code,mapped.http_status),('case_0_http_receipt','unclassified',503))
+  output=io.StringIO()
+  with mock.patch.object(subject,'execute',side_effect=mapped),mock.patch.object(subject.signal,'signal'),contextlib.redirect_stderr(output):
+   self.assertEqual(subject.main(),1)
+  self.assertEqual(output.getvalue(),'scope-successor-native FAIL case_0_http_receipt SQLSTATE=unclassified HTTP_STATUS=503\n')
+  mapped=subject.closed_case(cases.CaseFailure(0),0,resource.Failure,cases.CaseFailure,'case_0_saved_receipt')
+  self.assertEqual(mapped.phase,'case_0_saved_receipt')
+  self.assertEqual(subject.closed_case(error,1,resource.Failure,cases.CaseFailure,'case_0_http_receipt').phase,'case_1')
+ def test_case0_history_failure_has_state_checkpoint(self):
+  resource,_=self.resource();cases=subject.load(HERE/'whole-scope-grant-publication-successor-native-cases.py')
+  c=cases.Cases(lambda *args:None,None,None,None,None)
+  c.state=lambda:{'publication_head':1,'grant_head':1,'publications':1,'receipts':1,'bindings':0,'events':1,'owners':1}
+  c.command=lambda label:{}
+  c.history=lambda revision:(_ for _ in ()).throw(RuntimeError('PRIVATE_SENTINEL'))
+  with self.assertRaises(RuntimeError):c.run_all()
+  self.assertEqual(c.checkpoint,'case_0_state')
+  mapped=subject.closed_case(RuntimeError('PRIVATE_SENTINEL'),0,resource.Failure,cases.CaseFailure,c.checkpoint)
+  self.assertEqual((mapped.phase,mapped.code),('case_0_state','unclassified'))
  def test_actual_valid_fixed_environment(self):
   self.assertEqual(subject.guard(ENV),'scope-successor-123456')
  def test_hostile_environment_stops_before_capability(self):

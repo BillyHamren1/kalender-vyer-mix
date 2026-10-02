@@ -25,7 +25,7 @@ def literal(value):
  return "'"+json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':')).replace("'","''")+"'::jsonb"
 class Cases:
  def __init__(self,run,start,wait,finish,http):
-  self.run,self.start,self.wait,self.finish,self.http=run,start,wait,finish,http;self.done=[];self.saved_history={}
+  self.run,self.start,self.wait,self.finish,self.http=run,start,wait,finish,http;self.done=[];self.saved_history={};self.checkpoint=None
  def require(self,value,case):
   if value is not True:raise CaseFailure(case)
  def state(self):
@@ -60,10 +60,14 @@ class Cases:
   self.require(type(response) is dict and set(response)==keys and response['schema_version']=='operations-whole-scope-granted-product-publication-receipt.v2' and response['outcome']=='accepted' and response['historical_only'] is False and response['shadow_only'] is True and response['delivery_state']=='blocked_missing_protected_source_export',case)
   revision=response['publication_revision'];history=self.history(revision)
   self.require(history['receipt']['document']==response and history['publication']['publication_id']==response['publication_id'] and history['publication']['source_publication_fingerprint']==response['source_publication_fingerprint'] and history['publication']['source_evidence_fingerprint']==response['source_evidence_fingerprint'] and history['binding']['grant_event_id']==response['grant_event_id'] and history['event']['fingerprint']==response['grant_fingerprint'] and history['event']['revision']==response['grant_revision'] and history['event']['actor_id']==ISSUER and history['publication']['actor_id']==ACTOR and history['publication']['destination_raw_body'] is None,case)
-  grant=history['publication']['export_grant'];self.require(grant=={'event_id':history['event']['event_id'],'revision':history['event']['revision'],'fingerprint':history['event']['fingerprint'],'destination_organization_id':history['event']['destination_organization_id'],'destination_scope_id':history['event']['destination_scope_id'],'destination_mapping_id':history['event']['destination_mapping_id'],'destination_mapping_revision':history['event']['destination_mapping_revision']},case)
+  grant=history['publication']['export_grant'];self.require(grant=={'event_id':history['event']['event_id'],'revision':history['event']['revision'],'fingerprint':history['event']['fingerprint'],'destination_organization_id':history['event']['destination_organization_id'],'destination_scope_id':history['event']['destination_scope_id'],'destination_mapping_id':history['event']['document']['destination_mapping_id'],'destination_mapping_revision':history['event']['document']['destination_mapping_revision']},case)
   self.saved_history[revision]=history
   return response
- def success(self,command,case):return self.saved(self.http(command,200),case)
+ def success(self,command,case):
+  if case==0:self.checkpoint='case_0_http_receipt'
+  response=self.http(command,200)
+  if case==0:self.checkpoint='case_0_saved_receipt'
+  return self.saved(response,case)
  def compose(self):
   self.run("begin isolation level repeatable read;select set_config('request.jwt.claims','{\"sub\":\""+ACTOR+"\",\"role\":\"authenticated\"}',true);create temp table genuine_composition(command jsonb) on commit drop;insert into genuine_composition select compose_command||jsonb_build_object('expected_composition_revision',1,'idempotency_key','successor-native-real-composition-two') from operations_whole_scope_product_native.known_fixture;grant select on genuine_composition to authenticated;set local role authenticated;select public.compose_operations_scope_obligations_v1(command) from genuine_composition;reset role;commit;")
  def old_publication(self,label):
@@ -75,9 +79,10 @@ class Cases:
   self.finish(holder);self.finish(changer);before=self.state();response=self.http(self.command('deny_'+kind),403)
   self.require(response.get('code')=='42501' and self.state()==before,7);self.run(restore)
  def run_all(self):
+  self.checkpoint='case_0_state'
   self.require(self.state()=={'publication_head':1,'grant_head':1,'publications':1,'receipts':1,'bindings':0,'events':1,'owners':1},0)
-  original=self.command('initial');before=self.state();self.run(self.writer(original).replace('repeatable read','read committed'),'55000');self.require(self.state()==before,0)
-  self.saved_history[1]=self.history(1);first=self.success(original,0);self.done.append(MARKERS[0])
+  original=self.command('initial');before=self.state();self.checkpoint='case_0_direct_rc';self.run(self.writer(original).replace('repeatable read','read committed'),'55000');self.require(self.state()==before,0)
+  self.checkpoint='case_0_state';self.saved_history[1]=self.history(1);first=self.success(original,0);self.done.append(MARKERS[0])
   self.old_publication('old_null_three');self.compose();before=self.state();denied=self.http(self.command('old_grant_composition'),409);self.require(denied.get('code')=='PT409' and self.state()==before,1)
   self.run(self.grant('composition_two'));self.success(self.command('second'),1);self.require(self.state()['publication_head']==4 and self.state()['grant_head']==2 and self.history(3)['publication']['export_grant'] is None,1);self.saved_history[3]=self.history(3)
   before=self.state();stale=self.command('publication_cas');stale['expected_publication_revision']=3;self.require(self.http(stale,409).get('code')=='PT409' and self.state()==before,1)

@@ -326,13 +326,13 @@
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-cases.py": {
       "git_blob": null,
-      "sha256": "b6fa509915ca87c2208d2a3cb21b7337064205bfdb39ac3c2c912699175dbb83",
-      "size": 17767
+      "sha256": "34cc684268e4ee5b9613ba4a3cdf2ff310c33d34b737e009f58f0e765c737266",
+      "size": 18037
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-guard-test.py": {
       "git_blob": null,
-      "sha256": "08db8707e4745e6b286e05d83d3b55ccafd1b0b52072d1a2890469a0bf6f8e6c",
-      "size": 21191
+      "sha256": "d0eb83eefbab1904a8a3fd9b24a72529f493acdb0bd765142a906d347b39959e",
+      "size": 23109
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-owned-processes.py": {
       "git_blob": null,
@@ -341,8 +341,8 @@
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-runner.py": {
       "git_blob": null,
-      "sha256": "c913dc52117b0e6417d95055e0e5ac3fc0a1e68fd063f42876d8c03ac768dd10",
-      "size": 24414
+      "sha256": "63ad56a14c5c622611715123ba1ab952582ccdcc342571f5a00bb791801e334f",
+      "size": 25018
     },
     "scripts/project-economy/whole-scope-grant-publication-successor-native-setup.sql": {
       "git_blob": null,

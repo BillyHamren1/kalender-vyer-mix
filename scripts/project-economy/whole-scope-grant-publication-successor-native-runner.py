@@ -28,7 +28,9 @@ SHARED_SHA='cf09748e2796085ffde8577efda560df1aaa70e02bafce239982cde09ffbcd76'
 RESOURCE_PATH='scripts/project-economy/operations-whole-scope-product-publication-native.py'
 RESOURCE_SHA='205475706556958ea038aacbeb2fd94ab93115b8e93f144e0ae3bc57feae444f'
 SQLSTATES={'22023','23505','23503','23514','42501','40001','55000','55P03','57014','22003','22P02','42883','42P01','42703','40P01','25P02','PT409'}
-PHASES={'guard','closure','fresh','schema','fixture','lexical','role','parity','setup','docker','ready','case','cleanup','proof',*('case_'+str(i) for i in range(10))}
+CHECKPOINTS={'case_0_state','case_0_direct_rc','case_0_http_receipt','case_0_saved_receipt'}
+HTTP_STATUSES={200,400,401,403,404,409,422,500,502,503,504}
+PHASES={'guard','closure','fresh','schema','fixture','lexical','role','parity','setup','docker','ready','case','cleanup','proof',*('case_'+str(i) for i in range(10)),*CHECKPOINTS}
 FIXED={'CI':'true','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','EVENTFLOW_WHOLE_SCOPE_GRANTED_PUBLICATION_ISOLATED_DB':'true','PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':DATABASE}
 # Literal catalogs are sealed below after exact genuine D954 inventory matching.
 SOURCE_PATHS=('docs/project-economy/whole-scope-grant-publication-successor-source-v2-notes.md', 'docs/project-economy/whole-scope-product-grant-writer-source-v1-notes.md', 'scripts/project-economy/operations-catering-bootstrap.sql', 'scripts/project-economy/operations-obligation-fixture.ts', 'scripts/project-economy/operations-postgres-bootstrap.sql', 'scripts/project-economy/operations-project-review-bootstrap.sql', 'scripts/project-economy/operations-scope-bootstrap.sql', 'scripts/project-economy/operations-transport-seed.sql', 'scripts/project-economy/operations-whole-scope-grant-native-setup.sql', 'scripts/project-economy/operations-whole-scope-product-publication-native-bootstrap.sql', 'scripts/project-economy/operations-whole-scope-product-publication-native-setup.sql', 'scripts/project-economy/operations-whole-scope-product-publication-native.py', 'scripts/project-economy/whole-scope-grant-publication-successor-caller-controls.ts', 'scripts/project-economy/whole-scope-grant-publication-successor-postgres-test.sql', 'scripts/project-economy/whole-scope-grant-publication-successor-sql-parity.guard-test.ts', 'scripts/project-economy/whole-scope-grant-publication-successor-sql-parity.ts', 'scripts/project-economy/whole-scope-product-grant-caller-controls.ts', 'scripts/project-economy/whole-scope-product-grant-event-sql-parity.ts', 'scripts/project-economy/whole-scope-product-grant-writer-postgres-test.sql', 'supabase/functions/_shared/finance-project-invoice-destination.ts', 'supabase/functions/_shared/finance-project-invoice.ts', 'supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts', 'supabase/functions/_shared/project-cost-obligation-authority.ts', 'supabase/functions/_shared/project-cost-obligations.ts', 'supabase/functions/_shared/project-operational-eac.ts', 'supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts', 'supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.deno-test.ts', 'supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.ts', 'supabase/functions/_shared/whole-scope-product-grant-command-v1.deno-test.ts', 'supabase/functions/_shared/whole-scope-product-grant-command-v1.ts', 'supabase/functions/_shared/whole-scope-product-grant-event-v1.deno-test.ts', 'supabase/functions/_shared/whole-scope-product-grant-event-v1.ts', 'supabase/functions/_shared/whole-scope-product-source-proof.ts', 'supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql', 'supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql', 'supabase/migrations/20261001232438_operations_personnel_project_reviews.sql', 'supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql', 'supabase/migrations/20261001235558_operations_catering_project_evidence.sql', 'supabase/migrations/20261002001842_operations_project_cost_read.sql', 'supabase/migrations/20261002014937_operations_project_scope_enrollment.sql', 'supabase/migrations/20261002023731_operations_project_obligation_authority.sql', 'supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql', 'supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql', 'supabase/migrations/20261002025617_operations_obligation_source_policy.sql', 'supabase/migrations/20261002030747_operations_scope_obligation_composition.sql', 'supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql', 'supabase/migrations/20261002035730_operations_catering_project_read_v3.sql', 'supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql', 'supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql', 'supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql', 'supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql', 'supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql', 'supabase/migrations/20261002130228_operations_scope_invoice_compatible_read_entry.sql', 'supabase/migrations/20261002143348_operations_whole_scope_product_publication_v1.sql', 'supabase/migrations/20261002145349_operations_remaining_six_compatible_read_entries.sql', 'supabase/migrations/20261002180958_operations_whole_scope_export_grant_v1.sql', 'supabase/migrations/20261002203540_operations_whole_scope_granted_product_publication_v2.sql', 'supabase/migrations/20261002224027_operations_granted_publication_deferred_completeness_security_v2.sql')
@@ -39,8 +41,9 @@ GRANT_DDL='supabase/migrations/20261002180958_operations_whole_scope_export_gran
 REPAIR_DDL='supabase/migrations/20261002224027_operations_granted_publication_deferred_completeness_security_v2.sql'
 
 class Failure(Exception):
- def __init__(self,phase,code='unclassified',retain=False):
+ def __init__(self,phase,code='unclassified',retain=False,http_status=None):
   self.phase=phase if type(phase) is str and phase in PHASES else 'guard';self.code=code if type(code) is str and code in SQLSTATES else 'unclassified';self.retain=retain is True
+  self.http_status=http_status if type(http_status) is int and http_status in HTTP_STATUSES else None
   super().__init__('closed_grant_native_failure')
 
 def closed(error,phase,resource_type=None,case_type=None):
@@ -49,18 +52,18 @@ def closed(error,phase,resource_type=None,case_type=None):
  kind=type(error)
  if kind is Failure or (resource_type is not None and kind is resource_type):
   facts=object.__getattribute__(error,'__dict__')
-  return Failure(phase if kind is not Failure else facts['phase'],facts['code'],facts['retain'])
+  return Failure(phase if kind is not Failure else facts['phase'],facts['code'],facts['retain'],facts.get('http_status') if kind is Failure else None)
  if case_type is not None and kind is case_type:
   case=object.__getattribute__(error,'__dict__')['case']
   return Failure('case_'+str(case) if type(case) is int and 0<=case<10 else phase)
  return Failure(phase)
 
-def closed_case(error,index,resource_type,case_type):
+def closed_case(error,index,resource_type,case_type,checkpoint=None):
  phase='case_'+str(index) if type(index) is int and 0<=index<10 else 'case_9'
  failure=closed(error,phase,resource_type,case_type)
  # A known HTTP helper reports generic case; the owned case wrapper supplies
  # its exact progress index. Cleanup retention/errors keep their own phase.
- return Failure(phase,failure.code,failure.retain) if failure.phase=='case' else failure
+ return Failure(checkpoint if type(checkpoint) is str and checkpoint in CHECKPOINTS and index==0 else phase,failure.code,failure.retain,failure.http_status) if failure.phase in {'case',phase} else failure
 
 def guard(env):
  if any(env.get(k)!=v for k,v in FIXED.items()) or not re.fullmatch(r'[0-9]{1,20}',env.get('GITHUB_RUN_ID','')):raise Failure('guard')
@@ -108,7 +111,7 @@ def native_http(native,command,status,timeout_seconds=15):
  try:response=opener.open(request,timeout=timeout_seconds)
  except urllib.error.HTTPError as error:response=error
  with response:
-  if response.status!=status:raise Failure('case')
+  if response.status!=status:raise Failure('case',http_status=response.status)
   body=response.fp if isinstance(response,urllib.error.HTTPError) else response
   if not isinstance(body,http.client.HTTPResponse):raise Failure('case')
   chunks=[];size=0
@@ -178,7 +181,7 @@ def execute(env):
   if not ready:raise Failure('ready')
   phase='case';cases=load(HERE/'whole-scope-grant-publication-successor-native-cases.py');subject=cases.Cases(native.run,native.start,native.wait,native.finish,lambda cmd,status:native_http(native,cmd,status))
   try:proof=subject.run_all()
-  except Exception as error:raise closed_case(error,min(len(subject.done),9),resource.Failure,cases.CaseFailure) from None
+  except Exception as error:raise closed_case(error,min(len(subject.done),9),resource.Failure,cases.CaseFailure,subject.checkpoint) from None
   if proof!=cases.MARKERS:raise Failure('proof')
   phase='parity';out=sql("select jsonb_agg(jsonb_build_object('label',case p.publication_revision when 2 then 'first_granted' else 'second_granted' end,'document',p.document,'receipt',r.document,'publication_fingerprint',p.source_publication_fingerprint,'command_fingerprint',encode(sha256(convert_to(operations_economy_private.canonical_json_v1(jsonb_build_array('operations-whole-scope-granted-product-publication-command-v2',p.command)),'UTF8')),'hex'),'grant_event',e.document,'grant_raw_body',e.raw_body,'grant_fingerprint',e.fingerprint) order by p.publication_revision) from operations_whole_scope_publication_private.publications p join operations_whole_scope_publication_private.receipts r using(publication_id) join operations_whole_scope_publication_private.grant_bindings b using(publication_id) join operations_whole_scope_export_grant_private.events e on e.event_id=b.grant_event_id where p.organization_id='11111111-1111-4111-8111-111111111111' and p.economic_scope_id='90909090-9090-4909-8909-909090909090' and p.publication_revision in(2,4);")
   rows=[json.loads(line) for line in out.read_text().splitlines() if line.startswith('[')]
@@ -207,7 +210,7 @@ def main():
  try:execute(dict(os.environ))
  except Exception as error:
   failure=closed(error,'case')
-  print('scope-successor-native FAIL '+failure.phase+' SQLSTATE='+failure.code,file=sys.stderr);return 1
+  print('scope-successor-native FAIL '+failure.phase+' SQLSTATE='+failure.code+(' HTTP_STATUS='+str(failure.http_status) if failure.http_status is not None else ''),file=sys.stderr);return 1
  return 0
 
 if __name__=='__main__':sys.exit(main())
