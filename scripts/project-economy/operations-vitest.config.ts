@@ -6,6 +6,9 @@ export default defineConfig({
     environment: 'node',
     include: [
       'src/lib/economy/projectCostEvidence.test.ts',
+      'src/lib/economy/projectNativeCostEvidence.test.ts',
+      'supabase/functions/_shared/project-booking-commercial-read.test.ts',
+      'supabase/functions/_shared/project-booking-commercial-read-client.test.ts',
       'supabase/functions/_shared/project-personnel-cost.test.ts',
       'supabase/functions/_shared/finance-project-invoice.test.ts',
       'supabase/functions/_shared/project-cost-obligations.test.ts',
