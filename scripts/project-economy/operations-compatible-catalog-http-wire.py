@@ -145,12 +145,21 @@ def stream_process(command,query,output,env,seconds=80):
    except Exception:failed=True
   if failed:raise WireFailure()
 
+def load_native():
+ path=pathlib.Path(__file__).with_name('operations-compatible-catalog-http-native.py')
+ spec=importlib.util.spec_from_file_location('catalog_wire_frozen_entry',path);native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
+ return native
+
+def validate_parent_environment(native,env):
+ # Only the parent's already-guarded, fixed internal connection deadline is
+ # removed for external validation; it stays present in the actual psql env.
+ if env.get('PGCONNECT_TIMEOUT')!='5':raise WireFailure()
+ external=dict(env);del external['PGCONNECT_TIMEOUT'];native.validate_environment(external)
+
 def main():
  try:
   if len(sys.argv)!=1:raise WireFailure()
-  path=pathlib.Path(__file__).with_name('operations-compatible-catalog-http-native.py')
-  spec=importlib.util.spec_from_file_location('catalog_wire_frozen_entry',path);native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
-  native.validate_environment(dict(os.environ));native.load_source()
+  native=load_native();validate_parent_environment(native,dict(os.environ));native.load_source()
   for stream in (sys.stdout.buffer,sys.stderr.buffer):
    info=os.fstat(stream.fileno())
    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode)!=0o600 or info.st_uid!=os.geteuid() or info.st_nlink!=1:raise WireFailure()

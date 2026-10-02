@@ -1,5 +1,5 @@
 from unittest import mock
-import hashlib,importlib.util,io,json,os,pathlib,subprocess,sys,tempfile,time,unittest
+import hashlib,importlib.util,io,json,os,pathlib,subprocess,sys,tempfile,time,types,unittest
 PATH=pathlib.Path(__file__).with_name('operations-compatible-catalog-http-wire.py')
 SPEC=importlib.util.spec_from_file_location('catalog_wire',PATH);w=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(w)
 class WireTests(unittest.TestCase):
@@ -78,6 +78,38 @@ class WireTests(unittest.TestCase):
    with self.assertRaises(shared.ClosedFailure):shared.run_private('wire_timeout',[sys.executable,'-I','-B','-c',script,str(PATH),producer],dict(os.environ),PATH.parent,directory,.6)
    self.assertLess(time.monotonic()-start,8);self.assertTrue(marker.exists());pid=int(marker.read_text())
    state=pathlib.Path('/proc')/str(pid)/'stat';self.assertTrue(not state.exists() or state.read_text().rsplit(')',1)[1].split()[0]=='Z')
+ def native(self):
+  path=PATH.with_name('operations-compatible-catalog-http-native.py');spec=importlib.util.spec_from_file_location('actual_native_entry',path);native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native);return native
+ def environment(self,native):
+  return {'CI':'true','EVENTFLOW_COMPATIBLE_CATALOG_HTTP_ISOLATED_DB':'true','PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':native.DATABASE,'PYTHONDONTWRITEBYTECODE':'1','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1'}
+ def test_external_guard_still_denies_internal_timeout_and_only_exact_handoff_is_admitted(self):
+  native=self.native();original=self.environment(native);native.validate_environment(original);child=dict(original,PGCONNECT_TIMEOUT='5',LC_ALL='C')
+  with self.assertRaises(native.ClosedFailure):native.validate_environment(child)
+  w.validate_parent_environment(native,child);self.assertEqual(child['PGCONNECT_TIMEOUT'],'5')
+  for value in (None,'','1','05','10',5):
+   wrong=dict(child)
+   if value is None:wrong.pop('PGCONNECT_TIMEOUT')
+   else:wrong['PGCONNECT_TIMEOUT']=value
+   with self.assertRaises(Exception):w.validate_parent_environment(native,wrong)
+  for key,value in (('PGHOSTADDR','PRIVATE'),('PGOPTIONS','PRIVATE'),('PGSERVICE','PRIVATE'),('PGDATABASE','production'),('BASH_ENV','PRIVATE')):
+   with self.assertRaises(Exception):w.validate_parent_environment(native,dict(child,**{key:value}))
+ def test_actual_main_handoff_reaches_only_signature_bound_psql_and_wrong_env_has_zero_children(self):
+  native=self.native();env=dict(self.environment(native),PGCONNECT_TIMEOUT='5',LC_ALL='C');query=(native.options()+'begin isolation level repeatable read read only;').encode()+(w.ROOT/'scripts/project-economy/operations-compatible-full-catalog-read.sql').read_bytes()+b'commit;';owner=os.getpid();spawned=[]
+  def create(command,stdin,stdout,stderr,env,close_fds):
+   self.assertEqual(command,w.PSQL);self.assertEqual(stdin.read(),query);self.assertEqual(stdout,subprocess.PIPE);self.assertEqual(env['PGCONNECT_TIMEOUT'],'5');self.assertEqual(env['PGUSER'],'postgres');self.assertTrue(close_fds);self.assertEqual(os.fstat(stderr.fileno()).st_mode&0o777,0o600);spawned.append(True)
+   read,write=os.pipe();os.write(write,b'[ ]\n{ "token" : "retained value" }\n');os.close(write)
+   return types.SimpleNamespace(stdout=os.fdopen(read,'rb'),poll=lambda:0,wait=lambda timeout:0)
+  with tempfile.TemporaryFile('w+b') as source,tempfile.NamedTemporaryFile('w+b') as output,tempfile.NamedTemporaryFile('w+b') as error:
+   for f in (source,output,error):os.fchmod(f.fileno(),0o600)
+   source.write(query);source.seek(0)
+   with mock.patch.object(w,'load_native',return_value=native),mock.patch.dict(w.os.environ,env,clear=True),mock.patch.object(w.sys,'argv',[str(PATH)]),mock.patch.object(w.sys,'stdin',types.SimpleNamespace(buffer=source)),mock.patch.object(w.sys,'stdout',types.SimpleNamespace(buffer=output)),mock.patch.object(w.sys,'stderr',types.SimpleNamespace(buffer=error)),mock.patch.object(w,'require_proc_self',return_value=(owner,owner,owner,1,b'S')),mock.patch.object(w.os,'getsid',return_value=owner),mock.patch.object(w.os,'getpgid',return_value=owner),mock.patch.object(w,'owned_members',return_value=[]),mock.patch.object(w.subprocess,'Popen',autospec=True,side_effect=create) as popen:
+    self.assertEqual(w.main(),0);popen.assert_called_once()
+   output.seek(0);self.assertEqual(output.read(),b'[]\n{"token":"retained value"}\n');self.assertEqual(spawned,[True])
+   bad=[dict(env,PGCONNECT_TIMEOUT=value) for value in ('','05','1','10')]+[dict(env,PGHOSTADDR='PRIVATE'),dict(env,PGOPTIONS='PRIVATE'),dict(env,PGUSER='foreign')];missing=dict(env);missing.pop('PGCONNECT_TIMEOUT');bad.append(missing)
+   for wrong in bad:
+    source.seek(0)
+    with mock.patch.object(w,'load_native',return_value=native),mock.patch.dict(w.os.environ,wrong,clear=True),mock.patch.object(w.sys,'argv',[str(PATH)]),mock.patch.object(w.sys,'stdin',types.SimpleNamespace(buffer=source)),mock.patch.object(w.sys,'stdout',types.SimpleNamespace(buffer=output)),mock.patch.object(w.sys,'stderr',types.SimpleNamespace(buffer=error)),mock.patch.object(w.subprocess,'Popen',autospec=True) as popen:
+     self.assertEqual(w.main(),1);popen.assert_not_called()
  def test_same_pid_proc_guard_before_any_child(self):
   with mock.patch.object(w.os,'readlink',return_value=str(os.getpid()+1)),mock.patch.object(w.subprocess,'Popen') as create:
    with self.assertRaises(w.WireFailure):w.stream_process(['unused'],b'query',io.BytesIO(),{},1)

@@ -140,7 +140,7 @@
     "scripts/project-economy/operations-compatible-catalog-http-native.py": "201e3624bb9566d58a84b7b6dac46de86d364ca197f31c8414985053dd36b54f",
     "scripts/project-economy/operations-compatible-catalog-http-native.guard.test.py": "f6e6448673bc7340fae53199999de22903f0968b29d7a2230201dfa180eb7c89",
     "docs/project-economy/operations-compatible-catalog-http-native-contract.md": "905599e765e3b262057800fbd6d2fc637c884cbe78cf6cc20c99d7615df91449",
-    "scripts/project-economy/operations-compatible-catalog-http-wire.py": "6c430b18cea0138a001dd3d1e1eb129a3afdd874f7e2aa5c0af9af84071c23a1",
-    "scripts/project-economy/operations-compatible-catalog-http-wire.test.py": "5333a38763ced46f1c1dfe893c19a874c6758f9d29daf55284f18f8b9facfd64"
+    "scripts/project-economy/operations-compatible-catalog-http-wire.py": "7ff8363ca5a26d96afaae5089702149cbf8c63e78a3f4eff848aee6c6ffbdc98",
+    "scripts/project-economy/operations-compatible-catalog-http-wire.test.py": "2a672bf0bdf99cbedcb797ce096399bbf41f36ee9a1da46c1be0448da97df8d6"
   }
 }
