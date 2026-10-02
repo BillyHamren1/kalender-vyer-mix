@@ -2,6 +2,9 @@ name: Operations project economy synthetic runtime
 on:
   pull_request:
     paths:
+      - 'src/hooks/useMapboxToken.ts'
+      - 'src/hooks/useMapboxToken.rendered.test.tsx'
+      - 'src/components/maps/ProjectAddressMapDialog.tsx'
       - 'supabase/functions/_shared/project-personnel-*'
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
