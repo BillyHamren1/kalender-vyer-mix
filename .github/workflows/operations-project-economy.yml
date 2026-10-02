@@ -19,7 +19,7 @@ on:
       - 'supabase/migrations/*operations_personnel*.sql'
       - 'supabase/migrations/*operations_project_cost_read.sql'
       - 'src/lib/economy/projectCostEvidence*'
-      - 'src/components/project/ProjectCostEvidencePanel.tsx'
+      - 'src/components/project/ProjectCostEvidencePanel*'
       - 'scripts/project-economy/operations-*'
       - '.github/workflows/operations-project-economy.yml'
   workflow_dispatch:
@@ -65,6 +65,8 @@ jobs:
           deno check supabase/functions/catering-project-cost-publish/index.ts
           deno check supabase/functions/finance-project-invoice-receive/index.ts
           deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
+      - name: Actual evidence DOM, null costs and actor/tenant cache isolation
+        run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
       - name: Generate actual Operations calculation fixtures
         run: deno run scripts/project-economy/operations-fixture.ts > /tmp/operations-fixtures.json
       - name: Isolated PostgreSQL migration and RPC tests
