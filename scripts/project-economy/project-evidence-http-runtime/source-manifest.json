@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "bc56e12f60fee5ebbb3442f9f239c5bd9d42fc54d72f57e23f2dd4d7951b769b",
-      "bytes": 49325
+      "sha256": "b2273df8be4f029db0462a73404fc143cfc91d142d6d3c376bbe71c53204157f",
+      "bytes": 49356
     },
     {
       "path": "docs/project-economy/obligation-drilldown-authenticated-http-v1.md",

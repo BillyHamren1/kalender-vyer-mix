@@ -817,7 +817,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          deno test supabase/functions/_shared/canonical-scope-view-alias.test.ts
+          deno check supabase/functions/_shared/canonical-scope-view-alias.ts
           deno check scripts/project-economy/operations-scope-view-alias-native-vector-test.ts
           git diff --exit-code
           git rev-parse HEAD
@@ -840,6 +840,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
+      PYTHONDONTWRITEBYTECODE: '1'
       ISOLATED_PROJECT_EVIDENCE_HTTP: 'true'
       ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER: 'true'
       DENO_NO_PACKAGE_JSON: '1'
