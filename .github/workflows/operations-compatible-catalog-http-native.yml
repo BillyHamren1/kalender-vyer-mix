@@ -49,6 +49,7 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/operations-compatible-catalog-http-native.guard.test.py
+          python3 -I -B scripts/project-economy/operations-compatible-catalog-http-wire.test.py
           deno check --no-config scripts/project-economy/operations-compatible-catalog-http-journey.ts
           deno test --no-config scripts/project-economy/operations-compatible-catalog-http-journey.test.ts
       - name: Actual restricted connection eight public HTTP readers and complete neutrality

@@ -5,7 +5,7 @@ SPEC=importlib.util.spec_from_file_location('catalog_http_runner',PATH);r=import
 def environment():return {'CI':'true','EVENTFLOW_COMPATIBLE_CATALOG_HTTP_ISOLATED_DB':'true','PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':r.DATABASE,'PYTHONDONTWRITEBYTECODE':'1','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1'}
 class Guards(unittest.TestCase):
  def test_exact_source_closure_and_frozen_dependencies(self):
-  r.validate_environment(environment());v=r.load_source();self.assertEqual(len(v['files']),108);self.assertEqual(len(v['baseline_schema_paths']),24);self.assertEqual(len(v['install_paths']),2)
+  r.validate_environment(environment());v=r.load_source();self.assertEqual(len(v['files']),110);self.assertEqual(len(v['baseline_schema_paths']),24);self.assertEqual(len(v['install_paths']),2)
   base=r.module(r.ROOT/r.BASE_RUNNER,'guard_full_catalog_frozen');self.assertEqual(len(base.load_source()['files']),101)
  def test_hostile_environment_zero_capabilities(self):
   hostile={'CI':'false','PGHOST':'remote','PGDATABASE':'production','PGHOSTADDR':'remote','PGSERVICE':'foreign','PGSERVICEFILE':'foreign','PGOPTIONS':'PRIVATE','HTTPS_PROXY':'PRIVATE','http_proxy':'PRIVATE','NO_PROXY':'PRIVATE','BASH_ENV':'PRIVATE','ENV':'PRIVATE','PYTHONPATH':'PRIVATE','PYTHONHOME':'PRIVATE','NODE_OPTIONS':'PRIVATE','LD_PRELOAD':'PRIVATE','LD_AUDIT':'PRIVATE','DYLD_INSERT_LIBRARIES':'PRIVATE','BASH_FUNC_child%%':'PRIVATE','GCONV_PATH':'PRIVATE','LOCPATH':'PRIVATE','OPENSSL_CONF':'PRIVATE','OPENSSL_MODULES':'PRIVATE','DOCKER_HOST':'remote','DOCKER_CONTEXT':'foreign','PGRST_DB_URI':'PRIVATE','SUPABASE_URL':'PRIVATE','TMPDIR':'foreign','EVENTFLOW_COMPATIBLE_CATALOG_HTTP_JWT_SECRET':'PRIVATE'}
@@ -101,7 +101,7 @@ class Guards(unittest.TestCase):
    def __init__(self,code):self.code=code
   def child(phase,command,env,root,where,timeout,stdin=None):
    self.assertEqual(phase,'authority_sql');self.assertTrue(where.is_dir());self.assertGreater(timeout,0);calls.append((command,dict(env),stdin));out=where/'stdout';value=''
-   if command[0]=='psql':
+   if command[0]=='psql' or command==[r.sys.executable,'-I','-B',str(r.ROOT/(r.PREFIX+'wire.py'))]:
     text=stdin.decode()
     if text.startswith("set statement_timeout='10s';select current_database()"):value='t\n'
     elif "'session',session_user" in text:value=json.dumps({'session':r.AUTHENTICATOR,'current':r.AUTHENTICATOR,'unsafe':False,'memberships':['anon','authenticated','service_role']})+'\n'
@@ -149,6 +149,9 @@ class Guards(unittest.TestCase):
      else:self.assertEqual(denied.exception.phase,'docker_verify' if fault=='wrong_version' else 'cleanup')
      return calls
     result=r.run_native(environment())
+  self.assertEqual(sum(command==[r.sys.executable,'-I','-B',str(r.ROOT/(r.PREFIX+'wire.py'))] for command,env,stdin in calls),6)
+  for command,env,stdin in calls:
+   if command==[r.sys.executable,'-I','-B',str(r.ROOT/(r.PREFIX+'wire.py'))]:self.assertTrue(stdin.decode().startswith(r.options()+'begin isolation level repeatable read read only;'));self.assertTrue(stdin.endswith(b'commit;'))
   self.assertEqual(len(result),3);self.assertEqual(sum(c[0][:2]==['deno','run'] for c in calls),5);self.assertEqual(sum(c[0][:4]==r.DOCKER+['rm'] for c in calls),1)
   self.assertEqual(sum(command[0]=='psql' and stdin is not None and stdin.decode().startswith("set statement_timeout='5s';set role ") and 'select operations_economy_private.' in stdin.decode() for command,env,stdin in calls),8)
   for command,env,stdin in calls:

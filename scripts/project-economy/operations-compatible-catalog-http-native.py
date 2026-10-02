@@ -11,7 +11,7 @@ DATABASE='operations_compatible_install_runtime'
 AUTHENTICATOR='operations_catalog_http_authenticator'
 PORT=55783
 DOCKER=['docker','--host','unix:///var/run/docker.sock']
-OWNED={PREFIX+x for x in ('setup.sql','journey.ts','journey.test.ts','native.py','native.guard.test.py')}|{'docs/project-economy/operations-compatible-catalog-http-native-contract.md'}
+OWNED={PREFIX+x for x in ('setup.sql','journey.ts','journey.test.ts','native.py','native.guard.test.py','wire.py','wire.test.py')}|{'docs/project-economy/operations-compatible-catalog-http-native-contract.md'}
 PHASES={'guard','closure','fresh','schema','setup','first','six','fixture','connection','capture','budget','docker_create','docker_verify','docker_start','health','http','control','restore','cleanup'}
 CODES={'unclassified','22023','42501','55000','P0001','55P03','57014','40P01','25P02','PT409'}
 HTTP_MARKERS=['operations-compatible-catalog-http PASS exact_eight_public_and_one_absence_copied_null_evidence','operations-compatible-catalog-http PASS denials18_roles_signature_expiry_tenant_metadata_stale_private']
@@ -99,7 +99,9 @@ def run_native(env):
   serial+=1;where=private/(str(serial)+'-'+phase);where.mkdir(mode=0o700);parent=where.lstat();parent_identity=(parent.st_dev,parent.st_ino)
   try:return shared.run_private('authority_sql',command,child_env,ROOT,where,timeout,stdin)
   except Exception as e:raise ClosedFailure(phase,e.code if type(e) is shared.ClosedFailure else 'unclassified',checkpoint if phase=='capture' else 'none',failed_child_output_reason(where,parent_identity) if phase=='capture' else 'unclassified') from None
- def sql(phase,text,child_env=pg):return call(phase,psql,child_env,90,text.encode())
+ def sql(phase,text,child_env=pg):
+  command=[sys.executable,'-I','-B',str(ROOT/(PREFIX+'wire.py'))] if phase=='capture' and checkpoint=='capture_snapshot' else psql
+  return call(phase,command,child_env,90,text.encode())
  def json_line(path):
   if path.stat().st_size>8388608:raise ClosedFailure('capture',checkpoint=checkpoint)
   lines=path.read_text().splitlines()
