@@ -223,3 +223,7 @@ verify_jwt = false
 # Enrolled HMAC, raw body, tenant and persistent nonce are verified by the handler.
 # The receiver is disabled by default.
 verify_jwt = false
+
+[functions.catering-project-cost-publish]
+# Dedicated internal secret and scoped native source proof; disabled by default.
+verify_jwt = false

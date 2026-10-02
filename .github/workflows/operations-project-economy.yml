@@ -6,6 +6,9 @@ on:
       - 'supabase/functions/_shared/finance-project-invoice*'
       - 'supabase/functions/_shared/project-cost-obligations*'
       - 'supabase/functions/_shared/catering-project-evidence*'
+      - 'supabase/functions/_shared/catering-project-ingestion*'
+      - 'supabase/functions/catering-project-cost-publish/**'
+      - 'supabase/migrations/*operations_catering*.sql'
       - 'supabase/functions/project-personnel-cost-publish/**'
       - 'supabase/functions/finance-project-invoice-receive/**'
       - 'supabase/migrations/*operations_finance_project_invoice*.sql'
@@ -55,6 +58,7 @@ jobs:
         run: |
           deno check supabase/functions/_shared/project-personnel-cost.ts supabase/functions/project-personnel-cost-publish/index.ts
           npx vitest run --config scripts/project-economy/operations-vitest.config.ts
+          deno check supabase/functions/catering-project-cost-publish/index.ts
           deno check supabase/functions/finance-project-invoice-receive/index.ts
           deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
       - name: Generate actual Operations calculation fixtures
@@ -129,3 +133,9 @@ jobs:
           subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
                           '-f','scripts/project-economy/operations-rate-admin-postgres-test.sql'],check=True)
           PY_RATE
+
+      - name: Native Catering calculation, immutable observation and scoped project publication
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001235558_operations_catering_project_evidence.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-postgres-test.sql
