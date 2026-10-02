@@ -4,13 +4,23 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "3f77c38af2a5dab1dd009ecb6c4ca7c169cb49e75425e753a8cde2eacc2e778c",
-      "bytes": 56730
+      "sha256": "e70fb461441704a734789f46c7a43e00b8cdc854df252039e051ef1a31f7db2d",
+      "bytes": 60017
+    },
+    {
+      "path": "docs/project-economy/economic-evidence-mounted-modes-contract.md",
+      "sha256": "4fc66427d310093085d635f81a6040e596986feeea0058c9bacdcb559bdaf007",
+      "bytes": 18325
     },
     {
       "path": "docs/project-economy/obligation-drilldown-authenticated-http-v1.md",
       "sha256": "e75fdf541eb88b429488220adb944f636ae6b73585f100fe6f9da24ee0f0c972",
       "bytes": 8316
+    },
+    {
+      "path": "docs/project-economy/project-cost-mounted-state-contract.md",
+      "sha256": "9c10686343bf541ea8458bf17b7572280714121088432bce61502ba856a80e49",
+      "bytes": 40775
     },
     {
       "path": "docs/project-economy/project-evidence-authenticated-http-v1.md",
@@ -38,9 +48,64 @@
       "bytes": 2158
     },
     {
+      "path": "scripts/project-economy/operations-obligation-mounted-browser-bootstrap.sql",
+      "sha256": "c828a5a3635a3bafa9ea214a5a66c8cb2803a624cc81e295a4c6cd3555b5ca36",
+      "bytes": 23942
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-mounted-browser-native.py",
+      "sha256": "6b205c8f3c9eb6bb24187d4d0808780bb0847edca768ed0dfa94463803491462",
+      "bytes": 28570
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-mounted-browser.mjs",
+      "sha256": "c900d3f0967e5ef74fc5facc6c29103fc8ccd9f0ed51b92e7aedafdeeda333d9",
+      "bytes": 25479
+    },
+    {
       "path": "scripts/project-economy/operations-postgres-bootstrap.sql",
       "sha256": "198da5f625ee7e34658d9269e8a4b303f887c40a617dd133b74d606192c4de22",
       "bytes": 180
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-browser-contract.node-test.mjs",
+      "sha256": "e20931a81cb3578a1208f4a53f649ad4f274058aa884c024c8bb2e65554bcccd",
+      "bytes": 8149
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-browser-fixture.sql",
+      "sha256": "96b78334261e2b76ddad9c0e3c49ce838f6a17ed7565bdf80f2e87c7b9e22ae8",
+      "bytes": 7089
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-browser-native-test.py",
+      "sha256": "ddbf015486cccc0a338caeb0b8ccb0ea9b71fcf84df236f8d8e771bedc6a591c",
+      "bytes": 12061
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-browser-native.py",
+      "sha256": "5534ef998f20f57ab30a4b3e60ee7d1559655df1ffafdae43af68340b02bf938",
+      "bytes": 29190
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-browser.mjs",
+      "sha256": "683b18531b19eba4c50530a2c73bd0f436473c0dfe00bdb77c6bcb6e9fe091a7",
+      "bytes": 19616
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-state.mjs",
+      "sha256": "fcdbdb455a0f4a087b35adc409bb8912c55010999e2437dc080887753c84483d",
+      "bytes": 5873
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-state.node-test.mjs",
+      "sha256": "53e97f6212d71ccd98a47a3c3cb48a23a580ba049a54fd69c43a4edebd5e4908",
+      "bytes": 8419
+    },
+    {
+      "path": "scripts/project-economy/operations-project-cost-mounted-state.sql",
+      "sha256": "df7087850e1695acedf977a995a5850b0f5601d30d8627add6eb2c8504112e92",
+      "bytes": 25286
     },
     {
       "path": "scripts/project-economy/operations-project-evidence-http-fixture.sql",
@@ -63,6 +128,21 @@
       "bytes": 1931
     },
     {
+      "path": "scripts/project-economy/operations-scope-invoice-mounted-browser-contract.node-test.mjs",
+      "sha256": "f5b454a2d60c8c3895fafa24848bc65066026a1bea6e9ad7eeee40e67d766989",
+      "bytes": 2985
+    },
+    {
+      "path": "scripts/project-economy/operations-scope-invoice-mounted-browser-fixture.sql",
+      "sha256": "49d839f10104f62aa27ff0c552e310f47d928b4724deacf043c6d0c7a3d833e5",
+      "bytes": 2950
+    },
+    {
+      "path": "scripts/project-economy/operations-scope-invoice-mounted-browser.mjs",
+      "sha256": "3af4039b5aaa7c0346ed6006844366c29dfe14fcd664f8fc04107d5d1ee0dcef",
+      "bytes": 2386
+    },
+    {
       "path": "scripts/project-economy/project-evidence-http-runtime/compose.yml",
       "sha256": "7504bbf7c04dd106d32360eb9cbea881ec2daf2d8a8b016f7ef61adf68ee9509",
       "bytes": 946
@@ -74,8 +154,8 @@
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/control.ts",
-      "sha256": "a92435ece48a666409c370d5acfe6c066cc86ffbfa54ac7c9a9865e59ab8c8ef",
-      "bytes": 8990
+      "sha256": "560f0895c33f318bef0c743a68d6413f31b77999a5d939fc13fa8032f8358e94",
+      "bytes": 9438
     },
     {
       "path": "scripts/project-economy/project-evidence-http-runtime/drilldown-controls.ts",
@@ -163,6 +243,16 @@
       "bytes": 15281
     },
     {
+      "path": "supabase/functions/_shared/catering-reconciliation-original-receipt.deno-test.ts",
+      "sha256": "0dee77d9dce383fd7d85438bcf6fd449a04586a1b80d858f1b1df8e152901c46",
+      "bytes": 6948
+    },
+    {
+      "path": "supabase/functions/_shared/catering-reconciliation-original-receipt.ts",
+      "sha256": "0bfcce9fd897810e9b9fe1c6bad0f9df1c518e28d7f852d49f7df452123e7385",
+      "bytes": 8671
+    },
+    {
       "path": "supabase/functions/_shared/finance-project-invoice-destination.ts",
       "sha256": "dce12d3bcc12ea40116ef2722ea652cb1e0e08ce18ac002960fe8fce6c5411ac",
       "bytes": 8481
@@ -176,6 +266,11 @@
       "path": "supabase/functions/_shared/project-cost-obligation-authority.ts",
       "sha256": "1794f6cf68622719fe2fff364e94e245992072eb255ee46e727751481b93ca0c",
       "bytes": 4726
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "sha256": "69c7a35c9e144b20c4db3938d61d96b519a1419b27e7689e39c48d58635b2870",
+      "bytes": 13694
     },
     {
       "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",

@@ -113,6 +113,18 @@ class PublicationNativeBoundary(unittest.TestCase):
             with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.private_run(shared,'native_sessions',command,dict(os.environ),private,3)
             self.assertEqual(result.exception.checkpoint,'none');self.assertEqual(result.exception.reason,'none')
 
+    def test_private_timeout_categories_stay_closed(self):
+        for reason,code in (('writer_lock_timeout','55P03'),('writer_statement_timeout','57014'),('writer_deadlock','40P01')):
+            with tempfile.TemporaryDirectory() as temporary:
+                private=pathlib.Path(temporary);shared=wrapper.load_shared();output=io.StringIO()
+                command=[sys.executable,'-c',"import sys;sys.stderr.write('PRIVATE_SQL_CONTEXT\\nTRY_NATIVE_CHECKPOINT baseline_writer\\nTRY_NATIVE_REASON '+sys.argv[1]+'\\nERROR: '+sys.argv[2]+': closed_native_child_failure\\n');sys.exit(1)",reason,code]
+                with contextlib.redirect_stdout(output),contextlib.redirect_stderr(output):
+                    with self.assertRaises(wrapper.ClosedFailure) as result:wrapper.private_run(shared,'native_sessions',command,dict(os.environ),private,3)
+                self.assertEqual(output.getvalue(),'');self.assertEqual(result.exception.code,code);self.assertEqual(result.exception.reason,reason)
+        shell=(wrapper.HERE/'whole-scope-publication-try-native-concurrency.sh').read_text()
+        self.assertIn('case "$label" in baseline|project_update|compound_enrollment|compound_root_update)',shell)
+        self.assertIn('statement_timeout=20000 -c lock_timeout=15000',shell)
+
     def test_json_nonfinite_oversize_symlink_denied(self):
         with tempfile.TemporaryDirectory() as temporary:
             p=pathlib.Path(temporary)/'value';p.write_text('{"value":NaN}')

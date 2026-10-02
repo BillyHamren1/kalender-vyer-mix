@@ -1,4 +1,5 @@
 // Fixed disposable identity controls; never a replacement for an application reader.
+import { validateProjectCostState } from '../operations-project-cost-mounted-state.mjs';
 import { drilldownFixtureGuard, drilldownMutations, drilldownStateSql } from './drilldown-controls.ts';
 const database = "eventflow_project_evidence_http_runtime";
 const namespace = Deno.env.get("PROJECT_EVIDENCE_COMPOSE_NAMESPACE");
@@ -42,6 +43,7 @@ select json_build_object('databaseName',current_database(),
 'baselines',(select count(*) from public.operations_project_obligation_baselines),
 'compositions',(select count(*) from public.operations_scope_obligation_compositions))::text;`;
 function fixedSql(operation: string): string {
+  if (operation === "project-cost/state") return Deno.readTextFileSync(new URL("../operations-project-cost-mounted-state.sql", import.meta.url));
   if (operation === "state") return stateSql;
   if (operation === "drilldown/state") return drilldownStateSql;
   if (!Object.hasOwn(mutations, operation)) {
@@ -94,6 +96,9 @@ async function runSql(operation: string): Promise<unknown> {
       !result.success || result.stdout.length > 8192 ||
       result.stderr.length > 65536
     ) throw new Error("Owned control failed");
+    if (operation === "project-cost/state") {
+      return validateProjectCostState(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(result.stdout).trim()));
+    }
     if (operation === "state" || operation === "drilldown/state") {
       return JSON.parse(
         new TextDecoder("utf-8", { fatal: true }).decode(result.stdout).trim(),
@@ -188,7 +193,7 @@ const server = Deno.serve({
     request.headers.get("x-project-evidence-control-token") !== token
   ) return new Response(null, { status: 403 });
   const operation = url.pathname.slice(1);
-  const isState = operation === 'state' || operation === 'drilldown/state';
+  const isState = operation === 'state' || operation === 'drilldown/state' || operation === 'project-cost/state';
   if (
     isState
       ? request.method !== "GET" || request.body !== null ||

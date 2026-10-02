@@ -27,6 +27,11 @@ try:
  matches=re.findall(rb'(?:ERROR|FATAL):\s+([A-Z0-9]{5}):',path.read_bytes())
  allowed={'22023','23505','23503','23514','42501','40001','55000','55P03','57014','22003','22P02','42883','42P01','42703','40P01','25P02','PT409'}
  if matches and matches[-1].decode('ascii') in allowed:print('ERROR: '+matches[-1].decode('ascii')+': closed_native_child_failure')
+ # Fixed PostgreSQL timeout categories only; private SQL/context never leaves.
+ raw=path.read_bytes()
+ for token,code,reason in ((b'canceling statement due to lock timeout','55P03','writer_lock_timeout'),(b'canceling statement due to statement timeout','57014','writer_statement_timeout'),(b'deadlock detected','40P01','writer_deadlock')):
+  if token in raw:
+   print('ERROR: '+code+': closed_native_child_failure');print('TRY_NATIVE_REASON '+reason);break
 except Exception:pass
 PYCODE
   fi
@@ -143,7 +148,13 @@ finish_pub(){ local label=$1 pid=$2;wait_owned "$pid" || { echo 'Native publicat
 }
 publish_now(){ start_pub "$1" 0;finish_pub "$1" "$task_pub_active_pid"; }
 start_writer(){ local label=$1;task_try_focus=$label;cat >"$task_pub_dir/$label.sql"
- PGAPPNAME="native_try_writer_$label" psql_run -Atq -f "$task_pub_dir/$label.sql" >"$task_pub_dir/$label.log" 2>&1 &
+ local writer_options=$task_pub_options
+ # These four real waiters span authored4s pre-pause +7s held-proof pause.
+ # Keep finite bounds with room for validation; all other families stay10/12s.
+ case "$label" in baseline|project_update|compound_enrollment|compound_root_update)
+  writer_options='-c statement_timeout=20000 -c lock_timeout=15000 -c idle_in_transaction_session_timeout=15000 -c eventflow.scope_publication_isolated=synthetic-disposable -c eventflow.scope_publication_try_isolated=synthetic-disposable';;
+ esac
+ PGAPPNAME="native_try_writer_$label" PGOPTIONS="$writer_options" psql -X --no-password --set ON_ERROR_STOP=1 --set VERBOSITY=verbose -Atq -f "$task_pub_dir/$label.sql" >"$task_pub_dir/$label.log" 2>&1 &
  task_pub_writer_pid=$!;task_pub_pids["$task_pub_writer_pid"]=1
 }
 pub_sleep(){ wait_query "select exists(select 1 from pg_stat_activity where application_name='native_try_pub_$1' and wait_event='PgSleep')"; }

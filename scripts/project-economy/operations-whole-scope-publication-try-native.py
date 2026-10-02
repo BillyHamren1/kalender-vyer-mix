@@ -30,7 +30,7 @@ BASE_RUNNER_SHA256='271add7c5c0f9a4875645bdde3fd80471bb494d8787c9f9d64258a9b25ec
 EXTRA=('scripts/project-economy/whole-scope-publication-transaction-native-closure.json','scripts/project-economy/whole-scope-publication-try-native-wrapper.sql','scripts/project-economy/whole-scope-publication-try-native-setup.sql','scripts/project-economy/whole-scope-publication-try-native-concurrency.sh','scripts/project-economy/operations-whole-scope-publication-try-native.py','scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py','docs/project-economy/whole-scope-publication-try-native-contract.md')
 
 CHECKPOINTS={'none','guard','baseline_pause','baseline_sleep','baseline_wait','baseline_queue','baseline_busy','baseline_busy_denial','baseline_busy_state','baseline_held','baseline_writer','baseline_receipt','baseline_updater','baseline_restore','composition_sleep','composition_queue','composition_busy','composition_restore','direct_sleep','direct_queue','direct_busy','direct_restore','compound_sleep','compound_wait','compound_queue','compound_busy','compound_held','compound_restore','vectors','terminal'}
-FAILURE_REASONS={'none','unexpected_success','denial_mismatch'}
+FAILURE_REASONS={'none','unexpected_success','denial_mismatch','writer_lock_timeout','writer_statement_timeout','writer_deadlock'}
 
 class ClosedFailure(Exception):
     def __init__(self,phase,code='unclassified',retain_private=False,checkpoint='none',reason='none'):

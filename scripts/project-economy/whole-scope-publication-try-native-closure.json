@@ -81,9 +81,9 @@
     "scripts/project-economy/whole-scope-publication-transaction-native-closure.json": "80c08c6bdf270a2a910d45953a8b8b75bcca1148e04302146c90f5f7ed215342",
     "scripts/project-economy/whole-scope-publication-try-native-wrapper.sql": "4079e07ab18d1953357e74f68837d8d78f209e44671c25595b851a9231ce82a2",
     "scripts/project-economy/whole-scope-publication-try-native-setup.sql": "f71ce737591ec71a779bf61dd9acfee996ee9dd62f9eb8cb5fb3096aeb4cdf76",
-    "scripts/project-economy/whole-scope-publication-try-native-concurrency.sh": "724b2cb3b0600e003d93f3691544f2412b562b9ab438612b16fc78725f932d2a",
-    "scripts/project-economy/operations-whole-scope-publication-try-native.py": "8532d28f9aabf32544723fd61365de0c6e4b0ee6389a560814ddc4f0d1237824",
-    "scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py": "d060866fd62484da1155e626ab2ce037126b03c29c2d053543c3cad1a7a72643",
+    "scripts/project-economy/whole-scope-publication-try-native-concurrency.sh": "6f5f35f1309c271e4467c8467c5b882c2cadc6660bc347e5caed62d0b9ab85d2",
+    "scripts/project-economy/operations-whole-scope-publication-try-native.py": "14194e3c6f99333aaaee247fed02c417ce13a80f3092ef6e2a1d47a4fa1014db",
+    "scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py": "186b26dff78fe476ef0e87b25b249f5695d1dc5923a5950977ac75d69d96d063",
     "docs/project-economy/whole-scope-publication-try-native-contract.md": "09377e518ec700de150c466a09070c8d616cf62a06ad300fccbd3219a64f02e2"
   }
 }
