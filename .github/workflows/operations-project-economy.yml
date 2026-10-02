@@ -33,6 +33,7 @@ on:
       - 'supabase/migrations/*operations_scope_obligation_composition*.sql'
       - 'supabase/functions/_shared/project-operational-eac*'
       - 'supabase/functions/_shared/canonical-project-scope*'
+      - 'supabase/functions/_shared/canonical-scope-view-alias*'
       - 'supabase/migrations/*operations_project_scope*.sql'
       - 'supabase/migrations/*operations_project_forecast*.sql'
       - 'supabase/functions/_shared/catering-project-evidence*'
@@ -782,3 +783,97 @@ jobs:
           git rev-parse HEAD
           psql -X -At -c 'select version()'
           python3 scripts/project-economy/operations-hired-personnel-native.py
+
+  scope-view-alias-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_alias_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_alias_ci"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_alias_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_ALIAS_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Actual coherent full-scope preview and legacy graph writer currentness
+        run: |
+          set -euo pipefail
+          umask 077
+          deno test supabase/functions/_shared/canonical-scope-view-alias.test.ts
+          deno check scripts/project-economy/operations-scope-view-alias-native-vector-test.ts
+          git diff --exit-code
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          task_alias_private=$(mktemp -d)
+          trap 'rm -rf "$task_alias_private"' EXIT
+          task_alias_apply() {
+            timeout --signal=TERM --kill-after=5s 90s psql -X --no-password -v ON_ERROR_STOP=1 < "$1" > "$task_alias_private/schema.log" 2>&1 || { echo 'Native alias exact schema phase failed; private diagnostics withheld' >&2; return 1; }
+          }
+          for task_alias_path in scripts/project-economy/operations-postgres-bootstrap.sql supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql scripts/project-economy/operations-project-review-bootstrap.sql supabase/migrations/20261001232438_operations_personnel_project_reviews.sql scripts/project-economy/operations-scope-bootstrap.sql supabase/migrations/20261002014937_operations_project_scope_enrollment.sql; do
+            task_alias_apply "$task_alias_path"
+          done
+          export PGOPTIONS='-c statement_timeout=30000 -c lock_timeout=10000 -c eventflow.scope_alias_isolated=synthetic-disposable'
+          task_alias_apply scripts/project-economy/operations-scope-view-alias-native-setup.sql
+          task_alias_apply scripts/project-economy/operations-scope-view-alias-native-capture.sql
+          unset PGOPTIONS
+          timeout --signal=TERM --kill-after=5s 180s bash scripts/project-economy/operations-scope-view-alias-native-concurrency.sh
+
+  obligation-mounted-browser-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ISOLATED_PROJECT_EVIDENCE_HTTP: 'true'
+      ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact source, private resource and genuine route boundary guards
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/project-evidence-http-runtime/verify-sources.py
+          python3 scripts/project-economy/operations-obligation-mounted-browser-native.test.py
+          node --test scripts/project-economy/operations-obligation-mounted-browser-contract.test.mjs
+      - name: Exact canonical web dependencies and Playwright1.55 browser without source changes
+        run: |
+          set -euo pipefail
+          npm ci
+          task_mounted_dependencies="$RUNNER_TEMP/operations-mounted-playwright-${GITHUB_RUN_ID}"
+          npm install --prefix "$task_mounted_dependencies" --no-package-lock @playwright/test@1.55.0
+          mkdir -p node_modules/@playwright
+          ln -s "$task_mounted_dependencies/node_modules/@playwright/test" node_modules/@playwright/test
+          ln -s "$task_mounted_dependencies/node_modules/playwright" node_modules/playwright
+          ln -s "$task_mounted_dependencies/node_modules/playwright-core" node_modules/playwright-core
+          node "$task_mounted_dependencies/node_modules/playwright/cli.js" install --with-deps chromium
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+      - name: Cache actual native signed fixture and unchanged readers
+        run: |
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+      - name: Actual App project route on fresh native database in three independent builds
+        run: python3 scripts/project-economy/operations-obligation-mounted-browser-native.py
