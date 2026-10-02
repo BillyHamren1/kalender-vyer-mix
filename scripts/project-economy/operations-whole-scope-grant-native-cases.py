@@ -74,7 +74,7 @@ class Cases:
   self.wait('scope_product_grant_revoke_'+kind,'Lock')
   self.wait('scope_product_grant_'+kind,'PgSleep')
   self.finish(holder);self.finish(changer)
-  before=self.state();denied=scalar(self.http(self.command('re_enable' if kind=='partner' else kind)|{'enabled':True},403))
+  before=self.state();denied=scalar(self.http(self.command('re_enable' if kind=='partner' else kind)|{'enabled':True,'idempotency_key':'native-grant-'+kind+'-denial'},403))
   self.require(denied.get('code')=='42501' and self.state()==before,case)
   self.run(restore)
  def run_all(self):

@@ -54,6 +54,13 @@ def closed(error,phase,resource_type=None,case_type=None):
   return Failure('case_'+str(case) if type(case) is int and 0<=case<8 else phase)
  return Failure(phase)
 
+def closed_case(error,index,resource_type,case_type):
+ phase='case_'+str(index) if type(index) is int and 0<=index<8 else 'case_7'
+ failure=closed(error,phase,resource_type,case_type)
+ # A known HTTP helper reports generic case; the owned case wrapper supplies
+ # its exact progress index. Cleanup retention/errors keep their own phase.
+ return Failure(phase,failure.code,failure.retain) if failure.phase=='case' else failure
+
 def guard(env):
  if any(env.get(k)!=v for k,v in FIXED.items()) or not re.fullmatch(r'[0-9]{1,20}',env.get('GITHUB_RUN_ID','')):raise Failure('guard')
  for key,value in env.items():
@@ -158,7 +165,7 @@ def execute(env):
   if not ready:raise Failure('ready')
   phase='case';cases=load(HERE/'operations-whole-scope-grant-native-cases.py');subject=cases.Cases(native.run,native.start,native.wait,native.finish,lambda cmd,status:native_http(native,cmd,status))
   try:proof=subject.run_all()
-  except Exception as error:raise closed(error,'case_'+str(min(len(subject.done),7)),resource.Failure,cases.CaseFailure) from None
+  except Exception as error:raise closed_case(error,min(len(subject.done),7),resource.Failure,cases.CaseFailure) from None
   if proof!=cases.MARKERS:raise Failure('proof')
  except Exception as error:
   failure=closed(error,phase,resource.Failure)

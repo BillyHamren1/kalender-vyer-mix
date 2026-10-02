@@ -276,19 +276,19 @@
       "size": 7259
     },
     "scripts/project-economy/operations-whole-scope-grant-native-cases.py": {
-      "sha256": "6ff53785fecdbb286bf0a1fcf510865b3690999fc4ef403a1cd675d224b6459c",
+      "sha256": "17bba59dd63b0cf3f998b790e39e211a1a998a2da106d7563e7ce2506ad0c9fd",
       "git_blob": null,
-      "size": 13200
+      "size": 13249
     },
     "scripts/project-economy/operations-whole-scope-grant-native-guard-test.py": {
-      "sha256": "688a246979508d075e40b4b76c32f634b04090700043194ca2627946e2a1b468",
+      "sha256": "a5a84122482463f5b90f367289ab59e26f2a4e1cd9789172fdcf1ca33be59ada",
       "git_blob": null,
-      "size": 13167
+      "size": 14534
     },
     "scripts/project-economy/operations-whole-scope-grant-native-runner.py": {
-      "sha256": "c8839864df09d367f2d7a076fe4b111ed8908f90a2765aaf478fd1e46f70e76d",
+      "sha256": "b4fd4aca8d399ef60f89e84ea1b1ce8651e8c2412895a6b110fdc3778596bfdc",
       "git_blob": null,
-      "size": 19121
+      "size": 19540
     },
     "scripts/project-economy/operations-whole-scope-grant-native-setup.sql": {
       "sha256": "abc24b07940c2d8174cf873e9d6558fb08840b291eade140eb190d8ef8e0b080",

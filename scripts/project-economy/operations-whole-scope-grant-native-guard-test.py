@@ -76,6 +76,24 @@ class GuardTests(unittest.TestCase):
   self.assertEqual((value.phase,value.code,value.retain),('schema','55P03',True))
   value=subject.closed(cases.CaseFailure(4),'case',resource.Failure,cases.CaseFailure)
   self.assertEqual((value.phase,value.code,value.retain),('case_4','unclassified',False))
+ def test_known_http_case_failure_keeps_exact_case_and_cleanup_phase(self):
+  resource,_shared=self.resource();cases=subject.load(HERE/'operations-whole-scope-grant-native-cases.py')
+  failure=subject.closed_case(subject.Failure('case'),6,resource.Failure,cases.CaseFailure)
+  self.assertEqual((failure.phase,failure.code,failure.retain),('case_6','unclassified',False))
+  failure=subject.closed_case(subject.Failure('cleanup',retain=True),6,resource.Failure,cases.CaseFailure)
+  self.assertEqual((failure.phase,failure.retain),('cleanup',True))
+ def test_revocation_denial_uses_new_command_key_not_changed_replay(self):
+  cases=subject.load(HERE/'operations-whole-scope-grant-native-cases.py');packets=[]
+  for kind in ('gate','partner','project','actor'):
+   c=cases.Cases(lambda *_args:None,lambda *_args:object(),lambda *_args:None,lambda *_args:None,lambda command,status:packets.append((kind,command,status)) or {'code':'42501'})
+   c.command=lambda label:{'enabled':False,'idempotency_key':'native-grant-'+label}
+   c.writer_sql=lambda command,after=False:command
+   c.state=lambda:{'unchanged':True}
+   c.revoke_queue(kind,'fixed update;','fixed restore;',6)
+  self.assertEqual(len(packets),4)
+  for kind,command,status in packets:
+   self.assertEqual(command,{'enabled':True,'idempotency_key':'native-grant-'+kind+'-denial'})
+   self.assertEqual(status,403)
  def test_symlink_closure_rejected_before_source_import(self):
   with tempfile.TemporaryDirectory() as temp:
    root=pathlib.Path(temp);here=root/'scripts'/'project-economy';here.mkdir(parents=True)
