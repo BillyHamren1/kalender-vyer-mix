@@ -3,6 +3,7 @@ import { useOutletContext, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
+import { ProjectEconomyStep8ShadowPanel } from "@/components/project/ProjectEconomyStep8ShadowPanel";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,7 @@ const ProjectEconomyPage = () => {
             projectName={project.name}
             bookingId={project.booking_id}
           />
+          {projectId ? <ProjectEconomyStep8ShadowPanel key={projectId} projectId={projectId} /> : null}
         </TabsContent>
 
         <TabsContent value="staff">

@@ -9,6 +9,8 @@ on:
       - 'src/components/project/ProjectEconomyStep8ShadowPanel.tsx'
       - 'src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts'
       - 'src/lib/economy/projectEconomyStep8ShadowAdapter.ts'
+      - 'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx'
+      - 'src/pages/project/ProjectEconomyPage.tsx'
       - 'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql'
 
 permissions:
@@ -53,17 +55,31 @@ jobs:
           EXPECTED_FOUNDATION_TREE: 0fc91a22cc70b938841b9b6e9fcf331f46884c2a
           EXPECTED_CI_REPAIR: db27fcd6cc8507db060875b33b603a5eb92e1df5
           EXPECTED_CI_REPAIR_TREE: 8304dff80cb7c5246f67e383f3d3e1f1e531f0ab
+          EXPECTED_SQL_REPAIR: 63d41ebdc5942eb79b56a4ac4ab7b02ee59f985f
+          EXPECTED_SQL_REPAIR_TREE: 4a7b1dafcc87175a19c12395941f49b0668501e0
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_CI_REPAIR"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SQL_REPAIR"
+          test "$(git rev-parse "$EXPECTED_SQL_REPAIR^{tree}")" = "$EXPECTED_SQL_REPAIR_TREE"
+          test "$(git rev-parse "$EXPECTED_SQL_REPAIR^")" = "$EXPECTED_CI_REPAIR"
           test "$(git rev-parse "$EXPECTED_CI_REPAIR^{tree}")" = "$EXPECTED_CI_REPAIR_TREE"
           test "$(git rev-parse "$EXPECTED_CI_REPAIR^")" = "$EXPECTED_FOUNDATION"
           test "$(git rev-parse "$EXPECTED_FOUNDATION^{tree}")" = "$EXPECTED_FOUNDATION_TREE"
           test "$(git rev-parse "$EXPECTED_FOUNDATION^")" = "$EXPECTED_BASE"
           test "$(git rev-parse "$EXPECTED_BASE^{tree}")" = "$EXPECTED_BASE_TREE"
-          test "$(git rev-list --count "$EXPECTED_BASE"..HEAD)" = 3
+          test "$(git rev-list --count "$EXPECTED_BASE"..HEAD)" = 4
           test "$(git rev-list --count "$EXPECTED_BASE".."$EXPECTED_FOUNDATION")" = 1
           test "$(git rev-list --count "$EXPECTED_FOUNDATION".."$EXPECTED_CI_REPAIR")" = 1
+          test "$(git rev-list --count "$EXPECTED_CI_REPAIR".."$EXPECTED_SQL_REPAIR")" = 1
+          cat >"$RUNNER_TEMP/expected-foundation-paths" <<'EOF'
+          .github/workflows/project-economy-step8-shadow.yml
+          scripts/project-economy/step8-shadow-runtime.mjs
+          src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx
+          src/components/project/ProjectEconomyStep8ShadowPanel.tsx
+          src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts
+          src/lib/economy/projectEconomyStep8ShadowAdapter.ts
+          supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
+          EOF
           cat >"$RUNNER_TEMP/expected-cumulative-paths" <<'EOF'
           .github/workflows/project-economy-step8-shadow.yml
           scripts/project-economy/step8-shadow-runtime.mjs
@@ -71,6 +87,8 @@ jobs:
           src/components/project/ProjectEconomyStep8ShadowPanel.tsx
           src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts
           src/lib/economy/projectEconomyStep8ShadowAdapter.ts
+          src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx
+          src/pages/project/ProjectEconomyPage.tsx
           supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
           EOF
           cat >"$RUNNER_TEMP/expected-ci-repair-paths" <<'EOF'
@@ -82,13 +100,21 @@ jobs:
           scripts/project-economy/step8-shadow-runtime.mjs
           supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
           EOF
+          cat >"$RUNNER_TEMP/expected-mount-repair-paths" <<'EOF'
+          .github/workflows/project-economy-step8-shadow.yml
+          scripts/project-economy/step8-shadow-runtime.mjs
+          src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx
+          src/pages/project/ProjectEconomyPage.tsx
+          EOF
           git diff --name-only "$EXPECTED_BASE" "$EXPECTED_FOUNDATION" | LC_ALL=C sort >"$RUNNER_TEMP/foundation-paths"
           git diff --name-only "$EXPECTED_FOUNDATION" "$EXPECTED_CI_REPAIR" | LC_ALL=C sort >"$RUNNER_TEMP/ci-repair-paths"
-          git diff --name-only "$EXPECTED_CI_REPAIR" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/sql-repair-paths"
+          git diff --name-only "$EXPECTED_CI_REPAIR" "$EXPECTED_SQL_REPAIR" | LC_ALL=C sort >"$RUNNER_TEMP/sql-repair-paths"
+          git diff --name-only "$EXPECTED_SQL_REPAIR" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/mount-repair-paths"
           git diff --name-only "$EXPECTED_BASE" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/cumulative-paths"
-          cmp "$RUNNER_TEMP/expected-cumulative-paths" "$RUNNER_TEMP/foundation-paths"
+          cmp "$RUNNER_TEMP/expected-foundation-paths" "$RUNNER_TEMP/foundation-paths"
           cmp "$RUNNER_TEMP/expected-ci-repair-paths" "$RUNNER_TEMP/ci-repair-paths"
           cmp "$RUNNER_TEMP/expected-sql-repair-paths" "$RUNNER_TEMP/sql-repair-paths"
+          cmp "$RUNNER_TEMP/expected-mount-repair-paths" "$RUNNER_TEMP/mount-repair-paths"
           cmp "$RUNNER_TEMP/expected-cumulative-paths" "$RUNNER_TEMP/cumulative-paths"
           test "$(git status --porcelain)" = ""
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -106,7 +132,8 @@ jobs:
           set -Eeuo pipefail
           npx vitest run \
             src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts \
-            src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx
+            src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx \
+            src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx
       - name: PostgreSQL 15.19 authenticated shadow runtime
         env:
           STEP8_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/step8
@@ -116,9 +143,21 @@ jobs:
           STEP8_EXPECTED_FOUNDATION_TREE: 0fc91a22cc70b938841b9b6e9fcf331f46884c2a
           STEP8_EXPECTED_CI_REPAIR: db27fcd6cc8507db060875b33b603a5eb92e1df5
           STEP8_EXPECTED_CI_REPAIR_TREE: 8304dff80cb7c5246f67e383f3d3e1f1e531f0ab
+          STEP8_EXPECTED_SQL_REPAIR: 63d41ebdc5942eb79b56a4ac4ab7b02ee59f985f
+          STEP8_EXPECTED_SQL_REPAIR_TREE: 4a7b1dafcc87175a19c12395941f49b0668501e0
         run: |
           set -Eeuo pipefail
           STEP8_STATIC_ONLY=1 node scripts/project-economy/step8-shadow-runtime.mjs
+          if STEP8_EXPECTED_SQL_REPAIR="$STEP8_EXPECTED_CI_REPAIR" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial SQL repair provenance was accepted' >&2
+            exit 1
+          fi
+          if STEP8_EXPECTED_SQL_REPAIR_TREE="$STEP8_EXPECTED_CI_REPAIR_TREE" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial SQL repair tree was accepted' >&2
+            exit 1
+          fi
           if STEP8_EXPECTED_CI_REPAIR="$STEP8_EXPECTED_FOUNDATION" STEP8_STATIC_ONLY=1 \
             node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
             echo 'adversarial CI repair provenance was accepted' >&2

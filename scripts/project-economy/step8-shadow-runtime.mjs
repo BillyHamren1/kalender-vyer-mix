@@ -6,13 +6,24 @@ const root = new URL('../../', import.meta.url);
 const migrationPath = new URL('supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql', root);
 const migration = readFileSync(migrationPath, 'utf8');
 const migrationSha256 = createHash('sha256').update(migration).digest('hex');
-const expectedPaths = [
+const foundationPaths = [
   '.github/workflows/project-economy-step8-shadow.yml',
   'scripts/project-economy/step8-shadow-runtime.mjs',
   'src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx',
   'src/components/project/ProjectEconomyStep8ShadowPanel.tsx',
   'src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts',
   'src/lib/economy/projectEconomyStep8ShadowAdapter.ts',
+  'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
+];
+const cumulativePaths = [
+  '.github/workflows/project-economy-step8-shadow.yml',
+  'scripts/project-economy/step8-shadow-runtime.mjs',
+  'src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx',
+  'src/components/project/ProjectEconomyStep8ShadowPanel.tsx',
+  'src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts',
+  'src/lib/economy/projectEconomyStep8ShadowAdapter.ts',
+  'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx',
+  'src/pages/project/ProjectEconomyPage.tsx',
   'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
 ];
 const ciRepairPaths = [
@@ -23,6 +34,12 @@ const sqlRepairPaths = [
   '.github/workflows/project-economy-step8-shadow.yml',
   'scripts/project-economy/step8-shadow-runtime.mjs',
   'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
+];
+const mountRepairPaths = [
+  '.github/workflows/project-economy-step8-shadow.yml',
+  'scripts/project-economy/step8-shadow-runtime.mjs',
+  'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx',
+  'src/pages/project/ProjectEconomyPage.tsx',
 ];
 
 function run(command, args, options = {}) {
@@ -40,9 +57,16 @@ const expectedFoundation = process.env.STEP8_EXPECTED_FOUNDATION;
 const expectedFoundationTree = process.env.STEP8_EXPECTED_FOUNDATION_TREE;
 const expectedCiRepair = process.env.STEP8_EXPECTED_CI_REPAIR;
 const expectedCiRepairTree = process.env.STEP8_EXPECTED_CI_REPAIR_TREE;
-if (!expectedBase || !expectedBaseTree || !expectedFoundation || !expectedFoundationTree || !expectedCiRepair || !expectedCiRepairTree)
-  throw new Error('exact Step8 base, foundation, and CI repair provenance are required');
-if (run('git',['rev-parse','HEAD^']) !== expectedCiRepair) throw new Error('unexpected Step8 CI repair parent');
+const expectedSqlRepair = process.env.STEP8_EXPECTED_SQL_REPAIR;
+const expectedSqlRepairTree = process.env.STEP8_EXPECTED_SQL_REPAIR_TREE;
+if (!expectedBase || !expectedBaseTree || !expectedFoundation || !expectedFoundationTree ||
+    !expectedCiRepair || !expectedCiRepairTree || !expectedSqlRepair || !expectedSqlRepairTree)
+  throw new Error('exact Step8 base, foundation, CI repair, and SQL repair provenance are required');
+if (run('git',['rev-parse','HEAD^']) !== expectedSqlRepair) throw new Error('unexpected Step8 SQL repair parent');
+if (run('git',['rev-parse',`${expectedSqlRepair}^{tree}`]) !== expectedSqlRepairTree)
+  throw new Error('unexpected Step8 SQL repair tree');
+if (run('git',['rev-parse',`${expectedSqlRepair}^`]) !== expectedCiRepair)
+  throw new Error('unexpected Step8 SQL repair CI parent');
 if (run('git',['rev-parse',`${expectedCiRepair}^{tree}`]) !== expectedCiRepairTree)
   throw new Error('unexpected Step8 CI repair tree');
 if (run('git',['rev-parse',`${expectedCiRepair}^`]) !== expectedFoundation)
@@ -53,23 +77,28 @@ if (run('git',['rev-parse',`${expectedFoundation}^`]) !== expectedBase)
   throw new Error('unexpected Step8 foundation base');
 if (run('git',['rev-parse',`${expectedBase}^{tree}`]) !== expectedBaseTree)
   throw new Error('unexpected Step8 base tree');
-if (run('git',['rev-list','--count',`${expectedBase}..HEAD`]) !== '3')
-  throw new Error('Step8 must be the exact three-commit cumulative chain');
+if (run('git',['rev-list','--count',`${expectedBase}..HEAD`]) !== '4')
+  throw new Error('Step8 must be the exact four-commit cumulative chain');
 if (run('git',['rev-list','--count',`${expectedBase}..${expectedFoundation}`]) !== '1')
   throw new Error('Step8 foundation must be one exact successor of the base');
 if (run('git',['rev-list','--count',`${expectedFoundation}..${expectedCiRepair}`]) !== '1')
   throw new Error('Step8 CI repair must be one exact successor of the foundation');
+if (run('git',['rev-list','--count',`${expectedCiRepair}..${expectedSqlRepair}`]) !== '1')
+  throw new Error('Step8 SQL repair must be one exact successor of the CI repair');
 const foundationChanged = run('git',['diff','--name-only',expectedBase,expectedFoundation]).split('\n').filter(Boolean).sort();
-if (JSON.stringify(foundationChanged) !== JSON.stringify(expectedPaths))
+if (JSON.stringify(foundationChanged) !== JSON.stringify(foundationPaths))
   throw new Error(`unexpected Step8 foundation paths: ${foundationChanged.join(',')}`);
 const ciRepairChanged = run('git',['diff','--name-only',expectedFoundation,expectedCiRepair]).split('\n').filter(Boolean).sort();
 if (JSON.stringify(ciRepairChanged) !== JSON.stringify(ciRepairPaths))
   throw new Error(`unexpected Step8 CI repair paths: ${ciRepairChanged.join(',')}`);
-const sqlRepairChanged = run('git',['diff','--name-only',expectedCiRepair,'HEAD']).split('\n').filter(Boolean).sort();
+const sqlRepairChanged = run('git',['diff','--name-only',expectedCiRepair,expectedSqlRepair]).split('\n').filter(Boolean).sort();
 if (JSON.stringify(sqlRepairChanged) !== JSON.stringify(sqlRepairPaths))
   throw new Error(`unexpected Step8 SQL repair paths: ${sqlRepairChanged.join(',')}`);
+const mountRepairChanged = run('git',['diff','--name-only',expectedSqlRepair,'HEAD']).split('\n').filter(Boolean).sort();
+if (JSON.stringify(mountRepairChanged) !== JSON.stringify(mountRepairPaths))
+  throw new Error(`unexpected Step8 mount repair paths: ${mountRepairChanged.join(',')}`);
 const cumulativeChanged = run('git',['diff','--name-only',expectedBase,'HEAD']).split('\n').filter(Boolean).sort();
-if (JSON.stringify(cumulativeChanged) !== JSON.stringify(expectedPaths))
+if (JSON.stringify(cumulativeChanged) !== JSON.stringify(cumulativePaths))
   throw new Error(`unexpected cumulative Step8 paths: ${cumulativeChanged.join(',')}`);
 
 for (const forbidden of [
@@ -109,7 +138,8 @@ if (process.env.STEP8_STATIC_ONLY === '1') {
     sourceBase:expectedBase,sourceBaseTree:expectedBaseTree,
     sourceFoundation:expectedFoundation,sourceFoundationTree:expectedFoundationTree,
     sourceCiRepair:expectedCiRepair,sourceCiRepairTree:expectedCiRepairTree,
-    changedPaths:expectedPaths,identityPrecedenceAdversarialDenied:true,
+    sourceSqlRepair:expectedSqlRepair,sourceSqlRepairTree:expectedSqlRepairTree,
+    changedPaths:cumulativePaths,identityPrecedenceAdversarialDenied:true,
   },null,2));
   process.exit(0);
 }
