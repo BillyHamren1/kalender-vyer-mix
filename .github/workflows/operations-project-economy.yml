@@ -1200,9 +1200,9 @@ jobs:
           # BEGIN HELD BOOTSTRAP LAUNCHER V2
           import hashlib,os,stat
           BOOTSTRAP_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py'
-          BOOTSTRAP_SHA256='b7bd6251999a256b32d34d2c23e9d30d2107caa4db1ceaa6fcc8396de4de9e53'
+          BOOTSTRAP_SHA256='5c1230e19c37986a12fc15c077705718dd60a220da6f6b44372719600528a803'
           CLOSURE_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
-          CLOSURE_SHA256='a0083017745b726f343bcbac90005a6225689100660d50c96fea2acd697b7f9e'
+          CLOSURE_SHA256='e5e1fef48ace7dbed5947ef07c0110773d06e8f760c4265a379c8141f8848764'
           def identity(value):
               return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
           def open_held(path,expected,maximum):

@@ -37,9 +37,11 @@ def flags(fd):return struct.unpack('I',fcntl.ioctl(fd,FS_IOC_GETFLAGS,struct.pac
 
 def set_flags(fd,value):fcntl.ioctl(fd,FS_IOC_SETFLAGS,struct.pack('I',value))
 
-def compiled_module(data,filename,name):
+def compiled_module(data,filename,name,effect_capability):
     module=types.ModuleType(name);module.__file__=str(filename);module.__package__=''
+    module.__dict__['__held_effect_capability__']=effect_capability
     exec(compile(data,str(filename),'exec'),module.__dict__)
+    if '__held_effect_capability__' in module.__dict__:raise BootstrapFailure()
     return module
 
 class HeldTree:
@@ -162,10 +164,12 @@ def execute(env):
     try:
         mirror=tree.materialize();tree.seal();tree.verify(True)
         path=mirror/IMPLEMENTATION
-        module=compiled_module(tree.bytes(IMPLEMENTATION),path,'operations_compatible_read_pinned_impl')
-        deno,image=module.validate_environment(env);child=dict(env);child.pop(IMAGE_ENV,None)
+        effect_capability=object()
+        module=compiled_module(tree.bytes(IMPLEMENTATION),path,'operations_compatible_read_pinned_impl',effect_capability)
+        module._install_held_authority(effect_capability,env)
+        delattr(module,'_install_held_authority')
         tree.verify(True) # Last pre-effect gate; all subsequently opened paths are kernel immutable.
-        module._execute_materialized(child,deno,image)
+        module._execute_materialized(effect_capability)
         tree.verify(True);success=True
     finally:
         if success:tree.clear_and_discard()

@@ -4,8 +4,8 @@ HERE=pathlib.Path(__file__).absolute().parent;STAGE=HERE.parent.parent;CANONICAL
 BOOT=HERE/'operations-scope-compatible-read-native-pinned-postgrest.py';IMPL=HERE/'operations-scope-compatible-read-native-pinned-postgrest-impl.py';CLOSURE=HERE/'operations-scope-compatible-read-native-pinned-postgrest-closure.json'
 WORKFLOW=STAGE/'.github/workflows/operations-project-economy.yml'
 RUNTIME_OWN={str(p.relative_to(STAGE)) for p in (IMPL,pathlib.Path(__file__).absolute(),STAGE/'docs/project-economy/operations-scope-compatible-read-native-pinned-postgrest-contract.md')}
-def load(path,name):
- data=path.read_bytes();module=types.ModuleType(name);module.__file__=str(path);exec(compile(data,str(path),'exec'),module.__dict__);return module
+def load(path,name,seed=None):
+ data=path.read_bytes();module=types.ModuleType(name);module.__file__=str(path);module.__dict__.update(seed or {});exec(compile(data,str(path),'exec'),module.__dict__);return module
 def held(module,path):
  fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW);data=os.pread(fd,2097153,0);saved=module.identity(os.fstat(fd));return fd,{'fd':fd,'identity':saved,'bytes':data}
 def launcher_open(module,path,expected,maximum):
@@ -36,9 +36,41 @@ class Tests(unittest.TestCase):
  def test_implementation_execute_a_ignores_path_swapped_b(self):
   with tempfile.TemporaryDirectory() as d:
    path=pathlib.Path(d)/'impl.py';path.write_text("MARKER='B'\n")
-   module=self.b.compiled_module(b"MARKER='A'\n",path,'held_a');self.assertEqual(module.MARKER,'A');self.assertEqual(path.read_text(),"MARKER='B'\n")
+   capability=object();module=self.b.compiled_module(b"globals().pop('__held_effect_capability__')\nMARKER='A'\n",path,'held_a',capability);self.assertEqual(module.MARKER,'A');self.assertEqual(path.read_text(),"MARKER='B'\n")
  def test_v4_closure_exact_and_acyclic(self):
   value=json.loads(CLOSURE.read_text());self.assertEqual(value['schema'],self.b.SCHEMA);self.assertEqual(len(value['files']),87);self.assertIn(self.b.IMPLEMENTATION,value['files']);self.assertEqual(set(RUNTIME_OWN)&set(value['files']),RUNTIME_OWN);self.assertNotIn(self.b.BOOTSTRAP,value['files']);self.assertNotIn(str(WORKFLOW.relative_to(STAGE)),value['files'])
+ def test_materialized_implementation_accepts_exact_outer_v4_closure(self):
+  root=assembly(self);paths=self.i.closure_paths(root,root/CLOSURE.relative_to(STAGE));self.assertEqual(len(paths),23);self.assertTrue(all(path.is_relative_to(root) for path in paths))
+ def test_materialized_implementation_rejects_v2_and_outer_authority_members(self):
+  root=assembly(self);manifest=root/CLOSURE.relative_to(STAGE);value=json.loads(manifest.read_text())
+  for mutate in (
+   lambda item:item.__setitem__('schema','operations-scope-compatible-read-native-pinned-postgrest-closure.v2'),
+   lambda item:item['files'].__setitem__(self.b.BOOTSTRAP,{'bytes':0,'sha256':'0'*64,'git_blob':'0'*40}),
+   lambda item:item['files'].__setitem__(str(WORKFLOW.relative_to(STAGE)),{'bytes':0,'sha256':'0'*64,'git_blob':'0'*40}),
+  ):
+   changed=json.loads(json.dumps(value));mutate(changed);manifest.chmod(0o600);manifest.write_text(json.dumps(changed));manifest.chmod(0o400)
+   with self.assertRaises(self.i.ClosedFailure) as error:self.i.closure_paths(root,manifest)
+   self.assertEqual(error.exception.phase,'source_closure')
+  manifest.chmod(0o600);manifest.write_text(json.dumps(value));manifest.chmod(0o400)
+ def test_direct_implementation_route_is_fail_closed(self):
+  self.assertFalse(hasattr(self.i,'SourceCustody'))
+  with self.assertRaises(self.i.ClosedFailure) as error:self.i.execute(self.env())
+  self.assertEqual(error.exception.phase,'source_closure');self.assertTrue(error.exception.retain_private)
+ def test_private_effect_entry_requires_held_capability_before_paths(self):
+  reached=[];self.i.closure_paths=lambda *args:reached.append('paths')
+  with self.assertRaises(self.i.ClosedFailure) as error:self.i._execute_materialized({},'deno','attacker/image:mutable')
+  self.assertEqual(error.exception.phase,'guard');self.assertTrue(error.exception.retain_private);self.assertEqual(reached,[]);self.assertFalse(hasattr(self.i,'_effect_body'))
+ def test_held_capability_binds_validated_values_once(self):
+  capability=object();module=load(IMPL,'held_implementation',{'__held_effect_capability__':capability})
+  original=self.env();module._install_held_authority(capability,original);original[module.IMAGE_ENV]='attacker/image:mutable'
+  payload=module._consume_held_authority(capability,())
+  self.assertNotIn(module.IMAGE_ENV,payload[0]);self.assertEqual(payload[1:],('deno',module.POSTGREST_IMAGE))
+  with self.assertRaises(module.ClosedFailure):module._execute_materialized(capability)
+  with self.assertRaises(module.ClosedFailure):module._install_held_authority(capability,self.env())
+  second=object();armed=load(IMPL,'held_effect_entry',{'__held_effect_capability__':second});reached=[]
+  armed._install_held_authority(second,self.env());armed.closure_paths=lambda *args:reached.append('paths') or (_ for _ in ()).throw(RuntimeError('sentinel'))
+  with self.assertRaisesRegex(RuntimeError,'sentinel'):armed._execute_materialized(second)
+  self.assertEqual(reached,['paths'])
  def test_capture_detects_canonical_swap(self):
   root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);victim=root/self.b.IMPLEMENTATION;old=victim.with_suffix('.old')
   try:victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
@@ -56,7 +88,7 @@ class Tests(unittest.TestCase):
  def test_real_immutable_ioctl_failure_is_pre_effect(self):
   source=BOOT.read_text();self.assertLess(source.index('tree.seal()'),source.index('compiled_module(' ,source.index('def execute')));self.assertLess(source.index('tree.verify(True) # Last pre-effect'),source.index('module._execute_materialized'))
  def test_implementation_paths_are_materialized_and_digest_only(self):
-  text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertIn("postgrest_image],env,private,60)",text);self.assertIn("ddl=closure_paths();shared=load_shared()",text)
+  text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
  def test_import_loader_cannot_reopen_implementation(self):
   text=BOOT.read_text();self.assertNotIn('spec_from_file_location',text);self.assertIn('compiled_module(tree.bytes(IMPLEMENTATION)',text)
  def test_bootstrap_a_path_swapped_b_fails_before_effect(self):

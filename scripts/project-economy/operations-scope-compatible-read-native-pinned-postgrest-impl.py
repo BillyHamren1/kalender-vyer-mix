@@ -10,7 +10,6 @@ import pathlib
 import re
 import shutil
 import signal
-import stat
 import sys
 import tempfile
 import secrets
@@ -60,6 +59,10 @@ EXTRA=(
  'docs/project-economy/whole-scope-compatible-reader-native-contract.md',
  'docs/project-economy/whole-scope-compatible-reader-source-audit.json',
  'docs/project-economy/whole-scope-compatible-reader-caller-audit.md')
+OUTER_AUTHORITY={
+ '.github/workflows/operations-project-economy.yml',
+ 'scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py',
+}
 
 
 CHECKPOINTS={'none','guard','role_acquired','role_read_first','compose_acquired','packing_acquired','packing_read_first','project_acquired','project_read_first','source_acquired','source_read_first','baseline_queue','compound_queue','terminal'}
@@ -100,111 +103,30 @@ def validate_environment(env):
     if deno!='deno' and (not pathlib.Path(deno).is_absolute() or pathlib.Path(deno).resolve()!=pathlib.Path(deno) or not pathlib.Path(deno).is_file()):raise ClosedFailure('guard')
     return deno,POSTGREST_IMAGE
 
+def _build_effect_gate(load_capability):
+    # The held-byte bootstrap installs a fresh object before this module is
+    # compiled.  Direct/path imports receive no object and can never arm the
+    # effect entry.  The validated values are copied and consumed once.
+    state={'phase':'new','payload':None}
+    def install(capability,env):
+        active_phase('guard')
+        if load_capability is None or capability is not load_capability or state['phase']!='new' or not isinstance(env,dict):raise ClosedFailure('guard',retain_private=True)
+        frozen=dict(env);deno,image=validate_environment(frozen);child=dict(frozen);child.pop(IMAGE_ENV,None)
+        state['payload']=(child,deno,image);state['phase']='ready'
+    def consume(capability,untrusted):
+        active_phase('guard')
+        if load_capability is None or capability is not load_capability or state['phase']!='ready' or untrusted:raise ClosedFailure('guard',retain_private=True)
+        payload=state['payload'];state['payload']=None;state['phase']='consumed'
+        return payload
+    return install,consume
+
+_install_held_authority,_consume_held_authority=_build_effect_gate(globals().pop('__held_effect_capability__',None))
+del _build_effect_gate
+
 def _identity(value):
     return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
 
 def _blob(data):return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-
-class SourceCustody:
-    """Hold every canonical input FD; execute only a private immutable byte mirror."""
-    def __init__(self,root,manifest):
-        self.root=root.absolute();self.manifest=manifest.absolute();self.held={};self.materialized={};self.mirror=None
-        try:self._initialize()
-        except BaseException:
-            self.close();raise
-
-    def _initialize(self):
-        manifest_data=self._hold_path(self.manifest,'@manifest',2*1024*1024)
-        try:self.value=json.loads(manifest_data.decode('utf-8'),parse_constant=lambda _v:(_ for _ in ()).throw(ValueError()))
-        except Exception:raise ClosedFailure('source_closure',retain_private=True) from None
-        if set(self.value)!={'schema','database','ordered_schema_paths','files','postgrest'} or self.value['schema']!='operations-scope-compatible-read-native-pinned-postgrest-closure.v2' or self.value['database']!=DATABASE or self.value['postgrest']!={'environment':IMAGE_ENV,'image':POSTGREST_IMAGE}:raise ClosedFailure('source_closure',retain_private=True)
-        files=self.value['files']
-        if not isinstance(files,dict) or len(files)!=88:raise ClosedFailure('source_closure',retain_private=True)
-        for relative,identity in sorted(files.items()):
-            if not isinstance(relative,str) or pathlib.PurePosixPath(relative).is_absolute() or '..' in pathlib.PurePosixPath(relative).parts or set(identity)!={'sha256','git_blob','bytes'} or not re.fullmatch(r'[0-9a-f]{64}',identity['sha256']) or not re.fullmatch(r'[0-9a-f]{40}',identity['git_blob']) or not isinstance(identity['bytes'],int) or identity['bytes']<0 or identity['bytes']>8*1024*1024:raise ClosedFailure('source_closure',retain_private=True)
-            data=self._hold_path(self.root/relative,relative,identity['bytes'])
-            if len(data)!=identity['bytes'] or hashlib.sha256(data).hexdigest()!=identity['sha256'] or _blob(data)!=identity['git_blob']:raise ClosedFailure('source_closure',retain_private=True)
-        base=json.loads(self.bytes('scripts/project-economy/whole-scope-reader-permission-native-closure.json').decode('utf-8'))
-        if base['schema']!='operations-whole-scope-reader-permission-native-closure.v1' or len(base['files'])!=65 or self.value['ordered_schema_paths']!=base['ordered_schema_paths'] or len(self.value['ordered_schema_paths'])!=23 or any(files.get(name,{}).get('sha256')!=digest for name,digest in base['files'].items()):raise ClosedFailure('source_closure',retain_private=True)
-
-    def _hold_path(self,path,key,maximum):
-        flags=os.O_RDONLY|os.O_CLOEXEC
-        if hasattr(os,'O_NOFOLLOW'):flags|=os.O_NOFOLLOW
-        try:
-            fd=os.open(path,flags);before=os.fstat(fd)
-            if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or before.st_mode&0o022 or before.st_size>maximum:raise ValueError()
-            chunks=[];total=0
-            while True:
-                chunk=os.read(fd,65536)
-                if not chunk:break
-                total+=len(chunk)
-                if total>maximum:raise ValueError()
-                chunks.append(chunk)
-            after=os.fstat(fd);current=os.stat(path,follow_symlinks=False)
-            if _identity(before)!=_identity(after) or _identity(after)!=_identity(current):raise ValueError()
-            self.held[key]=(fd,path,_identity(after),b''.join(chunks));return self.held[key][3]
-        except Exception:
-            try:os.close(fd)
-            except Exception:pass
-            raise ClosedFailure('source_closure',retain_private=True) from None
-
-    def bytes(self,relative):return self.held[relative][3]
-
-    def materialize(self):
-        parent=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-source-',dir='/tmp'));parent.chmod(0o700)
-        mirror=parent/'root';mirror.mkdir(mode=0o700);self.mirror=mirror
-        for relative in sorted(self.value['files']):
-            target=mirror/relative;target.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
-            fd=os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC,0o600)
-            try:
-                data=self.bytes(relative);offset=0
-                while offset<len(data):offset+=os.write(fd,data[offset:])
-                os.fsync(fd)
-            finally:os.close(fd)
-            target.chmod(0o400)
-        closure_target=mirror/'scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
-        fd=os.open(closure_target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC,0o600)
-        try:
-            data=self.held['@manifest'][3];offset=0
-            while offset<len(data):offset+=os.write(fd,data[offset:])
-            os.fsync(fd)
-        finally:os.close(fd)
-        closure_target.chmod(0o400)
-        for directory in sorted({p for p in mirror.rglob('*') if p.is_dir()},key=lambda p:len(p.parts),reverse=True):directory.chmod(0o500)
-        mirror.chmod(0o500);parent.chmod(0o500)
-        for relative in sorted((*self.value['files'].keys(),'scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json')):
-            path=mirror/relative;flags=os.O_RDONLY|os.O_CLOEXEC
-            if hasattr(os,'O_NOFOLLOW'):flags|=os.O_NOFOLLOW
-            fd=os.open(path,flags);saved=os.fstat(fd);data=self.held['@manifest'][3] if relative.endswith('-closure.json') and relative not in self.value['files'] else self.bytes(relative)
-            if not stat.S_ISREG(saved.st_mode) or saved.st_mode&0o222 or saved.st_nlink!=1 or saved.st_size!=len(data) or _identity(saved)!=_identity(os.stat(path,follow_symlinks=False)):
-                os.close(fd);raise ClosedFailure('source_closure',retain_private=True)
-            self.materialized[relative]=(fd,path,_identity(saved),data)
-        return mirror
-
-    def postidentity(self):
-        for _key,(fd,path,saved,data) in (*self.held.items(),*self.materialized.items()):
-            current=os.fstat(fd);linked=os.stat(path,follow_symlinks=False)
-            if _identity(current)!=saved or _identity(linked)!=saved:
-                raise ClosedFailure('source_closure',retain_private=True)
-            os.lseek(fd,0,os.SEEK_SET);remaining=len(data);digest=hashlib.sha256()
-            while remaining:
-                chunk=os.read(fd,min(65536,remaining))
-                if not chunk:raise ClosedFailure('source_closure',retain_private=True)
-                digest.update(chunk);remaining-=len(chunk)
-            if digest.digest()!=hashlib.sha256(data).digest() or os.read(fd,1):raise ClosedFailure('source_closure',retain_private=True)
-
-    def close(self):
-        for fd,_path,_saved,_data in (*self.held.values(),*self.materialized.values()):
-            try:os.close(fd)
-            except OSError:pass
-
-    def discard_materialized(self):
-        if self.mirror is None:return
-        parent=self.mirror.parent
-        for path in sorted(parent.rglob('*'),key=lambda value:len(value.parts),reverse=True):
-            try:path.chmod(0o700 if path.is_dir() else 0o600)
-            except OSError:pass
-        parent.chmod(0o700);shutil.rmtree(parent)
 
 def load_module(path,name,expected):
     active_phase('paths')
@@ -219,8 +141,9 @@ def closure_paths(root=None,manifest=None):
         root=ROOT if root is None else root;manifest=CLOSURE if manifest is None else manifest
         if not manifest.is_file() or manifest.resolve()!=manifest:raise ValueError()
         value=json.loads(manifest.read_text());base=json.loads((root/'scripts/project-economy/whole-scope-reader-permission-native-closure.json').read_text())
-        if set(value)!={'schema','database','ordered_schema_paths','files','postgrest'} or value['schema']!='operations-scope-compatible-read-native-pinned-postgrest-closure.v2' or value['database']!=DATABASE or value['postgrest']!={'environment':IMAGE_ENV,'image':POSTGREST_IMAGE} or not isinstance(value['files'],dict):raise ValueError()
-        if base['schema']!='operations-whole-scope-reader-permission-native-closure.v1' or len(base['files'])!=65 or value['ordered_schema_paths']!=base['ordered_schema_paths'] or len(value['ordered_schema_paths'])!=23 or set(value['files'])!=set(base['files'])|set(EXTRA):raise ValueError()
+        if set(value)!={'schema','database','ordered_schema_paths','files','postgrest'} or value['schema']!='operations-scope-compatible-read-native-pinned-postgrest-closure.v4' or value['database']!=DATABASE or value['postgrest']!={'environment':IMAGE_ENV,'image':POSTGREST_IMAGE} or not isinstance(value['files'],dict) or len(value['files'])!=87:raise ValueError()
+        expected=(set(base['files'])|set(EXTRA))-OUTER_AUTHORITY
+        if base['schema']!='operations-whole-scope-reader-permission-native-closure.v1' or len(base['files'])!=65 or value['ordered_schema_paths']!=base['ordered_schema_paths'] or len(value['ordered_schema_paths'])!=23 or set(value['files'])!=expected or OUTER_AUTHORITY&set(value['files']):raise ValueError()
         for name,identity in value['files'].items():
             if not isinstance(name,str) or pathlib.PurePosixPath(name).is_absolute() or '..' in pathlib.PurePosixPath(name).parts or not isinstance(identity,dict) or set(identity)!={'sha256','git_blob','bytes'} or not re.fullmatch(r'[0-9a-f]{64}',identity['sha256']) or not re.fullmatch(r'[0-9a-f]{40}',identity['git_blob']) or not isinstance(identity['bytes'],int):raise ValueError()
             path=root/name
@@ -327,7 +250,8 @@ def terminal_proof(lines):
     if not match or int(match[3])!=4+int(match[1])+int(match[2]):raise ClosedFailure('proof')
     return lines
 
-def _execute_materialized(env,deno,postgrest_image):
+def _execute_materialized(capability,*untrusted):
+    env,deno,postgrest_image=_consume_held_authority(capability,untrusted)
     ddl=closure_paths();shared=load_shared()
     private=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-reader-native-',dir='/tmp'));private.chmod(0o700);retain=False
     pg_env=dict(env,PGCONNECT_TIMEOUT='5');deno_env={k:v for k,v in env.items() if not k.startswith('PG')}
@@ -377,29 +301,11 @@ def _execute_materialized(env,deno,postgrest_image):
         if not retain:shutil.rmtree(private)
     for marker in verified:print(marker)
 
-def execute(env):
-    global HERE,ROOT,CLOSURE,BASE_CLOSURE,SHARED,BASE_RUNNER
-    active_phase('guard')
-    deno,postgrest_image=validate_environment(env)
-    child_env=dict(env);child_env.pop(IMAGE_ENV,None)
-    custody=SourceCustody(ROOT,CLOSURE);failure=None;success=False
-    saved=(HERE,ROOT,CLOSURE,BASE_CLOSURE,SHARED,BASE_RUNNER)
-    try:
-        mirror=custody.materialize();ROOT=mirror;HERE=mirror/'scripts/project-economy'
-        CLOSURE=HERE/'operations-scope-compatible-read-native-pinned-postgrest-closure.json'
-        BASE_CLOSURE=HERE/'whole-scope-reader-permission-native-closure.json'
-        SHARED=HERE/'operations-hired-personnel-native.py'
-        BASE_RUNNER=HERE/'operations-whole-scope-reader-permission-native.py'
-        try:_execute_materialized(child_env,deno,postgrest_image)
-        except BaseException as error:failure=error
-        try:custody.postidentity()
-        except BaseException as error:failure=error
-        success=failure is None
-    finally:
-        HERE,ROOT,CLOSURE,BASE_CLOSURE,SHARED,BASE_RUNNER=saved
-        custody.close()
-        if success:custody.discard_materialized()
-    if failure is not None:raise failure
+def execute(_env):
+    # Direct/path execution has no outer held-byte authority. Only the reviewed
+    # workflow launcher may call _execute_materialized from the sealed mirror.
+    active_phase('source_closure')
+    raise ClosedFailure('source_closure',retain_private=True)
 
 def main():
     def stop(_signal,_frame):raise ClosedFailure('guard')
