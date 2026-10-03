@@ -2,9 +2,10 @@
 
 This is an additive, default-off Step 6 read seam based on Operations commit
 `224142643da2b540734c70925f2c6ed75242effc` / tree
-`ce17b9abb33b081c217f884fa3a89685dda6f362`. It is staged only. It does not
-claim a migrated database, authenticated runtime, hosted UI, provider evidence,
-release, or activation.
+`ce17b9abb33b081c217f884fa3a89685dda6f362`. It is published source-only on
+commit `6f22b73a1e0219a9fc987fd4b027dba8e79f8715`; all runtime gates remain open.
+It does not claim a migrated database, authenticated runtime, hosted UI,
+provider evidence, release, or activation.
 
 ## Authority and route
 
