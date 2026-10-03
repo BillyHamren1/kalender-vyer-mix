@@ -62,6 +62,21 @@ RLS_ASSERTION_BLOCK='''          \\set ON_ERROR_STOP on
           end
           $assert$;
 '''
+SERVICE_ROLE_BOOTSTRAP_LINE='          create role service_role noinherit nologin nosuperuser nocreatedb nocreaterole noreplication bypassrls;'
+
+
+def require_service_role_bootstrap_contract(workflow):
+ lowered=workflow.lower()
+ assert workflow.count(SERVICE_ROLE_BOOTSTRAP_LINE)==1
+ assert lowered.count('create role service_role ')==1
+ assert lowered.count('bypassrls')==1
+ assert 'alter role service_role' not in lowered
+ assert 'row_security' not in lowered
+ assert 'create role anon noinherit bypassrls' not in lowered
+ assert 'create role authenticated noinherit bypassrls' not in lowered
+ assert 'create role service_role superuser' not in lowered
+ assert workflow.index(SERVICE_ROLE_BOOTSTRAP_LINE)<workflow.index('          ops_projection_native_phase=migration\n')
+
 
 def require_postgres_identity_contract(workflow):
  assert workflow.count(f'PG_IMAGE: {PG_IMAGE}')==1
@@ -154,6 +169,22 @@ class Guard(unittest.TestCase):
   for label,mutated in mutations:
    self.assertNotEqual(mutated,self.workflow,label)
    with self.assertRaises((AssertionError,ValueError),msg=label):require_rls_assertion_contract(mutated)
+ def test_synthetic_service_role_matches_supabase_bypass_semantics(self):
+  require_service_role_bootstrap_contract(self.workflow)
+ def test_service_role_bootstrap_contract_rejects_drift(self):
+  mutations=[
+   ('missing-bypass',self.workflow.replace(SERVICE_ROLE_BOOTSTRAP_LINE,'          create role service_role noinherit nologin nosuperuser nocreatedb nocreaterole noreplication;',1)),
+   ('anon-bypass',self.workflow.replace('          create role anon noinherit;','          create role anon noinherit bypassrls;',1)),
+   ('authenticated-bypass',self.workflow.replace('          create role authenticated noinherit;','          create role authenticated noinherit bypassrls;',1)),
+   ('service-superuser',self.workflow.replace(SERVICE_ROLE_BOOTSTRAP_LINE,'          create role service_role superuser bypassrls;',1)),
+   ('alter-role-route',self.workflow.replace(SERVICE_ROLE_BOOTSTRAP_LINE,'          create role service_role noinherit;\n          alter role service_role bypassrls;',1)),
+   ('row-security-session-bypass',self.workflow.replace('          set role service_role;','          set role service_role;\n          set row_security=off;',1)),
+   ('duplicate-role-authority',self.workflow.replace(SERVICE_ROLE_BOOTSTRAP_LINE,SERVICE_ROLE_BOOTSTRAP_LINE+'\n'+SERVICE_ROLE_BOOTSTRAP_LINE,1)),
+   ('bootstrap-after-migration',self.workflow.replace(SERVICE_ROLE_BOOTSTRAP_LINE+'\n','',1).replace('          ops_projection_native_phase=migration\n','          ops_projection_native_phase=migration\n'+SERVICE_ROLE_BOOTSTRAP_LINE+'\n',1)),
+  ]
+  for label,mutated in mutations:
+   self.assertNotEqual(mutated,self.workflow,label)
+   with self.assertRaises((AssertionError,ValueError),msg=label):require_service_role_bootstrap_contract(mutated)
  def test_no_true_nul(self):
   validator=ROOT/'scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs'
   for path in [SQL,CLIENT,PANEL,MOUNT,RUNTIME,validator,WORKFLOW,Path(__file__)]:self.assertNotIn(b'\0',path.read_bytes())
