@@ -1,17 +1,26 @@
 # Immutable-source compatible-read PostgREST successor
 
-This is a source-only repair candidate on Operations commit
-`cc366d73216342010db5b494d27f89ec2d116c02`, tree
-`5ba72da2d1da3ff9ad0c33d71d7dd2e03b81724e`. It performs no Docker, database,
+This Stage10 source-only successor is based on the exact current Operations
+commit `25561278631ee358054afcb53d75f39ace63bbbe`, tree
+`126f4330c3f405d8bba2cddf924c877ec7da926d`. It performs no Docker, database,
 provider or release action during review.
 
-The published predecessor reached its actual workflow route but failed closed at
-`source_closure` in run `37116639538`, job `111184621488` (raw log SHA-256
-`b4e953f87166589bfa4522c35a65426d84316df002c5fc31fef58ae1694872ee`).
-The outer held-byte bootstrap admitted the reviewed acyclic v4/87 closure, but
-the compiled implementation still required its obsolete v2 closure and a set
-that included the outer workflow and bootstrap authorities. Those requirements
-could never both hold. This repair removes that duplicate inner custody path.
+Historical origin: `cc366d73216342010db5b494d27f89ec2d116c02`, tree
+`5ba72da2d1da3ff9ad0c33d71d7dd2e03b81724e`, was the earlier Stage9 source
+candidate's base, not this Stage10 publication base. The separate historical run
+`37116639538`, job `111184621488` on then-head `4de3` (raw log SHA-256
+`b4e953f87166589bfa4522c35a65426d84316df002c5fc31fef58ae1694872ee`)
+established an obsolete inner v2 custody requirement. The earlier repair removed
+that duplicate inner custody path. This historical diagnosis is not current
+Stage9 runtime evidence.
+
+The actual current-base run `37119750172`, job `111193408698`, failed with the
+generic `source_closure` marker after successful guard step5. The first inner
+cause remains unresolved. Its workflow omitted the exact required image
+selector, which independently guarantees refusal if environment installation
+is reached; immutable sealing occurs before installation. Stage10 fixes that
+handoff, routes the self-contained pinned guard suite and adds finite public
+phase diagnostics without inferring native execution or cleanup acceptance.
 
 The exact modified `.github/workflows/operations-project-economy.yml` is the
 external trust anchor. Its fixed inline Python launcher opens both the bootstrap
@@ -84,3 +93,16 @@ that the digest is present, that Docker used it, that native execution or
 cleanup passed, or that the Step 6 line runtime is admitted. The workflow bytes
 are source-reviewed routing only; publication, workflow runtime and release
 remain separate OPEN gates.
+
+Stage10 adds only the required digest-pinned image environment handoff, routes the
+existing pinned 20-test guard suite, and reports a closed public phase for outer
+held acquisition/compilation or inner capture, materialization, immutable sealing,
+compilation, environment installation, pre-effect verification, effects, final
+verification, and owned cleanup. Unknown exception properties and strings are
+never inspected. Every refusal remains nonzero, and pre-effect refusal reaches no
+runtime effect. The observed stage9 generic failure does not establish which
+inner phase failed; the absent image selector independently guarantees refusal
+if installation is reached. Immutable ioctl support remains a genuine native
+prerequisite. A later workflow publication requires a separate shared source
+manifest rebind to the final workflow bytes. No runtime, cleanup, or release
+acceptance is inferred from these source controls.

@@ -1169,6 +1169,7 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: synthetic-test-only
       EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB: 'true'
+      EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE: 'postgrest/postgrest@sha256:729bf65c733b73f5b52777f0e4b853f22ed73aa67a22d38269d289779b0a8401'
       DENO_NO_PACKAGE_JSON: '1'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
@@ -1185,7 +1186,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
-          python3 -I -B scripts/project-economy/operations-scope-compatible-read-native.guard.test.py
+          python3 -I -B scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.guard.test.py
           bash -n scripts/project-economy/operations-scope-compatible-read-native-concurrency.sh
           deno test --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-budget-test.ts
           deno check --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-journey.ts scripts/project-economy/operations-scope-compatible-read-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
@@ -1200,9 +1201,9 @@ jobs:
           # BEGIN HELD BOOTSTRAP LAUNCHER V2
           import hashlib,os,stat
           BOOTSTRAP_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py'
-          BOOTSTRAP_SHA256='5c1230e19c37986a12fc15c077705718dd60a220da6f6b44372719600528a803'
+          BOOTSTRAP_SHA256='52698fa05fee73314514eb391fbda4fff5f9b0c0fd15d7d7753f2b1893b32283'
           CLOSURE_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
-          CLOSURE_SHA256='e5e1fef48ace7dbed5947ef07c0110773d06e8f760c4265a379c8141f8848764'
+          CLOSURE_SHA256='e50609fea274861b40675ffcad61649bb3963636aa3a28eb216bc95a2c5316da'
           def identity(value):
               return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
           def open_held(path,expected,maximum):
@@ -1224,16 +1225,28 @@ jobs:
               except BaseException:
                   os.close(fd);raise
           def authority(value):return {'fd':value[0],'identity':value[1],'bytes':value[2]}
-          bootstrap=open_held(BOOTSTRAP_PATH,BOOTSTRAP_SHA256,131072)
+          outer_phase='outer_bootstrap_open'
+          bootstrap=None;closure=None
           try:
+              bootstrap=open_held(BOOTSTRAP_PATH,BOOTSTRAP_SHA256,131072)
+              outer_phase='outer_closure_open'
               closure=open_held(CLOSURE_PATH,CLOSURE_SHA256,2097152)
-              try:
-                  namespace={'__name__':'__main__','__file__':BOOTSTRAP_PATH,'__package__':None,'__held_bootstrap__':authority(bootstrap),'__held_closure__':authority(closure)}
-                  exec(compile(bootstrap[2],'<held-bootstrap:'+BOOTSTRAP_SHA256+'>','exec',dont_inherit=True,optimize=0),namespace,namespace)
-              finally:
-                  os.close(closure[0])
+              namespace={'__name__':'__main__','__file__':BOOTSTRAP_PATH,'__package__':None,'__held_bootstrap__':authority(bootstrap),'__held_closure__':authority(closure)}
+              outer_phase='outer_compile'
+              code=compile(bootstrap[2],'<held-bootstrap:'+BOOTSTRAP_SHA256+'>','exec',dont_inherit=True,optimize=0)
+              outer_phase='outer_execute'
+              exec(code,namespace,namespace)
+          except BaseException as error:
+              if type(error) is SystemExit:raise
+              print('operations-scope-compatible-read-native FAIL source_closure PHASE='+outer_phase,file=__import__('sys').stderr)
+              raise SystemExit(1) from None
           finally:
-              os.close(bootstrap[0])
+              try:
+                  if closure is not None:os.close(closure[0])
+                  if bootstrap is not None:os.close(bootstrap[0])
+              except BaseException:
+                  print('operations-scope-compatible-read-native FAIL source_closure PHASE=outer_close',file=__import__('sys').stderr)
+                  raise SystemExit(1) from None
           # END HELD BOOTSTRAP LAUNCHER V2
           PY_HELD_BOOTSTRAP
           git diff --exit-code

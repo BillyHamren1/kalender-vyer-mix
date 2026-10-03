@@ -26,6 +26,14 @@ FS_IOC_GETFLAGS=0x80086601
 FS_IOC_SETFLAGS=0x40086602
 FS_IMMUTABLE_FL=0x00000010
 
+PUBLIC_PHASES={'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'}
+ACTIVE_PHASE='capture'
+
+def phase(value):
+    global ACTIVE_PHASE
+    if value not in PUBLIC_PHASES:raise BootstrapFailure()
+    ACTIVE_PHASE=value
+
 class BootstrapFailure(Exception):pass
 
 def identity(value):
@@ -160,19 +168,24 @@ class HeldTree:
 
 def execute(env):
     bootstrap_authority=globals().get('__held_bootstrap__');closure_authority=globals().get('__held_closure__')
+    phase('capture')
     tree=HeldTree(ROOT,CLOSURE,bootstrap_authority,closure_authority);success=False
     try:
-        mirror=tree.materialize();tree.seal();tree.verify(True)
+        phase('materialize');mirror=tree.materialize()
+        phase('immutable_seal');tree.seal()
+        phase('post_seal_verify');tree.verify(True)
         path=mirror/IMPLEMENTATION
         effect_capability=object()
+        phase('compile')
         module=compiled_module(tree.bytes(IMPLEMENTATION),path,'operations_compatible_read_pinned_impl',effect_capability)
-        module._install_held_authority(effect_capability,env)
+        phase('install');module._install_held_authority(effect_capability,env)
         delattr(module,'_install_held_authority')
-        tree.verify(True) # Last pre-effect gate; all subsequently opened paths are kernel immutable.
-        module._execute_materialized(effect_capability)
-        tree.verify(True);success=True
+        phase('pre_effect_verify');tree.verify(True) # Last pre-effect gate; all subsequently opened paths are kernel immutable.
+        phase('effects');module._execute_materialized(effect_capability)
+        phase('final_verify');tree.verify(True);success=True
     finally:
-        if success:tree.clear_and_discard()
+        if success:
+            phase('owned_cleanup');tree.clear_and_discard()
         tree.close()
 
 def main():
@@ -180,6 +193,6 @@ def main():
     signal.signal(signal.SIGINT,lambda *_:(_ for _ in ()).throw(BootstrapFailure()))
     try:execute(dict(os.environ));return 0
     except BaseException:
-        print('operations-scope-compatible-read-native FAIL source_closure',file=sys.stderr);return 1
+        print('operations-scope-compatible-read-native FAIL source_closure PHASE='+ACTIVE_PHASE,file=sys.stderr);return 1
 
 if __name__=='__main__':sys.exit(main())

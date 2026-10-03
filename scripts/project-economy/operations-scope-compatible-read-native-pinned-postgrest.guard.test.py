@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import builtins,hashlib,json,os,pathlib,shutil,subprocess,sys,tempfile,types,unittest
-HERE=pathlib.Path(__file__).absolute().parent;STAGE=HERE.parent.parent;CANONICAL=STAGE.parent/'operations-economy'
+import contextlib,io,unittest.mock,builtins,hashlib,json,os,pathlib,shutil,subprocess,sys,tempfile,types,unittest
+HERE=pathlib.Path(__file__).absolute().parent;STAGE=HERE.parent.parent;CANONICAL=STAGE
 BOOT=HERE/'operations-scope-compatible-read-native-pinned-postgrest.py';IMPL=HERE/'operations-scope-compatible-read-native-pinned-postgrest-impl.py';CLOSURE=HERE/'operations-scope-compatible-read-native-pinned-postgrest-closure.json'
 WORKFLOW=STAGE/'.github/workflows/operations-project-economy.yml'
 RUNTIME_OWN={str(p.relative_to(STAGE)) for p in (IMPL,pathlib.Path(__file__).absolute(),STAGE/'docs/project-economy/operations-scope-compatible-read-native-pinned-postgrest-contract.md')}
@@ -30,6 +30,10 @@ class Tests(unittest.TestCase):
  def env(self):return {'CI':'true','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1','EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB':'true',self.i.IMAGE_ENV:self.i.POSTGREST_IMAGE,'PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':'eventflow_scope_publication_runtime'}
  def test_selector_exact_and_empty_extra_denied(self):
   self.assertEqual(self.i.validate_environment(self.env()),('deno',self.i.POSTGREST_IMAGE))
+  job=WORKFLOW.read_text().split('  compatible-product-reader-native:',1)[1].split('    steps:',1)[0]
+  self.assertIn("      EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE: '"+self.i.POSTGREST_IMAGE+"'",job)
+  missing=self.env();del missing[self.i.IMAGE_ENV]
+  with self.assertRaises(self.i.ClosedFailure):self.i.validate_environment(missing)
   for value in ('','x'):
    changed=self.env();changed['EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_TAG']=value
    with self.assertRaises(self.i.ClosedFailure):self.i.validate_environment(changed)
@@ -87,6 +91,33 @@ class Tests(unittest.TestCase):
   finally:self.b.flags,self.b.set_flags=old_get,old_set;tree.close()
  def test_real_immutable_ioctl_failure_is_pre_effect(self):
   source=BOOT.read_text();self.assertLess(source.index('tree.seal()'),source.index('compiled_module(' ,source.index('def execute')));self.assertLess(source.index('tree.verify(True) # Last pre-effect'),source.index('module._execute_materialized'))
+  calls=[]
+  class Hostile(BaseException):
+   def __str__(self):calls.append('str');raise AssertionError('PRIVATE_TOKEN')
+   def __getattribute__(self,name):calls.append('getter');raise AssertionError('PRIVATE_TOKEN')
+  for expected in ('capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'):
+   reached=[];module=self.b
+   def boundary(name):
+    reached.append(name)
+    if name==expected:raise Hostile()
+   class Tree:
+    def __init__(self,*args):boundary('capture')
+    def materialize(self):boundary('materialize');return pathlib.Path('/owned/root')
+    def seal(self):boundary('immutable_seal')
+    def verify(self,*args):boundary(module.ACTIVE_PHASE)
+    def bytes(self,*args):return b''
+    def clear_and_discard(self):boundary('owned_cleanup')
+    def close(self):pass
+   def compiled(*args):
+    boundary('compile')
+    return types.SimpleNamespace(_install_held_authority=lambda *args:boundary('install'),_execute_materialized=lambda *args:boundary('effects'))
+   output=io.StringIO()
+   with unittest.mock.patch.object(module,'HeldTree',Tree),unittest.mock.patch.object(module,'compiled_module',compiled),contextlib.redirect_stderr(output):
+    self.assertEqual(module.main(),1)
+   self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
+   self.assertEqual(reached[-1],expected)
+   if expected in {'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify'}:self.assertNotIn('effects',reached)
+  self.assertEqual(calls,[])
  def test_implementation_paths_are_materialized_and_digest_only(self):
   text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
  def test_import_loader_cannot_reopen_implementation(self):
@@ -106,6 +137,35 @@ class Tests(unittest.TestCase):
   with self.assertRaisesRegex(RuntimeError,'held_authority_refused'):launcher_open(self.b,closure,expected,2097152)
  def test_workflow_embedded_launcher_is_fixed_and_held_byte(self):
   text=WORKFLOW.read_text();block=text[text.index('# BEGIN HELD BOOTSTRAP LAUNCHER V2'):text.index('# END HELD BOOTSTRAP LAUNCHER V2')];self.assertIn("open_held(BOOTSTRAP_PATH",block);self.assertIn("open_held(CLOSURE_PATH",block);self.assertIn("hashlib.sha256(data).hexdigest()!=expected",block);self.assertIn("'__held_bootstrap__':authority(bootstrap)",block);self.assertIn("'__held_closure__':authority(closure)",block);self.assertNotIn('operations-scope-compatible-read-native.py\n',block)
+  self.assertIn('operations-scope-compatible-read-native-pinned-postgrest.guard.test.py',text.split('  compatible-product-reader-native:',1)[1].split('# BEGIN HELD BOOTSTRAP LAUNCHER V2',1)[0])
+  code='\n'.join(line[10:] for line in block.splitlines()[1:])+'\n'
+  prefix,dispatch=code.split("outer_phase='outer_bootstrap_open'",1)
+  calls=[]
+  class Hostile(BaseException):
+   def __str__(self):calls.append('str');raise AssertionError('PRIVATE_TOKEN')
+   def __getattribute__(self,name):calls.append('getter');raise AssertionError('PRIVATE_TOKEN')
+  for expected in ('outer_bootstrap_open','outer_closure_open','outer_compile','outer_execute'):
+   scope={};exec(compile(prefix,'<owned-launcher-prefix>','exec'),scope)
+   def opened(path,*args):
+    current='outer_bootstrap_open' if path==scope['BOOTSTRAP_PATH'] else 'outer_closure_open'
+    if current==expected:raise Hostile()
+    return (91,(),b'pass')
+   scope['open_held']=opened
+   scope['compile']=lambda *args,**kwargs:(_ for _ in ()).throw(Hostile()) if expected=='outer_compile' else compile('pass','<owned-sentinel>','exec')
+   scope['exec']=lambda *args:(_ for _ in ()).throw(Hostile())
+   out=io.StringIO()
+   with unittest.mock.patch.object(os,'close',lambda *_:None),contextlib.redirect_stderr(out):
+    with self.assertRaises(SystemExit) as denial:exec(compile("outer_phase='outer_bootstrap_open'"+dispatch,'<owned-launcher-dispatch>','exec'),scope)
+   self.assertEqual(denial.exception.code,1)
+   self.assertEqual(out.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
+  scope={};exec(compile(prefix,'<owned-launcher-prefix>','exec'),scope)
+  scope['open_held']=lambda *args:(91,(),b'pass');scope['exec']=lambda *args:None
+  out=io.StringIO()
+  with unittest.mock.patch.object(os,'close',side_effect=Hostile()),contextlib.redirect_stderr(out):
+   with self.assertRaises(SystemExit) as denial:exec(compile("outer_phase='outer_bootstrap_open'"+dispatch,'<owned-launcher-close>','exec'),scope)
+  self.assertEqual(denial.exception.code,1)
+  self.assertEqual(out.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=outer_close\n')
+  self.assertEqual(calls,[])
  def test_original_guard_suite_green(self):
   path=CANONICAL/'scripts/project-economy/operations-scope-compatible-read-native.guard.test.py';r=subprocess.run([sys.executable,'-B',str(path)],cwd=CANONICAL,env={'PATH':os.environ['PATH'],'PYTHONDONTWRITEBYTECODE':'1'},stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30);self.assertEqual(r.returncode,0);self.assertIn(b'Ran 13 tests',r.stderr)
  def test_no_docker_in_tests(self):self.assertNotIn("subprocess.run(["+"'docker'",pathlib.Path(__file__).read_text())
