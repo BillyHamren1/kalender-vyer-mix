@@ -1,0 +1,112 @@
+{
+  "schema": "compatible-full-app-read-only-tree-transition-source-capture.v3",
+  "status": "source-only-unrouted",
+  "supersedes_capture_sha256": "791581c62b2a9ea6204549551ba6178d3dff0a838ed5da5403176b4e2481e684",
+  "repair": "immutable-source-root-only-and-distinct-writable-build-root-gate",
+  "exact_inputs": {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "source_commit": "809f64e0fd98322c53d9c4e9697df5b515303812",
+    "source_tree": "3d96301591652f9d86ccbbdf8ff26efcb7180ce9",
+    "app_manifest_sha256": "4c6005bb374fa13f89aafc52ce4a013feaa1673454dce76bd09aee77c95e6434",
+    "app_manifest_bytes": 462352,
+    "manifest_projection_sha256": "9fac867355f20d6586ffca32227ee8b861f64879cc2619c1427c1b3d97ea8cf8",
+    "source_files": 2445,
+    "source_bytes": 20984073,
+    "source_directories_excluding_root": 220,
+    "global_tree_entry_cap": 2665,
+    "materializer_evidence_schema": "compatible-full-app-materializer-evidence.v1"
+  },
+  "files": [
+    {
+      "path": "compatible-eight-reader-full-app-read-only-tree-transition.py",
+      "target": "scripts/project-economy/compatible-eight-reader-full-app-read-only-tree-transition.py",
+      "sha256": "f47c4c7b957cca5d51abcbb73a214e1990e781f3e524d9aed1a6bda9a9618396",
+      "bytes": 21836,
+      "git_blob": "eb01fa555bf179e9cfdacf23691c37e5d9f62b92"
+    },
+    {
+      "path": "compatible-eight-reader-full-app-read-only-tree-transition.test.py",
+      "target": "scripts/project-economy/compatible-eight-reader-full-app-read-only-tree-transition.test.py",
+      "sha256": "101007b1ad6774e582628c30d7b3bd5763c5b0f951ca06f03b44dfce5b161e42",
+      "bytes": 14478,
+      "git_blob": "e8334f6af2af9fc8c4679298cd1f9db24c836dc2"
+    },
+    {
+      "path": "compatible-eight-reader-full-app-read-only-tree-transition-contract.md",
+      "target": "docs/project-economy/compatible-eight-reader-full-app-read-only-tree-transition-contract.md",
+      "sha256": "ab52aad034e013f0ca1a1945b66e78433da96a4ad84145f2eba4c6f08720a0b3",
+      "bytes": 5867,
+      "git_blob": "4ffc1c99a6bdda8305cc7c94b9d34f853e033643"
+    }
+  ],
+  "verification": {
+    "support_and_negative_tests": "12_pass",
+    "global_entry_overflow_negative": "pass",
+    "partial_transition_negative": "pass",
+    "immutable_source_root_claim_test": "pass",
+    "same_root_build_refusal_claim_test": "pass",
+    "main": "exit_78_fixed_unrouted_refusal",
+    "genuine_2445_transition": "not_run",
+    "capture_embeds_source_bytes": false
+  },
+  "bounded_scan": {
+    "api": "streaming_os_scandir_held_directory_fd",
+    "unbounded_listdir": false,
+    "global_entry_cap": 2665,
+    "deadline_checked_before_each_entry": true,
+    "exact_final_entry_count_required": true
+  },
+  "authorized_transition": {
+    "root_purpose": "immutable_source_snapshot_only",
+    "files": "0600_to_0400",
+    "directories": "0700_to_0500",
+    "target_fd_fsync_after_each_chmod": true,
+    "stable_identity_fields": [
+      "dev",
+      "ino",
+      "uid",
+      "gid",
+      "type",
+      "nlink",
+      "size",
+      "mtime_ns"
+    ],
+    "only_variable_identity_field_beyond_mode": "ctime_ns_nondecreasing"
+  },
+  "build_boundary": {
+    "same_root_install_or_build": false,
+    "derived_writable_build_root_required": true,
+    "derived_writable_build_root_admission": false,
+    "unchanged_npm_ci_execution": false,
+    "unchanged_npm_run_build_execution": false,
+    "post_build_dist_verification": false,
+    "sdk_requires_distinct_reviewed_root": true,
+    "sdk_placement": false
+  },
+  "required_open_outer_gates": [
+    "derived-writable-build-root-held-fd-and-complete-source-manifest",
+    "owned-install-build-exact-node-npm-trust-and-durable-receipts",
+    "post-build-dist-held-fd-bounded-sorted-manifest-and-stable-reread"
+  ],
+  "failure_semantics": {
+    "started_marker_precedes_first_chmod": true,
+    "partial_failure_final_receipt": false,
+    "producer_delete_authority": false,
+    "caller_must_discard_entire_private_attempt_before_retry": true,
+    "partial_tree_reuse": false
+  },
+  "claims": {
+    "fetch": false,
+    "network": false,
+    "child_execution": false,
+    "delete_or_rollback": false,
+    "immutable_filesystem": false,
+    "build_root_derivation": false,
+    "build": false,
+    "dist_verification": false,
+    "sdk_placement": false,
+    "runtime_admission": false,
+    "workflow_route": false,
+    "release": false
+  }
+}
