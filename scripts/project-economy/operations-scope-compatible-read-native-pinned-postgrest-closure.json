@@ -2,9 +2,9 @@
   "database": "eventflow_scope_publication_runtime",
   "files": {
     "docs/project-economy/operations-scope-compatible-read-native-pinned-postgrest-contract.md": {
-      "sha256": "7d733f860eba8dd1ff9f883abaaacd5512023816495e338c9b55ee17fdf0553e",
-      "git_blob": "7b7fbaa38b7c3cef6df9c9f35092b27bcf7ca24a",
-      "bytes": 12877
+      "sha256": "429f97c4b54aea5e68c8f9dc87e11e5fc5f4cf2095aa47f7674e9d0561d855a3",
+      "git_blob": "02a716f0d118e326d9d5156f38c78a4aff545b22",
+      "bytes": 14516
     },
     "docs/project-economy/whole-scope-compatible-reader-caller-audit.md": {
       "bytes": 5715,
@@ -107,14 +107,14 @@
       "sha256": "7b986558bb4f938dfb39c5c55ae77aceec59e1d14c674ea6b956d4f1395f3135"
     },
     "scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-impl.py": {
-      "bytes": 26112,
-      "git_blob": "67153242e161e8548c2797345aec9debffc40821",
-      "sha256": "7122f1cdf1595cc5620288e34d40bf33b96881887fb8e69c55c8664261a4bcb3"
+      "bytes": 26342,
+      "git_blob": "41956b3578f5bd5def05f47635408987ba90aa7c",
+      "sha256": "d5316441867a28629c737d75ab2b8a7dbda5da315e2b367dba6bb85b85552e4e"
     },
     "scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.guard.test.py": {
-      "sha256": "626ea0913d9591b84f5748dd2bad183f96052d27062c012e5987621696afc6d7",
-      "git_blob": "9c9f436212044f4b489a658e1d9e9aa7400422f3",
-      "bytes": 27502
+      "sha256": "5438c403c66ed62e177be3d9f64d0f54d0053524c97900fa73060d56ab834fc0",
+      "git_blob": "3565d7213c56736d84cd4d25efd82bd326b73308",
+      "bytes": 28276
     },
     "scripts/project-economy/operations-scope-compatible-read-native-setup.sql": {
       "bytes": 8449,

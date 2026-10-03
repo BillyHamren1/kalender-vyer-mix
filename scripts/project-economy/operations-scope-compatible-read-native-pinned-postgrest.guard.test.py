@@ -27,9 +27,9 @@ def authorities(case,module,root):
  case.addCleanup(lambda: os.close(bfd));case.addCleanup(lambda: os.close(cfd));return cpath,ba,ca
 class Tests(unittest.TestCase):
  def setUp(self):self.b=load(BOOT,'bootstrap');self.i=load(IMPL,'implementation')
- def env(self):return {'CI':'true','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1','EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB':'true',self.i.IMAGE_ENV:self.i.POSTGREST_IMAGE,'PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':'eventflow_scope_publication_runtime'}
+ def env(self):return {'CI':'true','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1','GITHUB_RUN_ATTEMPT':'1','EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB':'true',self.i.IMAGE_ENV:self.i.POSTGREST_IMAGE,'PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':'eventflow_scope_publication_runtime'}
  def test_selector_exact_and_empty_extra_denied(self):
-  self.assertEqual(self.i.validate_environment(self.env()),('deno',self.i.POSTGREST_IMAGE))
+  self.assertEqual(self.i.validate_environment(self.env()),('deno',self.i.POSTGREST_IMAGE,'1-1'))
   job=WORKFLOW.read_text().split('  compatible-product-reader-native:',1)[1].split('    steps:',1)[0]
   self.assertIn("      EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE: '"+self.i.POSTGREST_IMAGE+"'",job)
   missing=self.env();del missing[self.i.IMAGE_ENV]
@@ -68,7 +68,7 @@ class Tests(unittest.TestCase):
   capability=object();module=load(IMPL,'held_implementation',{'__held_effect_capability__':capability})
   original=self.env();module._install_held_authority(capability,original);original[module.IMAGE_ENV]='attacker/image:mutable'
   payload=module._consume_held_authority(capability,())
-  self.assertNotIn(module.IMAGE_ENV,payload[0]);self.assertEqual(payload[1:],('deno',module.POSTGREST_IMAGE))
+  self.assertNotIn(module.IMAGE_ENV,payload[0]);self.assertEqual(payload[1:],('deno',module.POSTGREST_IMAGE,'1-1'))
   with self.assertRaises(module.ClosedFailure):module._execute_materialized(capability)
   with self.assertRaises(module.ClosedFailure):module._install_held_authority(capability,self.env())
   second=object();armed=load(IMPL,'held_effect_entry',{'__held_effect_capability__':second});reached=[]
@@ -82,14 +82,14 @@ class Tests(unittest.TestCase):
  def test_materialized_swap_detected_before_effect(self):
   root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);parent=None
   try:
-   mirror=tree.materialize();parent=tree.owned_parent;victim=mirror/self.b.IMPLEMENTATION;victim.parent.chmod(0o700);victim.chmod(0o600);old=victim.with_suffix('.old');victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
+   mirror=tree.materialize('991-1');parent=tree.owned_parent;victim=mirror/self.b.IMPLEMENTATION;victim.parent.chmod(0o700);victim.chmod(0o600);old=victim.with_suffix('.old');victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
   finally:
    try:
     if tree.owned_parent is not None:tree.clear_and_discard()
    finally:tree.close()
    if parent is not None:self.assertFalse(parent.exists())
  def test_seal_requires_every_file_and_directory_immutable(self):
-  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize();parent=tree.owned_parent;state={}
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize('992-1');parent=tree.owned_parent;state={}
   old_get,old_set=self.b.flags,self.b.set_flags;self.b.flags=lambda fd:state.get(fd,0);self.b.set_flags=lambda fd,value:state.__setitem__(fd,value);victim=None
   try:tree.seal();tree.verify(True);victim=next(iter(tree.materialized.values()));state[victim[0]]=0;self.assertRaises(self.b.BootstrapFailure,tree.verify,True)
   finally:
@@ -110,7 +110,7 @@ class Tests(unittest.TestCase):
     if name==expected:raise Hostile()
    class Tree:
     def __init__(self,*args):self.owned_parent=None;self.mirror=None;boundary('capture')
-    def materialize(self):boundary('materialize');self.owned_parent=pathlib.Path('/owned');self.mirror=self.owned_parent/'root';return self.mirror
+    def materialize(self,*_args):boundary('materialize');self.owned_parent=pathlib.Path('/owned');self.mirror=self.owned_parent/'root';return self.mirror
     def seal(self):boundary('immutable_seal')
     def verify(self,*args):boundary(module.ACTIVE_PHASE)
     def bytes(self,*args):return b''
@@ -122,7 +122,7 @@ class Tests(unittest.TestCase):
     boundary('compile')
     return types.SimpleNamespace(_install_held_authority=lambda *args:boundary('install'),_execute_materialized=lambda *args:boundary('effects'))
    output=io.StringIO()
-   with unittest.mock.patch.object(module,'HeldTree',Tree),unittest.mock.patch.object(module,'compiled_module',compiled),contextlib.redirect_stderr(output):
+   with unittest.mock.patch.object(module,'HeldTree',Tree),unittest.mock.patch.object(module,'compiled_module',compiled),unittest.mock.patch.object(module,'runtime_key',return_value='1-1'),contextlib.redirect_stderr(output):
     self.assertEqual(module.main(),1)
    self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
    self.assertIn(expected,reached)
@@ -201,12 +201,12 @@ class Tests(unittest.TestCase):
    self.b.set_flags=setting
    self.b.privileged_transition=lambda *_args:(_ for _ in ()).throw(self.b.BootstrapFailure())
    try:
-    tree.materialize();parent=tree.mirror.parent
+    tree.materialize('993-'+('2' if directory_failure else '1'));parent=tree.mirror.parent
     with self.assertRaises(self.b.BootstrapFailure):tree.seal()
     tree.clear_and_discard();self.assertFalse(parent.exists());self.assertFalse(any(value&self.b.FS_IMMUTABLE_FL for value in state.values()))
    finally:self.b.flags,self.b.set_flags,self.b.privileged_transition=old_flags,old_set,old_privileged;tree.close()
  def test_cleanup_keeps_top_boundary_immutable_until_final_transition(self):
-  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize();calls=[]
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize('994-1');calls=[]
   original=self.b.immutable_restore
   self.b.immutable_restore=lambda fd,old,kind:calls.append((kind,fd))
   try:
@@ -215,7 +215,7 @@ class Tests(unittest.TestCase):
    self.assertTrue(all(kind=='file' for kind,_fd in calls[:file_count]));self.assertTrue(all(kind=='directory' for kind,_fd in calls[file_count:]));self.assertEqual(len(calls),(file_count+directory_count));self.assertEqual(calls[-1],('directory',parent_fd))
   finally:self.b.immutable_restore=original;tree.close()
  def _assert_execute_early_materialize_failure_has_no_survivor(self,boundary):
-  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);before=set(pathlib.Path('/tmp').glob('operations-compatible-immutable-*'));reached=[];injected=[False]
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);owned=pathlib.Path('/tmp')/'operations-compatible-immutable-1-1';self.assertFalse(owned.exists());reached=[];injected=[False]
   original_root,original_closure=self.b.ROOT,self.b.CLOSURE;original_chmod,original_mkdir=pathlib.Path.chmod,pathlib.Path.mkdir
   def chmod(path,*args,**kwargs):
    if boundary=='chmod' and not injected[0] and path.parent==pathlib.Path('/tmp') and path.name.startswith('operations-compatible-immutable-'):
@@ -228,12 +228,19 @@ class Tests(unittest.TestCase):
   self.b.ROOT=root;self.b.CLOSURE=closure;self.b.__dict__['__held_bootstrap__']=bootstrap_authority;self.b.__dict__['__held_closure__']=closure_authority
   output=io.StringIO()
   try:
-   with unittest.mock.patch.object(pathlib.Path,'chmod',chmod),unittest.mock.patch.object(pathlib.Path,'mkdir',mkdir),unittest.mock.patch.object(self.b,'compiled_module',side_effect=lambda *_args:(reached.append('effect'),None)[1]),contextlib.redirect_stderr(output):self.assertEqual(self.b.main(),1)
-   self.assertTrue(injected[0]);self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=materialize\n');self.assertEqual(reached,[]);self.assertEqual(set(pathlib.Path('/tmp').glob('operations-compatible-immutable-*')),before)
+   with unittest.mock.patch.object(pathlib.Path,'chmod',chmod),unittest.mock.patch.object(pathlib.Path,'mkdir',mkdir),unittest.mock.patch.object(self.b,'compiled_module',side_effect=lambda *_args:(reached.append('effect'),None)[1]),unittest.mock.patch.object(self.b,'runtime_key',return_value='1-1'),contextlib.redirect_stderr(output):self.assertEqual(self.b.main(),1)
+   self.assertTrue(injected[0]);self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=materialize\n');self.assertEqual(reached,[]);self.assertFalse(owned.exists())
   finally:
    self.b.ROOT,self.b.CLOSURE=original_root,original_closure;self.b.__dict__.pop('__held_bootstrap__',None);self.b.__dict__.pop('__held_closure__',None)
  def test_execute_parent_chmod_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('chmod')
  def test_execute_mirror_mkdir_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('mkdir')
+ def test_runtime_keys_are_exact_current_run_attempt_and_never_globbed(self):
+  self.assertEqual(self.b.runtime_key(self.env()),'1-1');self.assertEqual(self.i.runtime_key(self.env()),'1-1')
+  for module in (self.b,self.i):
+   for changed in ({'GITHUB_RUN_ID':'old-*'},{'GITHUB_RUN_ATTEMPT':'1/2'},{'GITHUB_RUN_ATTEMPT':''}):
+    env=dict(self.env(),**changed)
+    with self.assertRaises((self.b.BootstrapFailure,self.i.ClosedFailure)):module.runtime_key(env)
+  for path in (BOOT,IMPL):self.assertNotIn("glob('operations-compatible-immutable-*')",path.read_text())
  def test_immutable_set_readback_and_invalid_kind_fail_closed(self):
   original_set,original_flags=self.b.set_flags,self.b.flags
   try:
@@ -243,7 +250,7 @@ class Tests(unittest.TestCase):
    with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,'unknown')
   finally:self.b.set_flags,self.b.flags=original_set,original_flags
  def test_implementation_paths_are_materialized_and_digest_only(self):
-  text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
+  text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image,key=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
  def test_import_loader_cannot_reopen_implementation(self):
   text=BOOT.read_text();self.assertNotIn('spec_from_file_location',text);self.assertIn('compiled_module(tree.bytes(IMPLEMENTATION)',text)
  def test_bootstrap_a_path_swapped_b_fails_before_effect(self):

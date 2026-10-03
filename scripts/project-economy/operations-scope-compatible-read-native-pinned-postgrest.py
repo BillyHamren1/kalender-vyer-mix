@@ -13,7 +13,6 @@ import stat
 import struct
 import subprocess
 import sys
-import tempfile
 import types
 
 HERE=pathlib.Path(__file__).absolute().parent
@@ -67,6 +66,11 @@ def phase(value):
     ACTIVE_PHASE=value
 
 class BootstrapFailure(Exception):pass
+
+def runtime_key(env):
+    run=env.get('GITHUB_RUN_ID','');attempt=env.get('GITHUB_RUN_ATTEMPT','')
+    if not re.fullmatch(r'[0-9]{1,20}',run) or not re.fullmatch(r'[0-9]{1,10}',attempt):raise BootstrapFailure()
+    return run+'-'+attempt
 
 def identity(value):
     return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
@@ -194,8 +198,10 @@ class HeldTree:
             if len(data)!=expected['bytes'] or hashlib.sha256(data).hexdigest()!=expected['sha256'] or blob(data)!=expected['git_blob']:os.close(fd);raise BootstrapFailure()
             self.canonical[relative]=(fd,self.root/relative,identity(saved),data)
 
-    def materialize(self):
-        parent=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-immutable-',dir='/tmp'));self.owned_parent=parent
+    def materialize(self,key):
+        if not re.fullmatch(r'[0-9]{1,20}-[0-9]{1,10}',key):raise BootstrapFailure()
+        parent=pathlib.Path('/tmp')/('operations-compatible-immutable-'+key)
+        parent.mkdir(mode=0o700);self.owned_parent=parent
         parent.chmod(0o700);mirror=parent/'root';self.mirror=mirror;mirror.mkdir(mode=0o700)
         entries=dict(self.value['files']);entries['scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json']={'closure':True}
         for relative in sorted(entries):
@@ -265,7 +271,7 @@ def execute(env):
     phase('capture')
     tree=HeldTree(ROOT,CLOSURE,bootstrap_authority,closure_authority);success=False
     try:
-        phase('materialize');mirror=tree.materialize()
+        phase('materialize');mirror=tree.materialize(runtime_key(env))
         phase('immutable_seal');tree.seal()
         phase('post_seal_verify');tree.verify(True)
         path=mirror/IMPLEMENTATION

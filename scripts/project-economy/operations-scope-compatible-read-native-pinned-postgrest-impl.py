@@ -11,7 +11,6 @@ import re
 import shutil
 import signal
 import sys
-import tempfile
 import secrets
 import socket
 import time
@@ -88,6 +87,11 @@ class ClosedFailure(Exception):
         self.reason=reason if reason in FAILURE_REASONS else 'none'
         super().__init__('closed_publication_failure')
 
+def runtime_key(env):
+    run=env.get('GITHUB_RUN_ID','');attempt=env.get('GITHUB_RUN_ATTEMPT','')
+    if not re.fullmatch(r'[0-9]{1,20}',run) or not re.fullmatch(r'[0-9]{1,10}',attempt):raise ClosedFailure('guard')
+    return run+'-'+attempt
+
 def validate_environment(env):
     active_phase('guard')
     if any(env.get(k)!=v for k,v in FIXED_ENV.items()) or env.get('GITHUB_REPOSITORY')!='BillyHamren1/kalender-vyer-mix' or not re.fullmatch(r'[0-9]{1,20}',env.get('GITHUB_RUN_ID','')):raise ClosedFailure('guard')
@@ -101,7 +105,7 @@ def validate_environment(env):
         if key.startswith(('EVENTFLOW_SCOPE_PUBLICATION_','EVENTFLOW_SCOPE_READER_PERMISSION_','EVENTFLOW_SCOPE_COMPATIBLE_READ_')) and key not in {'EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB','EVENTFLOW_SCOPE_COMPATIBLE_READ_DENO_BIN'}:raise ClosedFailure('guard')
     deno=env.get('EVENTFLOW_SCOPE_COMPATIBLE_READ_DENO_BIN','deno')
     if deno!='deno' and (not pathlib.Path(deno).is_absolute() or pathlib.Path(deno).resolve()!=pathlib.Path(deno) or not pathlib.Path(deno).is_file()):raise ClosedFailure('guard')
-    return deno,POSTGREST_IMAGE
+    return deno,POSTGREST_IMAGE,runtime_key(env)
 
 def _build_effect_gate(load_capability):
     # The held-byte bootstrap installs a fresh object before this module is
@@ -111,8 +115,8 @@ def _build_effect_gate(load_capability):
     def install(capability,env):
         active_phase('guard')
         if load_capability is None or capability is not load_capability or state['phase']!='new' or not isinstance(env,dict):raise ClosedFailure('guard',retain_private=True)
-        frozen=dict(env);deno,image=validate_environment(frozen);child=dict(frozen);child.pop(IMAGE_ENV,None)
-        state['payload']=(child,deno,image);state['phase']='ready'
+        frozen=dict(env);deno,image,key=validate_environment(frozen);child=dict(frozen);child.pop(IMAGE_ENV,None)
+        state['payload']=(child,deno,image,key);state['phase']='ready'
     def consume(capability,untrusted):
         active_phase('guard')
         if load_capability is None or capability is not load_capability or state['phase']!='ready' or untrusted:raise ClosedFailure('guard',retain_private=True)
@@ -204,11 +208,11 @@ HTTP_CASES=(
  'service_strict_numeric_revision_denied','private_schema_not_exposed_and_core_role_acl_denied',
  'actual_leaf_actor_no_whole_scope_escalation','actual_foreign_admin_no_scope_disclosure')
 
-def http(shared,psql,pg_env,env,deno,private,postgrest_image):
+def http(shared,psql,pg_env,env,deno,private,postgrest_image,key):
     with socket.socket() as port:
         try:port.bind(('127.0.0.1',55407))
         except OSError:raise ClosedFailure('http_inventory') from None
-    name='scope-compatible-read-http-'+env['GITHUB_RUN_ID'];attempted=False;owner=secrets.token_hex(32)
+    name='scope-compatible-read-http-'+key;attempted=False;owner=secrets.token_hex(32)
     output=private_run(shared,'http_inventory',['docker','--host','unix:///var/run/docker.sock','ps','-a','--format','{{.Names}}'],env,private,15)
     if name in output.read_text().splitlines():raise ClosedFailure('http_inventory')
     private_run(shared,'http_roles',psql,pg_env,private,30,(options()+(HERE/'operations-scope-compatible-read-http-role.sql').read_text()).encode())
@@ -251,9 +255,9 @@ def terminal_proof(lines):
     return lines
 
 def _execute_materialized(capability,*untrusted):
-    env,deno,postgrest_image=_consume_held_authority(capability,untrusted)
+    env,deno,postgrest_image,key=_consume_held_authority(capability,untrusted)
     ddl=closure_paths();shared=load_shared()
-    private=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-reader-native-',dir='/tmp'));private.chmod(0o700);retain=False
+    private=pathlib.Path('/tmp')/('operations-compatible-reader-native-'+key);private.mkdir(mode=0o700);retain=False
     pg_env=dict(env,PGCONNECT_TIMEOUT='5');deno_env={k:v for k,v in env.items() if not k.startswith('PG')}
     psql=['psql','-X','--no-password','--set','ON_ERROR_STOP=1','--set','VERBOSITY=verbose','-Atq']
     try:
@@ -292,7 +296,7 @@ def _execute_materialized(capability,*untrusted):
         report=re.sub(r'\x1b\[[0-9;]*m','',output.read_text())
         if not re.search(r'ok\s*\|\s*5 passed\s*\|\s*0 failed',report):raise ClosedFailure('http_budget')
         budget_marker='operations-scope-compatible-read-http-budget PASS 5 isolated_ignored_abort_resources'
-        http_markers=http(shared,psql,pg_env,env,deno,private,postgrest_image)
+        http_markers=http(shared,psql,pg_env,env,deno,private,postgrest_image,key)
         output=private_run(shared,'native_sessions',['bash',str(HERE/'operations-scope-compatible-read-native-concurrency.sh'),str(vectors)],env,private,240)
         terminal=terminal_proof(output.read_text().splitlines())
         verified=[DIRECT_MARKER,vector_marker,budget_marker]+http_markers+terminal

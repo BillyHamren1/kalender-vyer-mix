@@ -199,3 +199,30 @@ nonzero fixed `materialize` marker, zero implementation effects, and no new
 This is source-only evidence. The exact hosted immutable transition, Docker,
 PostgREST, database, cleanup/no-survivor, release and publication gates remain
 open until separately executed and reviewed.
+
+## Exact-head and run-owned no-survivor successor
+
+Run `37128067946` was successful merge-integration evidence attached to head
+`b278f4baace80aa13906957d61a847a964ea2fd6`, but its checkout was the synthetic
+pull-request merge `26e26a9adc65bb0c6e3459c87d50caca24b35edc`. It is therefore not evidence of
+a standalone execution of head `b278f4baace80aa13906957d61a847a964ea2fd6` or
+tree `49ba90dcd074c61bb6dc693fbbddcbb20a42f831`.
+
+The successor workflow checks out the event pull-request head explicitly. Every
+job then compares `HEAD` with that event identity, resolves both commit trees,
+and requires a clean index, worktree and untracked set before later steps.
+
+The compatible-reader runtime derives a fixed run key only from the numeric
+`GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`. Its immutable parent, private reader
+parent and PostgREST container names contain that exact key and are created
+exclusively. The workflow registers those exact paths, its launched process and
+the exact container name before waiting. After the runtime's owned cleanup, an
+`always()` step checks only those registered resources for absence. It neither
+globs nor removes any older `/tmp/operations-compatible-immutable-*` path. The
+runtime uses Docker host networking and registers that it owns no network.
+Failure of the absence check is diagnostic and fail-closed; it never performs
+cleanup on an unverified survivor.
+
+This candidate changes CI source identity and test-resource custody only. It
+does not change product economics, publish a ref, deploy, release or touch live
+data. Hosted exact-head execution and independent review remain separate gates.

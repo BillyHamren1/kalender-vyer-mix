@@ -86,6 +86,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  EVENTFLOW_EXPECTED_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
   frozen-cost-contract:
     runs-on: ubuntu-latest
@@ -111,6 +113,11 @@ jobs:
       PGPASSWORD: synthetic-test-only
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -393,7 +400,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.8.1
@@ -456,7 +466,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - name: Fresh dedicated native invoice barrier concurrency
         run: |
           set -euo pipefail
@@ -503,7 +516,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.8.1
@@ -563,7 +579,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.8.1
@@ -625,7 +644,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.8.1
@@ -671,7 +693,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -713,7 +738,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -753,7 +781,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -792,7 +823,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -831,7 +865,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -869,7 +906,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -912,7 +952,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -972,7 +1015,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -980,7 +1026,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -B scripts/project-economy/operations-whole-scope-projection-native.guard.test.py
@@ -1022,7 +1068,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1030,7 +1079,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -B scripts/project-economy/operations-whole-scope-publication-transaction-native.guard.test.py
@@ -1072,7 +1121,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1080,7 +1132,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -B scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py
@@ -1123,7 +1175,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1131,7 +1186,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -B scripts/project-economy/operations-whole-scope-reader-permission-native.guard.test.py
@@ -1175,7 +1230,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1183,7 +1241,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.guard.test.py
@@ -1192,18 +1250,30 @@ jobs:
           deno check --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-journey.ts scripts/project-economy/operations-scope-compatible-read-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
           deno cache --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-journey.ts scripts/project-economy/operations-scope-compatible-read-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
       - name: Actual public product readers signed JWT admission and authored queued writers
+        id: compatible_runtime
         run: |
           set -euo pipefail
           umask 077
           git rev-parse HEAD
           psql -X --no-password -At -c 'select version()'
-          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B - <<'PY_HELD_BOOTSTRAP'
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]{1,10}$ ]]
+          run_key="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          registry="$RUNNER_TEMP/operations-compatible-read-owned-${run_key}.registry"
+          immutable_parent="/tmp/operations-compatible-immutable-${run_key}"
+          private_parent="/tmp/operations-compatible-reader-native-${run_key}"
+          container_name="scope-compatible-read-http-${run_key}"
+          test ! -e "$registry"
+          test ! -e "$immutable_parent"
+          test ! -e "$private_parent"
+          test -z "$(docker --host unix:///var/run/docker.sock ps -a --filter "name=^/${container_name}$" --format '{{.Names}}')"
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B - <<'PY_HELD_BOOTSTRAP' &
           # BEGIN HELD BOOTSTRAP LAUNCHER V2
           import hashlib,os,stat
           BOOTSTRAP_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py'
-          BOOTSTRAP_SHA256='8063c4c0f58b98c6c47b656499f839671f1db13830d2cbdaa15551a1ade1f4a8'
+          BOOTSTRAP_SHA256='f08ad27e09b51dcd2b800e32883f2e5316ec0903e75e435aff69bb7ecc748ea7'
           CLOSURE_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
-          CLOSURE_SHA256='efd2c3b84a51cd1a2afe5f92ed3b6db9eb3ca00df037d9958ce2b89445c1335b'
+          CLOSURE_SHA256='e1d2d677af718e12f6549d05e5c4ba197a9fca1744f207993ad41ea2af41896c'
           def identity(value):
               return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
           def open_held(path,expected,maximum):
@@ -1249,8 +1319,53 @@ jobs:
                   raise SystemExit(1) from None
           # END HELD BOOTSTRAP LAUNCHER V2
           PY_HELD_BOOTSTRAP
+          runtime_pid=$!
+          if test -r "/proc/${runtime_pid}/stat"; then
+            runtime_start="$(awk '{print $22}' "/proc/${runtime_pid}/stat")"
+          else
+            runtime_start=gone
+          fi
+          {
+            printf 'immutable_parent\t%s\n' "$immutable_parent"
+            printf 'private_parent\t%s\n' "$private_parent"
+            printf 'process\t%s\t%s\n' "$runtime_pid" "$runtime_start"
+            printf 'container\t%s\n' "$container_name"
+            printf 'network\tnone\n'
+          } > "$registry"
+          wait "$runtime_pid"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
+      - name: Exact registered owned cleanup no-survivor
+        if: ${{ always() && steps.compatible_runtime.outcome != 'skipped' }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]{1,10}$ ]]
+          run_key="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          registry="$RUNNER_TEMP/operations-compatible-read-owned-${run_key}.registry"
+          immutable_parent="/tmp/operations-compatible-immutable-${run_key}"
+          private_parent="/tmp/operations-compatible-reader-native-${run_key}"
+          container_name="scope-compatible-read-http-${run_key}"
+          test -f "$registry"
+          test "$(stat -c '%u:%a' "$registry")" = "$(id -u):600"
+          mapfile -t owned < "$registry"
+          test "${#owned[@]}" -eq 5
+          test "${owned[0]}" = $'immutable_parent\t'"$immutable_parent"
+          test "${owned[1]}" = $'private_parent\t'"$private_parent"
+          IFS=$'\t' read -r process_kind runtime_pid runtime_start <<< "${owned[2]}"
+          test "$process_kind" = process
+          [[ "$runtime_pid" =~ ^[1-9][0-9]*$ ]]
+          test -n "$runtime_start"
+          test "${owned[3]}" = $'container\t'"$container_name"
+          test "${owned[4]}" = $'network\tnone'
+          test ! -e "$immutable_parent"
+          test ! -e "$private_parent"
+          if test "$runtime_start" != gone && test -e "/proc/${runtime_pid}"; then
+            current_start="$(awk '{print $22}' "/proc/${runtime_pid}/stat")"
+            test "$current_start" != "$runtime_start"
+          fi
+          test -z "$(docker --host unix:///var/run/docker.sock ps -a --filter "name=^/${container_name}$" --format '{{.Names}}')"
+          printf 'operations-compatible-read-owned-cleanup PASS run=%s parents=2 process=1 container=1 network=none\n' "$run_key"
 
   compatible-selected-catalog-native:
     runs-on: ubuntu-latest
@@ -1278,7 +1393,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1286,7 +1404,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/operations-compatible-catalog-native.guard.test.py
@@ -1327,7 +1445,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1335,7 +1456,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/operations-whole-scope-product-publication-native.guard-test.py
@@ -1377,7 +1498,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1385,7 +1509,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/remaining-six-compatible-reader-native.guard.test.py
@@ -1408,7 +1532,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1416,7 +1543,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           deno --version
@@ -1432,7 +1559,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.8.1'
@@ -1440,7 +1570,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           deno --version
@@ -1477,7 +1607,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.8.1
@@ -1485,7 +1618,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/operations-compatible-install-native.guard.test.py
@@ -1529,7 +1662,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.8.1
@@ -1537,7 +1673,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
@@ -1581,7 +1717,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.8.1
@@ -1589,7 +1728,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
@@ -1633,7 +1772,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.8.1
@@ -1641,7 +1783,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
           python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
