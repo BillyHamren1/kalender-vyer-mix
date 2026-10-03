@@ -11,6 +11,7 @@ import {
 } from '@/lib/economy/projectScopeInvoiceCapture';
 import { projectScopeInvoiceKernelEvidence } from '../../../supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts';
 import type { ScopeRootKind } from '@/lib/economy/projectScopeObligationEvidence';
+import { OperationsScopeInvoiceLineEvidenceTable } from './OperationsScopeInvoiceLineEvidenceTable';
 
 export interface ScopeInvoiceCaptureSelection {
   organizationId: string;
@@ -140,6 +141,19 @@ function CaptureForSession({
     <p>Alla projektets kostnader är ännu inte verifierade. Personal, Catering, krediter och andra kostnader saknar fullständig täckning.</p>
     <p>Prognos, budget och marginal saknas.</p>
     <p>Kontrollerat {new Date(d.as_of).toLocaleString('sv-SE')} · Sparad projektsamling version {d.scope_revision}</p>
+    <OperationsScopeInvoiceLineEvidenceTable
+      boundary={boundary}
+      authority={{
+        actorId: authority.actorId,
+        accessToken: authority.accessToken,
+        organizationId: authority.organizationId,
+        request: {
+          schema_version: 'operations-scope-invoice-line-admin-read.v1',
+          root_kind: authority.request.root_kind,
+          root_id: authority.request.root_id,
+          expected_composition_snapshot_id: authority.request.expected_composition_snapshot_id,
+        },
+      }}
+    />
   </Frame>;
 }
-
