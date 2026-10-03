@@ -27,10 +27,12 @@ jobs:
           persist-credentials: false
       - name: Exact sole-parent source route
         env:
-          EXPECTED_PARENT: c5ff92c2faa932dc6c984467606442060bb78284
+          EXPECTED_PARENT: 666fc0c8f4a6f821eaa184a8a59e6bf05a81cea3
+          EXPECTED_PARENT_TREE: 937188a728d51995a7f881348487835f76b41f3d
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_PARENT_TREE"
           test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
           git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
           cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
