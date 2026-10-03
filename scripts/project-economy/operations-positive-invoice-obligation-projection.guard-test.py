@@ -9,10 +9,44 @@ CLIENT=ROOT/'src/lib/economy/positiveInvoiceObligationProjection.ts'
 PANEL=ROOT/'src/components/project/OperationsPositiveInvoiceObligationProjection.tsx'
 MOUNT=ROOT/'src/components/project/OperationsObligationDrilldownPanel.tsx'
 RUNTIME=ROOT/'scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql'
+WORKFLOW=ROOT/'.github/workflows/operations-positive-invoice-obligation-projection-native.yml'
+PG_IMAGE='docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb'
+PG_BINARY_VERSION='postgres (PostgreSQL) 15.19 (Debian 15.19-1.pgdg13+2)'
+PG_PACKAGE_VERSION='15.19-1.pgdg13+2'
+IDENTITY_BLOCK=f'''          ops_projection_native_phase=postgres_version
+          postgres_version="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \\
+              docker --host "$socket" exec "$cid" postgres --version 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_version" in
+            '{PG_BINARY_VERSION}
+          .') ;;
+            *) false ;;
+          esac
+          postgres_package="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \\
+              docker --host "$socket" exec "$cid" /bin/sh -ceu 'printf "%s\\n" "$PG_VERSION"' 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_package" in
+            '{PG_PACKAGE_VERSION}
+          .') ;;
+            *) false ;;
+          esac
+          unset postgres_version postgres_package
+'''
+
+def require_postgres_identity_contract(workflow):
+ assert workflow.count(f'PG_IMAGE: {PG_IMAGE}')==1
+ assert workflow.count(IDENTITY_BLOCK)==1
+ assert workflow.index(IDENTITY_BLOCK)<workflow.index('          ops_projection_native_phase=bootstrap\n')
 
 class Guard(unittest.TestCase):
  def setUp(self):
-  self.sql=SQL.read_text();self.client=CLIENT.read_text();self.panel=PANEL.read_text();self.mount=MOUNT.read_text();self.runtime=RUNTIME.read_text()
+  self.sql=SQL.read_text();self.client=CLIENT.read_text();self.panel=PANEL.read_text();self.mount=MOUNT.read_text();self.runtime=RUNTIME.read_text();self.workflow=WORKFLOW.read_text()
  def test_default_off_and_authenticated_only(self):
   self.assertIn('enabled boolean not null default false',self.sql)
   self.assertIn('grant execute on function public.read_operations_positive_invoice_obligation_projection_v1(jsonb) to authenticated',self.sql)
@@ -52,15 +86,29 @@ class Guard(unittest.TestCase):
   self.assertEqual(self.mount.count('<OperationsPositiveInvoiceObligationProjection'),1)
   self.assertEqual(self.mount.count("from './OperationsPositiveInvoiceObligationProjection'"),1)
  def test_published_workflow_and_no_step7_manifest(self):
-  workflow=ROOT/'.github/workflows/operations-positive-invoice-obligation-projection-native.yml'
-  self.assertTrue(workflow.is_file())
+  self.assertTrue(WORKFLOW.is_file())
   self.assertFalse(any(
    'operations-positive-invoice-obligation-projection' in p.name
    and 'manifest' in p.name.lower()
    for p in ROOT.rglob('*') if p.is_file()
   ))
+ def test_postgres_identity_is_exact_pinned_and_pre_migration(self):
+  require_postgres_identity_contract(self.workflow)
+ def test_postgres_identity_contract_rejects_drift(self):
+  mutations=[
+   ('digest',self.workflow.replace('e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb','f27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb',1)),
+   ('binary',self.workflow.replace(PG_BINARY_VERSION,'postgres (PostgreSQL) 15.190 (Debian 15.19-1.pgdg13+2)',1)),
+   ('package',self.workflow.replace(f"'{PG_PACKAGE_VERSION}\n          .')","'15.19-1.pgdg13+1\n          .')",1)),
+   ('binary-stderr',self.workflow.replace('postgres --version 2>/dev/null','postgres --version',1)),
+   ('package-stderr',self.workflow.replace("'printf \"%s\\n\" \"$PG_VERSION\"' 2>/dev/null","'printf \"%s\\n\" \"$PG_VERSION\"'",1)),
+   ('phase',self.workflow.replace('ops_projection_native_phase=postgres_version','ops_projection_native_phase=postgres_version_drift',1)),
+   ('order',self.workflow.replace('          ops_projection_native_phase=postgres_version\n','          ops_projection_native_phase=bootstrap\n          ops_projection_native_phase=postgres_version\n',1)),
+  ]
+  for label,mutated in mutations:
+   self.assertNotEqual(mutated,self.workflow,label)
+   with self.assertRaises((AssertionError,ValueError),msg=label):require_postgres_identity_contract(mutated)
  def test_no_true_nul(self):
   validator=ROOT/'scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs'
-  for path in [SQL,CLIENT,PANEL,MOUNT,RUNTIME,validator,Path(__file__)]:self.assertNotIn(b'\0',path.read_bytes())
+  for path in [SQL,CLIENT,PANEL,MOUNT,RUNTIME,validator,WORKFLOW,Path(__file__)]:self.assertNotIn(b'\0',path.read_bytes())
 
 if __name__=='__main__':unittest.main()

@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Exact sole-parent source route
         env:
-          EXPECTED_PARENT: b278f4baace80aa13906957d61a847a964ea2fd6
+          EXPECTED_PARENT: 13653a09b3a5316358ef3afe36ca08b60b8d33e7
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
@@ -35,11 +35,12 @@ jobs:
           git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
           cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
           .github/workflows/operations-positive-invoice-obligation-projection-native.yml
+          scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py
           EOF
           cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
           test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs | cut -d' ' -f1)" = b0a95eb7f4e2c467d559751a938cf8f29ce31cde3f7824e14037feef7aaf4ae2
           test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql | cut -d' ' -f1)" = 4083363b3b30ec6879c581eec82e188ec7cc8fe3810d35f3efdf0294e19751d2
-          test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py | cut -d' ' -f1)" = afb6e48be39af079020ca2edc55a9d27c310b751c02051c30d99fa73264c7929
+          test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py | cut -d' ' -f1)" = ba157dc01d1469ce44f56c1593aae05ab83fd34c50ee22ea50ba18ef92b24029
           test "$(sha256sum src/components/project/OperationsScopeObligationEvidencePanel.rendered.test.tsx | cut -d' ' -f1)" = 8903bcc83f3274f036962771fea04b31a75bf12b85a2c86b73034dccf7e31bb4
           test "$(sha256sum src/components/project/OperationsObligationDrilldownPanel.tsx | cut -d' ' -f1)" = d05e162604e760851cb8c860a94f1123a98380217fb51e7abbaa098adcf5ebb4
           test "$(sha256sum src/components/project/OperationsPositiveInvoiceObligationProjection.tsx | cut -d' ' -f1)" = 415fc9e8b17b0ce517aff11852c2cc00b82089a2f6b6b515c3bce5bd9080b5ec
@@ -110,7 +111,29 @@ jobs:
           timeout 5s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" \
             pg_isready -U postgres -d step7 >/dev/null
           ops_projection_native_phase=postgres_version
-          test "$(timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" postgres --version)" = 'postgres (PostgreSQL) 15.19'
+          postgres_version="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+              docker --host "$socket" exec "$cid" postgres --version 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_version" in
+            'postgres (PostgreSQL) 15.19 (Debian 15.19-1.pgdg13+2)
+          .') ;;
+            *) false ;;
+          esac
+          postgres_package="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+              docker --host "$socket" exec "$cid" /bin/sh -ceu 'printf "%s\n" "$PG_VERSION"' 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_package" in
+            '15.19-1.pgdg13+2
+          .') ;;
+            *) false ;;
+          esac
+          unset postgres_version postgres_package
           ops_projection_native_phase=bootstrap
           cat >"$RUNNER_TEMP/step7-bootstrap.sql" <<'SQL'
           \set ON_ERROR_STOP on
