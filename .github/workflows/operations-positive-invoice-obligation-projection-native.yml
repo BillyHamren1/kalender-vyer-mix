@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Exact sole-parent source route
         env:
-          EXPECTED_PARENT: 31a5c63fb3673380a9922aa20350d3039a0cf964
+          EXPECTED_PARENT: b278f4baace80aa13906957d61a847a964ea2fd6
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
@@ -64,6 +64,18 @@ jobs:
           set -Eeuo pipefail
           socket=unix:///var/run/docker.sock
           cid=
+          ops_projection_native_phase=image_pull
+          native_failure_owner_pid=$BASHPID
+          native_failure() {
+            rc=$?
+            if test "$BASHPID" != "$native_failure_owner_pid"; then
+              return "$rc"
+            fi
+            trap - ERR
+            printf '%s\n' "OPS_PROJECTION_NATIVE_FAILURE ops_projection_native_phase=$ops_projection_native_phase exit=$rc" >&2
+            exit "$rc"
+          }
+          trap native_failure ERR
           cleanup() {
             rc=$?
             trap - EXIT
@@ -76,6 +88,7 @@ jobs:
           trap cleanup EXIT
           timeout --signal=TERM --kill-after=5s 180s env -u DOCKER_CONTEXT -u DOCKER_HOST \
             docker --host "$socket" pull --platform linux/amd64 "$PG_IMAGE" >/dev/null
+          ops_projection_native_phase=container_create
           cid="$(timeout --signal=TERM --kill-after=5s 30s env -u DOCKER_CONTEXT -u DOCKER_HOST \
             docker --host "$socket" create --platform linux/amd64 --network none --read-only \
             --memory 805306368 --memory-swap 805306368 --cpus 1.0 --pids-limit 256 \
@@ -83,16 +96,22 @@ jobs:
             --tmpfs /var/run/postgresql:rw,noexec,nosuid,nodev,size=16777216 \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16777216 \
             -e POSTGRES_PASSWORD=synthetic-only -e POSTGRES_DB=step7 "$PG_IMAGE")"
+          ops_projection_native_phase=container_id
           test "${#cid}" = 64
+          ops_projection_native_phase=container_start
           timeout 30s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" start "$cid" >/dev/null
+          ops_projection_native_phase=readiness_loop
           for _ in $(seq 1 30); do
             timeout 5s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" \
               pg_isready -U postgres -d step7 >/dev/null 2>&1 && break
             sleep 1
           done
+          ops_projection_native_phase=readiness_final
           timeout 5s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" \
             pg_isready -U postgres -d step7 >/dev/null
+          ops_projection_native_phase=postgres_version
           test "$(timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" postgres --version)" = 'postgres (PostgreSQL) 15.19'
+          ops_projection_native_phase=bootstrap
           cat >"$RUNNER_TEMP/step7-bootstrap.sql" <<'SQL'
           \set ON_ERROR_STOP on
           create role anon noinherit;
@@ -106,8 +125,10 @@ jobs:
           export PGOPTIONS
           timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
             psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <"$RUNNER_TEMP/step7-bootstrap.sql"
+          ops_projection_native_phase=migration
           timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
             psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <supabase/migrations/20261003123000_operations_positive_invoice_obligation_projection_v1.sql
+          ops_projection_native_phase=rls
           cat >"$RUNNER_TEMP/step7-rls.sql" <<'SQL'
           \set ON_ERROR_STOP on
           select case when has_function_privilege('authenticated','public.read_operations_positive_invoice_obligation_projection_v1(jsonb)','execute') then 1 else 1/0 end;
@@ -126,5 +147,6 @@ jobs:
           SQL
           timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
             psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <"$RUNNER_TEMP/step7-rls.sql"
+          ops_projection_native_phase=regression
           timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
             psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql
