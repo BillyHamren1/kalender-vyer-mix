@@ -1,19 +1,21 @@
 # Catering valuation source census v1
 
-Status: **source-only, default-off and shadow-only**. This boundary validates a
-future authenticated Catering source census. It does not create a database
-reader, RPC, UI route, economic total, estimate replacement, commitment
-consumption, currency conversion, EAC, budget, margin, approval or runtime
-admission.
+Status: **source-validated, default-inaccessible and shadow-only**. This
+boundary validates a future authenticated Catering source census and the
+candidate adds an isolated Operations persistence kernel. It does not create a
+Catering database reader, authenticated producer, UI route, economic total,
+estimate replacement, commitment consumption, currency conversion, EAC,
+budget, margin, approval or runtime admission.
 
 ## Exact source base
 
 The candidate is prepared for `BillyHamren1/kalender-vyer-mix`, branch
 `codex/project-economy-personnel-cost`, commit
-`224142643da2b540734c70925f2c6ed75242effc`, tree
-`ce17b9abb33b081c217f884fa3a89685dda6f362`. Publication requires a fresh
-outer ref/tree compare, exact dependency verification and structured absence
-for all four additive targets.
+`26c1be405621193946a4e72c1415fc0724f7b8a9`, tree
+`796a4fbeaf7eb7e12985e29ecf0ccfdf8ad3baa7`. Publication requires a fresh
+outer ref/tree compare, exact dependency verification, exact predecessor blobs
+for the three modified files and structured absence for the migration, native
+SQL test and dedicated workflow.
 
 The direct product dependency is the existing Operations-owned pure boundary
 `supabase/functions/_shared/catering-project-evidence.ts`, SHA-256
@@ -58,6 +60,17 @@ current with row count zero but its projection coverage remains unavailable,
 never zero or complete. Thus booking B cannot silently disappear while booking
 A still supplies rows. All global and booking streams are unique.
 
+Every booking×basis head also binds an immutable source observation ID,
+contiguous positive source sequence, canonical UTC-second `source_as_of`, exact
+previous observation ID/sequence/fingerprint, and the exact expected effective
+head tuple. Sequence 1 has null predecessor fields; every successor is exactly
+predecessor sequence plus one. Persistence must compare these fields against
+the locked observed-source and effective heads, require strictly increasing
+`source_as_of`, preserve the exact source-stream identity, and bind the same
+mapping revision/fingerprint. `current` and
+`current_empty` advance both heads. `unavailable` advances only observed-source
+and preserves the effective head byte-for-byte.
+
 Lines are bounded, canonically ordered by basis, booking and UTF-8 source
 identity, globally unique, and bind the same organization and Operations
 project plus the booking's declared source project, obligation and mapping
@@ -95,13 +108,24 @@ required before the declared mapping fields can be trusted.
 
 Initial census revision 1 has no predecessor. Every later census binds the
 immediately preceding census ID, revision and fingerprint and must use a new
-census ID. Identical retry bytes produce the same projection. An explicit
+census ID. Persistence requires that predecessor to be the exact locked current
+observed snapshot, requires census revision to equal next observed revision and
+uniquely binds each scope+census revision, so a fork from an older snapshot is
+denied. Identical retry bytes produce the same projection. An explicit
 correction edge (`replaces_source_event_id`) is rejected in revision 1 and
-requires a successor census. Withdrawal is absence/current-empty or an
-explicit unavailable source head in the successor census, never a fabricated
-zero-valued line. Persisted predecessor CAS, full tombstone/diff production,
-cross-revision economic-origin ownership and correction-edge existence remain
-producer/runtime gates; this pure validator cannot prove them from caller JSON.
+requires a successor census. Withdrawal is only an explicit `current_empty`
+booking+basis head in the successor census, never an unavailable head and
+never a fabricated zero-valued line. `unavailable` is unknown/unproved
+coverage: it cannot remove, replace, clear or zero a prior effective
+contribution. The additive persistence candidate implements observed and
+effective predecessor CAS, current-empty tombstones, cross-revision
+economic-origin ownership and a latest-event correction edge. A new correction
+must replace the current origin tip; an exact repeated event remains an
+idempotent replay only while it is still that locked tip. Each command contains
+an economic origin at most once, so a later correction cannot coexist with or
+silently revive its predecessor. The pure validator cannot prove any of those persisted facts
+from caller JSON, and no native database execution is claimed until the
+dedicated SQL workflow runs successfully.
 Stale, skipped, reused or fingerprint-mutated census evidence fails closed.
 
 ## Output and economic nonclaims
@@ -141,8 +165,13 @@ network, database, provider, secret or production data.
 
 The additive workflow has read-only contents permission, pins checkout and
 setup-node by full commit SHA, asserts Node `v24.21.0`, uses no npm command and
-runs only the source test with Node's TypeScript transform needed by the
-existing canonical dependency. These controls prove only the source contract.
+runs the source test with Node's TypeScript transform. Its isolated PostgreSQL
+fixture rolls back the whole transaction and covers exact retry, observed and
+effective predecessor CAS, contiguous observation ordering, delayed empty,
+nonmonotonic as-of, mapping substitution, global predecessor forks, reordered correction, unavailable
+retention, stale-event revival, duplicate command origins, recovery after unavailable, two bookings, null versus zero,
+one-owner origins, tenant denial and compatibility. Until that workflow runs,
+only the pure source suite has executed locally.
 
 ## Open gates
 
@@ -155,8 +184,9 @@ Canonical ingredient, purchase and stock source-head producers do not yet
 exist; neither does the authoritative valuation mapping producer. The snapshot,
 mapping and head fields here are declarations until those producers are
 reviewed in real services. The pure validator also cannot prove a shared
-database snapshot, persisted predecessor CAS, tombstones/diffs, historical
-correction-edge existence, or cross-revision ownership of an economic origin.
+database snapshot or any database persistence behavior. The additive kernel
+remains default-inaccessible and accepts only a service-role command; it does
+not create the missing authenticated Catering producer.
 Operations then needs a separately reviewed category-composition join before
 any total or forecast. DB/RPC/UI activation, Finance consumption, hosted auth,
 provider evidence, native runtime, EAC/budget/margin, rollback and release all

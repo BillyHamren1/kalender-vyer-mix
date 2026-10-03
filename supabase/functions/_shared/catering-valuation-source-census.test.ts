@@ -120,6 +120,16 @@ async function input(
         booking_id: booking.booking_id,
         booking_mapping_revision: booking.mapping_revision,
         snapshot_fingerprint: h("d"),
+        source_observation_id: id(2000 + revision * 100 + bookings.indexOf(booking) * 10 + index),
+        source_sequence: revision,
+        source_as_of: `2026-10-${String(revision).padStart(2, "0")}T09:58:00Z`,
+        previous_source_observation_id: revision === 1 ? null : id(2000 + (revision - 1) * 100 + bookings.indexOf(booking) * 10 + index),
+        previous_source_sequence: revision === 1 ? null : revision - 1,
+        previous_source_fingerprint: revision === 1 ? null : h(String(index + 6)),
+        expected_effective_observed_revision: revision - 1,
+        expected_effective_source_observation_id: revision === 1 ? null : id(2000 + (revision - 1) * 100 + bookings.indexOf(booking) * 10 + index),
+        expected_effective_source_sequence: revision === 1 ? null : revision - 1,
+        expected_effective_source_fingerprint: revision === 1 ? null : h(String(index + 6)),
       };
     })),
     lines: rows,
@@ -301,6 +311,73 @@ test("cross-project, cross-organization and unavailable heads with rows fail clo
     value = await resigned(value);
     await assert.rejects(() => projectCateringValuationSourceCensus(value),
       /foreign_catering_census_line|invalid_catering_booking_source_head/);
+  }
+});
+
+test("unavailable is unknown only and cannot encode a withdrawal", async () => {
+  let value = await input();
+  const head = value.booking_source_heads[0] as CateringValuationCensusInput["booking_source_heads"][number] & {
+    unavailable_reason: string | null;
+  };
+  value.lines = value.lines.filter((row) =>
+    !(row.source_booking_id === head.booking_id && row.basis === head.basis)
+  );
+  head.row_count = 0;
+  head.currentness = "unavailable";
+  head.unavailable_reason = "source_withdrawn";
+  value = await resigned(value);
+  await assert.rejects(
+    () => projectCateringValuationSourceCensus(value),
+    /invalid_catering_booking_source_head/,
+  );
+});
+
+test("booking observations require canonical contiguous predecessor declarations", async () => {
+  for (const mutate of [
+    (head: CateringValuationCensusInput["booking_source_heads"][number]) => {
+      head.source_sequence = 3;
+      head.previous_source_sequence = 1;
+    },
+    (head: CateringValuationCensusInput["booking_source_heads"][number]) => {
+      head.source_sequence = 1;
+      head.previous_source_observation_id = id(2099);
+      head.previous_source_sequence = 0;
+      head.previous_source_fingerprint = h("9");
+    },
+    (head: CateringValuationCensusInput["booking_source_heads"][number]) => {
+      head.source_as_of = "2026-10-01T09:58:00.000Z";
+    },
+  ]) {
+    let value = await input();
+    mutate(value.booking_source_heads[0]);
+    value = await resigned(value);
+    await assert.rejects(
+      () => projectCateringValuationSourceCensus(value),
+      /invalid_catering_booking_source_head/,
+    );
+  }
+});
+
+test("effective predecessor declaration is an all-or-none exact CAS tuple", async () => {
+  for (const mutate of [
+    (head: CateringValuationCensusInput["booking_source_heads"][number]) => {
+      head.expected_effective_observed_revision = 0;
+      head.expected_effective_source_observation_id = id(2099);
+    },
+    (head: CateringValuationCensusInput["booking_source_heads"][number]) => {
+      head.expected_effective_observed_revision = 1;
+      head.expected_effective_source_observation_id = null;
+      head.expected_effective_source_sequence = 1;
+      head.expected_effective_source_fingerprint = h("9");
+    },
+  ]) {
+    let value = await input();
+    mutate(value.booking_source_heads[0]);
+    value = await resigned(value);
+    await assert.rejects(
+      () => projectCateringValuationSourceCensus(value),
+      /invalid_catering_booking_source_head/,
+    );
   }
 });
 

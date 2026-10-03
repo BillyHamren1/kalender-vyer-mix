@@ -30,6 +30,10 @@ const BOOKING_HEAD_KEYS = [
   "basis", "currency", "source_stream_id", "source_revision",
   "source_fingerprint", "row_count", "currentness", "unavailable_reason",
   "booking_id", "booking_mapping_revision", "snapshot_fingerprint",
+  "source_observation_id", "source_sequence", "source_as_of",
+  "previous_source_observation_id", "previous_source_sequence", "previous_source_fingerprint",
+  "expected_effective_observed_revision", "expected_effective_source_observation_id",
+  "expected_effective_source_sequence", "expected_effective_source_fingerprint",
 ] as const;
 const LINE_KEYS = [
   "organization_id", "source_organization_id", "source_id", "source_version",
@@ -71,10 +75,20 @@ export interface CateringValuationBookingSourceHead {
   source_fingerprint: string;
   row_count: number;
   currentness: "current" | "current_empty" | "unavailable";
-  unavailable_reason: "source_unreachable" | "source_head_missing" | "source_withdrawn" | null;
+  unavailable_reason: "source_unreachable" | "source_head_missing" | null;
   booking_id: string;
   booking_mapping_revision: string;
   snapshot_fingerprint: string;
+  source_observation_id: string;
+  source_sequence: number;
+  source_as_of: string;
+  previous_source_observation_id: string | null;
+  previous_source_sequence: number | null;
+  previous_source_fingerprint: string | null;
+  expected_effective_observed_revision: number;
+  expected_effective_source_observation_id: string | null;
+  expected_effective_source_sequence: number | null;
+  expected_effective_source_fingerprint: string | null;
 }
 
 export interface CateringValuationCensusLine extends CateringValuationLine {
@@ -247,6 +261,10 @@ function iso(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
     Number.isFinite(Date.parse(value));
 }
+function canonicalUtcSecond(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) && new Date(Date.parse(value)).toISOString() === value.replace(/Z$/, ".000Z");
+}
 function compareUtf8(a: string, b: string): number {
   const aa = new TextEncoder().encode(a), bb = new TextEncoder().encode(b);
   for (let i = 0; i < Math.min(aa.length, bb.length); i += 1)
@@ -336,8 +354,24 @@ function parseBookingHead(
       row.basis !== expectedBasis || typeof row.currency !== "string" || !/^[A-Z]{3}$/.test(row.currency) ||
       !uuid(row.source_stream_id) || !text(row.source_revision) || !hash(row.source_fingerprint) ||
       row.snapshot_fingerprint !== snapshotFingerprint ||
+      !uuid(row.source_observation_id) || !positive(row.source_sequence) || !canonicalUtcSecond(row.source_as_of) ||
+      !nonnegative(row.expected_effective_observed_revision) ||
       !nonnegative(row.row_count) ||
       !["current", "current_empty", "unavailable"].includes(row.currentness as string))
+    throw new Error("invalid_catering_booking_source_head");
+  const firstSource = row.source_sequence === 1;
+  if (firstSource
+    ? row.previous_source_observation_id !== null || row.previous_source_sequence !== null ||
+      row.previous_source_fingerprint !== null
+    : !uuid(row.previous_source_observation_id) || row.previous_source_sequence !== row.source_sequence - 1 ||
+      !hash(row.previous_source_fingerprint))
+    throw new Error("invalid_catering_booking_source_head");
+  const firstEffective = row.expected_effective_observed_revision === 0;
+  if (firstEffective
+    ? row.expected_effective_source_observation_id !== null || row.expected_effective_source_sequence !== null ||
+      row.expected_effective_source_fingerprint !== null
+    : !uuid(row.expected_effective_source_observation_id) || !positive(row.expected_effective_source_sequence) ||
+      !hash(row.expected_effective_source_fingerprint))
     throw new Error("invalid_catering_booking_source_head");
   if (row.currentness === "current") {
     if (row.row_count === 0 || row.unavailable_reason !== null)
@@ -346,7 +380,7 @@ function parseBookingHead(
     if (row.row_count !== 0 || row.unavailable_reason !== null)
       throw new Error("invalid_catering_booking_source_head");
   } else if (row.row_count !== 0 ||
-      !["source_unreachable", "source_head_missing", "source_withdrawn"].includes(row.unavailable_reason as string)) {
+      !["source_unreachable", "source_head_missing"].includes(row.unavailable_reason as string)) {
     throw new Error("invalid_catering_booking_source_head");
   }
   return row as unknown as CateringValuationBookingSourceHead;
