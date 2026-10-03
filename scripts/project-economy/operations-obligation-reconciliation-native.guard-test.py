@@ -13,8 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CLOSURE_BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
 CLOSURE_TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
-PUBLISHED_PARENT = "5a6d2de598d59808f9409bff193f482ef59cde73"
-PUBLISHED_PARENT_TREE = "619c87da0d90edd7d01b7f3bf2401a8cc68f5880"
+PUBLISHED_PARENT = "a30cc350d4d87038577384a330a0b9c612df8c73"
+PUBLISHED_PARENT_TREE = "caffc710adebfe681c8603eafe98762b6d81916a"
 FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "docs/project-economy/operations-obligation-reconciliation-v1-contract.md",
@@ -28,7 +28,7 @@ FILES = [
 SUCCESSOR_FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py",
-    "scripts/project-economy/operations-obligation-reconciliation-native.py",
+    "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql",
 ]
 MIGRATION = ROOT / FILES[-1]
 TEST = ROOT / "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql"
@@ -224,10 +224,29 @@ class Guard(unittest.TestCase):
             "changed_body_and_actor_replays_fail_closed", "unknown_supersession_anchors_fail_closed_nonmutating",
             "reclose_preserves_first_frozen_close", "second_reopen_preserves_first_frozen_close",
             "security_invoker_schema_usage_matrix", "canonical_lock_precedes_all_authority_reads_without_second_key",
+            "matrix_session_isolated_from_setup", "matrix_session_claims_and_role_bound",
         )
         for label in labels:
             self.assertIn(label, self.test)
         self.assertIn('outcomes != ["accepted", "stale"]', self.runner)
+
+    def test_matrix_bootstraps_claims_in_its_own_session(self) -> None:
+        isolated = self.test.index("matrix_session_isolated_from_setup")
+        subject = self.test.index("set request.jwt.claim.sub='10101010-1010-4010-8010-101010101010';")
+        organization = self.test.index("set request.jwt.claim.organization_id='11111111-1111-4111-8111-111111111111';")
+        claim_role = self.test.index("set request.jwt.claim.role='admin';")
+        db_role = self.test.index("set role authenticated;")
+        bound = self.test.index("matrix_session_claims_and_role_bound")
+        first_append = self.test.index("public.append_operations_obligation_reconciliation_v1")
+        self.assertLess(isolated, subject)
+        self.assertLess(subject, organization)
+        self.assertLess(organization, claim_role)
+        self.assertLess(claim_role, db_role)
+        self.assertLess(db_role, bound)
+        self.assertLess(bound, first_append)
+        self.assertEqual(self.test.count("set request.jwt.claim.role='admin';"), 1)
+        self.assertIn("set request.jwt.claim.organization_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';", self.test)
+        self.assertIn("set request.jwt.claim.sub='';", self.test)
 
     def test_native_runtime_is_bounded_and_pinned(self) -> None:
         self.assertEqual(self.runner.count(IMAGE), 1)

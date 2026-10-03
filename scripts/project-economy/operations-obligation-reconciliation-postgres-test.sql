@@ -7,7 +7,21 @@ select pg_temp.assert_true(
   'security_invoker_schema_usage_matrix');
 
 insert into public.operations_obligation_reconciliation_gates values('11111111-1111-4111-8111-111111111111',true);
+select pg_temp.assert_true(
+  auth.uid() is null
+  and current_setting('request.jwt.claim.organization_id',true) is null
+  and current_setting('request.jwt.claim.role',true) is null,
+  'matrix_session_isolated_from_setup');
+set request.jwt.claim.sub='10101010-1010-4010-8010-101010101010';
+set request.jwt.claim.organization_id='11111111-1111-4111-8111-111111111111';
+set request.jwt.claim.role='admin';
 set role authenticated;
+select pg_temp.assert_true(
+  current_user='authenticated'
+  and current_setting('request.jwt.claim.sub',true)='10101010-1010-4010-8010-101010101010'
+  and current_setting('request.jwt.claim.organization_id',true)='11111111-1111-4111-8111-111111111111'
+  and current_setting('request.jwt.claim.role',true)='admin',
+  'matrix_session_claims_and_role_bound');
 
 do $$declare cmd jsonb;reply jsonb;readback jsonb;first_id text;first_fp text;begin
   cmd:=jsonb_build_object('schema_version','operations-obligation-reconciliation-append.v1','project_id','22222222-2222-4222-8222-222222222222',
