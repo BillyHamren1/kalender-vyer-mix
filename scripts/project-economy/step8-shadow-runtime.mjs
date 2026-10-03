@@ -15,6 +15,10 @@ const expectedPaths = [
   'src/lib/economy/projectEconomyStep8ShadowAdapter.ts',
   'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
 ];
+const repairPaths = [
+  '.github/workflows/project-economy-step8-shadow.yml',
+  'scripts/project-economy/step8-shadow-runtime.mjs',
+];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command,args,{ cwd: new URL('.',root), encoding:'utf8', ...options });
@@ -25,16 +29,32 @@ function run(command, args, options = {}) {
   return (result.stdout ?? '').trim();
 }
 
-if (process.env.STEP8_SKIP_PROVENANCE !== '1') {
-  const expectedParent = process.env.STEP8_EXPECTED_PARENT;
-  const expectedParentTree = process.env.STEP8_EXPECTED_PARENT_TREE;
-  if (!expectedParent || !expectedParentTree) throw new Error('exact Step8 parent provenance is required');
-  if (run('git',['rev-parse','HEAD^']) !== expectedParent) throw new Error('unexpected Step8 parent');
-  if (run('git',['rev-parse',`${expectedParent}^{tree}`]) !== expectedParentTree) throw new Error('unexpected Step8 parent tree');
-  if (run('git',['rev-list','--count',`${expectedParent}..HEAD`]) !== '1') throw new Error('Step8 must be one exact successor');
-  const changed = run('git',['diff','--name-only',expectedParent,'HEAD']).split('\n').filter(Boolean).sort();
-  if (JSON.stringify(changed) !== JSON.stringify(expectedPaths)) throw new Error(`unexpected Step8 paths: ${changed.join(',')}`);
-}
+const expectedBase = process.env.STEP8_EXPECTED_BASE;
+const expectedBaseTree = process.env.STEP8_EXPECTED_BASE_TREE;
+const expectedFoundation = process.env.STEP8_EXPECTED_FOUNDATION;
+const expectedFoundationTree = process.env.STEP8_EXPECTED_FOUNDATION_TREE;
+if (!expectedBase || !expectedBaseTree || !expectedFoundation || !expectedFoundationTree)
+  throw new Error('exact Step8 base and foundation provenance are required');
+if (run('git',['rev-parse','HEAD^']) !== expectedFoundation) throw new Error('unexpected Step8 foundation parent');
+if (run('git',['rev-parse',`${expectedFoundation}^{tree}`]) !== expectedFoundationTree)
+  throw new Error('unexpected Step8 foundation tree');
+if (run('git',['rev-parse',`${expectedFoundation}^`]) !== expectedBase)
+  throw new Error('unexpected Step8 foundation base');
+if (run('git',['rev-parse',`${expectedBase}^{tree}`]) !== expectedBaseTree)
+  throw new Error('unexpected Step8 base tree');
+if (run('git',['rev-list','--count',`${expectedBase}..HEAD`]) !== '2')
+  throw new Error('Step8 must be the exact two-commit cumulative chain');
+if (run('git',['rev-list','--count',`${expectedBase}..${expectedFoundation}`]) !== '1')
+  throw new Error('Step8 foundation must be one exact successor of the base');
+const foundationChanged = run('git',['diff','--name-only',expectedBase,expectedFoundation]).split('\n').filter(Boolean).sort();
+if (JSON.stringify(foundationChanged) !== JSON.stringify(expectedPaths))
+  throw new Error(`unexpected Step8 foundation paths: ${foundationChanged.join(',')}`);
+const repairChanged = run('git',['diff','--name-only',expectedFoundation,'HEAD']).split('\n').filter(Boolean).sort();
+if (JSON.stringify(repairChanged) !== JSON.stringify(repairPaths))
+  throw new Error(`unexpected Step8 repair paths: ${repairChanged.join(',')}`);
+const cumulativeChanged = run('git',['diff','--name-only',expectedBase,'HEAD']).split('\n').filter(Boolean).sort();
+if (JSON.stringify(cumulativeChanged) !== JSON.stringify(expectedPaths))
+  throw new Error(`unexpected cumulative Step8 paths: ${cumulativeChanged.join(',')}`);
 
 for (const forbidden of [
   /\bcreate\s+table\b/i,/\binsert\s+into\b/i,/\bupdate\s+public\b/i,/\bdelete\s+from\b/i,
@@ -48,8 +68,8 @@ if (!/financeRecalculated',false/.test(migration) || !/authoritativeTotals',fals
 if (process.env.STEP8_STATIC_ONLY === '1') {
   console.log(JSON.stringify({
     status:'PASS',mode:'static-only',migrationSha256,
-    sourceParent:process.env.STEP8_EXPECTED_PARENT ?? null,
-    sourceParentTree:process.env.STEP8_EXPECTED_PARENT_TREE ?? null,
+    sourceBase:expectedBase,sourceBaseTree:expectedBaseTree,
+    sourceFoundation:expectedFoundation,sourceFoundationTree:expectedFoundationTree,
     changedPaths:expectedPaths,
   },null,2));
   process.exit(0);
@@ -416,7 +436,8 @@ const output = run('psql',[databaseUrl,'-X','--no-password','-v','ON_ERROR_STOP=
 if (!output.includes('STEP8_RUNTIME_PASS')) throw new Error('Step8 runtime receipt missing');
 console.log(JSON.stringify({
   status:'PASS',schema:'operations-project-economy-step8-shadow.v1',migrationSha256,
-  postgresRuntime:true,sourceParent:process.env.STEP8_EXPECTED_PARENT ?? null,
+  postgresRuntime:true,sourceBase:expectedBase,sourceBaseTree:expectedBaseTree,
+  sourceFoundation:expectedFoundation,sourceFoundationTree:expectedFoundationTree,
   assertions:{twoBookings:true,missingRateNull:true,linkedCreditBinding:true,unresolvedCredit:true,
     sourceConflictDenied:true,preliminaryConfirmedSameIdentity:true,exceptions:true,
     adminAllowed:true,grantedAllowed:true,revokedDenied:true,projectDenied:true,crossTenantDenied:true,

@@ -45,17 +45,21 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Exact canonical successor and owned paths
+      - name: Exact cumulative chain and owned paths
         env:
-          EXPECTED_PARENT: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
-          EXPECTED_PARENT_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+          EXPECTED_BASE: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
+          EXPECTED_BASE_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+          EXPECTED_FOUNDATION: 1be3b68920c479725fab54da36e78ef317a01b25
+          EXPECTED_FOUNDATION_TREE: 0fc91a22cc70b938841b9b6e9fcf331f46884c2a
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
-          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_PARENT_TREE"
-          test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
-          git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
-          cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_FOUNDATION"
+          test "$(git rev-parse "$EXPECTED_FOUNDATION^{tree}")" = "$EXPECTED_FOUNDATION_TREE"
+          test "$(git rev-parse "$EXPECTED_FOUNDATION^")" = "$EXPECTED_BASE"
+          test "$(git rev-parse "$EXPECTED_BASE^{tree}")" = "$EXPECTED_BASE_TREE"
+          test "$(git rev-list --count "$EXPECTED_BASE"..HEAD)" = 2
+          test "$(git rev-list --count "$EXPECTED_BASE".."$EXPECTED_FOUNDATION")" = 1
+          cat >"$RUNNER_TEMP/expected-cumulative-paths" <<'EOF'
           .github/workflows/project-economy-step8-shadow.yml
           scripts/project-economy/step8-shadow-runtime.mjs
           src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx
@@ -64,7 +68,16 @@ jobs:
           src/lib/economy/projectEconomyStep8ShadowAdapter.ts
           supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
           EOF
-          cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
+          cat >"$RUNNER_TEMP/expected-repair-paths" <<'EOF'
+          .github/workflows/project-economy-step8-shadow.yml
+          scripts/project-economy/step8-shadow-runtime.mjs
+          EOF
+          git diff --name-only "$EXPECTED_BASE" "$EXPECTED_FOUNDATION" | LC_ALL=C sort >"$RUNNER_TEMP/foundation-paths"
+          git diff --name-only "$EXPECTED_FOUNDATION" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/repair-paths"
+          git diff --name-only "$EXPECTED_BASE" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/cumulative-paths"
+          cmp "$RUNNER_TEMP/expected-cumulative-paths" "$RUNNER_TEMP/foundation-paths"
+          cmp "$RUNNER_TEMP/expected-repair-paths" "$RUNNER_TEMP/repair-paths"
+          cmp "$RUNNER_TEMP/expected-cumulative-paths" "$RUNNER_TEMP/cumulative-paths"
           test "$(git status --porcelain)" = ""
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -85,10 +98,23 @@ jobs:
       - name: PostgreSQL 15.19 authenticated shadow runtime
         env:
           STEP8_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/step8
-          STEP8_EXPECTED_PARENT: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
-          STEP8_EXPECTED_PARENT_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+          STEP8_EXPECTED_BASE: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
+          STEP8_EXPECTED_BASE_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+          STEP8_EXPECTED_FOUNDATION: 1be3b68920c479725fab54da36e78ef317a01b25
+          STEP8_EXPECTED_FOUNDATION_TREE: 0fc91a22cc70b938841b9b6e9fcf331f46884c2a
         run: |
           set -Eeuo pipefail
-          postgres_version="$(psql "$STEP8_DATABASE_URL" -XAt --no-password -c 'show server_version')"
-          test "$postgres_version" = 15.19
+          STEP8_STATIC_ONLY=1 node scripts/project-economy/step8-shadow-runtime.mjs
+          if STEP8_EXPECTED_FOUNDATION="$STEP8_EXPECTED_BASE" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial foundation provenance was accepted' >&2
+            exit 1
+          fi
+          if STEP8_EXPECTED_BASE_TREE="$STEP8_EXPECTED_FOUNDATION_TREE" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial base-tree provenance was accepted' >&2
+            exit 1
+          fi
+          postgres_version_num="$(psql "$STEP8_DATABASE_URL" -XAt --no-password -c 'show server_version_num')"
+          test "$postgres_version_num" = 150019
           node scripts/project-economy/step8-shadow-runtime.mjs
