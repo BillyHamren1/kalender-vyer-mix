@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import ast
+import os
 from pathlib import Path
 import re
 import runpy
@@ -10,8 +11,10 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
-TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
+CLOSURE_BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
+CLOSURE_TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
+PUBLISHED_PARENT = "69b163d3e530a12c94f81304af607ee0c521af4e"
+PUBLISHED_PARENT_TREE = "c379096cf86f8cfbdbd04debcb5ec4842deecbda"
 FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "docs/project-economy/operations-obligation-reconciliation-v1-contract.md",
@@ -22,6 +25,10 @@ FILES = [
     "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql",
     "supabase/migrations/20261003210000_operations_obligation_reconciliation_v1.sql",
 ]
+SUCCESSOR_FILES = [
+    ".github/workflows/operations-obligation-reconciliation-native.yml",
+    "scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py",
+]
 MIGRATION = ROOT / FILES[-1]
 TEST = ROOT / "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql"
 RUNNER = ROOT / "scripts/project-economy/operations-obligation-reconciliation-native.py"
@@ -30,6 +37,33 @@ WORKFLOW = ROOT / FILES[0]
 CONTRACT = ROOT / FILES[1]
 CLOSURE = ROOT / FILES[2]
 IMAGE = "docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb"
+
+
+def validate_provenance(
+    *, mode: str, head: str, head_tree: str, parent: str | None, parent_tree: str,
+    revision_count: int, changed_paths: list[str], status_codes: list[str],
+) -> None:
+    """Bind either the uncommitted candidate or its unknown-hash published successor."""
+    if mode not in ("local", "published"):
+        raise AssertionError("invalid_provenance_mode")
+    if parent_tree != PUBLISHED_PARENT_TREE:
+        raise AssertionError("wrong_parent_tree")
+    if sorted(changed_paths) != SUCCESSOR_FILES:
+        raise AssertionError("wrong_successor_paths")
+    if mode == "local":
+        if head != PUBLISHED_PARENT or head_tree != PUBLISHED_PARENT_TREE or parent is not None or revision_count != 0:
+            raise AssertionError("wrong_local_parent")
+        if len(status_codes) != len(SUCCESSOR_FILES) or any(code not in (" M", "M ") for code in status_codes):
+            raise AssertionError("invalid_local_status")
+    else:
+        if parent != PUBLISHED_PARENT or head == PUBLISHED_PARENT or head_tree == PUBLISHED_PARENT_TREE or revision_count != 1:
+            raise AssertionError("wrong_published_parent")
+        if status_codes:
+            raise AssertionError("published_checkout_not_clean")
+
+
+def git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
 class Guard(unittest.TestCase):
@@ -43,14 +77,50 @@ class Guard(unittest.TestCase):
         cls.contract = CONTRACT.read_text()
         cls.closure = json.loads(CLOSURE.read_text())
 
-    def test_exact_local_scope_and_base(self) -> None:
-        self.assertEqual(subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), BASE)
-        self.assertEqual(subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True).strip(), TREE)
-        status = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).splitlines()
-        actual = sorted(line[3:] for line in status)
-        self.assertEqual(actual, FILES)
-        self.assertEqual(self.closure["base_commit"], BASE)
-        self.assertEqual(self.closure["base_tree"], TREE)
+    def test_exact_source_route_for_local_or_published_successor(self) -> None:
+        mode = os.environ.get("OPS_RECONCILIATION_PROVENANCE_MODE", "local")
+        status = subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=all"], cwd=ROOT, text=True
+        ).splitlines()
+        status_codes = [line[:2] for line in status]
+        status_paths = sorted(line[3:] for line in status)
+        if mode == "local":
+            self.assertNotIn("OPS_RECONCILIATION_EXPECTED_PARENT", os.environ)
+            self.assertNotIn("OPS_RECONCILIATION_EXPECTED_PARENT_TREE", os.environ)
+            changed = sorted(set(git("diff", "--name-only", "HEAD").splitlines()) | set(git("diff", "--cached", "--name-only", "HEAD").splitlines()))
+            self.assertEqual(changed, status_paths)
+            validate_provenance(mode=mode, head=git("rev-parse", "HEAD"), head_tree=git("rev-parse", "HEAD^{tree}"),
+                                parent=None, parent_tree=git("rev-parse", "HEAD^{tree}"), revision_count=0,
+                                changed_paths=changed, status_codes=status_codes)
+        else:
+            self.assertEqual(os.environ.get("OPS_RECONCILIATION_EXPECTED_PARENT"), PUBLISHED_PARENT)
+            self.assertEqual(os.environ.get("OPS_RECONCILIATION_EXPECTED_PARENT_TREE"), PUBLISHED_PARENT_TREE)
+            parent = git("rev-parse", "HEAD^")
+            validate_provenance(mode=mode, head=git("rev-parse", "HEAD"), head_tree=git("rev-parse", "HEAD^{tree}"),
+                                parent=parent, parent_tree=git("rev-parse", f"{parent}^{{tree}}"),
+                                revision_count=int(git("rev-list", "--count", f"{parent}..HEAD")),
+                                changed_paths=git("diff", "--name-only", parent, "HEAD").splitlines(), status_codes=status_codes)
+        self.assertEqual(self.closure["base_commit"], CLOSURE_BASE)
+        self.assertEqual(self.closure["base_tree"], CLOSURE_TREE)
+
+    def test_provenance_models_and_negative_parent_tree_path_guards(self) -> None:
+        local = dict(mode="local", head=PUBLISHED_PARENT, head_tree=PUBLISHED_PARENT_TREE, parent=None,
+                     parent_tree=PUBLISHED_PARENT_TREE, revision_count=0, changed_paths=SUCCESSOR_FILES,
+                     status_codes=[" M", " M"])
+        published = dict(mode="published", head="f" * 40, head_tree="e" * 40, parent=PUBLISHED_PARENT,
+                         parent_tree=PUBLISHED_PARENT_TREE, revision_count=1, changed_paths=SUCCESSOR_FILES,
+                         status_codes=[])
+        validate_provenance(**local)
+        validate_provenance(**published)
+        for invalid in (
+            published | {"parent": "0" * 40},
+            published | {"parent_tree": "1" * 40},
+            published | {"changed_paths": SUCCESSOR_FILES + ["unexpected.sql"]},
+            local | {"head": "2" * 40},
+            local | {"status_codes": ["??", " M"]},
+        ):
+            with self.assertRaises(AssertionError):
+                validate_provenance(**invalid)
 
     def test_default_off_and_operations_owned(self) -> None:
         self.assertIn("enabled boolean not null default false", self.sql)
@@ -181,6 +251,10 @@ class Guard(unittest.TestCase):
             self.assertIn(text, self.workflow)
         self.assertNotIn("pull_request_target", self.workflow)
         self.assertNotIn("contents: write", self.workflow)
+        self.assertIn(f"OPS_RECONCILIATION_EXPECTED_PARENT: {PUBLISHED_PARENT}", self.workflow)
+        self.assertIn(f"OPS_RECONCILIATION_EXPECTED_PARENT_TREE: {PUBLISHED_PARENT_TREE}", self.workflow)
+        self.assertIn("OPS_RECONCILIATION_PROVENANCE_MODE: published", self.workflow)
+        self.assertNotIn("EXPECTED_HEAD", self.workflow)
 
     def test_no_nul_and_python_compiles(self) -> None:
         for relative in FILES:

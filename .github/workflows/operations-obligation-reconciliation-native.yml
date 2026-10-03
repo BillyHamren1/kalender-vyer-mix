@@ -29,23 +29,18 @@ jobs:
           persist-credentials: false
       - name: Exact additive source route
         env:
-          EXPECTED_PARENT: 43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2
-          EXPECTED_TREE: 382c32e9f1a7d4f7189798676e512c439f94874e
+          OPS_RECONCILIATION_PROVENANCE_MODE: published
+          OPS_RECONCILIATION_EXPECTED_PARENT: 69b163d3e530a12c94f81304af607ee0c521af4e
+          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: c379096cf86f8cfbdbd04debcb5ec4842deecbda
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
-          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_TREE"
-          test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
-          git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
+          test "$(git rev-parse HEAD^)" = "$OPS_RECONCILIATION_EXPECTED_PARENT"
+          test "$(git rev-parse "$OPS_RECONCILIATION_EXPECTED_PARENT^{tree}")" = "$OPS_RECONCILIATION_EXPECTED_PARENT_TREE"
+          test "$(git rev-list --count "$OPS_RECONCILIATION_EXPECTED_PARENT"..HEAD)" = 1
+          git diff --name-only "$OPS_RECONCILIATION_EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
           cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
           .github/workflows/operations-obligation-reconciliation-native.yml
-          docs/project-economy/operations-obligation-reconciliation-v1-contract.md
-          scripts/project-economy/operations-obligation-reconciliation-native-closure.json
-          scripts/project-economy/operations-obligation-reconciliation-native-setup.sql
           scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py
-          scripts/project-economy/operations-obligation-reconciliation-native.py
-          scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql
-          supabase/migrations/20261003210000_operations_obligation_reconciliation_v1.sql
           EOF
           cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
           python3 -I -B scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py
