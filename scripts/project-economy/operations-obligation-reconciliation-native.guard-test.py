@@ -13,8 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CLOSURE_BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
 CLOSURE_TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
-PUBLISHED_PARENT = "a30cc350d4d87038577384a330a0b9c612df8c73"
-PUBLISHED_PARENT_TREE = "caffc710adebfe681c8603eafe98762b6d81916a"
+PUBLISHED_PARENT = "a33e717d6fb922254fc3bcde8bbe4d3e21e35614"
+PUBLISHED_PARENT_TREE = "29aaf7e0f76a042c3c7992aabbe5e4aa8e741e2a"
 FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "docs/project-economy/operations-obligation-reconciliation-v1-contract.md",
@@ -28,7 +28,7 @@ FILES = [
 SUCCESSOR_FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py",
-    "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql",
+    "supabase/migrations/20261003210000_operations_obligation_reconciliation_v1.sql",
 ]
 MIGRATION = ROOT / FILES[-1]
 TEST = ROOT / "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql"
@@ -207,6 +207,26 @@ class Guard(unittest.TestCase):
             "from public.operations_hired_assignment_heads",
         ):
             self.assertLess(lock_at, append.index(authority_read), authority_read)
+
+    def test_locked_read_functions_are_volatile(self) -> None:
+        private_start = self.sql.index("create function operations_economy_private.read_obligation_reconciliation_v1")
+        private_end = self.sql.index(
+            "revoke all on function operations_economy_private.read_obligation_reconciliation_v1", private_start
+        )
+        private_read = self.sql[private_start:private_end]
+        self.assertIn("returns jsonb language plpgsql volatile security definer", private_read)
+        self.assertNotIn(" language plpgsql stable ", private_read)
+        self.assertEqual(private_read.count(" for share"), 2)
+        self.assertLess(private_read.index("for share"), private_read.index("select document into strict current_doc"))
+
+        public_start = self.sql.index("create function public.read_operations_obligation_reconciliation_v1")
+        public_end = self.sql.index(
+            "revoke all on function public.read_operations_obligation_reconciliation_v1", public_start
+        )
+        public_read = self.sql[public_start:public_end]
+        self.assertIn("returns jsonb language sql volatile security invoker", public_read)
+        self.assertNotIn(" language sql stable ", public_read)
+        self.assertIn("operations_economy_private.read_obligation_reconciliation_v1", public_read)
 
     def test_security_invoker_schema_usage_matrix(self) -> None:
         self.assertIn("grant usage on schema operations_economy_private to authenticated,service_role;", self.setup)

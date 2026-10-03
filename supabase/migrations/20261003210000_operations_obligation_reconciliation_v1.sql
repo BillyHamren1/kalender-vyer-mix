@@ -397,7 +397,7 @@ revoke all on function public.append_operations_obligation_reconciliation_v1(jso
 grant execute on function public.append_operations_obligation_reconciliation_v1(jsonb) to authenticated;
 
 create function operations_economy_private.read_obligation_reconciliation_v1(p_org uuid,p_project uuid,p_obligation uuid)
-returns jsonb language plpgsql stable security definer set search_path='' as $$
+returns jsonb language plpgsql volatile security definer set search_path='' as $$
 declare org uuid;h public.operations_obligation_reconciliation_heads%rowtype;current_doc jsonb;frozen_doc jsonb;begin
   org:=operations_economy_private.authorize_obligation_admin_v1(p_project);
   if p_org is null or p_org<>org then raise exception 'obligation_reconciliation_tenant_mismatch' using errcode='42501';end if;
@@ -414,7 +414,7 @@ end;$$;
 revoke all on function operations_economy_private.read_obligation_reconciliation_v1(uuid,uuid,uuid) from public,anon,service_role;
 grant execute on function operations_economy_private.read_obligation_reconciliation_v1(uuid,uuid,uuid) to authenticated;
 create function public.read_operations_obligation_reconciliation_v1(p_organization_id uuid,p_project_id uuid,p_obligation_id uuid)
-returns jsonb language sql stable security invoker set search_path='' as $$
+returns jsonb language sql volatile security invoker set search_path='' as $$
   select operations_economy_private.read_obligation_reconciliation_v1(p_organization_id,p_project_id,p_obligation_id);
 $$;
 revoke all on function public.read_operations_obligation_reconciliation_v1(uuid,uuid,uuid) from public,anon,service_role;
