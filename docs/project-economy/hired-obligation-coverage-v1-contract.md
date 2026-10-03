@@ -91,9 +91,11 @@ and bounded canonical membership. It uses no network, database, provider or
 secret.
 
 The additive workflow pins Node `v24.21.0`, has read-only repository permission
-and executes only the source test. `actions/checkout@v4` and
-`actions/setup-node@v4` follow the repository's existing workflow convention;
-their mutable action tags remain an outer workflow-supply-chain review item.
+and executes only the source test. It pins checkout to full commit SHA
+`11d5960a326750d5838078e36cf38b85af677262` and setup-node to full commit SHA
+`49933ea5288caeca8642d1e84afbd3f7d6820020`; it does not invoke npm. These
+controls establish only a deterministic source-contract job. They do not prove
+database, authenticated route, hosted runtime, UI or release behavior.
 
 ## Open gates
 
