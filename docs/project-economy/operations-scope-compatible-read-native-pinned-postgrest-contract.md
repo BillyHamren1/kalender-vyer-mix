@@ -106,3 +106,40 @@ if installation is reached. Immutable ioctl support remains a genuine native
 prerequisite. A later workflow publication requires a separate shared source
 manifest rebind to the final workflow bytes. No runtime, cleanup, or release
 acceptance is inferred from these source controls.
+
+## Stage11 immutable-seal discriminator
+
+The exact PR merge run `37122162873`, job `111200263616`, checked out merge
+commit `08ec0f5592f6b35379df141a35f054676d5cd92f` (head
+`60ad012148d0fab3e25b60f70fa04e4abad9e689`, base
+`f0565e76e071bc50011ae33535c2b97022e46293`). The source guard suite passed
+20/20 and the outer held bootstrap plus inner capture and materialization
+passed. The actual route then failed closed at
+`source_closure PHASE=immutable_seal`, before compilation, environment
+installation, Docker/PostgREST effects or owned cleanup. The decoded UTF-8 log
+including BOM is 38,773 bytes with SHA-256
+`4f6d26c470c66e7488521ef8eb4827bfbaaf838129f8a967103cba8f463ddf30`.
+
+The broad phase proves that the first failure is somewhere inside the Linux
+immutable-file seal boundary, but it does not distinguish ioctl permission,
+filesystem support, readback or FD/path identity. The current source's first
+operation in that phase is `FS_IOC_SETFLAGS` on the first private materialized
+regular file. Linux requires suitable immutable-file authority for that
+operation; the log did not expose errno or capability state, so permission is
+a bounded leading hypothesis, not accepted cause.
+
+Stage11 preserves every Stage10 operation and order and adds only fixed public
+subphases for regular-file set (permission/unsupported/other), readback and
+identity; directory set (the same classes), readback and identity; and final
+immutable verification. It never emits errno, paths, source identities,
+exception text or private bodies. Unknown exceptions map to the fixed `other`
+class. Every failure remains nonzero and remains before compilation/effects.
+
+Pull-request execution uses GitHub's synthetic merge commit. The capture is
+bound to exact head/tree source bytes, while runtime admission continues to
+bind the checked-out `GITHUB_SHA` and the complete closure at the merge. The
+observed merge reached immutable sealing, so it is evidence that its exact
+source/manifest closure passed; it is not evidence that a future merge equals
+the branch head or that immutable setting will succeed. Publication and a new
+exact-merge rerun remain separate gates. No repair, runtime, cleanup, absence
+or release claim is made.

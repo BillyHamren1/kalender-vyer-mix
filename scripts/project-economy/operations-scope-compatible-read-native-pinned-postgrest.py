@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Immutable-source bootstrap for the digest-pinned compatible-read runner."""
+import errno
 import fcntl
 import hashlib
 import json
@@ -26,7 +27,12 @@ FS_IOC_GETFLAGS=0x80086601
 FS_IOC_SETFLAGS=0x40086602
 FS_IMMUTABLE_FL=0x00000010
 
-PUBLIC_PHASES={'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'}
+PUBLIC_PHASES={
+    'capture','materialize','immutable_seal',
+    'immutable_file_set','immutable_file_set_permission','immutable_file_set_unsupported','immutable_file_set_other','immutable_file_readback','immutable_file_identity',
+    'immutable_directory_set','immutable_directory_set_permission','immutable_directory_set_unsupported','immutable_directory_set_other','immutable_directory_readback','immutable_directory_identity',
+    'immutable_verify','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'
+}
 ACTIVE_PHASE='capture'
 
 def phase(value):
@@ -44,6 +50,22 @@ def blob(data):return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).
 def flags(fd):return struct.unpack('I',fcntl.ioctl(fd,FS_IOC_GETFLAGS,struct.pack('I',0)))[0]
 
 def set_flags(fd,value):fcntl.ioctl(fd,FS_IOC_SETFLAGS,struct.pack('I',value))
+
+def immutable_set(fd,old,kind):
+    if kind not in {'file','directory'}:raise BootstrapFailure()
+    phase('immutable_'+kind+'_set')
+    try:set_flags(fd,old|FS_IMMUTABLE_FL)
+    except OSError as error:
+        if error.errno in {errno.EPERM,errno.EACCES}:phase('immutable_'+kind+'_set_permission')
+        elif error.errno in {errno.ENOTTY,errno.EOPNOTSUPP,errno.ENOSYS}:phase('immutable_'+kind+'_set_unsupported')
+        else:phase('immutable_'+kind+'_set_other')
+        raise BootstrapFailure() from None
+    except BaseException:
+        phase('immutable_'+kind+'_set_other');raise BootstrapFailure() from None
+    phase('immutable_'+kind+'_readback')
+    try:
+        if not flags(fd)&FS_IMMUTABLE_FL:raise BootstrapFailure()
+    except BaseException:raise BootstrapFailure() from None
 
 def compiled_module(data,filename,name,effect_capability):
     module=types.ModuleType(name);module.__file__=str(filename);module.__package__=''
@@ -124,16 +146,16 @@ class HeldTree:
 
     def seal(self):
         for key,(fd,path,_saved,data,old) in tuple(self.materialized.items()):
-            set_flags(fd,old|FS_IMMUTABLE_FL);current=os.fstat(fd)
+            immutable_set(fd,old,'file');phase('immutable_file_identity');current=os.fstat(fd)
             if identity(current)!=identity(os.stat(path,follow_symlinks=False)):raise BootstrapFailure()
             self.materialized[key]=(fd,path,identity(current),data,old)
         updated=[]
         for fd,path,_saved,old in self.directories:
-            set_flags(fd,old|FS_IMMUTABLE_FL);current=os.fstat(fd)
+            immutable_set(fd,old,'directory');phase('immutable_directory_identity');current=os.fstat(fd)
             if identity(current)!=identity(os.stat(path,follow_symlinks=False)):raise BootstrapFailure()
             updated.append((fd,path,identity(current),old))
         self.directories=updated
-        self.verify(True)
+        phase('immutable_verify');self.verify(True)
 
     def verify(self,immutable=False):
         for fd,path,saved,data in self.canonical.values():

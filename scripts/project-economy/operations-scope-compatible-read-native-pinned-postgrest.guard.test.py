@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import contextlib,io,unittest.mock,builtins,hashlib,json,os,pathlib,shutil,subprocess,sys,tempfile,types,unittest
+import contextlib,errno,io,unittest.mock,builtins,hashlib,json,os,pathlib,shutil,subprocess,sys,tempfile,types,unittest
 HERE=pathlib.Path(__file__).absolute().parent;STAGE=HERE.parent.parent;CANONICAL=STAGE
 BOOT=HERE/'operations-scope-compatible-read-native-pinned-postgrest.py';IMPL=HERE/'operations-scope-compatible-read-native-pinned-postgrest-impl.py';CLOSURE=HERE/'operations-scope-compatible-read-native-pinned-postgrest-closure.json'
 WORKFLOW=STAGE/'.github/workflows/operations-project-economy.yml'
@@ -118,6 +118,28 @@ class Tests(unittest.TestCase):
    self.assertEqual(reached[-1],expected)
    if expected in {'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify'}:self.assertNotIn('effects',reached)
   self.assertEqual(calls,[])
+ def test_immutable_set_reports_only_fixed_operation_class(self):
+  original=self.b.set_flags
+  try:
+   for kind,number,expected in (
+    ('file',errno.EPERM,'immutable_file_set_permission'),
+    ('directory',errno.EACCES,'immutable_directory_set_permission'),
+    ('file',errno.ENOTTY,'immutable_file_set_unsupported'),
+    ('directory',errno.EOPNOTSUPP,'immutable_directory_set_unsupported'),
+    ('file',errno.EIO,'immutable_file_set_other')):
+    def denied(*_args,_number=number):raise OSError(_number,'PRIVATE_PATH_PRIVATE_BODY')
+    self.b.set_flags=denied
+    with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,kind)
+    self.assertEqual(self.b.ACTIVE_PHASE,expected)
+  finally:self.b.set_flags=original
+ def test_immutable_set_readback_and_invalid_kind_fail_closed(self):
+  original_set,original_flags=self.b.set_flags,self.b.flags
+  try:
+   self.b.set_flags=lambda *_:None;self.b.flags=lambda *_:0
+   with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,'file')
+   self.assertEqual(self.b.ACTIVE_PHASE,'immutable_file_readback')
+   with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,'unknown')
+  finally:self.b.set_flags,self.b.flags=original_set,original_flags
  def test_implementation_paths_are_materialized_and_digest_only(self):
   text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
  def test_import_loader_cannot_reopen_implementation(self):
