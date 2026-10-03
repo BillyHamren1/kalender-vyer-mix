@@ -13,8 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CLOSURE_BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
 CLOSURE_TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
-PUBLISHED_PARENT = "69b163d3e530a12c94f81304af607ee0c521af4e"
-PUBLISHED_PARENT_TREE = "c379096cf86f8cfbdbd04debcb5ec4842deecbda"
+PUBLISHED_PARENT = "5a6d2de598d59808f9409bff193f482ef59cde73"
+PUBLISHED_PARENT_TREE = "619c87da0d90edd7d01b7f3bf2401a8cc68f5880"
 FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "docs/project-economy/operations-obligation-reconciliation-v1-contract.md",
@@ -28,6 +28,7 @@ FILES = [
 SUCCESSOR_FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py",
+    "scripts/project-economy/operations-obligation-reconciliation-native.py",
 ]
 MIGRATION = ROOT / FILES[-1]
 TEST = ROOT / "scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql"
@@ -106,7 +107,7 @@ class Guard(unittest.TestCase):
     def test_provenance_models_and_negative_parent_tree_path_guards(self) -> None:
         local = dict(mode="local", head=PUBLISHED_PARENT, head_tree=PUBLISHED_PARENT_TREE, parent=None,
                      parent_tree=PUBLISHED_PARENT_TREE, revision_count=0, changed_paths=SUCCESSOR_FILES,
-                     status_codes=[" M", " M"])
+                     status_codes=[" M", " M", " M"])
         published = dict(mode="published", head="f" * 40, head_tree="e" * 40, parent=PUBLISHED_PARENT,
                          parent_tree=PUBLISHED_PARENT_TREE, revision_count=1, changed_paths=SUCCESSOR_FILES,
                          status_codes=[])
@@ -240,6 +241,44 @@ class Guard(unittest.TestCase):
         namespace = runpy.run_path(str(RUNNER), run_name="obligation_reconciliation_runner_test")
         self.assertEqual(namespace["finalize_result"](0, True, "must-not-print"), 1)
         self.assertEqual(namespace["finalize_result"](1, False, ""), 1)
+
+    def test_final_postmaster_readiness_and_redacted_diagnostics(self) -> None:
+        namespace = runpy.run_path(str(RUNNER), run_name="obligation_reconciliation_readiness_test")
+        advance = namespace["advance_readiness_streak"]
+        sanitize = namespace["sanitize_diagnostic"]
+        self.assertEqual(advance(False, True, 2), 0)
+        self.assertEqual(advance(True, False, 2), 0)
+        self.assertEqual(advance(True, True, 0), 1)
+        self.assertEqual(advance(True, True, advance(True, True, advance(True, True, 0))), 3)
+        for credential_payload in (
+            "Authorization: Bearer first second third",
+            "Authorization Basic dXNlcjpwYXNz extra",
+            "token = alpha beta gamma",
+            "password : multi word credential",
+            "secret    = quoted value with spaces",
+            '{"token":"json quoted multi word"}',
+            '{\n  "password":\n  "value on a later line"\n}',
+            "PGPASSWORD=plain text value",
+            "POSTGRES_PASSWORD=json adjacent value",
+            "ACCESS_TOKEN=header shaped value",
+            "api_token = lowercase underscored value",
+        ):
+            self.assertEqual(sanitize(credential_payload), "<redacted sensitive diagnostic payload>")
+        bounded = sanitize("\n".join(f"safe-{index}-" + "x" * 700 for index in range(100)))
+        self.assertLessEqual(len(bounded), 4000)
+        self.assertLessEqual(len(bounded.splitlines()), 80)
+        self.assertNotIn("safe-0-", bounded)
+        for text in (
+            "INIT_COMPLETE_MARKER", "REQUIRED_READY_STREAK = 3", '"pg_isready", "-h", LOOPBACK',
+            '"psql", "-XAt", "--no-password", "-h", LOOPBACK',
+            '"psql", "-X", "--no-password", "-h", LOOPBACK',
+            '"-e", "PGPASSWORD=synthetic-only", cid,\n            "psql"',
+            '"exec", "-e", "PGPASSWORD=synthetic-only", cid, "psql"',
+            'docker("logs", "--tail", "80"', "emit_container_diagnostics(cid)",
+        ):
+            self.assertIn(text, self.runner)
+        self.assertNotIn('"psql", "-X", "--no-password", "-U"', self.runner)
+        self.assertEqual(self.runner.count('PGPASSWORD=synthetic-only'), 2)
 
     def test_workflow_is_exact_and_read_only(self) -> None:
         for text in (

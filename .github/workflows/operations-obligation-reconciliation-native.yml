@@ -30,8 +30,8 @@ jobs:
       - name: Exact additive source route
         env:
           OPS_RECONCILIATION_PROVENANCE_MODE: published
-          OPS_RECONCILIATION_EXPECTED_PARENT: 69b163d3e530a12c94f81304af607ee0c521af4e
-          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: c379096cf86f8cfbdbd04debcb5ec4842deecbda
+          OPS_RECONCILIATION_EXPECTED_PARENT: 5a6d2de598d59808f9409bff193f482ef59cde73
+          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: 619c87da0d90edd7d01b7f3bf2401a8cc68f5880
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$OPS_RECONCILIATION_EXPECTED_PARENT"
@@ -41,6 +41,7 @@ jobs:
           cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
           .github/workflows/operations-obligation-reconciliation-native.yml
           scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py
+          scripts/project-economy/operations-obligation-reconciliation-native.py
           EOF
           cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
           python3 -I -B scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py

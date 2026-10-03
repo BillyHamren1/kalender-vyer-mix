@@ -10,12 +10,18 @@ import subprocess
 import sys
 import tempfile
 import time
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = "docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb"
 SOCKET = "unix:///var/run/docker.sock"
 EXPECTED_BINARY = "postgres (PostgreSQL) 15.19 (Debian 15.19-1.pgdg13+2)"
 EXPECTED_PACKAGE = "15.19-1.pgdg13+2"
+LOOPBACK = "127.0.0.1"
+INIT_COMPLETE_MARKER = "PostgreSQL init process complete; ready for start up."
+REQUIRED_READY_STREAK = 3
+DIAGNOSTIC_SECRET = re.compile(r"(?i)(password|token|secret|authorization)")
+REDACTED_DIAGNOSTIC = "<redacted sensitive diagnostic payload>"
 
 
 def run(args: list[str], *, input_text: str | None = None, timeout: int = 120, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -30,8 +36,9 @@ def docker(*args: str, timeout: int = 120, check: bool = True, input_text: str |
 
 
 def psql(cid: str, sql: str, *, file_mode: bool = False) -> str:
-    args = ["exec", "-i", "-e", "PGOPTIONS=-c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000", cid,
-            "psql", "-X", "--no-password", "-U", "postgres", "-d", "reconcile", "-v", "ON_ERROR_STOP=1"]
+    args = ["exec", "-i", "-e", "PGOPTIONS=-c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000",
+            "-e", "PGPASSWORD=synthetic-only", cid,
+            "psql", "-X", "--no-password", "-h", LOOPBACK, "-U", "postgres", "-d", "reconcile", "-v", "ON_ERROR_STOP=1"]
     if not file_mode:
         args.extend(["-At", "-c", sql])
         sql = ""
@@ -71,6 +78,40 @@ def finalize_result(result: int, cleanup_failed: bool, success_message: str) -> 
     return result
 
 
+def advance_readiness_streak(marker_seen: bool, pg_ready: bool, current: int) -> int:
+    """Only consecutive readiness after final-init evidence advances the gate."""
+    if not marker_seen or not pg_ready:
+        return 0
+    return current + 1
+
+
+def sanitize_diagnostic(value: str, *, limit: int = 4000, max_lines: int = 80, max_line_chars: int = 500) -> str:
+    """Fail closed for credential-bearing payloads; otherwise bound lines and bytes."""
+    cleaned = "".join(char for char in value if char in "\n\t" or ord(char) >= 32)
+    if DIAGNOSTIC_SECRET.search(cleaned):
+        return REDACTED_DIAGNOSTIC
+    lines = [line[:max_line_chars] for line in cleaned.splitlines()[-max_lines:]]
+    return "\n".join(lines)[-limit:]
+
+
+def emit_container_diagnostics(cid: str) -> None:
+    """Best-effort bounded evidence; diagnostic failure cannot mask the root cause."""
+    try:
+        state = docker(
+            "inspect", "--format", "status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}",
+            cid, timeout=10, check=False,
+        )
+        state_text = sanitize_diagnostic(state.stdout or state.stderr, limit=500).replace("\n", " ").strip()
+        print(f"OPS_RECONCILIATION_NATIVE_DIAGNOSTIC container={state_text or 'unavailable'}", file=sys.stderr)
+        logs = docker("logs", "--tail", "80", cid, timeout=10, check=False)
+        tail = sanitize_diagnostic("\n".join(part for part in (logs.stdout, logs.stderr) if part))
+        print("OPS_RECONCILIATION_NATIVE_DIAGNOSTIC log_tail_begin", file=sys.stderr)
+        print(tail or "unavailable", file=sys.stderr)
+        print("OPS_RECONCILIATION_NATIVE_DIAGNOSTIC log_tail_end", file=sys.stderr)
+    except (subprocess.SubprocessError, OSError):
+        print("OPS_RECONCILIATION_NATIVE_DIAGNOSTIC unavailable", file=sys.stderr)
+
+
 def main() -> int:
     cid = ""
     phase = "preflight"
@@ -96,13 +137,32 @@ def main() -> int:
             raise RuntimeError("invalid_container_id")
         phase = "container_start"
         docker("start", cid, timeout=30)
-        phase = "readiness"
-        deadline = time.monotonic() + 30
+        phase = "final_readiness"
+        deadline = time.monotonic() + 60
+        marker_seen = False
+        ready_streak = 0
         while time.monotonic() < deadline:
-            if docker("exec", cid, "pg_isready", "-U", "postgres", "-d", "reconcile", timeout=5, check=False).returncode == 0:
-                break
+            logs = docker("logs", "--tail", "200", cid, timeout=5, check=False)
+            marker_seen = marker_seen or INIT_COMPLETE_MARKER in (logs.stdout + logs.stderr)
+            ready = False
+            if marker_seen:
+                ready = docker(
+                    "exec", cid, "pg_isready", "-h", LOOPBACK, "-U", "postgres", "-d", "reconcile",
+                    timeout=5, check=False,
+                ).returncode == 0
+            ready_streak = advance_readiness_streak(marker_seen, ready, ready_streak)
+            if ready_streak >= REQUIRED_READY_STREAK:
+                probe = docker(
+                    "exec", "-e", "PGPASSWORD=synthetic-only", cid, "psql", "-XAt", "--no-password", "-h", LOOPBACK, "-U", "postgres",
+                    "-d", "reconcile", "-v", "ON_ERROR_STOP=1", "-c", "select 1",
+                    timeout=5, check=False,
+                )
+                if probe.returncode == 0 and probe.stdout.strip() == "1":
+                    break
+                ready_streak = 0
+            time.sleep(0.2)
         else:
-            raise RuntimeError("postgres_readiness_timeout")
+            raise RuntimeError("postgres_final_readiness_timeout")
         phase = "identity"
         binary = docker("exec", cid, "postgres", "--version", timeout=10).stdout.strip()
         package = docker("exec", cid, "/bin/sh", "-ceu", 'printf "%s" "$PG_VERSION"', timeout=10).stdout.strip()
@@ -131,7 +191,9 @@ def main() -> int:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as exc:
         print(f"OPS_RECONCILIATION_NATIVE_FAILURE phase={phase} error={type(exc).__name__}", file=sys.stderr)
         if isinstance(exc, subprocess.CalledProcessError):
-            print(exc.stderr[-4000:], file=sys.stderr)
+            print(sanitize_diagnostic(exc.stderr), file=sys.stderr)
+        if cid:
+            emit_container_diagnostics(cid)
         result = 1
     finally:
         if cid:
