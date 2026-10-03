@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".github/workflows/operations-project-economy.yml",
-      "sha256": "7a1951756130873f8a675f69d201f7dbf38e7e8387932ddb5163834384e5cbf2",
-      "bytes": 87292
+      "sha256": "ac83768e06634b67b48b5e1055fecd9ca17998a5628a22d953b23da6775640fa",
+      "bytes": 96307
     },
     {
       "path": "docs/project-economy/economic-evidence-mounted-modes-contract.md",
