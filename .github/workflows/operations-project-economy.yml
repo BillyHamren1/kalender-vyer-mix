@@ -1196,7 +1196,46 @@ jobs:
           umask 077
           git rev-parse HEAD
           psql -X --no-password -At -c 'select version()'
-          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-scope-compatible-read-native.py
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B - <<'PY_HELD_BOOTSTRAP'
+          # BEGIN HELD BOOTSTRAP LAUNCHER V2
+          import hashlib,os,stat
+          BOOTSTRAP_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py'
+          BOOTSTRAP_SHA256='b7bd6251999a256b32d34d2c23e9d30d2107caa4db1ceaa6fcc8396de4de9e53'
+          CLOSURE_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
+          CLOSURE_SHA256='a0083017745b726f343bcbac90005a6225689100660d50c96fea2acd697b7f9e'
+          def identity(value):
+              return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+          def open_held(path,expected,maximum):
+              fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+              try:
+                  before=os.fstat(fd)
+                  if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or before.st_mode&0o022 or before.st_size>maximum:
+                      raise RuntimeError('held_authority_refused')
+                  chunks=[];offset=0
+                  while True:
+                      part=os.pread(fd,min(65536,maximum+1-offset),offset)
+                      if not part:break
+                      chunks.append(part);offset+=len(part)
+                      if offset>maximum:raise RuntimeError('held_authority_refused')
+                  data=b''.join(chunks);after=os.fstat(fd);current=os.stat(path,follow_symlinks=False)
+                  if identity(before)!=identity(after) or identity(after)!=identity(current) or hashlib.sha256(data).hexdigest()!=expected:
+                      raise RuntimeError('held_authority_refused')
+                  return fd,identity(before),data
+              except BaseException:
+                  os.close(fd);raise
+          def authority(value):return {'fd':value[0],'identity':value[1],'bytes':value[2]}
+          bootstrap=open_held(BOOTSTRAP_PATH,BOOTSTRAP_SHA256,131072)
+          try:
+              closure=open_held(CLOSURE_PATH,CLOSURE_SHA256,2097152)
+              try:
+                  namespace={'__name__':'__main__','__file__':BOOTSTRAP_PATH,'__package__':None,'__held_bootstrap__':authority(bootstrap),'__held_closure__':authority(closure)}
+                  exec(compile(bootstrap[2],'<held-bootstrap:'+BOOTSTRAP_SHA256+'>','exec',dont_inherit=True,optimize=0),namespace,namespace)
+              finally:
+                  os.close(closure[0])
+          finally:
+              os.close(bootstrap[0])
+          # END HELD BOOTSTRAP LAUNCHER V2
+          PY_HELD_BOOTSTRAP
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=normal)"
 

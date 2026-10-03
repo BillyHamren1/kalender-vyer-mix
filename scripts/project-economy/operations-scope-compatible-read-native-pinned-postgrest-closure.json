@@ -1,0 +1,470 @@
+{
+  "database": "eventflow_scope_publication_runtime",
+  "files": {
+    "docs/project-economy/operations-scope-compatible-read-native-pinned-postgrest-contract.md": {
+      "bytes": 3326,
+      "git_blob": "aee74421fbe5bb40f1d66cba2e459ab39d32f171",
+      "sha256": "878d3e7f39efe5bd0fe9c611b0105b152478e55b97c028fcfae1c6d7d451d3c8"
+    },
+    "docs/project-economy/whole-scope-compatible-reader-caller-audit.md": {
+      "bytes": 5715,
+      "git_blob": "f2520b361d5e7d7479808b9cff9dce7dfc7a6636",
+      "sha256": "27a8cf93a2202c23801d9446ac7f5004ab8a133a75289df85e7b439ca804de8e"
+    },
+    "docs/project-economy/whole-scope-compatible-reader-entry-v1-implementation.md": {
+      "bytes": 7998,
+      "git_blob": "37125996581adc7592da2325cfbab9ded1408b6f",
+      "sha256": "f1fc4d607cd544fb57b7056fa43ebbfd01708832541071fd64b470d098abd63e"
+    },
+    "docs/project-economy/whole-scope-compatible-reader-native-contract.md": {
+      "bytes": 7660,
+      "git_blob": "8dbaba38193d5b184bded581329a310788bc2d27",
+      "sha256": "3d6e2b88eaf9495ea5049b8cb70467eb645aacd31cd357866e2ca03d9d8c7028"
+    },
+    "docs/project-economy/whole-scope-compatible-reader-source-audit.json": {
+      "bytes": 132316,
+      "git_blob": "f12038cd3ba92431497ab4b751ee9b7aa3d765ce",
+      "sha256": "7db3f6402868d6c749d6a90de1c8f0040d5c04d60abce77cbe8ac023ece7a99d"
+    },
+    "docs/project-economy/whole-scope-publication-transaction-native-contract.md": {
+      "bytes": 17633,
+      "git_blob": "8d07bed9f26c8b44ce26aaef3610a0783f5b3ca2",
+      "sha256": "2507790a56210a3756e466626b5b065312c39fa4821d1b751953009bce9fbb9a"
+    },
+    "docs/project-economy/whole-scope-publication-try-native-contract.md": {
+      "bytes": 7751,
+      "git_blob": "0ac59dc69e6eb3583d570f586a42e708b2e31f40",
+      "sha256": "09377e518ec700de150c466a09070c8d616cf62a06ad300fccbd3219a64f02e2"
+    },
+    "docs/project-economy/whole-scope-reader-permission-native-contract.md": {
+      "bytes": 11031,
+      "git_blob": "5ca4d5eb9561ac241845baebcb595404864a106b",
+      "sha256": "2c020dd3949ef097fcdf71189ca12e67c2f7f2ab956f4c5f4a2eb226eb9c92f0"
+    },
+    "scripts/project-economy/operations-catering-bootstrap.sql": {
+      "bytes": 326,
+      "git_blob": "6b1f483c6c07304bc16dfb2eae70939cf8030247",
+      "sha256": "0fe6be94d0f1423dbeedf2b41c1e73c615720253c22688f6a032e959ddd3484c"
+    },
+    "scripts/project-economy/operations-hired-personnel-native.py": {
+      "bytes": 15469,
+      "git_blob": "ba51f90d7d02d43f7a9212d74ddf9876edd15a82",
+      "sha256": "cf09748e2796085ffde8577efda560df1aaa70e02bafce239982cde09ffbcd76"
+    },
+    "scripts/project-economy/operations-invoice-kernel-vector-test.ts": {
+      "bytes": 3159,
+      "git_blob": "dff6cbf3c64e1aac51990dae3eb3e26d566afc2b",
+      "sha256": "5426b8d1c4d07e702804ef02ee576a8fcf8d0c01161b194810b0d35ba251296e"
+    },
+    "scripts/project-economy/operations-invoice-obligation-kernel-postgres-test.sql": {
+      "bytes": 10563,
+      "git_blob": "e128f72d7d6f181c81565c55aabf156f3fcfbd8d",
+      "sha256": "fbea953e8b50f940d6f83a5ecc7c25f293b14891899028320a1f1b84358c2e92"
+    },
+    "scripts/project-economy/operations-obligation-fixture.ts": {
+      "bytes": 2158,
+      "git_blob": "2e85e06508b0c56cde2e9db7d69aae0d092f5af0",
+      "sha256": "4d2128899addeb0ec5405b05780dc7019e5b9f276f26e8e93c4b2794d3a1c984"
+    },
+    "scripts/project-economy/operations-postgres-bootstrap.sql": {
+      "bytes": 180,
+      "git_blob": "a157c6814d27fec678da954285e8fb8ffa0c7c23",
+      "sha256": "198da5f625ee7e34658d9269e8a4b303f887c40a617dd133b74d606192c4de22"
+    },
+    "scripts/project-economy/operations-project-review-bootstrap.sql": {
+      "bytes": 2527,
+      "git_blob": "b28da1ae48ef768868701d77a1de576bd55a3f3f",
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6"
+    },
+    "scripts/project-economy/operations-scope-bootstrap.sql": {
+      "bytes": 1931,
+      "git_blob": "180268ac39378f43cdfdf21fb5d7657c3798af1d",
+      "sha256": "eb08814ac11a7911916915552ac7ab7c9ee73ab852f32344d541f07021247506"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-http-budget-test.ts": {
+      "bytes": 2894,
+      "git_blob": "7ecc9f9b43c858bc9074507e2e7ad15c44d12feb",
+      "sha256": "d8f1242e508ae64dac6fac7ac18432be84fe4c23f0a122cfce96413921249b0f"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-http-health.py": {
+      "bytes": 1253,
+      "git_blob": "f019b7debc08cb2e737c50d0d4df2b1abcae993c",
+      "sha256": "a7c25f0a687d8740fee808fc3bb27a4eb7d0babeac9fb57d39ef622eff80be67"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-http-journey.ts": {
+      "bytes": 13896,
+      "git_blob": "62e7510a2b2affeb918e3ab755386138d9a4e731",
+      "sha256": "d40b064503af37a1f9f5ae32fffcd92b14f4ffec0c71b310c72d01cbc66a2296"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-http-role.sql": {
+      "bytes": 3711,
+      "git_blob": "c119755eb48cfe4cba251c459848922fc8a6eeac",
+      "sha256": "81ecdb28a87308eb2f88c100c01d98239d2dbe6c12284be865a6388fd9b75d45"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-native-concurrency.sh": {
+      "bytes": 38696,
+      "git_blob": "3f107179f0c1814b6c3b16fdfe811f39747f0446",
+      "sha256": "7b986558bb4f938dfb39c5c55ae77aceec59e1d14c674ea6b956d4f1395f3135"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-impl.py": {
+      "bytes": 32508,
+      "git_blob": "fc5566d39029407512781db8c8883bb2f9fa8351",
+      "sha256": "bd51c0b6cb29cfa5b9f6955cc3424b9fbc020055b7f677c9a90d4d6f3a0a35a6"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.guard.test.py": {
+      "bytes": 9389,
+      "git_blob": "5b0d124ec0b23905cb5d64dfd77e5ca541680787",
+      "sha256": "4f9222b0b28c53ff3d7cb1e234fd18602e74e4123b506771d43d5060929ddbbc"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-native-setup.sql": {
+      "bytes": 8449,
+      "git_blob": "470571a302ff51d29d04437c6ee5300f9f2c8154",
+      "sha256": "57aeec982c648fb7dfc1d78ecc82dc9ab18f007ebce0e046036d071a66d0a2cc"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-postgres-test.sql": {
+      "bytes": 12827,
+      "git_blob": "c2b062597dc47b524b7621fdea858119a590c7e1",
+      "sha256": "df37826496882cc386f3e2dcf57709d8c92b1a7fe81b770ecbea568a8268a60b"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-preflight-postgres-test.sql": {
+      "bytes": 4000,
+      "git_blob": "77a5619c345b7c4eecf092231f3f79fb0a9c10c8",
+      "sha256": "e8887836ce79d93e3f06d4c2aeb61647e52644669ceb3dd6c9ecbd16b12e7499"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-refresh-vectors.sql": {
+      "bytes": 2736,
+      "git_blob": "a8b6443f60b2ce675bcef89ed1afa535b8fb7b06",
+      "sha256": "c72c1c2190d0f78a9b74efb3e71855cd74dd359a0f53e48470ef00ff145fa961"
+    },
+    "scripts/project-economy/operations-scope-compatible-read-vector-test.ts": {
+      "bytes": 4197,
+      "git_blob": "1e9c8ca3bae0b5e21eac77df3f85f4a251724d15",
+      "sha256": "23a0346ab9674f6ddb71fae8855cf639ab8e70551f8528483e4c10a6de430f3d"
+    },
+    "scripts/project-economy/operations-scope-invoice-kernel-native-setup.sql": {
+      "bytes": 14223,
+      "git_blob": "c5595ccea3a6ae4414573126820c9475fb9ae674",
+      "sha256": "d2c06e9bfe4b141444c5fcbb6b892e2c9c6835e879c93184952fc763f7bcf642"
+    },
+    "scripts/project-economy/operations-scope-invoice-kernel-postgres-test.sql": {
+      "bytes": 18377,
+      "git_blob": "014d5a2df1d7817764081a46733742df12dd9a2d",
+      "sha256": "a0155d4e9a494e062d30efc2f4925bb6b406e29e9bc9ec15cd72d68f72f55655"
+    },
+    "scripts/project-economy/operations-scope-invoice-kernel-vector-test.ts": {
+      "bytes": 4870,
+      "git_blob": "ed17a28b83dcc41e60f8f9f791e60c5bbcad748b",
+      "sha256": "17f5ba0f54fabf2bdc8c0ddb03d75f1f6118807ad03d88cb7683c00c46a8496d"
+    },
+    "scripts/project-economy/operations-transport-seed.sql": {
+      "bytes": 1906,
+      "git_blob": "e41e996be0f176d5d8993215727aadf710b45e5d",
+      "sha256": "bf1e69eaaa0570eb6630fa8d2958cb664bdd76d433e9d332144e18d853fba27b"
+    },
+    "scripts/project-economy/operations-whole-scope-projection-native.py": {
+      "bytes": 15992,
+      "git_blob": "6e3d5da6641d01fde1bb256d685149879936a9de",
+      "sha256": "3001042c4aaa06e2a0c7558818a84920d261a34d55d28101a4b5a84fefa24fdd"
+    },
+    "scripts/project-economy/operations-whole-scope-publication-transaction-native.guard.test.py": {
+      "bytes": 8579,
+      "git_blob": "cde49634003a63f876ae354dba3cb56b7575d340",
+      "sha256": "b16359be1a0a7a12fd15c9d71eae5384bc7b189c2a7d145c82c584e71e9ff3dd"
+    },
+    "scripts/project-economy/operations-whole-scope-publication-transaction-native.py": {
+      "bytes": 13097,
+      "git_blob": "5327b9dac7838804b4f407303c7f9c574e043f9d",
+      "sha256": "271add7c5c0f9a4875645bdde3fd80471bb494d8787c9f9d64258a9b25ecb12e"
+    },
+    "scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py": {
+      "bytes": 13781,
+      "git_blob": "e855477c92badf1f85950854a18766e3f9a73b49",
+      "sha256": "186b26dff78fe476ef0e87b25b249f5695d1dc5923a5950977ac75d69d96d063"
+    },
+    "scripts/project-economy/operations-whole-scope-publication-try-native.py": {
+      "bytes": 12757,
+      "git_blob": "a20b86e0df89664379e9df110010c1d2ceaed28c",
+      "sha256": "14194e3c6f99333aaaee247fed02c417ce13a80f3092ef6e2a1d47a4fa1014db"
+    },
+    "scripts/project-economy/operations-whole-scope-reader-permission-native.guard.test.py": {
+      "bytes": 12389,
+      "git_blob": "88b5da2223e00f6779d85fe2fcfa346122450c11",
+      "sha256": "e70814440b962c765db61bbf0bfec091014d57f12aae72fd73a31cf7d6ea6bdd"
+    },
+    "scripts/project-economy/operations-whole-scope-reader-permission-native.py": {
+      "bytes": 13045,
+      "git_blob": "449bb6c2231d4db6450d5dd476f21695ece6138e",
+      "sha256": "89aff46264b47d709dd77f1129a82622ac1ba178dc33d06c56f4549147b415b2"
+    },
+    "scripts/project-economy/project-evidence-http-runtime/schema-closure.json": {
+      "bytes": 1931,
+      "git_blob": "291af0c08a32eeddb898dfd3a872f80346068a7a",
+      "sha256": "62761562c12ab01e1883bd9b96011182c5ba8d59ebc47cd9e1fa9bb9dc1069d9"
+    },
+    "scripts/project-economy/whole-scope-projection-native-closure.json": {
+      "bytes": 7823,
+      "git_blob": "05e7a5372d9f0a44aa7d7b8b3ad696fbe86c3a5f",
+      "sha256": "39b99f6771f00cd1fd792793ad82df7dc2faa07b6e1ead4bba5f61cb2e102ca9"
+    },
+    "scripts/project-economy/whole-scope-projection-parity-pglite.mjs": {
+      "bytes": 4824,
+      "git_blob": "3e4382abc314285db37d10e9876fed086b4dbc5f",
+      "sha256": "a0ec7e95e31a5074d7ecc2c3c3f002e8e41caca922c7ebdbaaebb7b24438ab1b"
+    },
+    "scripts/project-economy/whole-scope-projection-parity-vectors.ts": {
+      "bytes": 20720,
+      "git_blob": "f1b2b5634a0bdd0e5bf5341729dd2be2cf12fa83",
+      "sha256": "a18e6532e34a7f4574c381fa4075f9438c64192297ea4318522da53196fb665e"
+    },
+    "scripts/project-economy/whole-scope-projection-sql-prototype.sql": {
+      "bytes": 12463,
+      "git_blob": "a22c0231e0dc5636cfa20e8c1c20c9ea0cf92dcc",
+      "sha256": "5f3c95ad51c6c65f1dbd7bfcadbbbae1672ed3becdfd64dc917ce7b4c7370780"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-closure.json": {
+      "bytes": 9518,
+      "git_blob": "734c2b9c662f15b9ed31af634b660051cd4e56c4",
+      "sha256": "80c08c6bdf270a2a910d45953a8b8b75bcca1148e04302146c90f5f7ed215342"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-concurrency.sh": {
+      "bytes": 31270,
+      "git_blob": "0cb36b6d28cf8df985ba094b5776fe44408f2f30",
+      "sha256": "57ff50626f83bda04681bc5d5e980cd7c259f20fc46627f0e211602b2269407c"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-postgres-test.sql": {
+      "bytes": 11642,
+      "git_blob": "cef2fed41c1bf077c847937967f05233633fd66d",
+      "sha256": "7e366537ae92dc5eca36f3b5f981eaa2cfff799f3731ce14029b462c1332c3f4"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-setup.sql": {
+      "bytes": 21851,
+      "git_blob": "9eef2ae177ad226e96f86bfda53955ba5bc7d0ca",
+      "sha256": "bb3a72e99676841e3df997948eac3bf348b20291d0d85ea79b420d1624393fc3"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts": {
+      "bytes": 6323,
+      "git_blob": "9995ba8f132f12be7cf0394e248d18732fd6a47f",
+      "sha256": "7e6352149d9ef43ce41ef56750b71cc1e9776069a70845d37bfc80045e1be7d9"
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-prototype.sql": {
+      "bytes": 13577,
+      "git_blob": "2bda8373e7a807665223040b0024178b6f68ae8f",
+      "sha256": "49c3242be16c8887f488fc7b312426c41179f0ce472d30be92c49e76a5aa46cc"
+    },
+    "scripts/project-economy/whole-scope-publication-try-native-closure.json": {
+      "bytes": 10554,
+      "git_blob": "07a3fc9fffc14b1695f82d20823fa3de916fbf28",
+      "sha256": "3b2c3c17f2ad8c6f22b45a8d33d703bd3a4aa7309ff3cb3b9c41b538b88b6979"
+    },
+    "scripts/project-economy/whole-scope-publication-try-native-concurrency.sh": {
+      "bytes": 34890,
+      "git_blob": "5901878b18891ef85e3076ba8a418a896ee3bd9c",
+      "sha256": "6f5f35f1309c271e4467c8467c5b882c2cadc6660bc347e5caed62d0b9ab85d2"
+    },
+    "scripts/project-economy/whole-scope-publication-try-native-setup.sql": {
+      "bytes": 5533,
+      "git_blob": "50ade0d5b346c0e9377f2b7c6f17aef8c7a0b5df",
+      "sha256": "f71ce737591ec71a779bf61dd9acfee996ee9dd62f9eb8cb5fb3096aeb4cdf76"
+    },
+    "scripts/project-economy/whole-scope-publication-try-native-wrapper.sql": {
+      "bytes": 16451,
+      "git_blob": "b56da250c960ed54b41b3f3b2f707e13947a7146",
+      "sha256": "4079e07ab18d1953357e74f68837d8d78f209e44671c25595b851a9231ce82a2"
+    },
+    "scripts/project-economy/whole-scope-reader-permission-native-closure.json": {
+      "bytes": 11610,
+      "git_blob": "374aeb6568c162b9aa047ae0f4d49a890975c8a0",
+      "sha256": "e3cfbeac5eefad66969cfee16202d917bf0cd4181a844e9439c368609076b829"
+    },
+    "scripts/project-economy/whole-scope-reader-permission-native-concurrency.sh": {
+      "bytes": 32723,
+      "git_blob": "b512a575fc7dc27eb1260c294bc273e49a607928",
+      "sha256": "74e0768658b0d18cf5433badac00901dffd8eea120f3f88d97cbbf8a352097ba"
+    },
+    "scripts/project-economy/whole-scope-reader-permission-native-postgres-test.sql": {
+      "bytes": 8652,
+      "git_blob": "39018592b343c327a6005dd1458d224063259908",
+      "sha256": "2fd9dcb5487ec3c155d14110d494e881655332ae6e2061c9ed3aff6fd4787235"
+    },
+    "scripts/project-economy/whole-scope-reader-permission-native-setup.sql": {
+      "bytes": 12117,
+      "git_blob": "58133640f070a5536aa94f59e1e660cadfb756a5",
+      "sha256": "f6405a33ee15115108980c7063ba7d59090fc7bc325e4c7fd7718dc5808f8b37"
+    },
+    "src/lib/economy/projectScopeInvoiceCapture.ts": {
+      "bytes": 3905,
+      "git_blob": "4eabe065ffce730cd14942c9b7ec198c550d8d0e",
+      "sha256": "fc0e7e2a4fc162d0dd7159e43cda1df52379f56ab26e662ed9db35bea6291597"
+    },
+    "supabase/functions/_shared/finance-project-invoice-destination.ts": {
+      "bytes": 8481,
+      "git_blob": "82846cae6960f9586a7fdfe9829adeee02198de1",
+      "sha256": "dce12d3bcc12ea40116ef2722ea652cb1e0e08ce18ac002960fe8fce6c5411ac"
+    },
+    "supabase/functions/_shared/finance-project-invoice.ts": {
+      "bytes": 8268,
+      "git_blob": "7ffa7717dcc5403e2a76fd8d600fb748155a48d6",
+      "sha256": "aa1507ef4430792842ac1478312dd35839ff0ade1d0db1b6acc6f379c1c84860"
+    },
+    "supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts": {
+      "bytes": 9071,
+      "git_blob": "0f958ce7b0e890b443e4e3f10a48cd9b0e8248ea",
+      "sha256": "32cca05ac11fa99c74ca54e699770ba2495c0956beca730f4a576452ef882081"
+    },
+    "supabase/functions/_shared/project-cost-obligation-authority.ts": {
+      "bytes": 4726,
+      "git_blob": "462d5ed38adf96024b500d1a3677781bcc8afae8",
+      "sha256": "1794f6cf68622719fe2fff364e94e245992072eb255ee46e727751481b93ca0c"
+    },
+    "supabase/functions/_shared/project-cost-obligations.ts": {
+      "bytes": 8533,
+      "git_blob": "684e753a2fd36467ea03a35ed662d07ff9b9d572",
+      "sha256": "dd9c1487d20cb9bace7f20d049cd7022ee933b322f03f8dd17cf8b166bb2979e"
+    },
+    "supabase/functions/_shared/project-operational-eac.ts": {
+      "bytes": 9946,
+      "git_blob": "99c573b5ba5c7f44e775401212301ec7ba58c349",
+      "sha256": "0415afbe992b4d21665d927f42d650640a851869295872ad9eea773813db891a"
+    },
+    "supabase/functions/_shared/project-scope-invoice-capture-admin.ts": {
+      "bytes": 2778,
+      "git_blob": "aed6198a1ac614a4869ba09f1224e8a43decf4d6",
+      "sha256": "308c9105fa52ae7c0f0e908dd5f5e56b388d7a30b2655934541ed9fe27d5509f"
+    },
+    "supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts": {
+      "bytes": 16394,
+      "git_blob": "79a00fca740f47fcb9a9bfbe0c0c1720081bf1bb",
+      "sha256": "760aef63bea5e3965f2b26ac9daf6b972fd5a53f2162e5a5d59e97d1ce1ee737"
+    },
+    "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql": {
+      "bytes": 18483,
+      "git_blob": "a94d6f6e78639307aa55525c7babac36c90c4e50",
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235"
+    },
+    "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql": {
+      "bytes": 22665,
+      "git_blob": "27d46a55880f19986e0cfaab090a64acf755e2cc",
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b"
+    },
+    "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql": {
+      "bytes": 22067,
+      "git_blob": "1828ff4b8390c0932f24e9b08de3c78a75021282",
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362"
+    },
+    "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql": {
+      "bytes": 18119,
+      "git_blob": "99aa2759bef4298dd11b6a00a7d3ac43196f455b",
+      "sha256": "1f7baf53415f44b791391e25e2888d5e156add42d609748dc63ced08928f60a2"
+    },
+    "supabase/migrations/20261001235558_operations_catering_project_evidence.sql": {
+      "bytes": 29225,
+      "git_blob": "f433fc032f8c29b2b180ccfa9819a074469090a6",
+      "sha256": "d3c86dca1531f20396bf167fd99c854f8f710aea147a9f42f52eb1c81c134c13"
+    },
+    "supabase/migrations/20261002001842_operations_project_cost_read.sql": {
+      "bytes": 4549,
+      "git_blob": "888d34e3c9ad5ef74c1839dd844ba050f0c297b7",
+      "sha256": "c3fe1c689930de33c96276b5bd3b32dd580ca70aca1f0d6d9277c66cb89c2e20"
+    },
+    "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql": {
+      "bytes": 28308,
+      "git_blob": "1cfca93e1ab9309db0d4ab5d4f8b5cfffacaa4d5",
+      "sha256": "5274e1ee675487797fb5fc12fb8d9afd6cd1c2cf1f3b3e9c8a70d3b0ddf0da60"
+    },
+    "supabase/migrations/20261002023731_operations_project_obligation_authority.sql": {
+      "bytes": 28198,
+      "git_blob": "17cc4ec8573127afbe940180e062bfd76b630308",
+      "sha256": "6c2f6a22f89932eba0eea8c6ce1b2e51edf92ccba97d31d205cb0586dff5af73"
+    },
+    "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql": {
+      "bytes": 2848,
+      "git_blob": "fa9808f0166af78642b678a52d3aebcd1cde9867",
+      "sha256": "bc243755ceb0dd6f1eb7f94cd8d90a0579ac6bde964da64bc47a9d2c51d9a81d"
+    },
+    "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql": {
+      "bytes": 27211,
+      "git_blob": "0c15c93bb948f3a7fa5e7c5a06dbfbafe82bc238",
+      "sha256": "871b824efffa449eeb6a524e38bb52b6b1da6691715315384f23229a69c78b1a"
+    },
+    "supabase/migrations/20261002025617_operations_obligation_source_policy.sql": {
+      "bytes": 16002,
+      "git_blob": "26337f48f519440c005d5f588957c2489a089689",
+      "sha256": "95107e956ef879d15889f8427502152df6c17b4e98849506229b53da143792c9"
+    },
+    "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql": {
+      "bytes": 23336,
+      "git_blob": "c5efa647024e64beedfd47b93e43bd9bb6d37c23",
+      "sha256": "1cb2ff0120d48e8bdce9372169a730f76c741a97767252655ef05a8ae9cb2754"
+    },
+    "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql": {
+      "bytes": 5873,
+      "git_blob": "5c0ab2b6214578669a4949921d62a2e0aae232cb",
+      "sha256": "2e718d519426098fa1dd641d0a0e91aad0bf9df08d4fd5f5af812f1110e30527"
+    },
+    "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql": {
+      "bytes": 5462,
+      "git_blob": "5d6b336dbb6a3fbace30f5cee6f360b051f08faf",
+      "sha256": "e6b6f3e7379d3d161cf31d65a3ba1e68baf9f9fad89c6933cf6054a92fcb1c2a"
+    },
+    "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql": {
+      "bytes": 8533,
+      "git_blob": "36cf0bbe31ccb3d577cbf9b03b2bbc62cff1de1c",
+      "sha256": "5e3e9b92a7282554a3070bc2940e5c533da9807cf2d4e79b931678a4b1527e0e"
+    },
+    "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql": {
+      "bytes": 10609,
+      "git_blob": "034edc28b7ef41ea97bd04f4793e0baf1dbd33b3",
+      "sha256": "93126c37db47794ca5f4780070f56e7216d73544422f33e7221d1e29fb6747f0"
+    },
+    "supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql": {
+      "bytes": 17275,
+      "git_blob": "c98572215a3e3fb2a8f89f54b02ead48701ffee8",
+      "sha256": "be970c2bf1124ab6a63f09241f2097659f31ce923a7636b4a084df2f1305fc6c"
+    },
+    "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql": {
+      "bytes": 11856,
+      "git_blob": "7ba0deebac4248832ea22e9e21acf11c6870a089",
+      "sha256": "4e67b0c5f534992c9c45798731067d2dc94e67811aca63d4728f29df978a0651"
+    },
+    "supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql": {
+      "bytes": 6072,
+      "git_blob": "fd122ec68e2742f4851f86e13f8855c4b959de65",
+      "sha256": "6835726268be0809e2eef57075d6c794712ecbb44ced1e22399da0aa1cb4bca3"
+    },
+    "supabase/migrations/20261002130228_operations_scope_invoice_compatible_read_entry.sql": {
+      "bytes": 23867,
+      "git_blob": "31c1235cb8e4b28554f0844e63bafb4199086e41",
+      "sha256": "2bd6d7ba1dcd0edc052bb45c4abb4f5458be7d624472b115b8ba20e15e1921b8"
+    }
+  },
+  "ordered_schema_paths": [
+    "scripts/project-economy/operations-postgres-bootstrap.sql",
+    "scripts/project-economy/operations-project-review-bootstrap.sql",
+    "scripts/project-economy/operations-catering-bootstrap.sql",
+    "scripts/project-economy/operations-scope-bootstrap.sql",
+    "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+    "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+    "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+    "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql",
+    "supabase/migrations/20261001235558_operations_catering_project_evidence.sql",
+    "supabase/migrations/20261002001842_operations_project_cost_read.sql",
+    "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql",
+    "supabase/migrations/20261002023731_operations_project_obligation_authority.sql",
+    "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql",
+    "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql",
+    "supabase/migrations/20261002025617_operations_obligation_source_policy.sql",
+    "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql",
+    "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql",
+    "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql",
+    "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql",
+    "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql",
+    "supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql",
+    "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql",
+    "scripts/project-economy/operations-transport-seed.sql"
+  ],
+  "postgrest": {
+    "environment": "EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE",
+    "image": "postgrest/postgrest@sha256:729bf65c733b73f5b52777f0e4b853f22ed73aa67a22d38269d289779b0a8401"
+  },
+  "schema": "operations-scope-compatible-read-native-pinned-postgrest-closure.v4"
+}
