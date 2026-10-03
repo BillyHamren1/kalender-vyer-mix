@@ -1,0 +1,94 @@
+name: Project economy Step 8 shadow
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/project-economy-step8-shadow.yml'
+      - 'scripts/project-economy/step8-shadow-runtime.mjs'
+      - 'src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx'
+      - 'src/components/project/ProjectEconomyStep8ShadowPanel.tsx'
+      - 'src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts'
+      - 'src/lib/economy/projectEconomyStep8ShadowAdapter.ts'
+      - 'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-economy-step8-shadow-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  exact-shadow-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: step8
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d step8"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --memory 805306368
+          --memory-swap 805306368
+          --cpus 1.0
+          --pids-limit 256
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact canonical successor and owned paths
+        env:
+          EXPECTED_PARENT: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
+          EXPECTED_PARENT_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_PARENT_TREE"
+          test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
+          git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
+          cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
+          .github/workflows/project-economy-step8-shadow.yml
+          scripts/project-economy/step8-shadow-runtime.mjs
+          src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx
+          src/components/project/ProjectEconomyStep8ShadowPanel.tsx
+          src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts
+          src/lib/economy/projectEconomyStep8ShadowAdapter.ts
+          supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
+          EOF
+          cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
+          test "$(git status --porcelain)" = ""
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+          cache: npm
+      - name: Exact locked client dependencies
+        run: |
+          set -Eeuo pipefail
+          test "$(node --version)" = v24.21.0
+          test "$(npm --version)" = 11.19.0
+          npm ci --no-audit --no-fund
+      - name: Adapter and rendered privacy tests
+        run: |
+          set -Eeuo pipefail
+          npx vitest run \
+            src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts \
+            src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx
+      - name: PostgreSQL 15.19 authenticated shadow runtime
+        env:
+          STEP8_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/step8
+          STEP8_EXPECTED_PARENT: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
+          STEP8_EXPECTED_PARENT_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+        run: |
+          set -Eeuo pipefail
+          postgres_version="$(psql "$STEP8_DATABASE_URL" -XAt --no-password -c 'show server_version')"
+          test "$postgres_version" = 15.19
+          node scripts/project-economy/step8-shadow-runtime.mjs

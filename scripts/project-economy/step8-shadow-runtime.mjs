@@ -1,0 +1,424 @@
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+
+const root = new URL('../../', import.meta.url);
+const migrationPath = new URL('supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql', root);
+const migration = readFileSync(migrationPath, 'utf8');
+const migrationSha256 = createHash('sha256').update(migration).digest('hex');
+const expectedPaths = [
+  '.github/workflows/project-economy-step8-shadow.yml',
+  'scripts/project-economy/step8-shadow-runtime.mjs',
+  'src/components/project/ProjectEconomyStep8ShadowPanel.rendered.test.tsx',
+  'src/components/project/ProjectEconomyStep8ShadowPanel.tsx',
+  'src/lib/economy/projectEconomyStep8ShadowAdapter.test.ts',
+  'src/lib/economy/projectEconomyStep8ShadowAdapter.ts',
+  'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
+];
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command,args,{ cwd: new URL('.',root), encoding:'utf8', ...options });
+  if (result.status !== 0) {
+    process.stderr.write(result.stdout ?? '');process.stderr.write(result.stderr ?? '');
+    throw new Error(`${command} failed with ${result.status}`);
+  }
+  return (result.stdout ?? '').trim();
+}
+
+if (process.env.STEP8_SKIP_PROVENANCE !== '1') {
+  const expectedParent = process.env.STEP8_EXPECTED_PARENT;
+  const expectedParentTree = process.env.STEP8_EXPECTED_PARENT_TREE;
+  if (!expectedParent || !expectedParentTree) throw new Error('exact Step8 parent provenance is required');
+  if (run('git',['rev-parse','HEAD^']) !== expectedParent) throw new Error('unexpected Step8 parent');
+  if (run('git',['rev-parse',`${expectedParent}^{tree}`]) !== expectedParentTree) throw new Error('unexpected Step8 parent tree');
+  if (run('git',['rev-list','--count',`${expectedParent}..HEAD`]) !== '1') throw new Error('Step8 must be one exact successor');
+  const changed = run('git',['diff','--name-only',expectedParent,'HEAD']).split('\n').filter(Boolean).sort();
+  if (JSON.stringify(changed) !== JSON.stringify(expectedPaths)) throw new Error(`unexpected Step8 paths: ${changed.join(',')}`);
+}
+
+for (const forbidden of [
+  /\bcreate\s+table\b/i,/\binsert\s+into\b/i,/\bupdate\s+public\b/i,/\bdelete\s+from\b/i,
+  /hourly_rate_minor/i,/source_reference/i,/\bsum\s*\([^)]*amountMinor/i,
+]) if (forbidden.test(migration)) throw new Error(`migration violates read-only/privacy boundary: ${forbidden}`);
+if (!/security definer/i.test(migration) || !/security invoker/i.test(migration))
+  throw new Error('paired definer/invoker boundary required');
+if (!/financeRecalculated',false/.test(migration) || !/authoritativeTotals',false/.test(migration) || !/replacesLegacyTotals',false/.test(migration))
+  throw new Error('shadow/non-calculator markers required');
+
+if (process.env.STEP8_STATIC_ONLY === '1') {
+  console.log(JSON.stringify({
+    status:'PASS',mode:'static-only',migrationSha256,
+    sourceParent:process.env.STEP8_EXPECTED_PARENT ?? null,
+    sourceParentTree:process.env.STEP8_EXPECTED_PARENT_TREE ?? null,
+    changedPaths:expectedPaths,
+  },null,2));
+  process.exit(0);
+}
+
+const databaseUrl = process.env.STEP8_DATABASE_URL;
+if (!databaseUrl) throw new Error('STEP8_DATABASE_URL is required');
+const orgA='10000000-0000-4000-8000-000000000001',orgB='10000000-0000-4000-8000-000000000002';
+const projectA='20000000-0000-4000-8000-000000000001',projectB='20000000-0000-4000-8000-000000000002';
+const projectWithoutGrant='20000000-0000-4000-8000-000000000003';
+const admin='30000000-0000-4000-8000-000000000001',granted='30000000-0000-4000-8000-000000000002';
+const revoked='30000000-0000-4000-8000-000000000003',cross='30000000-0000-4000-8000-000000000004';
+const sourceOrg='60000000-0000-4000-8000-000000000001';
+const invoiceOne='70000000-0000-4000-8000-000000000001',allocationOne='72000000-0000-4000-8000-000000000001';
+const invoiceTwo='70000000-0000-4000-8000-000000000002',allocationTwo='72000000-0000-4000-8000-000000000002';
+const allocationAnchor=(invoiceId,allocationId,documentFingerprint) => createHash('sha256').update([
+  'finance-invoice-allocation-source-anchor-v1',sourceOrg,invoiceId,allocationId,documentFingerprint,'SEK',
+].join('\n')).digest('hex');
+const originalSourceAnchor=allocationAnchor(invoiceOne,allocationOne,'b'.repeat(64));
+const creditSourceAnchor=allocationAnchor(invoiceTwo,allocationTwo,'d'.repeat(64));
+const request = JSON.stringify({schemaVersion:'operations-project-economy-step8-shadow-read.v1',organizationId:orgA,projectId:projectA});
+const sql = String.raw`
+\set ON_ERROR_STOP on
+create extension if not exists pgcrypto;
+create role anon noinherit;
+create role authenticated noinherit;
+create role service_role noinherit;
+create schema auth;
+create schema operations_economy_private;
+revoke all on schema operations_economy_private from public,anon,authenticated,service_role;
+grant usage on schema operations_economy_private to authenticated;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable set search_path='' as $$
+  select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
+$$;
+create table public.profiles(user_id uuid not null,organization_id uuid not null);
+create table public.projects(id uuid primary key,organization_id uuid not null,deleted_at timestamptz);
+create table public.user_roles(user_id uuid not null,organization_id uuid not null,role text not null);
+create table public.operations_project_personnel_review_grants(
+  organization_id uuid not null,project_id uuid not null,system_user_id uuid not null,
+  grant_sequence bigint not null,decision text not null
+);
+create function operations_economy_private.authorize_project_v1(p_project_id uuid,p_admin_only boolean default false)
+returns uuid language plpgsql stable security definer set search_path='' as $$
+declare v_actor uuid:=auth.uid();v_org uuid;v_admin boolean;v_grant text;
+begin
+ if v_actor is null or not exists(select 1 from auth.users where id=v_actor) then raise exception 'authenticated_system_user_required' using errcode='42501';end if;
+ begin select organization_id into strict v_org from public.profiles where user_id=v_actor;
+ exception when no_data_found or too_many_rows then raise exception 'unambiguous_system_profile_required' using errcode='42501';end;
+ if v_org is null or not exists(select 1 from public.projects where id=p_project_id and organization_id=v_org and deleted_at is null)
+ then raise exception 'organization_project_access_denied' using errcode='42501';end if;
+ select exists(select 1 from public.user_roles where user_id=v_actor and organization_id=v_org and role='admin') into v_admin;
+ if v_admin then return v_org;end if;
+ if p_admin_only or not exists(select 1 from public.user_roles where user_id=v_actor and organization_id=v_org)
+ then raise exception 'project_review_admin_required' using errcode='42501';end if;
+ select decision into v_grant from public.operations_project_personnel_review_grants
+ where organization_id=v_org and project_id=p_project_id and system_user_id=v_actor order by grant_sequence desc limit 1;
+ if v_grant is distinct from 'granted' then raise exception 'explicit_project_review_grant_required' using errcode='42501';end if;
+ return v_org;
+end;$$;
+revoke all on function operations_economy_private.authorize_project_v1(uuid,boolean) from public,anon,authenticated,service_role;
+
+create table public.operations_personnel_cost_streams(
+ organization_id uuid not null,source_time_stream_id text not null,current_revision bigint not null,
+ primary key(organization_id,source_time_stream_id)
+);
+create table public.operations_personnel_cost_publications(
+ organization_id uuid not null,source_time_stream_id text not null,source_revision bigint not null,
+ source_time_report_id uuid not null,time_snapshot_version bigint not null,cost_snapshot jsonb not null,
+ primary key(organization_id,source_time_stream_id,source_revision)
+);
+create table public.operations_finance_invoice_streams(
+ organization_id uuid not null,source_organization_id uuid not null,invoice_id uuid not null,current_revision bigint not null,
+ primary key(organization_id,source_organization_id,invoice_id)
+);
+create table public.operations_finance_invoice_snapshots(
+ organization_id uuid not null,source_organization_id uuid not null,invoice_id uuid not null,source_revision bigint not null,
+ source_publication_fingerprint text not null,envelope jsonb not null,
+ primary key(organization_id,source_organization_id,invoice_id,source_revision)
+);
+create table public.operations_finance_credit_v2_streams(
+ organization_id uuid not null,source_organization_id uuid not null,invoice_id uuid not null,current_revision bigint not null,
+ primary key(organization_id,source_organization_id,invoice_id)
+);
+create table public.operations_finance_credit_v2_snapshots(
+ organization_id uuid not null,source_organization_id uuid not null,invoice_id uuid not null,source_revision bigint not null,
+ source_publication_fingerprint text not null,source_economic_revision bigint not null,
+ source_economic_publication_fingerprint text not null,envelope jsonb not null,
+ primary key(organization_id,source_organization_id,invoice_id,source_revision)
+);
+create view public.operations_finance_invoice_economic_current_v2 as
+with v1 as (
+ select snapshot.* from public.operations_finance_invoice_streams head
+ join public.operations_finance_invoice_snapshots snapshot using(organization_id,source_organization_id,invoice_id)
+ where snapshot.source_revision=head.current_revision
+),v2 as (
+ select snapshot.* from public.operations_finance_credit_v2_streams head
+ join public.operations_finance_credit_v2_snapshots snapshot using(organization_id,source_organization_id,invoice_id)
+ where snapshot.source_revision=head.current_revision
+),joined as (
+ select coalesce(a.organization_id,b.organization_id) organization_id,
+  coalesce(a.source_organization_id,b.source_organization_id) source_organization_id,
+  coalesce(a.invoice_id,b.invoice_id) invoice_id,a.source_revision v1_revision,b.source_economic_revision v2_revision,
+  a.source_publication_fingerprint v1_fp,b.source_economic_publication_fingerprint v2_fp,
+  a.envelope v1_envelope,b.envelope v2_envelope,
+  coalesce(a.source_revision=b.source_economic_revision and a.source_publication_fingerprint<>b.source_economic_publication_fingerprint,false) conflict
+ from v1 a full join v2 b using(organization_id,source_organization_id,invoice_id)
+)
+select organization_id,source_organization_id,invoice_id,
+ case when conflict then 'conflict' when v2_envelope is not null and (v1_envelope is null or v2_revision>=v1_revision) then 'v2' else 'v1' end source_protocol,
+ greatest(v1_revision,v2_revision) source_economic_revision,
+ case when conflict then null when v2_envelope is not null and (v1_envelope is null or v2_revision>=v1_revision) then v2_fp else v1_fp end source_economic_fingerprint,
+ case when conflict then null when v2_envelope is not null and (v1_envelope is null or v2_revision>=v1_revision) then v2_envelope else v1_envelope end envelope
+from joined;
+alter table public.operations_personnel_cost_streams enable row level security;
+alter table public.operations_personnel_cost_publications enable row level security;
+alter table public.operations_finance_invoice_streams enable row level security;
+alter table public.operations_finance_invoice_snapshots enable row level security;
+alter table public.operations_finance_credit_v2_streams enable row level security;
+alter table public.operations_finance_credit_v2_snapshots enable row level security;
+revoke all on public.operations_personnel_cost_streams,public.operations_personnel_cost_publications,
+ public.operations_finance_invoice_streams,public.operations_finance_invoice_snapshots,
+ public.operations_finance_credit_v2_streams,public.operations_finance_credit_v2_snapshots,
+ public.operations_finance_invoice_economic_current_v2 from public,anon,authenticated,service_role;
+
+${migration}
+
+insert into auth.users values ('${admin}'),('${granted}'),('${revoked}'),('${cross}');
+insert into public.profiles values ('${admin}','${orgA}'),('${granted}','${orgA}'),('${revoked}','${orgA}'),('${cross}','${orgB}');
+insert into public.projects values
+ ('${projectA}','${orgA}',null),('${projectB}','${orgB}',null),('${projectWithoutGrant}','${orgA}',null);
+insert into public.user_roles values ('${admin}','${orgA}','admin'),('${granted}','${orgA}','manager'),('${revoked}','${orgA}','manager'),('${cross}','${orgB}','admin');
+insert into public.operations_project_personnel_review_grants values
+ ('${orgA}','${projectA}','${granted}',1,'granted'),
+ ('${orgA}','${projectA}','${revoked}',1,'granted'),('${orgA}','${projectA}','${revoked}',2,'revoked');
+
+insert into public.operations_personnel_cost_streams values
+ ('${orgA}','private-stream-alpha',1),('${orgA}','private-stream-beta',1);
+insert into public.operations_personnel_cost_publications values
+ ('${orgA}','private-stream-alpha',1,'40000000-0000-4000-8000-000000000001',2,
+  jsonb_build_object('work_date','2026-10-03','lines',jsonb_build_array(jsonb_build_object(
+   'source_time_line_id','line-a','source_project_id','${projectA}','source_booking_id','50000000-0000-4000-8000-000000000001',
+   'minutes',120,'amount_minor',60000,'currency','SEK','status','preliminary','coverage','complete')))),
+ ('${orgA}','private-stream-beta',1,'40000000-0000-4000-8000-000000000002',1,
+  jsonb_build_object('work_date','2026-10-03','lines',jsonb_build_array(jsonb_build_object(
+   'source_time_line_id','line-b','source_project_id','${projectA}','source_booking_id','50000000-0000-4000-8000-000000000002',
+   'minutes',90,'amount_minor',null,'currency','SEK','status','preliminary','coverage','missing_rate'))));
+
+insert into public.operations_finance_invoice_streams values
+ ('${orgA}','${sourceOrg}','${invoiceOne}',1),
+ ('${orgA}','${sourceOrg}','${invoiceTwo}',1),
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000003',1),
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000004',1);
+insert into public.operations_finance_invoice_snapshots values
+ ('${orgA}','${sourceOrg}','${invoiceOne}',1,repeat('a',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','${invoiceOne}','source_revision',1,
+   'source_publication_fingerprint',repeat('a',64),'source_observation_id','71000000-0000-4000-8000-000000000001','document_fingerprint',repeat('b',64),
+   'provider_document_number','INV-STEP8-1','invoice_kind','invoice','recipient_net_minor',540000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',false,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','${allocationOne}',
+    'project_id','73000000-0000-4000-8000-000000000001','cost_line_id','74000000-0000-4000-8000-000000000001',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',540000,'consumes_commitment',true,'status','preliminary')))),
+ ('${orgA}','${sourceOrg}','${invoiceTwo}',1,repeat('c',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','${invoiceTwo}','source_revision',1,
+   'source_publication_fingerprint',repeat('c',64),'source_observation_id','71000000-0000-4000-8000-000000000002','document_fingerprint',repeat('d',64),
+   'provider_document_number','CR-STEP8-2','invoice_kind','credit','recipient_net_minor',-10000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',true,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','unresolved',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','${allocationTwo}',
+    'project_id','73000000-0000-4000-8000-000000000002','cost_line_id','74000000-0000-4000-8000-000000000002',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',-10000,'consumes_commitment',true,'status','preliminary')))),
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000003',1,repeat('e',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','70000000-0000-4000-8000-000000000003','source_revision',1,
+   'source_publication_fingerprint',repeat('e',64),'source_observation_id','71000000-0000-4000-8000-000000000003','document_fingerprint',repeat('f',64),
+   'provider_document_number','INV-STEP8-3','invoice_kind','invoice','recipient_net_minor',15000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',false,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','72000000-0000-4000-8000-000000000003',
+    'project_id','73000000-0000-4000-8000-000000000003','cost_line_id','74000000-0000-4000-8000-000000000003',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',10000,'consumes_commitment',true,'status','preliminary')))),
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000004',1,repeat('7',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','70000000-0000-4000-8000-000000000004','source_revision',1,
+   'source_publication_fingerprint',repeat('7',64),'source_observation_id','71000000-0000-4000-8000-000000000004','document_fingerprint',repeat('4',64),
+   'provider_document_number','CR-STEP8-4','invoice_kind','credit','recipient_net_minor',-5000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',false,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','unresolved',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','72000000-0000-4000-8000-000000000004',
+    'project_id','73000000-0000-4000-8000-000000000004','cost_line_id','74000000-0000-4000-8000-000000000004',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',-5000,'consumes_commitment',true,'status','preliminary'))));
+
+insert into public.operations_finance_credit_v2_streams values
+ ('${orgA}','${sourceOrg}','${invoiceOne}',1),('${orgA}','${sourceOrg}','${invoiceTwo}',2);
+insert into public.operations_finance_credit_v2_snapshots values
+ ('${orgA}','${sourceOrg}','${invoiceOne}',1,repeat('9',64),1,repeat('a',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v2','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','${invoiceOne}','source_revision',1,
+   'source_publication_fingerprint',repeat('9',64),'source_economic_revision',1,
+   'source_economic_publication_fingerprint',repeat('a',64),'credit_relationship_fingerprint',null,
+   'source_observation_id','71000000-0000-4000-8000-000000000001','document_fingerprint',repeat('b',64),
+   'provider_document_number','INV-STEP8-1','invoice_kind','invoice','recipient_net_minor',540000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',false,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','${allocationOne}',
+    'project_id','73000000-0000-4000-8000-000000000001','cost_line_id','74000000-0000-4000-8000-000000000001',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',540000,'consumes_commitment',true,'status','preliminary',
+    'source_anchor','${originalSourceAnchor}','credited_source_anchor',null)))),
+ ('${orgA}','${sourceOrg}','${invoiceTwo}',2,repeat('8',64),1,repeat('c',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v2','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','${invoiceTwo}','source_revision',2,
+   'source_publication_fingerprint',repeat('8',64),'source_economic_revision',1,
+   'source_economic_publication_fingerprint',repeat('c',64),'credit_relationship_fingerprint',repeat('6',64),
+   'source_observation_id','71000000-0000-4000-8000-000000000002','document_fingerprint',repeat('d',64),
+   'provider_document_number','CR-STEP8-2','invoice_kind','credit','recipient_net_minor',-10000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',true,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','linked',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','${allocationTwo}',
+    'project_id','73000000-0000-4000-8000-000000000002','cost_line_id','74000000-0000-4000-8000-000000000002',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',-10000,'consumes_commitment',true,'status','preliminary',
+    'source_anchor','${creditSourceAnchor}','credited_source_anchor','${originalSourceAnchor}'))));
+
+set role authenticated;
+set request.jwt.claim.sub='${admin}';
+create temporary table step8_results(label text primary key,payload jsonb);
+insert into step8_results values ('preliminary',public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb));
+do $$declare p jsonb:=(select payload from step8_results where label='preliminary');begin
+ if p->>'schema'<>'operations-project-economy-step8-shadow.v1'
+ or p->>'organizationId'<>'${orgA}' or p->>'projectId'<>'${projectA}'
+ or p->'financeRecalculated'<>'false'::jsonb or p->'authoritativeTotals'<>'false'::jsonb
+ or p->'replacesLegacyTotals'<>'false'::jsonb or p->'shadowOnly'<>'true'::jsonb
+ or jsonb_array_length(p->'personnel')<>2 or jsonb_array_length(p->'invoices')<>4
+ or (p#>>'{personnel,0,sourceTimeStreamKey}') !~ '^[0-9a-f]{64}$'
+ or p::text like '%private-stream-%'
+ or (select count(distinct value->>'sourceBookingId') from jsonb_array_elements(p->'personnel'))<>2
+ or not exists(select 1 from jsonb_array_elements(p->'personnel') where value->>'coverage'='missing_rate' and value->'amountMinor'='null'::jsonb)
+ or not exists(select 1 from jsonb_array_elements(p->'invoices') where value->>'invoiceId'='70000000-0000-4000-8000-000000000001'
+   and value->>'allocationId'='72000000-0000-4000-8000-000000000001' and value->>'status'='preliminary'
+   and value->>'amountMinor'='540000' and value->>'sourceProtocol'='v2'
+   and value->>'sourceAnchor'='${originalSourceAnchor}')
+ or not exists(select 1 from jsonb_array_elements(p->'invoices') credit where credit->>'invoiceId'='${invoiceTwo}'
+   and credit->>'creditRelationCoverage'='linked' and credit->>'sourceProtocol'='v2'
+   and credit->>'sourceEconomicRevision'='1' and credit->>'sourceEconomicFingerprint'=repeat('c',64)
+   and credit->>'creditRelationshipFingerprint'=repeat('6',64)
+   and credit->>'sourceAnchor'='${creditSourceAnchor}' and credit->>'creditedSourceAnchor'='${originalSourceAnchor}'
+   and credit->>'creditedSourceAnchor'=(select original->>'sourceAnchor' from jsonb_array_elements(p->'invoices') original
+    where original->>'invoiceId'='${invoiceOne}'))
+ or not exists(select 1 from jsonb_array_elements(p->'exceptions') where value->>'code'='source_changed_after_import')
+ or not exists(select 1 from jsonb_array_elements(p->'exceptions') where value->>'code'='credit_relation_unresolved')
+ or not exists(select 1 from jsonb_array_elements(p->'exceptions') where value->>'code'='unallocated_amount' and value->>'amountMinor'='5000')
+ then raise exception 'step8_preliminary_semantics_failed';end if;
+end$$;
+set request.jwt.claim.sub='${granted}';
+select public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);
+set request.jwt.claim.sub='${revoked}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);raise exception 'revoked_actor_was_allowed';
+exception when sqlstate '42501' then null;end$$;
+set request.jwt.claim.sub='${granted}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1(jsonb_build_object(
+ 'schemaVersion','operations-project-economy-step8-shadow-read.v1','organizationId','${orgA}','projectId','${projectWithoutGrant}'));
+ raise exception 'ungranted_project_was_allowed';exception when sqlstate '42501' then null;end$$;
+set request.jwt.claim.sub='${cross}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);raise exception 'cross_tenant_actor_was_allowed';
+exception when sqlstate '42501' then null;end$$;
+set request.jwt.claim.sub='${admin}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1(jsonb_build_object(
+ 'schemaVersion','operations-project-economy-step8-shadow-read.v1','organizationId','${orgB}','projectId','${projectA}'));
+ raise exception 'cross_organization_request_was_allowed';exception when sqlstate '42501' then null;end$$;
+do $$begin perform * from public.operations_personnel_cost_publications;raise exception 'private_personnel_rows_were_visible';
+exception when sqlstate '42501' then null;end$$;
+reset role;
+do $$begin
+ if has_function_privilege('anon','public.read_operations_project_economy_step8_shadow_v1(jsonb)','execute')
+ or has_function_privilege('service_role','public.read_operations_project_economy_step8_shadow_v1(jsonb)','execute')
+ or not has_function_privilege('authenticated','public.read_operations_project_economy_step8_shadow_v1(jsonb)','execute')
+ then raise exception 'step8_execute_privileges_failed';end if;
+end$$;
+
+insert into public.operations_finance_invoice_snapshots values
+ ('${orgA}','${sourceOrg}','${invoiceOne}',2,repeat('1',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','${invoiceOne}','source_revision',2,
+   'source_publication_fingerprint',repeat('1',64),'source_observation_id','71000000-0000-4000-8000-000000000001','document_fingerprint',repeat('2',64),
+   'provider_document_number','INV-STEP8-1','invoice_kind','invoice','recipient_net_minor',540000,'currency','SEK',
+   'invoice_status','approved','provider_source_changed',false,
+   'accounting_state','booked','settlement_state','unpaid','provider_approval_state','not_pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','${allocationOne}',
+    'project_id','73000000-0000-4000-8000-000000000001','cost_line_id','74000000-0000-4000-8000-000000000001',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',540000,'consumes_commitment',true,'status','confirmed'))));
+update public.operations_finance_invoice_streams set current_revision=2
+where organization_id='${orgA}' and invoice_id='70000000-0000-4000-8000-000000000001';
+set role authenticated;
+set request.jwt.claim.sub='${admin}';
+insert into step8_results values ('confirmed',public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb));
+do $$declare a jsonb;b jsonb;begin
+ select value into strict a from jsonb_array_elements((select payload->'invoices' from step8_results where label='preliminary'))
+  where value->>'invoiceId'='70000000-0000-4000-8000-000000000001';
+ select value into strict b from jsonb_array_elements((select payload->'invoices' from step8_results where label='confirmed'))
+  where value->>'invoiceId'='70000000-0000-4000-8000-000000000001';
+ if a->>'allocationId'<>b->>'allocationId' or a->>'amountMinor'<>b->>'amountMinor'
+ or a->>'status'<>'preliminary' or b->>'status'<>'confirmed' or b->>'revision'<>'2'
+ then raise exception 'step8_preliminary_confirmation_identity_failed';end if;
+end$$;
+begin transaction read only;
+select public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);
+rollback;
+reset role;
+
+insert into public.operations_finance_invoice_streams values
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000005',1);
+insert into public.operations_finance_invoice_snapshots values
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000005',1,repeat('a',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v1','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','70000000-0000-4000-8000-000000000005','source_revision',1,
+   'source_publication_fingerprint',repeat('a',64),'source_observation_id','71000000-0000-4000-8000-000000000005',
+   'document_fingerprint',repeat('a',64),'provider_document_number','INV-STEP8-CONFLICT',
+   'invoice_kind','invoice','recipient_net_minor',1000,'currency','SEK','invoice_status','received',
+   'provider_source_changed',false,'accounting_state','draft','settlement_state','unpaid',
+   'provider_approval_state','pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','72000000-0000-4000-8000-000000000005',
+    'project_id','73000000-0000-4000-8000-000000000005','cost_line_id','74000000-0000-4000-8000-000000000005',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',1000,'consumes_commitment',true,'status','preliminary'))));
+insert into public.operations_finance_credit_v2_streams values
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000005',2);
+insert into public.operations_finance_credit_v2_snapshots values
+ ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000005',2,repeat('d',64),1,repeat('b',64),
+  jsonb_build_object('schema_version','finance-project-invoice-destination-v2','source_organization_id','${sourceOrg}',
+   'destination_organization_id','${orgA}','invoice_id','70000000-0000-4000-8000-000000000005','source_revision',2,
+   'source_publication_fingerprint',repeat('d',64),'source_economic_revision',1,
+   'source_economic_publication_fingerprint',repeat('b',64),'credit_relationship_fingerprint',null,
+   'source_observation_id','71000000-0000-4000-8000-000000000005','document_fingerprint',repeat('a',64),
+   'provider_document_number','INV-STEP8-CONFLICT','invoice_kind','invoice','recipient_net_minor',1000,'currency','SEK',
+   'invoice_status','received','provider_source_changed',false,
+   'accounting_state','draft','settlement_state','unpaid','provider_approval_state','pending','credit_relation_coverage','not_applicable',
+   'allocations',jsonb_build_array(jsonb_build_object('allocation_id','72000000-0000-4000-8000-000000000005',
+    'project_id','73000000-0000-4000-8000-000000000005','cost_line_id','74000000-0000-4000-8000-000000000005',
+    'destination_organization_id','${orgA}','destination_project_id','${projectA}',
+    'amount_minor',1000,'consumes_commitment',true,'status','preliminary',
+    'source_anchor',repeat('5',64),'credited_source_anchor',null))));
+set role authenticated;
+set request.jwt.claim.sub='${admin}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);
+ raise exception 'invoice_source_conflict_was_allowed';exception when sqlstate '22023' then null;end$$;
+reset role;
+select 'STEP8_RUNTIME_PASS personnel=2 invoices=4 missing_null=1 booking_ids=2 linked_credit_binding=1 unresolved_credit=1 source_conflict=deny preliminary_confirmed_same_identity=1 auth_admin=allow auth_granted=allow auth_revoked=deny auth_project=deny auth_cross_tenant=deny auth_anon=deny private_rows=deny writes=0' as receipt;
+`;
+
+const output = run('psql',[databaseUrl,'-X','--no-password','-v','ON_ERROR_STOP=1'],{
+  input: sql,
+  env: { ...process.env, PGOPTIONS: '-c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000' },
+  maxBuffer: 16 * 1024 * 1024,
+});
+if (!output.includes('STEP8_RUNTIME_PASS')) throw new Error('Step8 runtime receipt missing');
+console.log(JSON.stringify({
+  status:'PASS',schema:'operations-project-economy-step8-shadow.v1',migrationSha256,
+  postgresRuntime:true,sourceParent:process.env.STEP8_EXPECTED_PARENT ?? null,
+  assertions:{twoBookings:true,missingRateNull:true,linkedCreditBinding:true,unresolvedCredit:true,
+    sourceConflictDenied:true,preliminaryConfirmedSameIdentity:true,exceptions:true,
+    adminAllowed:true,grantedAllowed:true,revokedDenied:true,projectDenied:true,crossTenantDenied:true,
+    anonDenied:true,privateRowsDenied:true,writes:0},
+},null,2));
