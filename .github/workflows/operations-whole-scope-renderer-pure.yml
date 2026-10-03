@@ -1,0 +1,90 @@
+name: Operations granted whole-scope renderer pure encoding
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/**'
+      - 'scripts/project-economy/whole-scope-granted-product-renderer-pure-*'
+      - 'docs/project-economy/whole-scope-granted-product-*renderer*'
+      - '.github/workflows/operations-whole-scope-renderer-pure.yml'
+permissions:
+  contents: read
+jobs:
+  canonical-key-free-renderer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: 'true'
+      EVENTFLOW_WHOLE_SCOPE_RENDERER_PURE_ISOLATED: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact outer source pins before source execution
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B - <<'PY_RENDERER_PINS'
+          import hashlib,os,pathlib,stat
+          def identity(x):return (x.st_dev,x.st_ino,x.st_uid,x.st_mode,x.st_nlink,x.st_size,x.st_mtime_ns,x.st_ctime_ns)
+          locked={"docs/project-economy/whole-scope-granted-product-destination-renderer-v1-contract.md":{"bytes":11490,"sha256":"dbd5fe44b6374cda3e70c8caf327e4c1bd1cdebd8807f4cbdd7928fc23eab8c9"},"docs/project-economy/whole-scope-granted-product-renderer-pure-route-v1-contract.md":{"bytes":6546,"sha256":"a12a85849cae6c778b9fdc9988d09d1f036969cdce6231a592a47cc696b35b43"},"scripts/project-economy/whole-scope-granted-product-renderer-pure-closure.json":{"bytes":4977,"sha256":"9b643f32970e67fb846dcb526c3fe81445c4a33d84eb9d553c68d30d490464d0"},"scripts/project-economy/whole-scope-granted-product-renderer-pure-crosswire.deno-test.ts":{"bytes":2365,"sha256":"32cecec1eb94f1847c13abf6fd2649f7ada55ed3b64006dc601a23bd3fa86470"},"scripts/project-economy/whole-scope-granted-product-renderer-pure-golden.json":{"bytes":34164,"sha256":"110f6af5e5a3e0cd7bc5b09501e80854756a775031d73d31ad5661963aeecfc0"},"scripts/project-economy/whole-scope-granted-product-renderer-pure-guard-test.py":{"bytes":5113,"sha256":"29b31c8033d6b45efbf1ed721daf096378ff9cbf65005a8d2ea4b825dee2d2ea"},"scripts/project-economy/whole-scope-granted-product-renderer-pure-guard.py":{"bytes":7011,"sha256":"15ad9eb8cbfd01665c4cff4095d381f08fa7e9c8f1fe9d8ad5f51b47538838cc"},"supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts":{"bytes":9071,"sha256":"32cca05ac11fa99c74ca54e699770ba2495c0956beca730f4a576452ef882081"},"supabase/functions/_shared/project-cost-obligations.ts":{"bytes":8533,"sha256":"dd9c1487d20cb9bace7f20d049cd7022ee933b322f03f8dd17cf8b166bb2979e"},"supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts":{"bytes":16394,"sha256":"760aef63bea5e3965f2b26ac9daf6b972fd5a53f2162e5a5d59e97d1ce1ee737"},"supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.ts":{"bytes":6303,"sha256":"d2c40491bb86ab22e4ee3ad887978478c74fe73887c5b9d62fbf6ec79dc3f44f"},"supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.deno-test.ts":{"bytes":35067,"sha256":"e1db2a7b10c17f1717cc4d6813c8bd4242464d17139b34175b81e95571988dbb"},"supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.ts":{"bytes":16765,"sha256":"fd9d41948616d3207eff0b358d3b0c2670d36493c16d91718a60c75bcb38c1a7"},"supabase/functions/_shared/whole-scope-product-grant-command-v1.ts":{"bytes":6801,"sha256":"24f2b6e22a6f8ac0e494ed6248a5ea5fd7210d89fbd39d3fb2967129c5d25686"},"supabase/functions/_shared/whole-scope-product-grant-event-v1.ts":{"bytes":13032,"sha256":"46330f77cd6a02e9aa1343e5d425ec2225d7d68c62b78032e4203dd70659533e"},"supabase/functions/_shared/whole-scope-product-source-proof.ts":{"bytes":9044,"sha256":"58767a0e921fc29bd543a273a40c1921ad946f3388d6f2d1305de836094ff2dc"}}
+          root=pathlib.Path.cwd()
+          if root.resolve()!=root:raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+          for name,row in locked.items():
+            path=root/name
+            if any(parent.is_symlink() for parent in [path,*path.parents]):raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+            before=path.lstat()
+            if not stat.S_ISREG(before.st_mode) or before.st_uid!=os.getuid() or before.st_nlink!=1 or before.st_mode&0o022 or before.st_size!=row['bytes']:raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+            try:
+              opened=os.fstat(fd)
+              if identity(opened)!=identity(before):raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+              chunks=[];total=0
+              for _ in range((row['bytes']//4096)+2):
+                chunk=os.read(fd,min(4096,row['bytes']+1-total))
+                if not chunk:break
+                total+=len(chunk)
+                if total>row['bytes']:raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+                chunks.append(chunk)
+              else:raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+              if identity(os.fstat(fd))!=identity(opened) or identity(path.lstat())!=identity(opened):raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+              raw=b''.join(chunks)
+              if len(raw)!=row['bytes'] or hashlib.sha256(raw).hexdigest()!=row['sha256']:raise SystemExit('RENDERER_OUTER_SOURCE_DENIED')
+            finally:os.close(fd)
+          print('renderer-pure PASS outer16_source_pins_before_code')
+          PY_RENDERER_PINS
+      - name: Canonical version and guarded finite pure tests
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(deno --version | awk 'NR==1 {print $2}')" = '2.8.1'
+          deno --version
+          task_renderer_dir=$(mktemp -d)
+          trap 'rm -rf -- "$task_renderer_dir"' EXIT
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/whole-scope-granted-product-renderer-pure-guard.py
+          if ! python3 -I -B scripts/project-economy/whole-scope-granted-product-renderer-pure-guard-test.py >"$task_renderer_dir/guards" 2>&1; then
+            echo 'renderer-pure FAIL guard_tests'; exit 1
+          fi
+          if ! deno test --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.deno-test.ts scripts/project-economy/whole-scope-granted-product-renderer-pure-crosswire.deno-test.ts >"$task_renderer_dir/tests" 2>&1; then
+            echo 'renderer-pure FAIL typed_tests'; exit 1
+          fi
+          python3 -I -B - "$task_renderer_dir" <<'PY_RENDERER_COUNTS'
+          import pathlib,re,sys
+          root=pathlib.Path(sys.argv[1])
+          for name in ('guards','tests'):
+            if (root/name).stat().st_size>32768:raise SystemExit('RENDERER_TEST_OUTPUT_DENIED')
+          guards=(root/'guards').read_text();tests=re.sub(r'\x1b\[[0-9;]*m','',(root/'tests').read_text())
+          if not re.search(r'Ran 8 tests in [0-9.]+s\s+OK\s*$',guards) or 'skipped' in guards:raise SystemExit('RENDERER_GUARD_COUNT_DENIED')
+          if not re.search(r'ok \| 12 passed \| 0 failed(?: \([^\n]*\))?\s*$',tests) or 'ignored' in tests:raise SystemExit('RENDERER_TYPED_COUNT_DENIED')
+          print('renderer-pure PASS guard8_typed_renderer10_crosswire2_no_skips')
+          PY_RENDERER_COUNTS
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo 'renderer-pure PASS clean_tree_encoding_only_no_export_admission'

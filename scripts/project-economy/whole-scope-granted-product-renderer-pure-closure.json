@@ -1,0 +1,99 @@
+{
+  "canonical_deno_version": "2.8.1",
+  "canonical_graph": [
+    "scripts/project-economy/whole-scope-granted-product-renderer-pure-crosswire.deno-test.ts",
+    "scripts/project-economy/whole-scope-granted-product-renderer-pure-golden.json",
+    "supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts",
+    "supabase/functions/_shared/project-cost-obligations.ts",
+    "supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts",
+    "supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.ts",
+    "supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.deno-test.ts",
+    "supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.ts",
+    "supabase/functions/_shared/whole-scope-product-grant-command-v1.ts",
+    "supabase/functions/_shared/whole-scope-product-grant-event-v1.ts",
+    "supabase/functions/_shared/whole-scope-product-source-proof.ts"
+  ],
+  "files": {
+    "scripts/project-economy/whole-scope-granted-product-renderer-pure-crosswire.deno-test.ts": {
+      "git_blob": "05e497da04eb018973f0f143e69579e344907eac",
+      "origin": "new_source_candidate",
+      "sha256": "32cecec1eb94f1847c13abf6fd2649f7ada55ed3b64006dc601a23bd3fa86470",
+      "size": 2365
+    },
+    "scripts/project-economy/whole-scope-granted-product-renderer-pure-golden.json": {
+      "git_blob": "f077f258acc77de996a578b799fcc7fccfc06e81",
+      "origin": "new_source_candidate",
+      "sha256": "110f6af5e5a3e0cd7bc5b09501e80854756a775031d73d31ad5661963aeecfc0",
+      "size": 34164
+    },
+    "supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts": {
+      "git_blob": "0f958ce7b0e890b443e4e3f10a48cd9b0e8248ea",
+      "origin": "genuine_operations_40ce",
+      "sha256": "32cca05ac11fa99c74ca54e699770ba2495c0956beca730f4a576452ef882081",
+      "size": 9071
+    },
+    "supabase/functions/_shared/project-cost-obligations.ts": {
+      "git_blob": "684e753a2fd36467ea03a35ed662d07ff9b9d572",
+      "origin": "genuine_operations_40ce",
+      "sha256": "dd9c1487d20cb9bace7f20d049cd7022ee933b322f03f8dd17cf8b166bb2979e",
+      "size": 8533
+    },
+    "supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts": {
+      "git_blob": "79a00fca740f47fcb9a9bfbe0c0c1720081bf1bb",
+      "origin": "genuine_operations_40ce",
+      "sha256": "760aef63bea5e3965f2b26ac9daf6b972fd5a53f2162e5a5d59e97d1ce1ee737",
+      "size": 16394
+    },
+    "supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.ts": {
+      "git_blob": "6b057b2a75977ad7d7b83e9f0c7527c410a53976",
+      "origin": "genuine_operations_40ce",
+      "sha256": "d2c40491bb86ab22e4ee3ad887978478c74fe73887c5b9d62fbf6ec79dc3f44f",
+      "size": 6303
+    },
+    "supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.deno-test.ts": {
+      "git_blob": "8eccd3e58c4f0691c111e39e4b8a03a679b98c5a",
+      "origin": "new_source_candidate",
+      "sha256": "e1db2a7b10c17f1717cc4d6813c8bd4242464d17139b34175b81e95571988dbb",
+      "size": 35067
+    },
+    "supabase/functions/_shared/whole-scope-granted-product-destination-renderer-v1.ts": {
+      "git_blob": "21b21cab1a1ddb94a5b4d2ce04659a2af2bc792c",
+      "origin": "new_source_candidate",
+      "sha256": "fd9d41948616d3207eff0b358d3b0c2670d36493c16d91718a60c75bcb38c1a7",
+      "size": 16765
+    },
+    "supabase/functions/_shared/whole-scope-product-grant-command-v1.ts": {
+      "git_blob": "c0ef4e57c644605eec3da08fe39d817d986d40b4",
+      "origin": "genuine_operations_40ce",
+      "sha256": "24f2b6e22a6f8ac0e494ed6248a5ea5fd7210d89fbd39d3fb2967129c5d25686",
+      "size": 6801
+    },
+    "supabase/functions/_shared/whole-scope-product-grant-event-v1.ts": {
+      "git_blob": "4acc8ff81cec50da4495e98537bfcec5ec2d2079",
+      "origin": "genuine_operations_40ce",
+      "sha256": "46330f77cd6a02e9aa1343e5d425ec2225d7d68c62b78032e4203dd70659533e",
+      "size": 13032
+    },
+    "supabase/functions/_shared/whole-scope-product-source-proof.ts": {
+      "git_blob": "3f8aef4ce65d0895765a706c44f9d0cf6ac88be0",
+      "origin": "genuine_operations_40ce",
+      "sha256": "58767a0e921fc29bd543a273a40c1921ad946f3388d6f2d1305de836094ff2dc",
+      "size": 9044
+    }
+  },
+  "finance_golden_origin": {
+    "commit": "2eca853a49ec69d23fd321f989c44ab09418921d",
+    "git_blob": "77a948268d8c007203298d8f69493b9138b8a630",
+    "path": "supabase/functions/_shared/whole-scope-delivery-contract.ts",
+    "repository": "BillyHamren1/eventflow-finance",
+    "sha256": "6e9c71210e72b5b8ba33c173977e1a974115244467439ee81999509cd70a4fed",
+    "size": 18364
+  },
+  "operations_origin": {
+    "commit": "40ceb89bb01dcb1dfca75b4ece08bedc008d9c90",
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "tree": "6e8c0766f9e82d79a4d014c165f100f4b5946419"
+  },
+  "schema_version": "operations-whole-scope-renderer-pure-closure.v1",
+  "scope": "pure encoding; no fresh Finance receiver/parser execution or source authority"
+}
