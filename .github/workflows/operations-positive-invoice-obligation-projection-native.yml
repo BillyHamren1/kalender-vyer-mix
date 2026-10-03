@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Exact sole-parent source route
         env:
-          EXPECTED_PARENT: e10a86964a7508974e4ef2457ccd02b39b0a6394
+          EXPECTED_PARENT: c5ff92c2faa932dc6c984467606442060bb78284
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
@@ -35,7 +35,6 @@ jobs:
           git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
           cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
           .github/workflows/operations-positive-invoice-obligation-projection-native.yml
-          scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py
           EOF
           cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
           test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs | cut -d' ' -f1)" = b0a95eb7f4e2c467d559751a938cf8f29ce31cde3f7824e14037feef7aaf4ae2
