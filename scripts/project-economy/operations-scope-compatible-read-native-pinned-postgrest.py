@@ -11,6 +11,7 @@ import shutil
 import signal
 import stat
 import struct
+import subprocess
 import sys
 import tempfile
 import types
@@ -26,11 +27,36 @@ IMAGE='postgrest/postgrest@sha256:729bf65c733b73f5b52777f0e4b853f22ed73aa67a22d3
 FS_IOC_GETFLAGS=0x80086601
 FS_IOC_SETFLAGS=0x40086602
 FS_IMMUTABLE_FL=0x00000010
+SUDO=pathlib.Path('/usr/bin/sudo')
+SYSTEM_PYTHON=pathlib.Path('/usr/bin/python3')
+PRIVILEGED_TIMEOUT=10
+PRIVILEGED_HELPER=r'''import fcntl,os,stat,struct,sys
+G=0x80086601;S=0x40086602;I=0x10
+def deny():raise SystemExit(73)
+try:
+ if len(sys.argv)!=14:deny()
+ pid,number,dev,ino,mode,uid,gid,nlink,size,mtime,ctime,old,target=map(int,sys.argv[1:])
+ if pid<=1 or number<0 or old<0 or target<0:deny()
+ fd=os.open('/proc/'+str(pid)+'/fd/'+str(number),os.O_RDONLY|os.O_CLOEXEC)
+ value=os.fstat(fd);actual=(value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+ if actual!=(dev,ino,mode,uid,gid,nlink,size,mtime,ctime) or not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):deny()
+ current=struct.unpack('I',fcntl.ioctl(fd,G,struct.pack('I',0)))[0]
+ if not ((current==old and target==old|I) or (current==old|I and target==old)):deny()
+ fcntl.ioctl(fd,S,struct.pack('I',target))
+ if struct.unpack('I',fcntl.ioctl(fd,G,struct.pack('I',0)))[0]!=target:deny()
+except BaseException:
+ raise SystemExit(73) from None
+finally:
+ try:os.close(fd)
+ except BaseException:pass
+'''
 
 PUBLIC_PHASES={
     'capture','materialize','immutable_seal',
     'immutable_file_set','immutable_file_set_permission','immutable_file_set_unsupported','immutable_file_set_other','immutable_file_readback','immutable_file_identity',
+    'immutable_file_privileged_set','immutable_file_privileged_refused','immutable_file_privileged_deadline','immutable_file_privileged_other',
     'immutable_directory_set','immutable_directory_set_permission','immutable_directory_set_unsupported','immutable_directory_set_other','immutable_directory_readback','immutable_directory_identity',
+    'immutable_directory_privileged_set','immutable_directory_privileged_refused','immutable_directory_privileged_deadline','immutable_directory_privileged_other',
     'immutable_verify','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'
 }
 ACTIVE_PHASE='capture'
@@ -51,12 +77,42 @@ def flags(fd):return struct.unpack('I',fcntl.ioctl(fd,FS_IOC_GETFLAGS,struct.pac
 
 def set_flags(fd,value):fcntl.ioctl(fd,FS_IOC_SETFLAGS,struct.pack('I',value))
 
+def admitted_executable(path):
+    try:
+        resolved=path.resolve(strict=True);saved=resolved.stat()
+        if not stat.S_ISREG(saved.st_mode) or saved.st_uid!=0 or saved.st_mode&0o022:return None
+        if resolved.parent not in {pathlib.Path('/usr/bin'),pathlib.Path('/bin')}:return None
+        return str(resolved)
+    except BaseException:return None
+
+def privileged_transition(fd,old,target,kind):
+    if kind not in {'file','directory'}:raise BootstrapFailure()
+    phase('immutable_'+kind+'_privileged_set')
+    sudo=admitted_executable(SUDO);python=admitted_executable(SYSTEM_PYTHON)
+    if sudo is None or python is None:
+        phase('immutable_'+kind+'_privileged_refused');raise BootstrapFailure()
+    saved=os.fstat(fd);expected=identity(saved)
+    command=[sudo,'-n','--',python,'-I','-B','-c',PRIVILEGED_HELPER,str(os.getpid()),str(fd),*(str(value) for value in expected),str(old),str(target)]
+    try:
+        result=subprocess.run(command,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},timeout=PRIVILEGED_TIMEOUT,check=False)
+    except subprocess.TimeoutExpired:
+        phase('immutable_'+kind+'_privileged_deadline');raise BootstrapFailure() from None
+    except BaseException:
+        phase('immutable_'+kind+'_privileged_other');raise BootstrapFailure() from None
+    if result.returncode!=0 or result.stdout or result.stderr:
+        phase('immutable_'+kind+'_privileged_refused');raise BootstrapFailure()
+    if identity(os.fstat(fd))[:8]!=expected[:8] or flags(fd)!=target:
+        phase('immutable_'+kind+'_privileged_refused');raise BootstrapFailure()
+
 def immutable_set(fd,old,kind):
     if kind not in {'file','directory'}:raise BootstrapFailure()
     phase('immutable_'+kind+'_set')
     try:set_flags(fd,old|FS_IMMUTABLE_FL)
     except OSError as error:
-        if error.errno in {errno.EPERM,errno.EACCES}:phase('immutable_'+kind+'_set_permission')
+        if error.errno in {errno.EPERM,errno.EACCES}:
+            phase('immutable_'+kind+'_set_permission');privileged_transition(fd,old,old|FS_IMMUTABLE_FL,kind)
+            phase('immutable_'+kind+'_readback')
+            return
         elif error.errno in {errno.ENOTTY,errno.EOPNOTSUPP,errno.ENOSYS}:phase('immutable_'+kind+'_set_unsupported')
         else:phase('immutable_'+kind+'_set_other')
         raise BootstrapFailure() from None
@@ -65,6 +121,20 @@ def immutable_set(fd,old,kind):
     phase('immutable_'+kind+'_readback')
     try:
         if not flags(fd)&FS_IMMUTABLE_FL:raise BootstrapFailure()
+    except BaseException:raise BootstrapFailure() from None
+
+def immutable_restore(fd,old,kind):
+    try:current=flags(fd)
+    except BaseException:raise BootstrapFailure() from None
+    if current==old:return
+    if current!=old|FS_IMMUTABLE_FL:raise BootstrapFailure()
+    try:set_flags(fd,old)
+    except OSError as error:
+        if error.errno not in {errno.EPERM,errno.EACCES}:raise BootstrapFailure() from None
+        privileged_transition(fd,old,old,kind)
+    except BaseException:raise BootstrapFailure() from None
+    try:
+        if flags(fd)!=old:raise BootstrapFailure()
     except BaseException:raise BootstrapFailure() from None
 
 def compiled_module(data,filename,name,effect_capability):
@@ -76,7 +146,7 @@ def compiled_module(data,filename,name,effect_capability):
 
 class HeldTree:
     def __init__(self,root,closure,bootstrap_authority,closure_authority):
-        self.root=root.absolute();self.closure_path=closure.absolute();self.canonical={};self.materialized={};self.directories=[];self.mirror=None
+        self.root=root.absolute();self.closure_path=closure.absolute();self.canonical={};self.materialized={};self.directories=[];self.owned_parent=None;self.mirror=None
         self.bootstrap_authority=bootstrap_authority;self.closure_authority=closure_authority
         try:self._capture()
         except BaseException:
@@ -125,7 +195,8 @@ class HeldTree:
             self.canonical[relative]=(fd,self.root/relative,identity(saved),data)
 
     def materialize(self):
-        parent=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-immutable-',dir='/tmp'));parent.chmod(0o700);mirror=parent/'root';mirror.mkdir(mode=0o700);self.mirror=mirror
+        parent=pathlib.Path(tempfile.mkdtemp(prefix='operations-compatible-immutable-',dir='/tmp'));self.owned_parent=parent
+        parent.chmod(0o700);mirror=parent/'root';self.mirror=mirror;mirror.mkdir(mode=0o700)
         entries=dict(self.value['files']);entries['scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json']={'closure':True}
         for relative in sorted(entries):
             target=mirror/relative;target.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -177,11 +248,12 @@ class HeldTree:
     def bytes(self,relative):return self.materialized[relative][3]
 
     def clear_and_discard(self):
-        for fd,_path,_saved,old in reversed(self.directories):set_flags(fd,old)
-        for fd,_path,_saved,_data,old in self.materialized.values():set_flags(fd,old)
-        parent=self.mirror.parent
+        for fd,_path,_saved,_data,old in self.materialized.values():immutable_restore(fd,old,'file')
+        for fd,_path,_saved,old in self.directories:immutable_restore(fd,old,'directory')
+        parent=self.owned_parent
+        if parent is None:raise BootstrapFailure()
         for path in sorted(parent.rglob('*'),key=lambda p:len(p.parts),reverse=True):path.chmod(0o700 if path.is_dir() else 0o600)
-        parent.chmod(0o700);shutil.rmtree(parent)
+        parent.chmod(0o700);shutil.rmtree(parent);self.owned_parent=None;self.mirror=None
 
     def close(self):
         for value in (*self.canonical.values(),*self.materialized.values(),*self.directories):
@@ -206,9 +278,15 @@ def execute(env):
         phase('effects');module._execute_materialized(effect_capability)
         phase('final_verify');tree.verify(True);success=True
     finally:
-        if success:
-            phase('owned_cleanup');tree.clear_and_discard()
-        tree.close()
+        failure_phase=ACTIVE_PHASE
+        try:
+            if tree.owned_parent is not None:
+                phase('owned_cleanup')
+                try:tree.clear_and_discard()
+                except BaseException:
+                    phase('owned_cleanup');raise
+                if not success:phase(failure_phase)
+        finally:tree.close()
 
 def main():
     signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(BootstrapFailure()))

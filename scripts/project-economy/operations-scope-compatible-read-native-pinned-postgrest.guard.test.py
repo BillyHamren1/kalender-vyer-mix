@@ -80,15 +80,23 @@ class Tests(unittest.TestCase):
   try:victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
   finally:tree.close()
  def test_materialized_swap_detected_before_effect(self):
-  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority)
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);parent=None
   try:
-   mirror=tree.materialize();victim=mirror/self.b.IMPLEMENTATION;victim.parent.chmod(0o700);victim.chmod(0o600);old=victim.with_suffix('.old');victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
-  finally:tree.close()
+   mirror=tree.materialize();parent=tree.owned_parent;victim=mirror/self.b.IMPLEMENTATION;victim.parent.chmod(0o700);victim.chmod(0o600);old=victim.with_suffix('.old');victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
+  finally:
+   try:
+    if tree.owned_parent is not None:tree.clear_and_discard()
+   finally:tree.close()
+   if parent is not None:self.assertFalse(parent.exists())
  def test_seal_requires_every_file_and_directory_immutable(self):
-  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize();state={}
-  old_get,old_set=self.b.flags,self.b.set_flags;self.b.flags=lambda fd:state.get(fd,0);self.b.set_flags=lambda fd,value:state.__setitem__(fd,value)
-  try:tree.seal();tree.verify(True);state[next(iter(tree.materialized.values()))[0]]=0;self.assertRaises(self.b.BootstrapFailure,tree.verify,True)
-  finally:self.b.flags,self.b.set_flags=old_get,old_set;tree.close()
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize();parent=tree.owned_parent;state={}
+  old_get,old_set=self.b.flags,self.b.set_flags;self.b.flags=lambda fd:state.get(fd,0);self.b.set_flags=lambda fd,value:state.__setitem__(fd,value);victim=None
+  try:tree.seal();tree.verify(True);victim=next(iter(tree.materialized.values()));state[victim[0]]=0;self.assertRaises(self.b.BootstrapFailure,tree.verify,True)
+  finally:
+   if victim is not None:state[victim[0]]=victim[4]|self.b.FS_IMMUTABLE_FL
+   try:tree.clear_and_discard()
+   finally:self.b.flags,self.b.set_flags=old_get,old_set;tree.close()
+   self.assertFalse(parent.exists())
  def test_real_immutable_ioctl_failure_is_pre_effect(self):
   source=BOOT.read_text();self.assertLess(source.index('tree.seal()'),source.index('compiled_module(' ,source.index('def execute')));self.assertLess(source.index('tree.verify(True) # Last pre-effect'),source.index('module._execute_materialized'))
   calls=[]
@@ -101,12 +109,14 @@ class Tests(unittest.TestCase):
     reached.append(name)
     if name==expected:raise Hostile()
    class Tree:
-    def __init__(self,*args):boundary('capture')
-    def materialize(self):boundary('materialize');return pathlib.Path('/owned/root')
+    def __init__(self,*args):self.owned_parent=None;self.mirror=None;boundary('capture')
+    def materialize(self):boundary('materialize');self.owned_parent=pathlib.Path('/owned');self.mirror=self.owned_parent/'root';return self.mirror
     def seal(self):boundary('immutable_seal')
     def verify(self,*args):boundary(module.ACTIVE_PHASE)
     def bytes(self,*args):return b''
-    def clear_and_discard(self):boundary('owned_cleanup')
+    def clear_and_discard(self):
+     if expected=='owned_cleanup':boundary('owned_cleanup')
+     reached.append('cleanup')
     def close(self):pass
    def compiled(*args):
     boundary('compile')
@@ -115,15 +125,15 @@ class Tests(unittest.TestCase):
    with unittest.mock.patch.object(module,'HeldTree',Tree),unittest.mock.patch.object(module,'compiled_module',compiled),contextlib.redirect_stderr(output):
     self.assertEqual(module.main(),1)
    self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
-   self.assertEqual(reached[-1],expected)
+   self.assertIn(expected,reached)
    if expected in {'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify'}:self.assertNotIn('effects',reached)
   self.assertEqual(calls,[])
  def test_immutable_set_reports_only_fixed_operation_class(self):
-  original=self.b.set_flags
+  original_set,original_privileged=self.b.set_flags,self.b.privileged_transition
   try:
+   delegated=[]
+   self.b.privileged_transition=lambda fd,old,target,kind:delegated.append((fd,old,target,kind))
    for kind,number,expected in (
-    ('file',errno.EPERM,'immutable_file_set_permission'),
-    ('directory',errno.EACCES,'immutable_directory_set_permission'),
     ('file',errno.ENOTTY,'immutable_file_set_unsupported'),
     ('directory',errno.EOPNOTSUPP,'immutable_directory_set_unsupported'),
     ('file',errno.EIO,'immutable_file_set_other')):
@@ -131,7 +141,99 @@ class Tests(unittest.TestCase):
     self.b.set_flags=denied
     with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,kind)
     self.assertEqual(self.b.ACTIVE_PHASE,expected)
-  finally:self.b.set_flags=original
+   for kind,number in (('file',errno.EPERM),('directory',errno.EACCES)):
+    def denied(*_args,_number=number):raise OSError(_number,'PRIVATE_PATH_PRIVATE_BODY')
+    self.b.set_flags=denied;self.b.immutable_set(91,7,kind)
+    self.assertEqual(delegated[-1],(91,7,7|self.b.FS_IMMUTABLE_FL,kind));self.assertEqual(self.b.ACTIVE_PHASE,'immutable_'+kind+'_readback')
+  finally:self.b.set_flags,self.b.privileged_transition=original_set,original_privileged
+ def test_privileged_transition_is_path_free_minimal_and_silent(self):
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC);original_flags=self.b.flags
+  try:
+   target=23|self.b.FS_IMMUTABLE_FL;self.b.flags=lambda _fd:target
+   completed=types.SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
+   with unittest.mock.patch.object(self.b,'admitted_executable',side_effect=lambda path:'/usr/bin/sudo' if path==self.b.SUDO else '/usr/bin/python3.12'),unittest.mock.patch.object(self.b.subprocess,'run',return_value=completed) as run:
+    self.b.privileged_transition(fd,23,target,'file')
+   command=run.call_args.args[0];kwargs=run.call_args.kwargs
+   self.assertEqual(command[:8],['/usr/bin/sudo','-n','--','/usr/bin/python3.12','-I','-B','-c',self.b.PRIVILEGED_HELPER])
+   self.assertEqual(command[8:10],[str(os.getpid()),str(fd)]);self.assertNotIn(str(pathlib.Path(__file__).absolute()),command)
+   self.assertEqual(kwargs['env'],{'PATH':'/usr/bin:/bin','LC_ALL':'C'});self.assertIs(kwargs['stdin'],subprocess.DEVNULL);self.assertEqual(kwargs['timeout'],self.b.PRIVILEGED_TIMEOUT)
+  finally:self.b.flags=original_flags;os.close(fd)
+ def test_privileged_transition_refusal_and_deadline_are_fixed_and_silent(self):
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC)
+  try:
+   with unittest.mock.patch.object(self.b,'admitted_executable',return_value='/usr/bin/fixed'),unittest.mock.patch.object(self.b.subprocess,'run',return_value=types.SimpleNamespace(returncode=73,stdout=b'',stderr=b'PRIVATE')):
+    with self.assertRaises(self.b.BootstrapFailure):self.b.privileged_transition(fd,0,self.b.FS_IMMUTABLE_FL,'file')
+    self.assertEqual(self.b.ACTIVE_PHASE,'immutable_file_privileged_refused')
+   with unittest.mock.patch.object(self.b,'admitted_executable',return_value='/usr/bin/fixed'),unittest.mock.patch.object(self.b.subprocess,'run',side_effect=subprocess.TimeoutExpired(['fixed'],10)):
+    with self.assertRaises(self.b.BootstrapFailure):self.b.privileged_transition(fd,0,self.b.FS_IMMUTABLE_FL,'directory')
+    self.assertEqual(self.b.ACTIVE_PHASE,'immutable_directory_privileged_deadline')
+  finally:os.close(fd)
+ def test_privileged_helper_denies_wrong_fd_and_transition_without_output(self):
+  for args in ([],[str(os.getpid()),'999999','0','0','0','0','0','0','0','0','0','0','0']):
+   result=subprocess.run([sys.executable,'-I','-B','-c',self.b.PRIVILEGED_HELPER,*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},timeout=5)
+   self.assertEqual(result.returncode,73);self.assertEqual((result.stdout,result.stderr),(b'',b''))
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC)
+  try:
+   saved=list(self.b.identity(os.fstat(fd)));old=self.b.flags(fd)
+   for changed_old,changed_target,mutate in ((old,old|0x20,False),(old,old|self.b.FS_IMMUTABLE_FL,True)):
+    expected=list(saved)
+    if mutate:expected[1]+=1
+    args=[str(os.getpid()),str(fd),*(str(value) for value in expected),str(changed_old),str(changed_target)]
+    result=subprocess.run([sys.executable,'-I','-B','-c',self.b.PRIVILEGED_HELPER,*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},timeout=5)
+    self.assertEqual(result.returncode,73);self.assertEqual((result.stdout,result.stderr),(b'',b''))
+  finally:os.close(fd)
+ def test_privileged_executable_admission_rejects_fake_path_and_mutable_source(self):
+  with tempfile.TemporaryDirectory() as directory:
+   fake=pathlib.Path(directory)/'sudo';fake.write_bytes(pathlib.Path('/usr/bin/sudo').read_bytes());fake.chmod(0o755)
+   self.assertIsNone(self.b.admitted_executable(fake))
+  source=BOOT.read_text();self.assertIn("SUDO=pathlib.Path('/usr/bin/sudo')",source);self.assertIn("SYSTEM_PYTHON=pathlib.Path('/usr/bin/python3')",source);self.assertNotIn("shell=True",source);self.assertNotIn("pass_fds",source)
+ def test_partial_file_and_directory_seal_failure_rolls_back_without_survivor(self):
+  for directory_failure in (False,True):
+   root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);state={};count=[0]
+   old_flags,old_set,old_privileged=self.b.flags,self.b.set_flags,self.b.privileged_transition
+   self.b.flags=lambda fd:state.get(fd,0)
+   fail_at=len(tree.value['files'])+2 if directory_failure else 3
+   def setting(fd,value):
+    if value&self.b.FS_IMMUTABLE_FL:
+     count[0]+=1
+     if count[0]==fail_at:raise OSError(errno.EPERM,'PRIVATE')
+    state[fd]=value
+   self.b.set_flags=setting
+   self.b.privileged_transition=lambda *_args:(_ for _ in ()).throw(self.b.BootstrapFailure())
+   try:
+    tree.materialize();parent=tree.mirror.parent
+    with self.assertRaises(self.b.BootstrapFailure):tree.seal()
+    tree.clear_and_discard();self.assertFalse(parent.exists());self.assertFalse(any(value&self.b.FS_IMMUTABLE_FL for value in state.values()))
+   finally:self.b.flags,self.b.set_flags,self.b.privileged_transition=old_flags,old_set,old_privileged;tree.close()
+ def test_cleanup_keeps_top_boundary_immutable_until_final_transition(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize();calls=[]
+  original=self.b.immutable_restore
+  self.b.immutable_restore=lambda fd,old,kind:calls.append((kind,fd))
+  try:
+   parent_fd=tree.directories[-1][0];file_count=len(tree.materialized);directory_count=len(tree.directories);private_parent=tree.mirror.parent
+   tree.clear_and_discard();self.assertFalse(private_parent.exists())
+   self.assertTrue(all(kind=='file' for kind,_fd in calls[:file_count]));self.assertTrue(all(kind=='directory' for kind,_fd in calls[file_count:]));self.assertEqual(len(calls),(file_count+directory_count));self.assertEqual(calls[-1],('directory',parent_fd))
+  finally:self.b.immutable_restore=original;tree.close()
+ def _assert_execute_early_materialize_failure_has_no_survivor(self,boundary):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);before=set(pathlib.Path('/tmp').glob('operations-compatible-immutable-*'));reached=[];injected=[False]
+  original_root,original_closure=self.b.ROOT,self.b.CLOSURE;original_chmod,original_mkdir=pathlib.Path.chmod,pathlib.Path.mkdir
+  def chmod(path,*args,**kwargs):
+   if boundary=='chmod' and not injected[0] and path.parent==pathlib.Path('/tmp') and path.name.startswith('operations-compatible-immutable-'):
+    injected[0]=True;raise PermissionError(errno.EPERM,'PRIVATE')
+   return original_chmod(path,*args,**kwargs)
+  def mkdir(path,*args,**kwargs):
+   if boundary=='mkdir' and not injected[0] and path.name=='root' and path.parent.parent==pathlib.Path('/tmp') and path.parent.name.startswith('operations-compatible-immutable-'):
+    injected[0]=True;raise PermissionError(errno.EPERM,'PRIVATE')
+   return original_mkdir(path,*args,**kwargs)
+  self.b.ROOT=root;self.b.CLOSURE=closure;self.b.__dict__['__held_bootstrap__']=bootstrap_authority;self.b.__dict__['__held_closure__']=closure_authority
+  output=io.StringIO()
+  try:
+   with unittest.mock.patch.object(pathlib.Path,'chmod',chmod),unittest.mock.patch.object(pathlib.Path,'mkdir',mkdir),unittest.mock.patch.object(self.b,'compiled_module',side_effect=lambda *_args:(reached.append('effect'),None)[1]),contextlib.redirect_stderr(output):self.assertEqual(self.b.main(),1)
+   self.assertTrue(injected[0]);self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=materialize\n');self.assertEqual(reached,[]);self.assertEqual(set(pathlib.Path('/tmp').glob('operations-compatible-immutable-*')),before)
+  finally:
+   self.b.ROOT,self.b.CLOSURE=original_root,original_closure;self.b.__dict__.pop('__held_bootstrap__',None);self.b.__dict__.pop('__held_closure__',None)
+ def test_execute_parent_chmod_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('chmod')
+ def test_execute_mirror_mkdir_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('mkdir')
  def test_immutable_set_readback_and_invalid_kind_fail_closed(self):
   original_set,original_flags=self.b.set_flags,self.b.flags
   try:
@@ -159,6 +261,7 @@ class Tests(unittest.TestCase):
   with self.assertRaisesRegex(RuntimeError,'held_authority_refused'):launcher_open(self.b,closure,expected,2097152)
  def test_workflow_embedded_launcher_is_fixed_and_held_byte(self):
   text=WORKFLOW.read_text();block=text[text.index('# BEGIN HELD BOOTSTRAP LAUNCHER V2'):text.index('# END HELD BOOTSTRAP LAUNCHER V2')];self.assertIn("open_held(BOOTSTRAP_PATH",block);self.assertIn("open_held(CLOSURE_PATH",block);self.assertIn("hashlib.sha256(data).hexdigest()!=expected",block);self.assertIn("'__held_bootstrap__':authority(bootstrap)",block);self.assertIn("'__held_closure__':authority(closure)",block);self.assertNotIn('operations-scope-compatible-read-native.py\n',block)
+  self.assertIn("BOOTSTRAP_SHA256='"+hashlib.sha256(BOOT.read_bytes()).hexdigest()+"'",block);self.assertIn("CLOSURE_SHA256='"+hashlib.sha256(CLOSURE.read_bytes()).hexdigest()+"'",block)
   self.assertIn('operations-scope-compatible-read-native-pinned-postgrest.guard.test.py',text.split('  compatible-product-reader-native:',1)[1].split('# BEGIN HELD BOOTSTRAP LAUNCHER V2',1)[0])
   code='\n'.join(line[10:] for line in block.splitlines()[1:])+'\n'
   prefix,dispatch=code.split("outer_phase='outer_bootstrap_open'",1)

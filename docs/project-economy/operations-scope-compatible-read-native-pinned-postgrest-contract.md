@@ -143,3 +143,59 @@ source/manifest closure passed; it is not evidence that a future merge equals
 the branch head or that immutable setting will succeed. Publication and a new
 exact-merge rerun remain separate gates. No repair, runtime, cleanup, absence
 or release claim is made.
+
+## Stage12 held-FD immutable transition successor
+
+The exact current predecessor run `37123882209`, job `111205196023`, on head
+`566a99dc959039e7c5736aa7cb654adf89cdc012` refined the first failure to
+`source_closure PHASE=immutable_file_set_permission`. That fixed marker proves
+only that the first regular-file `FS_IOC_SETFLAGS` operation returned `EPERM`
+or `EACCES`. It excludes the unsupported-ioctl, readback, identity, directory,
+compile and product-effect phases as that run's first failure. Absence of an
+effective `CAP_LINUX_IMMUTABLE` is the leading bounded explanation, but the
+privacy-preserving marker cannot distinguish the exact errno, capability,
+mount or LSM policy, so it is not asserted as observed fact.
+
+This successor keeps the product runtime under the ordinary runner identity.
+Only a fixed immutable-flag transition may cross the existing noninteractive
+sudo boundary. The parent retains the already captured descriptor and invokes
+absolute, root-owned, non-group/world-writable system executables with an empty
+stdin, bounded deadline, captured output and a two-entry fixed environment.
+The helper reopens only `/proc/<parent-pid>/fd/<held-fd>`, validates the complete
+pre-transition device/inode/type/owner/link/size/time identity and current
+flags, and permits exactly `old -> old|FS_IMMUTABLE_FL` or its cleanup inverse.
+It receives no source pathname, environment authority, SQL, token or product
+payload. Any output, nonzero exit, timeout, identity mismatch, flag mismatch or
+unexpected transition fails closed under a fixed public phase. The parent then
+checks flag readback and unchanged non-ctime identity before continuing.
+
+Failure after materialization now attempts owned rollback before returning the
+original fixed phase: every held materialized file and directory is inspected,
+any observed immutable bit is cleared through the same bounded transition, and
+the private tree is removed. Files are restored first; directories follow in
+captured deepest-to-parent order, leaving the top boundary immutable until the
+final inverse transition. Cleanup failure is reported as `owned_cleanup`
+and is never relabeled as the earlier cause. This covers partially completed
+file and directory seals; it does not claim a native no-survivor result until
+the exact hosted run proves add, effects, inverse transition and absence. The
+guard suite exercises permission-only delegation, unsupported/refused/deadline
+paths, fixed silence, held-FD command construction, invalid descriptor denial,
+partial file and directory rollback, zero pre-effect effects, and original
+closure/adversarial controls. Raw runtime, cleanup, release and publication
+acceptance remain separate gates.
+
+## Stage13 early owned-parent registration
+
+The private temporary parent becomes owned immediately after `mkdtemp`
+returns, before its mode is changed and before the mirror child is created.
+Cleanup therefore covers a failure in either the parent `chmod` or mirror
+`mkdir` boundary. The executor enters the fixed `owned_cleanup` phase for any
+registered parent, removes a partially constructed parent as well as a full
+mirror, and restores the original fixed `materialize` phase after successful
+rollback. Execute-level injected failures at both boundaries require a
+nonzero fixed `materialize` marker, zero implementation effects, and no new
+`operations-compatible-immutable-*` survivor.
+
+This is source-only evidence. The exact hosted immutable transition, Docker,
+PostgREST, database, cleanup/no-survivor, release and publication gates remain
+open until separately executed and reviewed.
