@@ -20,7 +20,8 @@ spec.loader.exec_module(module)
 
 def valid_env():
     return {'CI':'true','ISOLATED_PROJECT_EVIDENCE_HTTP':'true','ISOLATED_OPERATIONS_PROJECT_COST_MOUNTED_BROWSER':'true',
-    'GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'37000000001','GITHUB_SHA':'a'*40}
+    'GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'37000000001','GITHUB_SHA':'b'*40,
+    module.EXPECTED_SOURCE_HEAD:'a'*40}
 
 def proof():
     mode='project_cost_evidence';values=[{'case':case,'result':'PASS'} for case in module.CASES[mode]]
@@ -34,6 +35,40 @@ def selector_log(value,sequence='23'):
     return 'PROJECT_COST_MOUNTED_SELECTORS='+json.dumps(value)+'\nPROJECT_COST_MOUNTED_GRANT_SEQUENCE='+sequence+'\noperations-project-cost-mounted-browser-fixture SETUP PASS\n'
 
 class BoundaryTests(unittest.TestCase):
+    def test_expected_source_head_controls_checkout_while_event_sha_is_identity_only(self):
+        merge_event = valid_env()
+        self.assertNotEqual(merge_event['GITHUB_SHA'], merge_event[module.EXPECTED_SOURCE_HEAD])
+        self.assertEqual(module.isolated(merge_event), 'project-evidence-http-37000000001')
+        with patch.object(module, 'checked_head', return_value=merge_event[module.EXPECTED_SOURCE_HEAD]):
+            self.assertEqual(module.checkout_authority(merge_event), 'a' * 40)
+        equal_event = dict(merge_event, GITHUB_SHA=merge_event[module.EXPECTED_SOURCE_HEAD])
+        self.assertEqual(module.isolated(equal_event), 'project-evidence-http-37000000001')
+        with patch.object(module, 'checked_head', return_value=equal_event[module.EXPECTED_SOURCE_HEAD]):
+            self.assertEqual(module.checkout_authority(equal_event), 'a' * 40)
+
+    def test_expected_source_head_absent_invalid_or_mismatched_refuses_before_child(self):
+        variants = [(False, None), (True, ''), (True, None), (True, 'A' * 40),
+                    (True, 'g' * 40), (True, 'a' * 39), (True, 'a' * 41), (True, 7)]
+        for present, value in variants:
+            env = valid_env()
+            if present:
+                env[module.EXPECTED_SOURCE_HEAD] = value
+            else:
+                env.pop(module.EXPECTED_SOURCE_HEAD)
+            with self.subTest(value=value), patch.object(module.os, 'environ', env), \
+                    patch.object(module, 'command') as native, patch.object(module.subprocess, 'Popen') as process:
+                with self.assertRaises(module.ClosedFailure):
+                    module.main()
+                native.assert_not_called()
+                process.assert_not_called()
+        with patch.dict(module.os.environ, valid_env(), clear=True), \
+                patch.object(module, 'checked_head', return_value='c' * 40), \
+                patch.object(module, 'command') as native, patch.object(module.subprocess, 'Popen') as process:
+            with self.assertRaises(module.ClosedFailure):
+                module.main()
+            native.assert_not_called()
+            process.assert_not_called()
+
     def test_distinct_guard_precedes_every_process_and_does_not_admit_old_mode_flag(self):
         self.assertEqual(module.isolated(valid_env()),'project-evidence-http-37000000001')
         variants=[{'CI':'false'},{'ISOLATED_PROJECT_EVIDENCE_HTTP':'false'},{'ISOLATED_OPERATIONS_PROJECT_COST_MOUNTED_BROWSER':'','ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER':'true'}, {'GITHUB_REPOSITORY':'foreign/repo'},{'GITHUB_RUN_ID':'1;command'},{'GITHUB_SHA':'main'}]

@@ -54,8 +54,8 @@
     },
     {
       "path": "scripts/project-economy/operations-obligation-mounted-browser-native.py",
-      "sha256": "6b205c8f3c9eb6bb24187d4d0808780bb0847edca768ed0dfa94463803491462",
-      "bytes": 28570
+      "sha256": "729d984849b61a88523d66c2454eea675b4c37d62c516c1cdf9846ca55f9afa5",
+      "bytes": 29454
     },
     {
       "path": "scripts/project-economy/operations-obligation-mounted-browser.mjs",
@@ -79,13 +79,13 @@
     },
     {
       "path": "scripts/project-economy/operations-project-cost-mounted-browser-native-test.py",
-      "sha256": "ddbf015486cccc0a338caeb0b8ccb0ea9b71fcf84df236f8d8e771bedc6a591c",
-      "bytes": 12061
+      "sha256": "c214fe2dab4e7be8101f30daa72999b5f651dc498d4ba1e08837cd1bd3a8f7eb",
+      "bytes": 14265
     },
     {
       "path": "scripts/project-economy/operations-project-cost-mounted-browser-native.py",
-      "sha256": "5534ef998f20f57ab30a4b3e60ee7d1559655df1ffafdae43af68340b02bf938",
-      "bytes": 29190
+      "sha256": "f1b924fa30ea6ece09610d93edbc38884dbb5a7e3c15f78509eef9c9311a4675",
+      "bytes": 30074
     },
     {
       "path": "scripts/project-economy/operations-project-cost-mounted-browser.mjs",
@@ -356,6 +356,11 @@
       "path": "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql",
       "sha256": "4e67b0c5f534992c9c45798731067d2dc94e67811aca63d4728f29df978a0651",
       "bytes": 11856
+    },
+    {
+      "path": "scripts/project-economy/operations-obligation-mounted-browser-native.test.py",
+      "sha256": "3aa6fecb95aaea9cd1ed904f5b2b8030b405c3c1eb0e5d051ad3aa90046f5cba",
+      "bytes": 19289
     }
   ]
 }

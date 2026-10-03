@@ -45,6 +45,7 @@ CASES = {
 FIXED = {'PROJECT_EVIDENCE_DATABASE_NAME': DATABASE,
          'PROJECT_EVIDENCE_POSTGREST_URL': 'http://127.0.0.1:55610/',
          'PROJECT_EVIDENCE_CONTROL_URL': 'http://127.0.0.1:55611/'}
+EXPECTED_SOURCE_HEAD = 'EVENTFLOW_EXPECTED_SOURCE_HEAD'
 WRITE_KINDS = ('auth_post', 'rpc_post', 'report_diagnostic', 'mapbox_token', 'other_function', 'rest_write',
                'browser_origin_write', 'foreign_write', 'other_source_write')
 FORWARD_STAGES = ('headers', 'authorization', 'rpc_shape', 'native_fetch', 'native_body', 'native_fulfill')
@@ -69,6 +70,32 @@ def require(value, phase):
         raise ClosedFailure(phase)
 
 
+def expected_source_head(env):
+    value = env.get(EXPECTED_SOURCE_HEAD)
+    require(isinstance(value, str) and re.fullmatch(r'[a-f0-9]{40}', value), 'canonical_source_head')
+    return value
+
+
+def checked_head(root):
+    """Read the detached checkout authority without starting a child process."""
+    try:
+        git = root / '.git'
+        head = git / 'HEAD'
+        require(not git.is_symlink() and git.is_dir() and not head.is_symlink() and head.is_file()
+                and head.resolve().parent == git.resolve(), 'candidate_sha')
+        raw = head.read_bytes()
+    except OSError:
+        raise ClosedFailure('candidate_sha') from None
+    require(re.fullmatch(rb'[a-f0-9]{40}\n?', raw) is not None, 'candidate_sha')
+    return raw.rstrip(b'\n').decode('ascii')
+
+
+def checkout_authority(env, root=ROOT):
+    expected = expected_source_head(env)
+    require(checked_head(root) == expected, 'candidate_sha_match')
+    return expected
+
+
 def isolated(env):
     require(env.get('CI') == 'true' and env.get('ISOLATED_PROJECT_EVIDENCE_HTTP') == 'true'
             and env.get('ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER') == 'true', 'explicit_isolated_ci')
@@ -76,6 +103,7 @@ def isolated(env):
     run = env.get('GITHUB_RUN_ID', '')
     require(isinstance(run, str) and re.fullmatch(r'[0-9]{1,20}', run), 'canonical_run')
     require(isinstance(env.get('GITHUB_SHA'), str) and re.fullmatch(r'[a-f0-9]{40}', env['GITHUB_SHA']), 'canonical_candidate')
+    expected_source_head(env)
     for key, value in env.items():
         if not value:
             continue
@@ -332,10 +360,9 @@ def build_environment(root, env, mode):
 def main():
     env = dict(os.environ)
     namespace = isolated(env)
+    checkout_authority(env)
     runtime = paths(ROOT)
     # The root-owned exact source manifest and clean candidate are checked before Docker.
-    head = command(['git', 'rev-parse', 'HEAD'], env, 'candidate_sha').strip()
-    require(head == env['GITHUB_SHA'], 'candidate_sha_match')
     require(command(['git', 'status', '--porcelain', '--untracked-files=normal'], env, 'candidate_clean') == '', 'candidate_clean')
     command([sys.executable, str(runtime / 'verify-sources.py')], env, 'canonical21_source_bytes')
     closure = json.loads((runtime / 'schema-closure.json').read_text())['ordered_paths']
@@ -416,7 +443,7 @@ def main():
                 accepted[mode] = proof(command(['node', str(ROOT / SCRIPT)], journey_env, 'actual_mounted_browser_' + mode, 300), mode)
                 stop(preview, 'owned_preview_cleanup')
                 preview = None
-            require(command(['git', 'rev-parse', 'HEAD'], env, 'final_candidate_sha').strip() == head
+            require(checked_head(ROOT) == env[EXPECTED_SOURCE_HEAD]
                     and command(['git', 'status', '--porcelain', '--untracked-files=normal'], env, 'final_candidate_clean') == '', 'same_exact_candidate_after_builds')
         finally:
             # The two owned process groups are bounded; other servers are never killed.

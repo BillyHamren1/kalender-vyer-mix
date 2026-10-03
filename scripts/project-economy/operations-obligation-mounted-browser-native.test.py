@@ -22,7 +22,8 @@ def valid_env():
     return {'CI': 'true', 'ISOLATED_PROJECT_EVIDENCE_HTTP': 'true',
             'ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER': 'true',
             'GITHUB_REPOSITORY': 'BillyHamren1/kalender-vyer-mix',
-            'GITHUB_RUN_ID': '36979824134', 'GITHUB_SHA': 'b4272d1d' + 'a' * 32}
+            'GITHUB_RUN_ID': '36979824134', 'GITHUB_SHA': 'b' * 40,
+            module.EXPECTED_SOURCE_HEAD: 'a' * 40}
 
 
 def proof(mode):
@@ -45,6 +46,40 @@ def selector_log(value):
 
 
 class BoundaryTests(unittest.TestCase):
+    def test_expected_source_head_controls_checkout_while_event_sha_is_identity_only(self):
+        merge_event = valid_env()
+        self.assertNotEqual(merge_event['GITHUB_SHA'], merge_event[module.EXPECTED_SOURCE_HEAD])
+        self.assertEqual(module.isolated(merge_event), 'project-evidence-http-36979824134')
+        with patch.object(module, 'checked_head', return_value=merge_event[module.EXPECTED_SOURCE_HEAD]):
+            self.assertEqual(module.checkout_authority(merge_event), 'a' * 40)
+        equal_event = dict(merge_event, GITHUB_SHA=merge_event[module.EXPECTED_SOURCE_HEAD])
+        self.assertEqual(module.isolated(equal_event), 'project-evidence-http-36979824134')
+        with patch.object(module, 'checked_head', return_value=equal_event[module.EXPECTED_SOURCE_HEAD]):
+            self.assertEqual(module.checkout_authority(equal_event), 'a' * 40)
+
+    def test_expected_source_head_absent_invalid_or_mismatched_refuses_before_child(self):
+        variants = [(False, None), (True, ''), (True, None), (True, 'A' * 40),
+                    (True, 'g' * 40), (True, 'a' * 39), (True, 'a' * 41), (True, 7)]
+        for present, value in variants:
+            env = valid_env()
+            if present:
+                env[module.EXPECTED_SOURCE_HEAD] = value
+            else:
+                env.pop(module.EXPECTED_SOURCE_HEAD)
+            with self.subTest(value=value), patch.object(module.os, 'environ', env), \
+                    patch.object(module, 'command') as native, patch.object(module.subprocess, 'Popen') as process:
+                with self.assertRaises(module.ClosedFailure):
+                    module.main()
+                native.assert_not_called()
+                process.assert_not_called()
+        with patch.dict(module.os.environ, valid_env(), clear=True), \
+                patch.object(module, 'checked_head', return_value='c' * 40), \
+                patch.object(module, 'command') as native, patch.object(module.subprocess, 'Popen') as process:
+            with self.assertRaises(module.ClosedFailure):
+                module.main()
+            native.assert_not_called()
+            process.assert_not_called()
+
     def test_exact_separate_job_namespace_and_fixed_optional_endpoints(self):
         env = valid_env()
         self.assertEqual(module.isolated(env), 'project-evidence-http-36979824134')
