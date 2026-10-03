@@ -164,14 +164,14 @@ begin
   into v_exceptions
   from (
     select jsonb_build_object(
-      'category','personnel','identity',value->>'sourceTimeStreamKey'||':'||value->>'lineId',
+      'category','personnel','identity',(value->>'sourceTimeStreamKey')||':'||(value->>'lineId'),
       'code','missing_rate','amountMinor',null
     ) e
     from jsonb_array_elements(v_personnel)
     where value->>'coverage'='missing_rate' and value->>'status'<>'rejected'
     union all
     select jsonb_build_object(
-      'category','invoice','identity',value->>'invoiceId'||':'||value->>'allocationId',
+      'category','invoice','identity',(value->>'invoiceId')||':'||(value->>'allocationId'),
       'code',code,'amountMinor',case when code='unallocated_amount' then value->'unallocatedMinor' else null end
     ) e
     from jsonb_array_elements(v_invoices)
