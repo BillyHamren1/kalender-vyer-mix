@@ -13,8 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CLOSURE_BASE = "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2"
 CLOSURE_TREE = "382c32e9f1a7d4f7189798676e512c439f94874e"
-PUBLISHED_PARENT = "a33e717d6fb922254fc3bcde8bbe4d3e21e35614"
-PUBLISHED_PARENT_TREE = "29aaf7e0f76a042c3c7992aabbe5e4aa8e741e2a"
+PUBLISHED_PARENT = "d3a74beda4c6ed615f3ee3f8ecf0a274f0563355"
+PUBLISHED_PARENT_TREE = "8a0d4446490e32be6065636a8995fddc152f3ac7"
 FILES = [
     ".github/workflows/operations-obligation-reconciliation-native.yml",
     "docs/project-economy/operations-obligation-reconciliation-v1-contract.md",
@@ -227,6 +227,21 @@ class Guard(unittest.TestCase):
         self.assertIn("returns jsonb language sql volatile security invoker", public_read)
         self.assertNotIn(" language sql stable ", public_read)
         self.assertIn("operations_economy_private.read_obligation_reconciliation_v1", public_read)
+
+    def test_read_envelope_exposes_immutable_first_frozen_close_head(self) -> None:
+        private_start = self.sql.index("create function operations_economy_private.read_obligation_reconciliation_v1")
+        private_end = self.sql.index(
+            "revoke all on function operations_economy_private.read_obligation_reconciliation_v1", private_start
+        )
+        private_read = self.sql[private_start:private_end]
+        head_lock = "select * into h from public.operations_obligation_reconciliation_heads"
+        frozen_head = "'frozen_close_snapshot_id',h.frozen_close_snapshot_id"
+        frozen_document = "'frozen_close',frozen_doc"
+        self.assertEqual(private_read.count(frozen_head), 1)
+        self.assertLess(private_read.index(head_lock), private_read.index(frozen_head))
+        self.assertLess(private_read.index(frozen_head), private_read.index(frozen_document))
+        self.assertIn("reply->>'frozen_close_snapshot_id'=first_frozen", self.test)
+        self.assertIn("reply->>'snapshot_id'<>first_frozen", self.test)
 
     def test_security_invoker_schema_usage_matrix(self) -> None:
         self.assertIn("grant usage on schema operations_economy_private to authenticated,service_role;", self.setup)

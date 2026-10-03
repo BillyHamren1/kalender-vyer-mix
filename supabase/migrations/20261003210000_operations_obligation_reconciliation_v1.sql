@@ -408,7 +408,8 @@ declare org uuid;h public.operations_obligation_reconciliation_heads%rowtype;cur
   select document into strict current_doc from public.operations_obligation_reconciliation_snapshots where snapshot_id=h.current_snapshot_id;
   if h.frozen_close_snapshot_id is not null then select document into strict frozen_doc from public.operations_obligation_reconciliation_snapshots where snapshot_id=h.frozen_close_snapshot_id;end if;
   return jsonb_build_object('schema_version','operations-obligation-reconciliation-read.v1','state','current','organization_id',org,'project_id',p_project,'obligation_id',p_obligation,
-    'current_revision',h.current_revision,'economic_closed',h.economic_closed,'current',current_doc,'frozen_close',frozen_doc,
+    'current_revision',h.current_revision,'economic_closed',h.economic_closed,'frozen_close_snapshot_id',h.frozen_close_snapshot_id,
+    'current',current_doc,'frozen_close',frozen_doc,
     'finance_copy_eligible',current_doc->'finance_copy_eligible','finance_recalculated',false);
 end;$$;
 revoke all on function operations_economy_private.read_obligation_reconciliation_v1(uuid,uuid,uuid) from public,anon,service_role;

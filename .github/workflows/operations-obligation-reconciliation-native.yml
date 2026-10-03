@@ -30,8 +30,8 @@ jobs:
       - name: Exact additive source route
         env:
           OPS_RECONCILIATION_PROVENANCE_MODE: published
-          OPS_RECONCILIATION_EXPECTED_PARENT: a33e717d6fb922254fc3bcde8bbe4d3e21e35614
-          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: 29aaf7e0f76a042c3c7992aabbe5e4aa8e741e2a
+          OPS_RECONCILIATION_EXPECTED_PARENT: d3a74beda4c6ed615f3ee3f8ecf0a274f0563355
+          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: 8a0d4446490e32be6065636a8995fddc152f3ac7
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$OPS_RECONCILIATION_EXPECTED_PARENT"
