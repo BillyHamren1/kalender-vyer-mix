@@ -672,14 +672,20 @@ describe('saved-row drilldown integration with intercepted RPC', () => {
     await open();
     await screen.findByText('Preliminär kostnad: 180,00 kr');
     const moneyQueries = v.client.getQueryCache().getAll();
-    expect(moneyQueries).toHaveLength(2);
+    expect(moneyQueries).toHaveLength(3);
+    expect(moneyQueries.every((q) => q.meta?.persist === false)).toBe(true);
     expect(
-      moneyQueries.every(
-        (q) => q.state.status === 'success' && q.meta?.persist === false,
-      ),
-    ).toBe(true);
+      moneyQueries.filter((q) => q.state.status === 'success'),
+    ).toHaveLength(2);
+    expect(
+      moneyQueries.filter((q) => q.state.status === 'pending'),
+    ).toHaveLength(1);
+    expect(
+      moneyQueries.filter((q) => q.state.status === 'error'),
+    ).toHaveLength(0);
     expect(dehydrate(v.client).queries).toHaveLength(2);
-    // Actual App persistence policy opts out by meta.persist; neither saved ledger enters storage.
+    // Two loaded ledgers and one disabled projection query are nonpersistent;
+    // only the two successful queries enter default dehydration.
     const persisted = dehydrate(v.client, {
       shouldDehydrateQuery: (q) =>
         q.state.status === 'success' && q.meta?.persist !== false,

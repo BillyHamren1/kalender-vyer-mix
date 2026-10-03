@@ -51,9 +51,14 @@ class Guard(unittest.TestCase):
  def test_mounted_once_in_existing_drilldown(self):
   self.assertEqual(self.mount.count('<OperationsPositiveInvoiceObligationProjection'),1)
   self.assertEqual(self.mount.count("from './OperationsPositiveInvoiceObligationProjection'"),1)
- def test_no_workflow_or_manifest_candidate(self):
-  paths=[p.relative_to(ROOT).as_posix() for p in ROOT.rglob('*') if p.is_file()]
-  self.assertFalse(any(p.startswith('.github/') or 'manifest' in p.lower() for p in paths))
+ def test_published_workflow_and_no_step7_manifest(self):
+  workflow=ROOT/'.github/workflows/operations-positive-invoice-obligation-projection-native.yml'
+  self.assertTrue(workflow.is_file())
+  self.assertFalse(any(
+   'operations-positive-invoice-obligation-projection' in p.name
+   and 'manifest' in p.name.lower()
+   for p in ROOT.rglob('*') if p.is_file()
+  ))
  def test_no_true_nul(self):
   validator=ROOT/'scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs'
   for path in [SQL,CLIENT,PANEL,MOUNT,RUNTIME,validator,Path(__file__)]:self.assertNotIn(b'\0',path.read_bytes())
