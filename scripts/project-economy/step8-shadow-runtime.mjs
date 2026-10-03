@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const root = new URL('../../', import.meta.url);
-const migrationPath = new URL('supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql', root);
+const foundationMigrationPath = new URL('supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql', root);
+const migrationPath = new URL('supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql', root);
+const foundationMigration = readFileSync(foundationMigrationPath, 'utf8');
 const migration = readFileSync(migrationPath, 'utf8');
 const migrationSha256 = createHash('sha256').update(migration).digest('hex');
 const foundationPaths = [
@@ -25,6 +27,7 @@ const cumulativePaths = [
   'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx',
   'src/pages/project/ProjectEconomyPage.tsx',
   'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql',
+  'supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql',
 ];
 const ciRepairPaths = [
   '.github/workflows/project-economy-step8-shadow.yml',
@@ -40,6 +43,11 @@ const mountRepairPaths = [
   'scripts/project-economy/step8-shadow-runtime.mjs',
   'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx',
   'src/pages/project/ProjectEconomyPage.tsx',
+];
+const refactorPaths = [
+  '.github/workflows/project-economy-step8-shadow.yml',
+  'scripts/project-economy/step8-shadow-runtime.mjs',
+  'supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql',
 ];
 
 function run(command, args, options = {}) {
@@ -59,10 +67,17 @@ const expectedCiRepair = process.env.STEP8_EXPECTED_CI_REPAIR;
 const expectedCiRepairTree = process.env.STEP8_EXPECTED_CI_REPAIR_TREE;
 const expectedSqlRepair = process.env.STEP8_EXPECTED_SQL_REPAIR;
 const expectedSqlRepairTree = process.env.STEP8_EXPECTED_SQL_REPAIR_TREE;
+const expectedMount = process.env.STEP8_EXPECTED_MOUNT;
+const expectedMountTree = process.env.STEP8_EXPECTED_MOUNT_TREE;
 if (!expectedBase || !expectedBaseTree || !expectedFoundation || !expectedFoundationTree ||
-    !expectedCiRepair || !expectedCiRepairTree || !expectedSqlRepair || !expectedSqlRepairTree)
-  throw new Error('exact Step8 base, foundation, CI repair, and SQL repair provenance are required');
-if (run('git',['rev-parse','HEAD^']) !== expectedSqlRepair) throw new Error('unexpected Step8 SQL repair parent');
+    !expectedCiRepair || !expectedCiRepairTree || !expectedSqlRepair || !expectedSqlRepairTree ||
+    !expectedMount || !expectedMountTree)
+  throw new Error('exact Step8 base, foundation, CI repair, SQL repair, and mount provenance are required');
+if (run('git',['rev-parse','HEAD^']) !== expectedMount) throw new Error('unexpected Step8 mount parent');
+if (run('git',['rev-parse',`${expectedMount}^{tree}`]) !== expectedMountTree)
+  throw new Error('unexpected Step8 mount tree');
+if (run('git',['rev-parse',`${expectedMount}^`]) !== expectedSqlRepair)
+  throw new Error('unexpected Step8 mount SQL repair parent');
 if (run('git',['rev-parse',`${expectedSqlRepair}^{tree}`]) !== expectedSqlRepairTree)
   throw new Error('unexpected Step8 SQL repair tree');
 if (run('git',['rev-parse',`${expectedSqlRepair}^`]) !== expectedCiRepair)
@@ -77,14 +92,16 @@ if (run('git',['rev-parse',`${expectedFoundation}^`]) !== expectedBase)
   throw new Error('unexpected Step8 foundation base');
 if (run('git',['rev-parse',`${expectedBase}^{tree}`]) !== expectedBaseTree)
   throw new Error('unexpected Step8 base tree');
-if (run('git',['rev-list','--count',`${expectedBase}..HEAD`]) !== '4')
-  throw new Error('Step8 must be the exact four-commit cumulative chain');
+if (run('git',['rev-list','--count',`${expectedBase}..HEAD`]) !== '5')
+  throw new Error('Step8 must be the exact five-commit cumulative chain');
 if (run('git',['rev-list','--count',`${expectedBase}..${expectedFoundation}`]) !== '1')
   throw new Error('Step8 foundation must be one exact successor of the base');
 if (run('git',['rev-list','--count',`${expectedFoundation}..${expectedCiRepair}`]) !== '1')
   throw new Error('Step8 CI repair must be one exact successor of the foundation');
 if (run('git',['rev-list','--count',`${expectedCiRepair}..${expectedSqlRepair}`]) !== '1')
   throw new Error('Step8 SQL repair must be one exact successor of the CI repair');
+if (run('git',['rev-list','--count',`${expectedSqlRepair}..${expectedMount}`]) !== '1')
+  throw new Error('Step8 mount must be one exact successor of the SQL repair');
 const foundationChanged = run('git',['diff','--name-only',expectedBase,expectedFoundation]).split('\n').filter(Boolean).sort();
 if (JSON.stringify(foundationChanged) !== JSON.stringify(foundationPaths))
   throw new Error(`unexpected Step8 foundation paths: ${foundationChanged.join(',')}`);
@@ -94,9 +111,12 @@ if (JSON.stringify(ciRepairChanged) !== JSON.stringify(ciRepairPaths))
 const sqlRepairChanged = run('git',['diff','--name-only',expectedCiRepair,expectedSqlRepair]).split('\n').filter(Boolean).sort();
 if (JSON.stringify(sqlRepairChanged) !== JSON.stringify(sqlRepairPaths))
   throw new Error(`unexpected Step8 SQL repair paths: ${sqlRepairChanged.join(',')}`);
-const mountRepairChanged = run('git',['diff','--name-only',expectedSqlRepair,'HEAD']).split('\n').filter(Boolean).sort();
+const mountRepairChanged = run('git',['diff','--name-only',expectedSqlRepair,expectedMount]).split('\n').filter(Boolean).sort();
 if (JSON.stringify(mountRepairChanged) !== JSON.stringify(mountRepairPaths))
   throw new Error(`unexpected Step8 mount repair paths: ${mountRepairChanged.join(',')}`);
+const refactorChanged = run('git',['diff','--name-only',expectedMount,'HEAD']).split('\n').filter(Boolean).sort();
+if (JSON.stringify(refactorChanged) !== JSON.stringify(refactorPaths))
+  throw new Error(`unexpected Step8 projector refactor paths: ${refactorChanged.join(',')}`);
 const cumulativeChanged = run('git',['diff','--name-only',expectedBase,'HEAD']).split('\n').filter(Boolean).sort();
 if (JSON.stringify(cumulativeChanged) !== JSON.stringify(cumulativePaths))
   throw new Error(`unexpected cumulative Step8 paths: ${cumulativeChanged.join(',')}`);
@@ -107,6 +127,33 @@ for (const forbidden of [
 ]) if (forbidden.test(migration)) throw new Error(`migration violates read-only/privacy boundary: ${forbidden}`);
 if (!/security definer/i.test(migration) || !/security invoker/i.test(migration))
   throw new Error('paired definer/invoker boundary required');
+if (!/create function operations_economy_private\.project_economy_step8_shadow_payload_v1\(\s*p_organization_id uuid,\s*p_project_id uuid\s*\)[\s\S]*?stable\s+security invoker/i.test(migration))
+  throw new Error('private stable security-invoker Step8 payload projector required');
+if (!/revoke all on function operations_economy_private\.project_economy_step8_shadow_payload_v1\(uuid,uuid\)\s+from public,anon,authenticated,service_role;/i.test(migration))
+  throw new Error('payload projector must revoke every Data API role');
+if (/grant execute on function operations_economy_private\.project_economy_step8_shadow_payload_v1/i.test(migration))
+  throw new Error('payload projector execute privilege must not be granted');
+const wrapperStart = migration.indexOf('create or replace function operations_economy_private.read_project_economy_step8_shadow_v1');
+if (wrapperStart < 0) throw new Error('existing actor wrapper must be replaced');
+const wrapperSource = migration.slice(wrapperStart);
+const wrapperStages = [
+  "jsonb_typeof(p_request)",
+  "v_org := (p_request->>'organizationId')::uuid",
+  'authorize_project_v1(v_project,false)',
+  'v_org is distinct from v_authorized_org',
+  'project_economy_step8_shadow_payload_v1(',
+];
+let priorWrapperStage = -1;
+for (const stage of wrapperStages) {
+  const nextWrapperStage = wrapperSource.indexOf(stage);
+  if (nextWrapperStage <= priorWrapperStage) throw new Error(`actor wrapper stage missing or reordered: ${stage}`);
+  priorWrapperStage = nextWrapperStage;
+}
+for (const forbiddenTable of [
+  'operations_personnel_cost_streams',
+  'operations_personnel_cost_publications',
+  'operations_finance_invoice_economic_current_v2',
+]) if (wrapperSource.includes(forbiddenTable)) throw new Error(`actor wrapper projects table data directly: ${forbiddenTable}`);
 if (!/financeRecalculated',false/.test(migration) || !/authoritativeTotals',false/.test(migration) || !/replacesLegacyTotals',false/.test(migration))
   throw new Error('shadow/non-calculator markers required');
 const requiredIdentityExpressions = [
@@ -139,6 +186,7 @@ if (process.env.STEP8_STATIC_ONLY === '1') {
     sourceFoundation:expectedFoundation,sourceFoundationTree:expectedFoundationTree,
     sourceCiRepair:expectedCiRepair,sourceCiRepairTree:expectedCiRepairTree,
     sourceSqlRepair:expectedSqlRepair,sourceSqlRepairTree:expectedSqlRepairTree,
+    sourceMount:expectedMount,sourceMountTree:expectedMountTree,
     changedPaths:cumulativePaths,identityPrecedenceAdversarialDenied:true,
   },null,2));
   process.exit(0);
@@ -264,6 +312,7 @@ revoke all on public.operations_personnel_cost_streams,public.operations_personn
  public.operations_finance_credit_v2_streams,public.operations_finance_credit_v2_snapshots,
  public.operations_finance_invoice_economic_current_v2 from public,anon,authenticated,service_role;
 
+${foundationMigration}
 ${migration}
 
 insert into auth.users values ('${admin}'),('${granted}'),('${revoked}'),('${cross}');
@@ -370,7 +419,97 @@ insert into public.operations_finance_credit_v2_snapshots values
     'amount_minor',-10000,'consumes_commitment',true,'status','preliminary',
     'source_anchor','${creditSourceAnchor}','credited_source_anchor','${originalSourceAnchor}'))));
 
+do $$declare p record;projector_definition text;wrapper_definition text;begin
+ select proc.*,pg_get_userbyid(proc.proowner) owner_name
+ into strict p
+ from pg_proc proc
+ join pg_namespace namespace on namespace.oid=proc.pronamespace
+ where namespace.nspname='operations_economy_private'
+   and proc.proname='project_economy_step8_shadow_payload_v1'
+   and proc.pronargs=2;
+ if (select count(*) from pg_proc proc join pg_namespace namespace on namespace.oid=proc.pronamespace
+     where namespace.nspname='operations_economy_private'
+       and proc.proname='project_economy_step8_shadow_payload_v1')<>1
+   or p.provolatile<>'s' or p.prosecdef or p.owner_name<>current_user
+   or array_to_string(p.proconfig,',') not in ('search_path=', 'search_path=""')
+ then raise exception 'step8_projector_catalog_contract_failed';end if;
+ if exists(
+   select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+   where acl.privilege_type='EXECUTE'
+     and acl.grantee in (0,(select oid from pg_roles where rolname='anon'),
+       (select oid from pg_roles where rolname='authenticated'),
+       (select oid from pg_roles where rolname='service_role'))
+ ) then raise exception 'step8_projector_acl_failed';end if;
+ projector_definition:=pg_get_functiondef(p.oid);
+ wrapper_definition:=pg_get_functiondef(
+   'operations_economy_private.read_project_economy_step8_shadow_v1(jsonb)'::regprocedure
+ );
+ if projector_definition !~* 'stable'
+   or wrapper_definition ~* 'operations_personnel_cost_streams|operations_personnel_cost_publications|operations_finance_invoice_economic_current_v2'
+   or strpos(wrapper_definition,'jsonb_typeof(p_request)')=0
+   or strpos(wrapper_definition,'v_org := (p_request->>''organizationId'')::uuid')<=strpos(wrapper_definition,'jsonb_typeof(p_request)')
+   or strpos(wrapper_definition,'authorize_project_v1(v_project,false)')<=strpos(wrapper_definition,'v_org := (p_request->>''organizationId'')::uuid')
+   or strpos(wrapper_definition,'v_org is distinct from v_authorized_org')<=strpos(wrapper_definition,'authorize_project_v1(v_project,false)')
+   or strpos(wrapper_definition,'project_economy_step8_shadow_payload_v1')<=strpos(wrapper_definition,'v_org is distinct from v_authorized_org')
+ then raise exception 'step8_wrapper_source_contract_failed';end if;
+end$$;
+
+do $$begin
+ perform operations_economy_private.project_economy_step8_shadow_payload_v1(null,'${projectA}');
+ raise exception 'null_projector_binding_was_allowed';
+exception when sqlstate '22023' then null;end$$;
+do $$begin
+ perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgB}','${projectA}');
+ raise exception 'mismatched_projector_binding_was_allowed';
+exception when sqlstate '42501' then null;end$$;
+
+create temporary table step8_projector_parity(label text primary key,payload jsonb);
+grant select,insert on step8_projector_parity to authenticated;
+begin;
+insert into step8_projector_parity values (
+ 'owner',operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}')
+);
+set local role authenticated;
+set local request.jwt.claim.sub='${admin}';
+insert into step8_projector_parity values (
+ 'admin-wrapper',public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb)
+);
+set local request.jwt.claim.sub='${granted}';
+insert into step8_projector_parity values (
+ 'granted-wrapper',public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb)
+);
+reset role;
+do $$declare owner_payload jsonb;admin_payload jsonb;granted_payload jsonb;begin
+ select payload into strict owner_payload from step8_projector_parity where label='owner';
+ select payload into strict admin_payload from step8_projector_parity where label='admin-wrapper';
+ select payload into strict granted_payload from step8_projector_parity where label='granted-wrapper';
+ if owner_payload is distinct from admin_payload or owner_payload is distinct from granted_payload
+   or digest(convert_to(owner_payload::text,'UTF8'),'sha256') is distinct from digest(convert_to(admin_payload::text,'UTF8'),'sha256')
+   or digest(convert_to(owner_payload::text,'UTF8'),'sha256') is distinct from digest(convert_to(granted_payload::text,'UTF8'),'sha256')
+ then raise exception 'step8_projector_wrapper_parity_failed';end if;
+end$$;
+rollback;
+
+set role anon;
+do $$begin perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ raise exception 'anon_projector_was_allowed';exception when sqlstate '42501' then null;end$$;
+reset role;
 set role authenticated;
+do $$begin perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ raise exception 'authenticated_projector_was_allowed';exception when sqlstate '42501' then null;end$$;
+reset role;
+set role service_role;
+do $$begin perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ raise exception 'service_projector_was_allowed';exception when sqlstate '42501' then null;end$$;
+reset role;
+
+set role authenticated;
+set request.jwt.claim.sub='${admin}';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1('{}'::jsonb);
+ raise exception 'malformed_request_was_allowed';exception when sqlstate '22023' then null;end$$;
+set request.jwt.claim.sub='';
+do $$begin perform public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);
+ raise exception 'anonymous_actor_was_allowed';exception when sqlstate '42501' then null;end$$;
 set request.jwt.claim.sub='${admin}';
 create temporary table step8_results(label text primary key,payload jsonb);
 insert into step8_results values ('preliminary',public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb));
@@ -457,6 +596,55 @@ select public.read_operations_project_economy_step8_shadow_v1('${request}'::json
 rollback;
 reset role;
 
+begin;
+insert into public.operations_personnel_cost_streams values ('${orgA}','limit-bulk',1);
+insert into public.operations_personnel_cost_publications
+select '${orgA}','limit-bulk',1,'40000000-0000-4000-8000-000000000010',1,
+ jsonb_build_object(
+   'work_date','2026-10-03',
+   'lines',jsonb_agg(jsonb_build_object(
+     'source_time_line_id','bulk-'||lpad(g::text,3,'0'),
+     'source_project_id','${projectA}',
+     'source_booking_id',null,
+     'minutes',1,
+     'amount_minor',1,
+     'currency','SEK',
+     'status','preliminary',
+     'coverage','complete'
+   ) order by g)
+ )
+from generate_series(1,498) g;
+do $$declare payload jsonb;begin
+ payload:=operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ if jsonb_array_length(payload->'personnel')<>500 then
+   raise exception 'step8_projector_exact_500_failed';
+ end if;
+end$$;
+insert into public.operations_personnel_cost_streams values ('${orgA}','limit-overflow',1);
+insert into public.operations_personnel_cost_publications values
+ ('${orgA}','limit-overflow',1,'40000000-0000-4000-8000-000000000011',1,
+  jsonb_build_object('work_date','2026-10-03','lines',jsonb_build_array(jsonb_build_object(
+   'source_time_line_id','overflow','source_project_id','${projectA}','source_booking_id',null,
+   'minutes',1,'amount_minor',1,'currency','SEK','status','preliminary','coverage','complete'))));
+do $$begin
+ perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ raise exception 'step8_projector_501_was_allowed';
+exception when sqlstate '54000' then null;end$$;
+rollback;
+
+begin;
+insert into public.operations_personnel_cost_streams values ('${orgA}','size-overflow',1);
+insert into public.operations_personnel_cost_publications values
+ ('${orgA}','size-overflow',1,'40000000-0000-4000-8000-000000000012',1,
+  jsonb_build_object('work_date','2026-10-03','lines',jsonb_build_array(jsonb_build_object(
+   'source_time_line_id','size-overflow','source_project_id','${projectA}','source_booking_id',null,
+   'minutes',1,'amount_minor',1,'currency',repeat('X',270000),'status','preliminary','coverage','complete'))));
+do $$begin
+ perform operations_economy_private.project_economy_step8_shadow_payload_v1('${orgA}','${projectA}');
+ raise exception 'step8_projector_size_limit_was_allowed';
+exception when sqlstate '54000' then null;end$$;
+rollback;
+
 insert into public.operations_finance_invoice_streams values
  ('${orgA}','${sourceOrg}','70000000-0000-4000-8000-000000000005',1);
 insert into public.operations_finance_invoice_snapshots values
@@ -494,7 +682,7 @@ set request.jwt.claim.sub='${admin}';
 do $$begin perform public.read_operations_project_economy_step8_shadow_v1('${request}'::jsonb);
  raise exception 'invoice_source_conflict_was_allowed';exception when sqlstate '22023' then null;end$$;
 reset role;
-select 'STEP8_RUNTIME_PASS personnel=2 invoices=4 missing_null=1 booking_ids=2 linked_credit_binding=1 unresolved_credit=1 source_conflict=deny preliminary_confirmed_same_identity=1 auth_admin=allow auth_granted=allow auth_revoked=deny auth_project=deny auth_cross_tenant=deny auth_anon=deny private_rows=deny writes=0' as receipt;
+select 'STEP8_RUNTIME_PASS personnel=2 invoices=4 missing_null=1 booking_ids=2 linked_credit_binding=1 unresolved_credit=1 source_conflict=deny preliminary_confirmed_same_identity=1 projector_wrapper_payload_hash_parity=admin+granted projector_direct_anon=deny projector_direct_authenticated=deny projector_direct_service_role=deny projector_exact_500=pass projector_501=54000 projector_size=54000 malformed=22023 auth_admin=allow auth_granted=allow auth_revoked=deny auth_project=deny auth_cross_tenant=deny auth_anon=deny private_rows=deny writes=0' as receipt;
 `;
 
 const output = run('psql',[databaseUrl,'-X','--no-password','-v','ON_ERROR_STOP=1'],{
@@ -508,9 +696,14 @@ console.log(JSON.stringify({
   postgresRuntime:true,sourceBase:expectedBase,sourceBaseTree:expectedBaseTree,
   sourceFoundation:expectedFoundation,sourceFoundationTree:expectedFoundationTree,
   sourceCiRepair:expectedCiRepair,sourceCiRepairTree:expectedCiRepairTree,
+  sourceSqlRepair:expectedSqlRepair,sourceSqlRepairTree:expectedSqlRepairTree,
+  sourceMount:expectedMount,sourceMountTree:expectedMountTree,
   assertions:{twoBookings:true,missingRateNull:true,linkedCreditBinding:true,unresolvedCredit:true,
     sourceConflictDenied:true,preliminaryConfirmedSameIdentity:true,exceptions:true,
     identityPrecedenceAdversarialDenied:true,
+    projectorWrapperPayloadHashParity:true,projectorCatalogContract:true,
+    projectorAnonDenied:true,projectorAuthenticatedDenied:true,projectorServiceRoleDenied:true,
+    projectorExact500:true,projector501Denied:true,responseSizeDenied:true,malformedDenied:true,
     adminAllowed:true,grantedAllowed:true,revokedDenied:true,projectDenied:true,crossTenantDenied:true,
     anonDenied:true,privateRowsDenied:true,writes:0},
 },null,2));

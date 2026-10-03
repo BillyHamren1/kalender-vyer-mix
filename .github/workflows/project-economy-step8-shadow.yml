@@ -12,6 +12,7 @@ on:
       - 'src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx'
       - 'src/pages/project/ProjectEconomyPage.tsx'
       - 'supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql'
+      - 'supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql'
 
 permissions:
   contents: read
@@ -57,9 +58,13 @@ jobs:
           EXPECTED_CI_REPAIR_TREE: 8304dff80cb7c5246f67e383f3d3e1f1e531f0ab
           EXPECTED_SQL_REPAIR: 63d41ebdc5942eb79b56a4ac4ab7b02ee59f985f
           EXPECTED_SQL_REPAIR_TREE: 4a7b1dafcc87175a19c12395941f49b0668501e0
+          EXPECTED_MOUNT: 8ddf7ca266a936ce8885da2c5e99493b65866fb7
+          EXPECTED_MOUNT_TREE: c67e12c91e9ad56f0ec513d6af5af5dc8917d63c
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_SQL_REPAIR"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_MOUNT"
+          test "$(git rev-parse "$EXPECTED_MOUNT^{tree}")" = "$EXPECTED_MOUNT_TREE"
+          test "$(git rev-parse "$EXPECTED_MOUNT^")" = "$EXPECTED_SQL_REPAIR"
           test "$(git rev-parse "$EXPECTED_SQL_REPAIR^{tree}")" = "$EXPECTED_SQL_REPAIR_TREE"
           test "$(git rev-parse "$EXPECTED_SQL_REPAIR^")" = "$EXPECTED_CI_REPAIR"
           test "$(git rev-parse "$EXPECTED_CI_REPAIR^{tree}")" = "$EXPECTED_CI_REPAIR_TREE"
@@ -67,10 +72,11 @@ jobs:
           test "$(git rev-parse "$EXPECTED_FOUNDATION^{tree}")" = "$EXPECTED_FOUNDATION_TREE"
           test "$(git rev-parse "$EXPECTED_FOUNDATION^")" = "$EXPECTED_BASE"
           test "$(git rev-parse "$EXPECTED_BASE^{tree}")" = "$EXPECTED_BASE_TREE"
-          test "$(git rev-list --count "$EXPECTED_BASE"..HEAD)" = 4
+          test "$(git rev-list --count "$EXPECTED_BASE"..HEAD)" = 5
           test "$(git rev-list --count "$EXPECTED_BASE".."$EXPECTED_FOUNDATION")" = 1
           test "$(git rev-list --count "$EXPECTED_FOUNDATION".."$EXPECTED_CI_REPAIR")" = 1
           test "$(git rev-list --count "$EXPECTED_CI_REPAIR".."$EXPECTED_SQL_REPAIR")" = 1
+          test "$(git rev-list --count "$EXPECTED_SQL_REPAIR".."$EXPECTED_MOUNT")" = 1
           cat >"$RUNNER_TEMP/expected-foundation-paths" <<'EOF'
           .github/workflows/project-economy-step8-shadow.yml
           scripts/project-economy/step8-shadow-runtime.mjs
@@ -90,6 +96,7 @@ jobs:
           src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx
           src/pages/project/ProjectEconomyPage.tsx
           supabase/migrations/20261003235900_project_economy_step8_shadow_read_v1.sql
+          supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql
           EOF
           cat >"$RUNNER_TEMP/expected-ci-repair-paths" <<'EOF'
           .github/workflows/project-economy-step8-shadow.yml
@@ -106,15 +113,22 @@ jobs:
           src/pages/project/ProjectEconomyPage.step8-shadow.rendered.test.tsx
           src/pages/project/ProjectEconomyPage.tsx
           EOF
+          cat >"$RUNNER_TEMP/expected-refactor-paths" <<'EOF'
+          .github/workflows/project-economy-step8-shadow.yml
+          scripts/project-economy/step8-shadow-runtime.mjs
+          supabase/migrations/20261004002000_project_economy_step8_payload_projector_v1.sql
+          EOF
           git diff --name-only "$EXPECTED_BASE" "$EXPECTED_FOUNDATION" | LC_ALL=C sort >"$RUNNER_TEMP/foundation-paths"
           git diff --name-only "$EXPECTED_FOUNDATION" "$EXPECTED_CI_REPAIR" | LC_ALL=C sort >"$RUNNER_TEMP/ci-repair-paths"
           git diff --name-only "$EXPECTED_CI_REPAIR" "$EXPECTED_SQL_REPAIR" | LC_ALL=C sort >"$RUNNER_TEMP/sql-repair-paths"
-          git diff --name-only "$EXPECTED_SQL_REPAIR" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/mount-repair-paths"
+          git diff --name-only "$EXPECTED_SQL_REPAIR" "$EXPECTED_MOUNT" | LC_ALL=C sort >"$RUNNER_TEMP/mount-repair-paths"
+          git diff --name-only "$EXPECTED_MOUNT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/refactor-paths"
           git diff --name-only "$EXPECTED_BASE" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/cumulative-paths"
           cmp "$RUNNER_TEMP/expected-foundation-paths" "$RUNNER_TEMP/foundation-paths"
           cmp "$RUNNER_TEMP/expected-ci-repair-paths" "$RUNNER_TEMP/ci-repair-paths"
           cmp "$RUNNER_TEMP/expected-sql-repair-paths" "$RUNNER_TEMP/sql-repair-paths"
           cmp "$RUNNER_TEMP/expected-mount-repair-paths" "$RUNNER_TEMP/mount-repair-paths"
+          cmp "$RUNNER_TEMP/expected-refactor-paths" "$RUNNER_TEMP/refactor-paths"
           cmp "$RUNNER_TEMP/expected-cumulative-paths" "$RUNNER_TEMP/cumulative-paths"
           test "$(git status --porcelain)" = ""
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -145,9 +159,21 @@ jobs:
           STEP8_EXPECTED_CI_REPAIR_TREE: 8304dff80cb7c5246f67e383f3d3e1f1e531f0ab
           STEP8_EXPECTED_SQL_REPAIR: 63d41ebdc5942eb79b56a4ac4ab7b02ee59f985f
           STEP8_EXPECTED_SQL_REPAIR_TREE: 4a7b1dafcc87175a19c12395941f49b0668501e0
+          STEP8_EXPECTED_MOUNT: 8ddf7ca266a936ce8885da2c5e99493b65866fb7
+          STEP8_EXPECTED_MOUNT_TREE: c67e12c91e9ad56f0ec513d6af5af5dc8917d63c
         run: |
           set -Eeuo pipefail
           STEP8_STATIC_ONLY=1 node scripts/project-economy/step8-shadow-runtime.mjs
+          if STEP8_EXPECTED_MOUNT="$STEP8_EXPECTED_SQL_REPAIR" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial mount provenance was accepted' >&2
+            exit 1
+          fi
+          if STEP8_EXPECTED_MOUNT_TREE="$STEP8_EXPECTED_SQL_REPAIR_TREE" STEP8_STATIC_ONLY=1 \
+            node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial mount tree was accepted' >&2
+            exit 1
+          fi
           if STEP8_EXPECTED_SQL_REPAIR="$STEP8_EXPECTED_CI_REPAIR" STEP8_STATIC_ONLY=1 \
             node scripts/project-economy/step8-shadow-runtime.mjs >/dev/null 2>&1; then
             echo 'adversarial SQL repair provenance was accepted' >&2
