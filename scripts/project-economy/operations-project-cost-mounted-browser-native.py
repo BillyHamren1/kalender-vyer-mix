@@ -338,7 +338,7 @@ def build_environment(root, env, mode):
 def main():
     env = dict(os.environ)
     namespace = isolated(env)
-    checkout_authority(env)
+    head = checkout_authority(env)
     runtime = paths(ROOT)
     # The root-owned exact source manifest and clean candidate are checked before Docker.
     require(command(['git', 'status', '--porcelain', '--untracked-files=normal'], env, 'candidate_clean') == '', 'candidate_clean')

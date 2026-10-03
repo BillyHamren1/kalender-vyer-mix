@@ -54,8 +54,8 @@
     },
     {
       "path": "scripts/project-economy/operations-obligation-mounted-browser-native.py",
-      "sha256": "729d984849b61a88523d66c2454eea675b4c37d62c516c1cdf9846ca55f9afa5",
-      "bytes": 29454
+      "sha256": "5467aa3b2b23680f76bb8e8c2c7ba788a98c7665dcb5cc44a881a2c09b408362",
+      "bytes": 29461
     },
     {
       "path": "scripts/project-economy/operations-obligation-mounted-browser.mjs",
@@ -84,8 +84,8 @@
     },
     {
       "path": "scripts/project-economy/operations-project-cost-mounted-browser-native.py",
-      "sha256": "f1b924fa30ea6ece09610d93edbc38884dbb5a7e3c15f78509eef9c9311a4675",
-      "bytes": 30074
+      "sha256": "1ac8acb27a7372269545cdfffbd1ddbcbf1364bae4db21b1a607939754595857",
+      "bytes": 30081
     },
     {
       "path": "scripts/project-economy/operations-project-cost-mounted-browser.mjs",
