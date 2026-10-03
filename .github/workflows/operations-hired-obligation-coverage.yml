@@ -1,0 +1,28 @@
+name: Operations hired obligation coverage source
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/hired-obligation-coverage.ts'
+      - 'supabase/functions/_shared/hired-obligation-coverage.test.ts'
+      - 'docs/project-economy/hired-obligation-coverage-v1-contract.md'
+      - '.github/workflows/operations-hired-obligation-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Exact runtime versions
+        run: |
+          test "$(node --version)" = "v24.21.0"
+      - name: Hired obligation source-only contract
+        run: node --test supabase/functions/_shared/hired-obligation-coverage.test.ts
