@@ -16,6 +16,7 @@ import time
 HERE=pathlib.Path(__file__).absolute().parent
 ROOT=HERE.parent.parent
 FLAG='EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB'
+SOURCE_HEAD='EVENTFLOW_EXPECTED_SOURCE_HEAD'
 DATABASES={'operations_hired_authority_runtime':'hired','eventflow_own_credit_remaining_six':'credit','eventflow_own_credit_capacity_remaining_six':'capacity'}
 ORG='11111111-1111-4111-8111-111111111111'
 ACTOR='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -43,13 +44,26 @@ class NativeFailure(Exception):
   self.phase=phase if type(phase) is str and phase in PHASES else 'unclassified'
   self.code=code if type(code) is str and code in CODES else 'unclassified'
 
+def checked_head():
+ p=ROOT/'.git'
+ q=p/'HEAD'
+ if p.is_symlink() or not p.is_dir() or q.is_symlink() or not q.is_file() or q.resolve().parent!=p.resolve():raise Refusal('guard')
+ try:raw=q.read_bytes().decode('ascii')
+ except (OSError,UnicodeDecodeError):raise Refusal('guard') from None
+ if not re.fullmatch('[0-9a-f]{40}\n?',raw):raise Refusal('guard')
+ return raw.rstrip('\n')
 def guard(env):
  required={'CI':'true',FLAG:'true','PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix'}
  if any(env.get(k)!=v for k,v in required.items()) or env.get('PGDATABASE') not in DATABASES or not re.fullmatch('[0-9]{1,20}',env.get('GITHUB_RUN_ID','')):raise Refusal('guard')
+ expected=env.get(SOURCE_HEAD)
+ if type(expected) is not str or not re.fullmatch('[0-9a-f]{40}',expected) or expected!=checked_head():raise Refusal('guard')
  for k,v in env.items():
+  if type(k) is not str:raise Refusal('guard')
+  if k.startswith('EVENTFLOW_'):
+   if k not in {FLAG,SOURCE_HEAD}:raise Refusal('guard')
+   continue
   if not v:continue
   if k.lower() in {'http_proxy','https_proxy','all_proxy','no_proxy'} or k.startswith(('SUPABASE_','PGRST_','DOCKER_','COMPOSE_','BASH_FUNC_','DYLD_','LD_')) or k.startswith('PG') and k not in {'PGHOST','PGPORT','PGUSER','PGDATABASE','PGPASSWORD'} or k in {'DATABASE_URL','DB_URL','TMPDIR','TMP','TEMP','BASH_ENV','ENV','PYTHONPATH','PYTHONHOME','PYTHONSTARTUP','PYTHONINSPECT','NODE_OPTIONS','NODE_USE_ENV_PROXY','GCONV_PATH','LOCPATH','OPENSSL_CONF','OPENSSL_MODULES','SHELLOPTS','BASHOPTS','PS4'}:raise Refusal('guard')
-  if k.startswith('EVENTFLOW_') and k not in {FLAG}:raise Refusal('guard')
  return DATABASES[env['PGDATABASE']]
 def load_source():
  p=HERE/'remaining-six-containing-owner-native-closure.json'

@@ -14,16 +14,50 @@ from unittest.mock import patch
 HERE=pathlib.Path(__file__).absolute().parent
 spec=importlib.util.spec_from_file_location('owner_candidate',HERE/'remaining-six-containing-owner-native.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+REAL_CHECKED_HEAD=m.checked_head
 
 class Guards(unittest.TestCase):
+ HEAD='a'*40
+ def setUp(self):
+  self.head_patch=patch.object(m,'checked_head',return_value=self.HEAD)
+  self.head_patch.start()
+ def tearDown(self):
+  self.head_patch.stop()
  def env(self,db='operations_hired_authority_runtime'):
-  return {'CI':'true',m.FLAG:'true','PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':db,'GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1234'}
+  return {'CI':'true',m.FLAG:'true',m.SOURCE_HEAD:self.HEAD,'PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':db,'GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1234'}
  def snapshot(self):
   names=['auth.users']+['public.table_'+str(i).zfill(2) for i in range(61)]
   v={'schema':'remaining-six-owner-state.v1','tables':[{'name':n,'count':1,'fingerprint':'a'*64} for n in names]}
   return v,names
  def test_exact_three_database_modes(self):
   for db,mode in m.DATABASES.items():self.assertEqual(m.guard(self.env(db)),mode)
+ def test_expected_source_head_is_mandatory_and_exact_checked_head(self):
+  self.assertEqual(m.guard(self.env()),'hired')
+ def test_expected_source_head_absent_or_invalid_refuses_before_source_or_child(self):
+  variants=[(False,None),(True,''),(True,None),(True,self.HEAD[:-1]),(True,self.HEAD+'a'),(True,'A'*40),(True,'g'*40),(True,'b'*40),(True,123)]
+  for present,value in variants:
+   e=self.env()
+   if present:e[m.SOURCE_HEAD]=value
+   else:e.pop(m.SOURCE_HEAD)
+   with patch.object(m,'load_source',side_effect=AssertionError('must not load')),patch.object(m.tempfile,'mkdtemp',side_effect=AssertionError('must not create private root')):
+    with self.assertRaises(m.Refusal):m.execute(e)
+ def test_all_other_eventflow_names_refuse_even_when_empty(self):
+  for value in ['',None,'hostile']:
+   e=self.env();e['EVENTFLOW_UNREVIEWED']=value
+   with self.assertRaises(m.Refusal):m.guard(e)
+ def test_checked_head_requires_plain_lowercase_detached_head(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);git=root/'.git';git.mkdir();head=git/'HEAD';head.write_text(self.HEAD+'\n')
+   with patch.object(m,'ROOT',root):
+    self.assertEqual(REAL_CHECKED_HEAD(),self.HEAD)
+    for raw in ['ref: refs/heads/main\n','A'*40+'\n',self.HEAD+'\n\n','../'+self.HEAD,'']:
+     head.write_text(raw)
+     with self.assertRaises(m.Refusal):REAL_CHECKED_HEAD()
+    head.unlink();target=root/'symbolic-head';target.write_text(self.HEAD+'\n');head.symlink_to(target)
+    with self.assertRaises(m.Refusal):REAL_CHECKED_HEAD()
+    e=self.env()
+    with patch.object(m,'checked_head',REAL_CHECKED_HEAD),patch.object(m,'load_source',side_effect=AssertionError('must not load')),patch.object(m.tempfile,'mkdtemp',side_effect=AssertionError('must not create private root')):
+     with self.assertRaises(m.Refusal):m.execute(e)
  def test_host_and_database_refuse_before_child(self):
   for k,v in [('PGHOST','localhost'),('PGHOST','example.com'),('PGDATABASE','operations_remaining_six_read_runtime'),('PGDATABASE','eventflow_own_credit_foreign'),('PGPORT','55409'),('PGUSER','service_role'),('CI','false')]:
    e=self.env();e[k]=v
