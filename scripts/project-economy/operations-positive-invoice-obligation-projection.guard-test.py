@@ -38,11 +38,42 @@ IDENTITY_BLOCK=f'''          ops_projection_native_phase=postgres_version
           esac
           unset postgres_version postgres_package
 '''
+RLS_ASSERTION_BLOCK='''          \\set ON_ERROR_STOP on
+          do $assert$
+          begin
+            if not has_function_privilege('authenticated','public.read_operations_positive_invoice_obligation_projection_v1(jsonb)','execute') then
+              raise exception 'authenticated_execute_privilege_required' using errcode='42501';
+            end if;
+            if has_function_privilege('anon','public.read_operations_positive_invoice_obligation_projection_v1(jsonb)','execute') then
+              raise exception 'anon_execute_privilege_forbidden' using errcode='42501';
+            end if;
+          end
+          $assert$;
+          set role service_role;
+          insert into public.operations_positive_invoice_projection_read_gates values ('11111111-1111-4111-8111-111111111111',false);
+          reset role;
+          grant select on public.operations_positive_invoice_projection_read_gates to authenticated;
+          set role authenticated;
+          do $assert$
+          begin
+            if exists (select 1 from public.operations_positive_invoice_projection_read_gates) then
+              raise exception 'authenticated_read_gate_visibility_forbidden' using errcode='42501';
+            end if;
+          end
+          $assert$;
+'''
 
 def require_postgres_identity_contract(workflow):
  assert workflow.count(f'PG_IMAGE: {PG_IMAGE}')==1
  assert workflow.count(IDENTITY_BLOCK)==1
  assert workflow.index(IDENTITY_BLOCK)<workflow.index('          ops_projection_native_phase=bootstrap\n')
+
+def require_rls_assertion_contract(workflow):
+ assert workflow.count(RLS_ASSERTION_BLOCK)==1
+ assert 'else 1/0' not in workflow.lower()
+ assert workflow.count("using errcode='42501';")==3
+ assert workflow.index('          ops_projection_native_phase=rls\n')<workflow.index(RLS_ASSERTION_BLOCK)
+ assert workflow.index(RLS_ASSERTION_BLOCK)<workflow.index('          ops_projection_native_phase=regression\n')
 
 class Guard(unittest.TestCase):
  def setUp(self):
@@ -107,6 +138,22 @@ class Guard(unittest.TestCase):
   for label,mutated in mutations:
    self.assertNotEqual(mutated,self.workflow,label)
    with self.assertRaises((AssertionError,ValueError),msg=label):require_postgres_identity_contract(mutated)
+ def test_rls_assertions_are_fail_closed_without_constant_division(self):
+  require_rls_assertion_contract(self.workflow)
+ def test_rls_assertion_contract_rejects_drift(self):
+  mutations=[
+   ('authenticated-inversion',self.workflow.replace("if not has_function_privilege('authenticated'","if has_function_privilege('authenticated'",1)),
+   ('anon-inversion',self.workflow.replace("if has_function_privilege('anon'","if not has_function_privilege('anon'",1)),
+   ('visibility-inversion',self.workflow.replace('if exists (select 1 from public.operations_positive_invoice_projection_read_gates)','if not exists (select 1 from public.operations_positive_invoice_projection_read_gates)',1)),
+   ('missing-authenticated-raise',self.workflow.replace("raise exception 'authenticated_execute_privilege_required' using errcode='42501';",'null;',1)),
+   ('missing-anon-raise',self.workflow.replace("raise exception 'anon_execute_privilege_forbidden' using errcode='42501';",'null;',1)),
+   ('missing-visibility-raise',self.workflow.replace("raise exception 'authenticated_read_gate_visibility_forbidden' using errcode='42501';",'null;',1)),
+   ('old-constant-folding',self.workflow.replace(RLS_ASSERTION_BLOCK,"          select case when true then 1 else 1/0 end;\n",1)),
+   ('regression-before-assertion',self.workflow.replace('          ops_projection_native_phase=rls\n','          ops_projection_native_phase=regression\n          ops_projection_native_phase=rls\n',1)),
+  ]
+  for label,mutated in mutations:
+   self.assertNotEqual(mutated,self.workflow,label)
+   with self.assertRaises((AssertionError,ValueError),msg=label):require_rls_assertion_contract(mutated)
  def test_no_true_nul(self):
   validator=ROOT/'scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs'
   for path in [SQL,CLIENT,PANEL,MOUNT,RUNTIME,validator,WORKFLOW,Path(__file__)]:self.assertNotIn(b'\0',path.read_bytes())
