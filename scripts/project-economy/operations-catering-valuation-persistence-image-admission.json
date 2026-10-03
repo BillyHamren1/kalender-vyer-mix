@@ -1,0 +1,25 @@
+{
+  "schema": "operations-catering-postgres-image-admission.v1",
+  "authority": "blocked_missing_reviewed_registry_and_publisher_evidence",
+  "image": "docker.io/library/postgres",
+  "observed_tag": "15.19",
+  "platform": {
+    "os": "linux",
+    "architecture": "amd64"
+  },
+  "observed_index_digest": "sha256:724292da1f2e50bdccfc3302ce75bbba7f4a6076701b588cc795fcac65683550",
+  "observed_platform_manifest_digest": "sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb",
+  "verified_config_digest": null,
+  "verified_image_id": null,
+  "verified_entrypoint": null,
+  "verified_cmd": null,
+  "registry_evidence_bundle_sha256": null,
+  "publisher_signature_bundle_sha256": null,
+  "trusted_time_bundle_sha256": null,
+  "policy_sha256": null,
+  "nonclaims": [
+    "Observed digests are not a reviewed raw OCI index-to-manifest-to-config chain.",
+    "No publisher signature, transparency consistency or trusted-time evidence is present.",
+    "This file cannot authorize a pull, create, start, exec or cleanup command."
+  ]
+}

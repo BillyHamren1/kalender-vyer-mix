@@ -1,0 +1,56 @@
+name: Operations Catering valuation census persistence native
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/catering-valuation-source-census.ts'
+      - 'supabase/functions/_shared/catering-valuation-source-census.test.ts'
+      - 'supabase/functions/_shared/catering-project-evidence.ts'
+      - 'supabase/functions/_shared/project-personnel-cost.ts'
+      - 'docs/project-economy/catering-valuation-source-census-v1-contract.md'
+      - 'supabase/migrations/20261003120000_operations_catering_valuation_census_persistence_v1.sql'
+      - 'scripts/project-economy/operations-catering-valuation-census-persistence-native-test.sql'
+      - 'scripts/project-economy/operations-catering-valuation-persistence-image-admission.json'
+      - 'scripts/project-economy/operations-catering-valuation-persistence-native.sh'
+      - 'scripts/project-economy/operations-catering-valuation-persistence-native.guard-test.py'
+      - 'docs/project-economy/operations-catering-valuation-persistence-native-v3-contract.md'
+      - '.github/workflows/operations-catering-valuation-census-persistence-native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  two-booking-persistence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Exact reviewed source closure before image activity
+        run: |
+          test "$(sha256sum supabase/functions/_shared/catering-valuation-source-census.ts | cut -d' ' -f1)" = "e789b0b3394025511639fd1595ebc488d80ebed88e0fd492738f2d65b0f2017b"
+          test "$(sha256sum supabase/functions/_shared/catering-valuation-source-census.test.ts | cut -d' ' -f1)" = "6ee81e8a4cd979de6ce6cccb22bfe5b5f0d4d60c67dec4b8d8a294d73292a6c1"
+          test "$(sha256sum supabase/functions/_shared/catering-project-evidence.ts | cut -d' ' -f1)" = "0760348b57475c334abfce43b846d4136eb05ada1c99bc244ae7179e6815362a"
+          test "$(sha256sum supabase/functions/_shared/project-personnel-cost.ts | cut -d' ' -f1)" = "69c7a35c9e144b20c4db3938d61d96b519a1419b27e7689e39c48d58635b2870"
+          test "$(sha256sum docs/project-economy/catering-valuation-source-census-v1-contract.md | cut -d' ' -f1)" = "e286aa66785e06d98d2358512b6cf5df6e925281fd191a62f654ef7e62944aa6"
+          test "$(sha256sum supabase/migrations/20261003120000_operations_catering_valuation_census_persistence_v1.sql | cut -d' ' -f1)" = "db08d86d39db921b35a53358308ba3afe80872649ffda8b4f55570ee3fbe1166"
+          test "$(sha256sum scripts/project-economy/operations-catering-valuation-census-persistence-native-test.sql | cut -d' ' -f1)" = "3c8b40425082cbb46bb201220e5028cc384458fd902166c7e5295ef5c8a4dcbe"
+          test "$(sha256sum scripts/project-economy/operations-catering-valuation-persistence-image-admission.json | cut -d' ' -f1)" = "640e3afa2cb89891388cf335de9ecd81c0ff92b7eb797faa0f446055b3a20e39"
+          test "$(sha256sum scripts/project-economy/operations-catering-valuation-persistence-native.sh | cut -d' ' -f1)" = "bab3c52e3275bd23aee0cce1b9253080f1275c723ba4244f0995d22e040d6a25"
+          test "$(sha256sum scripts/project-economy/operations-catering-valuation-persistence-native.guard-test.py | cut -d' ' -f1)" = "327a29336414e5b96c5e7713cf598ebcc910250649d92365617f81cdda2fec0c"
+          test "$(sha256sum docs/project-economy/operations-catering-valuation-persistence-native-v3-contract.md | cut -d' ' -f1)" = "d5a63fd4e0a9bd712b62b68545449477f8a14f5cc7958f034b723c1588ff3d08"
+          python3 -I -B scripts/project-economy/operations-catering-valuation-persistence-native.guard-test.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Exact pure census semantics before image activity
+        run: |
+          test "$(node --version)" = "v24.21.0"
+          test "$(npm --version)" = "11.19.0"
+          node --experimental-transform-types --test supabase/functions/_shared/catering-valuation-source-census.test.ts
+      - name: Admission-gated private-daemon synthetic PostgreSQL runtime
+        env:
+          OPERATIONS_CATERING_EXPECTED_ADMISSION_SHA256: 640e3afa2cb89891388cf335de9ecd81c0ff92b7eb797faa0f446055b3a20e39
+        run: bash scripts/project-economy/operations-catering-valuation-persistence-native.sh
