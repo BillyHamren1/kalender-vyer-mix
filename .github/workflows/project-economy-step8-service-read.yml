@@ -47,8 +47,8 @@ jobs:
           persist-credentials: false
       - name: Exact parent, tree and owned paths
         env:
-          EXPECTED_PARENT: 767e320e8a673254fd50f33371dca2a0770ab7da
-          EXPECTED_PARENT_TREE: 305f8a8c4a3f27cdeb23252316994b8d5f533113
+          EXPECTED_PARENT: 574beeb04eed0f1f6de794fcd87d213c3830c830
+          EXPECTED_PARENT_TREE: 6bdca494c9872991d0d18047f4db4de59b36189f
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"

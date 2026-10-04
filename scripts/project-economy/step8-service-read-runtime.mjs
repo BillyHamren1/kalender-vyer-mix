@@ -2,10 +2,12 @@ import { createHash, createHmac } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'767e320e8a673254fd50f33371dca2a0770ab7da';
-const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'305f8a8c4a3f27cdeb23252316994b8d5f533113';
-const predecessor='2be1998c85c282046cc8d2be2446c894ea47eb3e';
-const predecessorTree='e19fb55dd6e8976827271a085ba4d1ce564813cd';
+const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'574beeb04eed0f1f6de794fcd87d213c3830c830';
+const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'6bdca494c9872991d0d18047f4db4de59b36189f';
+const predecessor='767e320e8a673254fd50f33371dca2a0770ab7da';
+const predecessorTree='305f8a8c4a3f27cdeb23252316994b8d5f533113';
+const serviceKeyOrderBase='2be1998c85c282046cc8d2be2446c894ea47eb3e';
+const serviceKeyOrderBaseTree='e19fb55dd6e8976827271a085ba4d1ce564813cd';
 const serviceRepairBase='e5b8790b591c740beee1ebd7f0e875ed51a99cb3';
 const serviceRepairBaseTree='ba796c50f0d7ab1237a660ee592940f21ad80f25';
 const serviceFoundation='ddde377f239f276a19cde807c000bbadd5868389';
@@ -22,7 +24,9 @@ if(run('git',['rev-parse','HEAD^']).trim()!==parent) throw new Error('service_pa
 if(run('git',['rev-parse',`${parent}^{tree}`]).trim()!==parentTree) throw new Error('service_parent_tree_mismatch');
 if(run('git',['rev-parse',`${parent}^`]).trim()!==predecessor||
  run('git',['rev-parse',`${predecessor}^{tree}`]).trim()!==predecessorTree||
- run('git',['rev-parse',`${predecessor}^`]).trim()!==serviceRepairBase||
+ run('git',['rev-parse',`${predecessor}^`]).trim()!==serviceKeyOrderBase||
+ run('git',['rev-parse',`${serviceKeyOrderBase}^{tree}`]).trim()!==serviceKeyOrderBaseTree||
+ run('git',['rev-parse',`${serviceKeyOrderBase}^`]).trim()!==serviceRepairBase||
  run('git',['rev-parse',`${serviceRepairBase}^{tree}`]).trim()!==serviceRepairBaseTree||
  run('git',['rev-parse',`${serviceRepairBase}^`]).trim()!==serviceFoundation||
  run('git',['rev-parse',`${serviceFoundation}^{tree}`]).trim()!==serviceFoundationTree||
@@ -78,7 +82,7 @@ if(/insert\s+into\s+operations_step8_service_private\.(request_keys|response_key
 const migrationSha256=createHash('sha256').update(migration).digest('hex');
 if(process.env.STEP8_SERVICE_STATIC_ONLY==='1') {
   console.log(JSON.stringify({status:'PASS',mode:'static-only',parent,parentTree,predecessor,predecessorTree,
-    serviceRepairBase,serviceRepairBaseTree,serviceFoundation,serviceFoundationTree,serviceBootstrap,
+    serviceKeyOrderBase,serviceKeyOrderBaseTree,serviceRepairBase,serviceRepairBaseTree,serviceFoundation,serviceFoundationTree,serviceBootstrap,
     serviceBootstrapTree,owned,migrationSha256},null,2));
   process.exit(0);
 }
@@ -819,11 +823,44 @@ rejectedMissingRateRow.status='rejected';
 rebuildTopExceptions(rejectedMissingRatePayload);
 assertHostileProjectorAvailable(rejectedMissingRatePayload,'rejected-missing-rate-top-suppression');
 const collidingVisibleIdentityPayload=structuredClone(availableBody.payload);
-const collidingVisibleIdentitySource=collidingVisibleIdentityPayload.invoices.find(row=>row.sourceProtocol==='v1'&&row.kind==='credit');
+const collidingVisibleInvoiceId='70000000-0000-4000-8000-000000000004';
+const collidingVisibleAllocationId='72000000-0000-4000-8000-000000000004';
+const collidingVisibleIdentitySource=collidingVisibleIdentityPayload.invoices.find(row=>row.sourceProtocol==='v1'&&row.kind==='credit'&&
+ row.sourceOrganizationId==='60000000-0000-4000-8000-000000000001'&&row.invoiceId===collidingVisibleInvoiceId&&
+ row.allocationId===collidingVisibleAllocationId);
+if(!collidingVisibleIdentitySource) throw new Error('same_visible_exception_identity_source_missing');
 const collidingVisibleIdentityRow=structuredClone(collidingVisibleIdentitySource);
 collidingVisibleIdentityRow.sourceOrganizationId='60000000-0000-4000-8000-000000000099';
+if(collidingVisibleIdentitySource.exceptions.length===0||
+ collidingVisibleIdentityRow.sourceOrganizationId===collidingVisibleIdentitySource.sourceOrganizationId||
+ collidingVisibleIdentityRow.invoiceId!==collidingVisibleIdentitySource.invoiceId||
+ collidingVisibleIdentityRow.allocationId!==collidingVisibleIdentitySource.allocationId) {
+ throw new Error('same_visible_exception_identity_probe_is_vacuous');
+}
+const collisionIdentity=`${collidingVisibleIdentitySource.invoiceId}:${collidingVisibleIdentitySource.allocationId}`;
+const collisionCountsBefore=Object.fromEntries(collidingVisibleIdentitySource.exceptions.map(code=>[code,
+ collidingVisibleIdentityPayload.exceptions.filter(row=>row.category==='invoice'&&row.identity===collisionIdentity&&row.code===code).length]));
+if(!Object.values(collisionCountsBefore).every(count=>count===1)) {
+ throw new Error('same_visible_exception_identity_baseline_multiplicity_failed');
+}
 collidingVisibleIdentityPayload.invoices.push(collidingVisibleIdentityRow);
 rebuildTopExceptions(collidingVisibleIdentityPayload);
+sortProjectorRows(collidingVisibleIdentityPayload);
+const collidingNestedRows=collidingVisibleIdentityPayload.invoices.filter(row=>row.invoiceId===collidingVisibleInvoiceId&&
+ row.allocationId===collidingVisibleAllocationId);
+if(collidingNestedRows.length!==2||new Set(collidingNestedRows.map(row=>row.sourceOrganizationId)).size!==2||
+ !collidingVisibleIdentitySource.exceptions.every(code=>
+ collidingVisibleIdentityPayload.exceptions.filter(row=>row.category==='invoice'&&row.identity===collisionIdentity&&row.code===code).length===
+  collisionCountsBefore[code]+1&&collisionCountsBefore[code]+1===2)) {
+ throw new Error('same_visible_exception_identity_multiset_probe_failed');
+}
+for(let index=1;index<collidingVisibleIdentityPayload.invoices.length;index++){
+ const previous=collidingVisibleIdentityPayload.invoices[index-1],current=collidingVisibleIdentityPayload.invoices[index];
+ if(compareText(previous.invoiceId,current.invoiceId)>0||
+  (previous.invoiceId===current.invoiceId&&compareText(previous.allocationId,current.allocationId)>0)) {
+  throw new Error('same_visible_exception_identity_invoice_order_failed');
+ }
+}
 assertHostileProjectorAvailable(collidingVisibleIdentityPayload,'same-visible-exception-identity-distinct-source-org');
 
 const acl=psql(`select has_function_privilege('anon','public.read_project_economy_step8_service_v1(text,jsonb)','EXECUTE'),
