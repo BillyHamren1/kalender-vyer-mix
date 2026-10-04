@@ -1,0 +1,11 @@
+# Native Catering project evidence
+
+The additive v2 reader preserves the existing v1 contract and authenticated live-project authorization. It reads only the current native Catering stream head and its immutable publication for the same Operations organization and the exact captured project UUID. It returns twelve redacted row fields; staff identities, historical rates, native raw source/review documents and unverified Finance acknowledgments are excluded. An opaque SHA-256 stream key retains cost identity without exposing the native person/entry tuple.
+
+The separate Catering panel copies Operations money without multiplying minutes by rates or adding costs into legacy or official totals. Payroll source approval and Operations project review remain separate columns. A missing historical rate retains null money and an explicit incomplete-cost warning. Reassignments and corrections replace current stream evidence instead of appending historical charges. The reader captures at most 2001 rows and rejects results above 2000 with SQLSTATE54000; it never silently truncates an accepted result.
+
+The existing Time/invoice panel stays compatible and displays its own source rows. The new `VITE_OPERATIONS_NATIVE_COST_EVIDENCE_ENABLED` flag defaults off; it adds only Catering rows beside that existing panel, avoiding duplicate Time/invoice display.
+
+Verification is split into pure validation, actual React/query/cache rendering with explicit synthetic Auth/RPC, and native PostgreSQL saved-publication tests. The SQL fixture uses actual existing native publisher calls plus a clearly labeled synthetic saved project-review decision. It checks initial rounding, unchanged economics after payroll approval, confirmed-to-preliminary correction, global rejection, missing-rate nulls, role/tenant/deleted-project denials, v1 compatibility and redaction. None establishes authenticated human project attest or hosted/source/Finance service-chain acceptance.
+
+Rollback disables the new build flag and retains v1. The additive functions can have authenticated execute revoked if necessary; no writer, original source table, billing event or historical publication is altered or deleted. Hosted activation requires separate exact-source release gates and independent runtime review.

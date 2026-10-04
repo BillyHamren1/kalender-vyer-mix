@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+import contextlib,errno,io,unittest.mock,builtins,hashlib,json,os,pathlib,shutil,subprocess,sys,tempfile,types,unittest
+HERE=pathlib.Path(__file__).absolute().parent;STAGE=HERE.parent.parent;CANONICAL=STAGE
+BOOT=HERE/'operations-scope-compatible-read-native-pinned-postgrest.py';IMPL=HERE/'operations-scope-compatible-read-native-pinned-postgrest-impl.py';CLOSURE=HERE/'operations-scope-compatible-read-native-pinned-postgrest-closure.json'
+WORKFLOW=STAGE/'.github/workflows/operations-project-economy.yml'
+RUNTIME_OWN={str(p.relative_to(STAGE)) for p in (IMPL,pathlib.Path(__file__).absolute(),STAGE/'docs/project-economy/operations-scope-compatible-read-native-pinned-postgrest-contract.md')}
+def load(path,name,seed=None):
+ data=path.read_bytes();module=types.ModuleType(name);module.__file__=str(path);module.__dict__.update(seed or {});exec(compile(data,str(path),'exec'),module.__dict__);return module
+def held(module,path):
+ fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW);data=os.pread(fd,2097153,0);saved=module.identity(os.fstat(fd));return fd,{'fd':fd,'identity':saved,'bytes':data}
+def launcher_open(module,path,expected,maximum):
+ fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+ try:
+  before=os.fstat(fd);data=os.pread(fd,maximum+1,0);after=os.fstat(fd)
+  if module.identity(before)!=module.identity(after) or module.identity(after)!=module.identity(os.stat(path,follow_symlinks=False)) or len(data)>maximum or hashlib.sha256(data).hexdigest()!=expected:raise RuntimeError('held_authority_refused')
+  return fd,{'fd':fd,'identity':module.identity(before),'bytes':data}
+ except BaseException:os.close(fd);raise
+def assembly(case):
+ root=pathlib.Path(case.enterContext(tempfile.TemporaryDirectory()))/'root';value=json.loads(CLOSURE.read_text())
+ for relative in value['files']:
+  source=(STAGE if relative in RUNTIME_OWN else CANONICAL)/relative;target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target);target.chmod(0o400)
+ for source in (BOOT,CLOSURE):
+  target=root/source.relative_to(STAGE);target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target);target.chmod(0o400)
+ return root
+def authorities(case,module,root):
+ bfd,ba=held(module,root/module.BOOTSTRAP);cpath=root/'scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json';cfd,ca=held(module,cpath)
+ case.addCleanup(lambda: os.close(bfd));case.addCleanup(lambda: os.close(cfd));return cpath,ba,ca
+class Tests(unittest.TestCase):
+ def setUp(self):self.b=load(BOOT,'bootstrap');self.i=load(IMPL,'implementation')
+ def env(self):return {'CI':'true','GITHUB_REPOSITORY':'BillyHamren1/kalender-vyer-mix','GITHUB_RUN_ID':'1','GITHUB_RUN_ATTEMPT':'1','EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB':'true',self.i.IMAGE_ENV:self.i.POSTGREST_IMAGE,'PGHOST':'127.0.0.1','PGPORT':'5432','PGUSER':'postgres','PGDATABASE':'eventflow_scope_publication_runtime'}
+ def test_selector_exact_and_empty_extra_denied(self):
+  self.assertEqual(self.i.validate_environment(self.env()),('deno',self.i.POSTGREST_IMAGE,'1-1'))
+  job=WORKFLOW.read_text().split('  compatible-product-reader-native:',1)[1].split('    steps:',1)[0]
+  self.assertIn("      EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE: '"+self.i.POSTGREST_IMAGE+"'",job)
+  missing=self.env();del missing[self.i.IMAGE_ENV]
+  with self.assertRaises(self.i.ClosedFailure):self.i.validate_environment(missing)
+  for value in ('','x'):
+   changed=self.env();changed['EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_TAG']=value
+   with self.assertRaises(self.i.ClosedFailure):self.i.validate_environment(changed)
+ def test_implementation_execute_a_ignores_path_swapped_b(self):
+  with tempfile.TemporaryDirectory() as d:
+   path=pathlib.Path(d)/'impl.py';path.write_text("MARKER='B'\n")
+   capability=object();module=self.b.compiled_module(b"globals().pop('__held_effect_capability__')\nMARKER='A'\n",path,'held_a',capability);self.assertEqual(module.MARKER,'A');self.assertEqual(path.read_text(),"MARKER='B'\n")
+ def test_v4_closure_exact_and_acyclic(self):
+  value=json.loads(CLOSURE.read_text());self.assertEqual(value['schema'],self.b.SCHEMA);self.assertEqual(len(value['files']),87);self.assertIn(self.b.IMPLEMENTATION,value['files']);self.assertEqual(set(RUNTIME_OWN)&set(value['files']),RUNTIME_OWN);self.assertNotIn(self.b.BOOTSTRAP,value['files']);self.assertNotIn(str(WORKFLOW.relative_to(STAGE)),value['files'])
+ def test_materialized_implementation_accepts_exact_outer_v4_closure(self):
+  root=assembly(self);paths=self.i.closure_paths(root,root/CLOSURE.relative_to(STAGE));self.assertEqual(len(paths),23);self.assertTrue(all(path.is_relative_to(root) for path in paths))
+ def test_materialized_implementation_rejects_v2_and_outer_authority_members(self):
+  root=assembly(self);manifest=root/CLOSURE.relative_to(STAGE);value=json.loads(manifest.read_text())
+  for mutate in (
+   lambda item:item.__setitem__('schema','operations-scope-compatible-read-native-pinned-postgrest-closure.v2'),
+   lambda item:item['files'].__setitem__(self.b.BOOTSTRAP,{'bytes':0,'sha256':'0'*64,'git_blob':'0'*40}),
+   lambda item:item['files'].__setitem__(str(WORKFLOW.relative_to(STAGE)),{'bytes':0,'sha256':'0'*64,'git_blob':'0'*40}),
+  ):
+   changed=json.loads(json.dumps(value));mutate(changed);manifest.chmod(0o600);manifest.write_text(json.dumps(changed));manifest.chmod(0o400)
+   with self.assertRaises(self.i.ClosedFailure) as error:self.i.closure_paths(root,manifest)
+   self.assertEqual(error.exception.phase,'source_closure')
+  manifest.chmod(0o600);manifest.write_text(json.dumps(value));manifest.chmod(0o400)
+ def test_direct_implementation_route_is_fail_closed(self):
+  self.assertFalse(hasattr(self.i,'SourceCustody'))
+  with self.assertRaises(self.i.ClosedFailure) as error:self.i.execute(self.env())
+  self.assertEqual(error.exception.phase,'source_closure');self.assertTrue(error.exception.retain_private)
+ def test_private_effect_entry_requires_held_capability_before_paths(self):
+  reached=[];self.i.closure_paths=lambda *args:reached.append('paths')
+  with self.assertRaises(self.i.ClosedFailure) as error:self.i._execute_materialized({},'deno','attacker/image:mutable')
+  self.assertEqual(error.exception.phase,'guard');self.assertTrue(error.exception.retain_private);self.assertEqual(reached,[]);self.assertFalse(hasattr(self.i,'_effect_body'))
+ def test_held_capability_binds_validated_values_once(self):
+  capability=object();module=load(IMPL,'held_implementation',{'__held_effect_capability__':capability})
+  original=self.env();module._install_held_authority(capability,original);original[module.IMAGE_ENV]='attacker/image:mutable'
+  payload=module._consume_held_authority(capability,())
+  self.assertNotIn(module.IMAGE_ENV,payload[0]);self.assertEqual(payload[1:],('deno',module.POSTGREST_IMAGE,'1-1'))
+  with self.assertRaises(module.ClosedFailure):module._execute_materialized(capability)
+  with self.assertRaises(module.ClosedFailure):module._install_held_authority(capability,self.env())
+  second=object();armed=load(IMPL,'held_effect_entry',{'__held_effect_capability__':second});reached=[]
+  armed._install_held_authority(second,self.env());armed.closure_paths=lambda *args:reached.append('paths') or (_ for _ in ()).throw(RuntimeError('sentinel'))
+  with self.assertRaisesRegex(RuntimeError,'sentinel'):armed._execute_materialized(second)
+  self.assertEqual(reached,['paths'])
+ def test_capture_detects_canonical_swap(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);victim=root/self.b.IMPLEMENTATION;old=victim.with_suffix('.old')
+  try:victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
+  finally:tree.close()
+ def test_materialized_swap_detected_before_effect(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);parent=None
+  try:
+   mirror=tree.materialize('991-1');parent=tree.owned_parent;victim=mirror/self.b.IMPLEMENTATION;victim.parent.chmod(0o700);victim.chmod(0o600);old=victim.with_suffix('.old');victim.rename(old);shutil.copyfile(old,victim);victim.chmod(0o400);self.assertRaises(self.b.BootstrapFailure,tree.verify)
+  finally:
+   try:
+    if tree.owned_parent is not None:tree.clear_and_discard()
+   finally:tree.close()
+   if parent is not None:self.assertFalse(parent.exists())
+ def test_seal_requires_every_file_and_directory_immutable(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize('992-1');parent=tree.owned_parent;state={}
+  old_get,old_set=self.b.flags,self.b.set_flags;self.b.flags=lambda fd:state.get(fd,0);self.b.set_flags=lambda fd,value:state.__setitem__(fd,value);victim=None
+  try:tree.seal();tree.verify(True);victim=next(iter(tree.materialized.values()));state[victim[0]]=0;self.assertRaises(self.b.BootstrapFailure,tree.verify,True)
+  finally:
+   if victim is not None:state[victim[0]]=victim[4]|self.b.FS_IMMUTABLE_FL
+   try:tree.clear_and_discard()
+   finally:self.b.flags,self.b.set_flags=old_get,old_set;tree.close()
+   self.assertFalse(parent.exists())
+ def test_real_immutable_ioctl_failure_is_pre_effect(self):
+  source=BOOT.read_text();self.assertLess(source.index('tree.seal()'),source.index('compiled_module(' ,source.index('def execute')));self.assertLess(source.index('tree.verify(True) # Last pre-effect'),source.index('module._execute_materialized'))
+  calls=[]
+  class Hostile(BaseException):
+   def __str__(self):calls.append('str');raise AssertionError('PRIVATE_TOKEN')
+   def __getattribute__(self,name):calls.append('getter');raise AssertionError('PRIVATE_TOKEN')
+  for expected in ('capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify','effects','final_verify','owned_cleanup'):
+   reached=[];module=self.b
+   def boundary(name):
+    reached.append(name)
+    if name==expected:raise Hostile()
+   class Tree:
+    def __init__(self,*args):self.owned_parent=None;self.mirror=None;boundary('capture')
+    def materialize(self,*_args):boundary('materialize');self.owned_parent=pathlib.Path('/owned');self.mirror=self.owned_parent/'root';return self.mirror
+    def seal(self):boundary('immutable_seal')
+    def verify(self,*args):boundary(module.ACTIVE_PHASE)
+    def bytes(self,*args):return b''
+    def clear_and_discard(self):
+     if expected=='owned_cleanup':boundary('owned_cleanup')
+     reached.append('cleanup')
+    def close(self):pass
+   def compiled(*args):
+    boundary('compile')
+    return types.SimpleNamespace(_install_held_authority=lambda *args:boundary('install'),_execute_materialized=lambda *args:boundary('effects'))
+   output=io.StringIO()
+   with unittest.mock.patch.object(module,'HeldTree',Tree),unittest.mock.patch.object(module,'compiled_module',compiled),unittest.mock.patch.object(module,'runtime_key',return_value='1-1'),contextlib.redirect_stderr(output):
+    self.assertEqual(module.main(),1)
+   self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
+   self.assertIn(expected,reached)
+   if expected in {'capture','materialize','immutable_seal','post_seal_verify','compile','install','pre_effect_verify'}:self.assertNotIn('effects',reached)
+  self.assertEqual(calls,[])
+ def test_immutable_set_reports_only_fixed_operation_class(self):
+  original_set,original_privileged=self.b.set_flags,self.b.privileged_transition
+  try:
+   delegated=[]
+   self.b.privileged_transition=lambda fd,old,target,kind:delegated.append((fd,old,target,kind))
+   for kind,number,expected in (
+    ('file',errno.ENOTTY,'immutable_file_set_unsupported'),
+    ('directory',errno.EOPNOTSUPP,'immutable_directory_set_unsupported'),
+    ('file',errno.EIO,'immutable_file_set_other')):
+    def denied(*_args,_number=number):raise OSError(_number,'PRIVATE_PATH_PRIVATE_BODY')
+    self.b.set_flags=denied
+    with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,kind)
+    self.assertEqual(self.b.ACTIVE_PHASE,expected)
+   for kind,number in (('file',errno.EPERM),('directory',errno.EACCES)):
+    def denied(*_args,_number=number):raise OSError(_number,'PRIVATE_PATH_PRIVATE_BODY')
+    self.b.set_flags=denied;self.b.immutable_set(91,7,kind)
+    self.assertEqual(delegated[-1],(91,7,7|self.b.FS_IMMUTABLE_FL,kind));self.assertEqual(self.b.ACTIVE_PHASE,'immutable_'+kind+'_readback')
+  finally:self.b.set_flags,self.b.privileged_transition=original_set,original_privileged
+ def test_privileged_transition_is_path_free_minimal_and_silent(self):
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC);original_flags=self.b.flags
+  try:
+   target=23|self.b.FS_IMMUTABLE_FL;self.b.flags=lambda _fd:target
+   completed=types.SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
+   with unittest.mock.patch.object(self.b,'admitted_executable',side_effect=lambda path:'/usr/bin/sudo' if path==self.b.SUDO else '/usr/bin/python3.12'),unittest.mock.patch.object(self.b.subprocess,'run',return_value=completed) as run:
+    self.b.privileged_transition(fd,23,target,'file')
+   command=run.call_args.args[0];kwargs=run.call_args.kwargs
+   self.assertEqual(command[:8],['/usr/bin/sudo','-n','--','/usr/bin/python3.12','-I','-B','-c',self.b.PRIVILEGED_HELPER])
+   self.assertEqual(command[8:10],[str(os.getpid()),str(fd)]);self.assertNotIn(str(pathlib.Path(__file__).absolute()),command)
+   self.assertEqual(kwargs['env'],{'PATH':'/usr/bin:/bin','LC_ALL':'C'});self.assertIs(kwargs['stdin'],subprocess.DEVNULL);self.assertEqual(kwargs['timeout'],self.b.PRIVILEGED_TIMEOUT)
+  finally:self.b.flags=original_flags;os.close(fd)
+ def test_privileged_transition_refusal_and_deadline_are_fixed_and_silent(self):
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC)
+  try:
+   with unittest.mock.patch.object(self.b,'admitted_executable',return_value='/usr/bin/fixed'),unittest.mock.patch.object(self.b.subprocess,'run',return_value=types.SimpleNamespace(returncode=73,stdout=b'',stderr=b'PRIVATE')):
+    with self.assertRaises(self.b.BootstrapFailure):self.b.privileged_transition(fd,0,self.b.FS_IMMUTABLE_FL,'file')
+    self.assertEqual(self.b.ACTIVE_PHASE,'immutable_file_privileged_refused')
+   with unittest.mock.patch.object(self.b,'admitted_executable',return_value='/usr/bin/fixed'),unittest.mock.patch.object(self.b.subprocess,'run',side_effect=subprocess.TimeoutExpired(['fixed'],10)):
+    with self.assertRaises(self.b.BootstrapFailure):self.b.privileged_transition(fd,0,self.b.FS_IMMUTABLE_FL,'directory')
+    self.assertEqual(self.b.ACTIVE_PHASE,'immutable_directory_privileged_deadline')
+  finally:os.close(fd)
+ def test_privileged_helper_denies_wrong_fd_and_transition_without_output(self):
+  for args in ([],[str(os.getpid()),'999999','0','0','0','0','0','0','0','0','0','0','0']):
+   result=subprocess.run([sys.executable,'-I','-B','-c',self.b.PRIVILEGED_HELPER,*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},timeout=5)
+   self.assertEqual(result.returncode,73);self.assertEqual((result.stdout,result.stderr),(b'',b''))
+  fd=os.open(__file__,os.O_RDONLY|os.O_CLOEXEC)
+  try:
+   saved=list(self.b.identity(os.fstat(fd)));old=self.b.flags(fd)
+   for changed_old,changed_target,mutate in ((old,old|0x20,False),(old,old|self.b.FS_IMMUTABLE_FL,True)):
+    expected=list(saved)
+    if mutate:expected[1]+=1
+    args=[str(os.getpid()),str(fd),*(str(value) for value in expected),str(changed_old),str(changed_target)]
+    result=subprocess.run([sys.executable,'-I','-B','-c',self.b.PRIVILEGED_HELPER,*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},timeout=5)
+    self.assertEqual(result.returncode,73);self.assertEqual((result.stdout,result.stderr),(b'',b''))
+  finally:os.close(fd)
+ def test_privileged_executable_admission_rejects_fake_path_and_mutable_source(self):
+  with tempfile.TemporaryDirectory() as directory:
+   fake=pathlib.Path(directory)/'sudo';fake.write_bytes(pathlib.Path('/usr/bin/sudo').read_bytes());fake.chmod(0o755)
+   self.assertIsNone(self.b.admitted_executable(fake))
+  source=BOOT.read_text();self.assertIn("SUDO=pathlib.Path('/usr/bin/sudo')",source);self.assertIn("SYSTEM_PYTHON=pathlib.Path('/usr/bin/python3')",source);self.assertNotIn("shell=True",source);self.assertNotIn("pass_fds",source)
+ def test_partial_file_and_directory_seal_failure_rolls_back_without_survivor(self):
+  for directory_failure in (False,True):
+   root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);state={};count=[0]
+   old_flags,old_set,old_privileged=self.b.flags,self.b.set_flags,self.b.privileged_transition
+   self.b.flags=lambda fd:state.get(fd,0)
+   fail_at=len(tree.value['files'])+2 if directory_failure else 3
+   def setting(fd,value):
+    if value&self.b.FS_IMMUTABLE_FL:
+     count[0]+=1
+     if count[0]==fail_at:raise OSError(errno.EPERM,'PRIVATE')
+    state[fd]=value
+   self.b.set_flags=setting
+   self.b.privileged_transition=lambda *_args:(_ for _ in ()).throw(self.b.BootstrapFailure())
+   try:
+    tree.materialize('993-'+('2' if directory_failure else '1'));parent=tree.mirror.parent
+    with self.assertRaises(self.b.BootstrapFailure):tree.seal()
+    tree.clear_and_discard();self.assertFalse(parent.exists());self.assertFalse(any(value&self.b.FS_IMMUTABLE_FL for value in state.values()))
+   finally:self.b.flags,self.b.set_flags,self.b.privileged_transition=old_flags,old_set,old_privileged;tree.close()
+ def test_cleanup_keeps_top_boundary_immutable_until_final_transition(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);tree=self.b.HeldTree(root,closure,bootstrap_authority,closure_authority);tree.materialize('994-1');calls=[]
+  original=self.b.immutable_restore
+  self.b.immutable_restore=lambda fd,old,kind:calls.append((kind,fd))
+  try:
+   parent_fd=tree.directories[-1][0];file_count=len(tree.materialized);directory_count=len(tree.directories);private_parent=tree.mirror.parent
+   tree.clear_and_discard();self.assertFalse(private_parent.exists())
+   self.assertTrue(all(kind=='file' for kind,_fd in calls[:file_count]));self.assertTrue(all(kind=='directory' for kind,_fd in calls[file_count:]));self.assertEqual(len(calls),(file_count+directory_count));self.assertEqual(calls[-1],('directory',parent_fd))
+  finally:self.b.immutable_restore=original;tree.close()
+ def _assert_execute_early_materialize_failure_has_no_survivor(self,boundary):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);owned=pathlib.Path('/tmp')/'operations-compatible-immutable-1-1';self.assertFalse(owned.exists());reached=[];injected=[False]
+  original_root,original_closure=self.b.ROOT,self.b.CLOSURE;original_chmod,original_mkdir=pathlib.Path.chmod,pathlib.Path.mkdir
+  def chmod(path,*args,**kwargs):
+   if boundary=='chmod' and not injected[0] and path.parent==pathlib.Path('/tmp') and path.name.startswith('operations-compatible-immutable-'):
+    injected[0]=True;raise PermissionError(errno.EPERM,'PRIVATE')
+   return original_chmod(path,*args,**kwargs)
+  def mkdir(path,*args,**kwargs):
+   if boundary=='mkdir' and not injected[0] and path.name=='root' and path.parent.parent==pathlib.Path('/tmp') and path.parent.name.startswith('operations-compatible-immutable-'):
+    injected[0]=True;raise PermissionError(errno.EPERM,'PRIVATE')
+   return original_mkdir(path,*args,**kwargs)
+  self.b.ROOT=root;self.b.CLOSURE=closure;self.b.__dict__['__held_bootstrap__']=bootstrap_authority;self.b.__dict__['__held_closure__']=closure_authority
+  output=io.StringIO()
+  try:
+   with unittest.mock.patch.object(pathlib.Path,'chmod',chmod),unittest.mock.patch.object(pathlib.Path,'mkdir',mkdir),unittest.mock.patch.object(self.b,'compiled_module',side_effect=lambda *_args:(reached.append('effect'),None)[1]),unittest.mock.patch.object(self.b,'runtime_key',return_value='1-1'),contextlib.redirect_stderr(output):self.assertEqual(self.b.main(),1)
+   self.assertTrue(injected[0]);self.assertEqual(output.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=materialize\n');self.assertEqual(reached,[]);self.assertFalse(owned.exists())
+  finally:
+   self.b.ROOT,self.b.CLOSURE=original_root,original_closure;self.b.__dict__.pop('__held_bootstrap__',None);self.b.__dict__.pop('__held_closure__',None)
+ def test_execute_parent_chmod_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('chmod')
+ def test_execute_mirror_mkdir_failure_cleans_without_effect_or_survivor(self):self._assert_execute_early_materialize_failure_has_no_survivor('mkdir')
+ def test_runtime_keys_are_exact_current_run_attempt_and_never_globbed(self):
+  self.assertEqual(self.b.runtime_key(self.env()),'1-1');self.assertEqual(self.i.runtime_key(self.env()),'1-1')
+  for module in (self.b,self.i):
+   for changed in ({'GITHUB_RUN_ID':'old-*'},{'GITHUB_RUN_ATTEMPT':'1/2'},{'GITHUB_RUN_ATTEMPT':''}):
+    env=dict(self.env(),**changed)
+    with self.assertRaises((self.b.BootstrapFailure,self.i.ClosedFailure)):module.runtime_key(env)
+  for path in (BOOT,IMPL):self.assertNotIn("glob('operations-compatible-immutable-*')",path.read_text())
+ def test_immutable_set_readback_and_invalid_kind_fail_closed(self):
+  original_set,original_flags=self.b.set_flags,self.b.flags
+  try:
+   self.b.set_flags=lambda *_:None;self.b.flags=lambda *_:0
+   with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,'file')
+   self.assertEqual(self.b.ACTIVE_PHASE,'immutable_file_readback')
+   with self.assertRaises(self.b.BootstrapFailure):self.b.immutable_set(91,0,'unknown')
+  finally:self.b.set_flags,self.b.flags=original_set,original_flags
+ def test_implementation_paths_are_materialized_and_digest_only(self):
+  text=IMPL.read_text();self.assertNotIn('postgrest/postgrest:v12.2.3',text);self.assertNotIn('def _effect_body',text);self.assertIn("postgrest_image],env,private,60)",text);entry=text[text.index('def _execute_materialized'):text.index('def execute(_env)')];self.assertLess(entry.index("env,deno,postgrest_image,key=_consume_held_authority"),entry.index("ddl=closure_paths();shared=load_shared()"))
+ def test_import_loader_cannot_reopen_implementation(self):
+  text=BOOT.read_text();self.assertNotIn('spec_from_file_location',text);self.assertIn('compiled_module(tree.bytes(IMPLEMENTATION)',text)
+ def test_bootstrap_a_path_swapped_b_fails_before_effect(self):
+  root=assembly(self);path=root/self.b.BOOTSTRAP;closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);old=path.with_suffix('.held-a');path.rename(old);path.write_text("raise RuntimeError('B')\n");path.chmod(0o400)
+  try:
+   with self.assertRaises(self.b.BootstrapFailure):self.b.HeldTree(root,closure,bootstrap_authority,closure_authority)
+  finally:pass
+ def test_coherent_closure_and_implementation_substitution_is_denied(self):
+  root=assembly(self);closure,bootstrap_authority,closure_authority=authorities(self,self.b,root);victim=root/self.b.IMPLEMENTATION;malicious=b"MARKER='coherent-substitution'\n";victim.chmod(0o600);victim.write_bytes(malicious);victim.chmod(0o400)
+  changed=json.loads(closure.read_text());changed['files'][self.b.IMPLEMENTATION]={'bytes':len(malicious),'sha256':hashlib.sha256(malicious).hexdigest(),'git_blob':self.b.blob(malicious)};closure.chmod(0o600);closure.write_text(json.dumps(changed,sort_keys=True,separators=(',',':'))+'\n');closure.chmod(0o400)
+  with self.assertRaises(self.b.BootstrapFailure):self.b.HeldTree(root,closure,bootstrap_authority,closure_authority)
+ def test_launcher_rejects_coherent_preopen_substitution(self):
+  root=assembly(self);closure=root/CLOSURE.relative_to(STAGE);victim=root/self.b.IMPLEMENTATION;malicious=b"MARKER='preopen-substitution'\n";victim.chmod(0o600);victim.write_bytes(malicious);victim.chmod(0o400);changed=json.loads(closure.read_text());changed['files'][self.b.IMPLEMENTATION]={'bytes':len(malicious),'sha256':hashlib.sha256(malicious).hexdigest(),'git_blob':self.b.blob(malicious)};closure.chmod(0o600);closure.write_text(json.dumps(changed,sort_keys=True,separators=(',',':'))+'\n');closure.chmod(0o400)
+  expected=hashlib.sha256(CLOSURE.read_bytes()).hexdigest()
+  with self.assertRaisesRegex(RuntimeError,'held_authority_refused'):launcher_open(self.b,closure,expected,2097152)
+ def test_workflow_embedded_launcher_is_fixed_and_held_byte(self):
+  text=WORKFLOW.read_text();block=text[text.index('# BEGIN HELD BOOTSTRAP LAUNCHER V2'):text.index('# END HELD BOOTSTRAP LAUNCHER V2')];self.assertIn("open_held(BOOTSTRAP_PATH",block);self.assertIn("open_held(CLOSURE_PATH",block);self.assertIn("hashlib.sha256(data).hexdigest()!=expected",block);self.assertIn("'__held_bootstrap__':authority(bootstrap)",block);self.assertIn("'__held_closure__':authority(closure)",block);self.assertNotIn('operations-scope-compatible-read-native.py\n',block)
+  self.assertIn("BOOTSTRAP_SHA256='"+hashlib.sha256(BOOT.read_bytes()).hexdigest()+"'",block);self.assertIn("CLOSURE_SHA256='"+hashlib.sha256(CLOSURE.read_bytes()).hexdigest()+"'",block)
+  self.assertIn('operations-scope-compatible-read-native-pinned-postgrest.guard.test.py',text.split('  compatible-product-reader-native:',1)[1].split('# BEGIN HELD BOOTSTRAP LAUNCHER V2',1)[0])
+  code='\n'.join(line[10:] for line in block.splitlines()[1:])+'\n'
+  prefix,dispatch=code.split("outer_phase='outer_bootstrap_open'",1)
+  calls=[]
+  class Hostile(BaseException):
+   def __str__(self):calls.append('str');raise AssertionError('PRIVATE_TOKEN')
+   def __getattribute__(self,name):calls.append('getter');raise AssertionError('PRIVATE_TOKEN')
+  for expected in ('outer_bootstrap_open','outer_closure_open','outer_compile','outer_execute'):
+   scope={};exec(compile(prefix,'<owned-launcher-prefix>','exec'),scope)
+   def opened(path,*args):
+    current='outer_bootstrap_open' if path==scope['BOOTSTRAP_PATH'] else 'outer_closure_open'
+    if current==expected:raise Hostile()
+    return (91,(),b'pass')
+   scope['open_held']=opened
+   scope['compile']=lambda *args,**kwargs:(_ for _ in ()).throw(Hostile()) if expected=='outer_compile' else compile('pass','<owned-sentinel>','exec')
+   scope['exec']=lambda *args:(_ for _ in ()).throw(Hostile())
+   out=io.StringIO()
+   with unittest.mock.patch.object(os,'close',lambda *_:None),contextlib.redirect_stderr(out):
+    with self.assertRaises(SystemExit) as denial:exec(compile("outer_phase='outer_bootstrap_open'"+dispatch,'<owned-launcher-dispatch>','exec'),scope)
+   self.assertEqual(denial.exception.code,1)
+   self.assertEqual(out.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE='+expected+'\n')
+  scope={};exec(compile(prefix,'<owned-launcher-prefix>','exec'),scope)
+  scope['open_held']=lambda *args:(91,(),b'pass');scope['exec']=lambda *args:None
+  out=io.StringIO()
+  with unittest.mock.patch.object(os,'close',side_effect=Hostile()),contextlib.redirect_stderr(out):
+   with self.assertRaises(SystemExit) as denial:exec(compile("outer_phase='outer_bootstrap_open'"+dispatch,'<owned-launcher-close>','exec'),scope)
+  self.assertEqual(denial.exception.code,1)
+  self.assertEqual(out.getvalue(),'operations-scope-compatible-read-native FAIL source_closure PHASE=outer_close\n')
+  self.assertEqual(calls,[])
+ def test_original_guard_suite_green(self):
+  path=CANONICAL/'scripts/project-economy/operations-scope-compatible-read-native.guard.test.py';r=subprocess.run([sys.executable,'-B',str(path)],cwd=CANONICAL,env={'PATH':os.environ['PATH'],'PYTHONDONTWRITEBYTECODE':'1'},stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30);self.assertEqual(r.returncode,0);self.assertIn(b'Ran 13 tests',r.stderr)
+ def test_no_docker_in_tests(self):self.assertNotIn("subprocess.run(["+"'docker'",pathlib.Path(__file__).read_text())
+if __name__=='__main__':unittest.main()

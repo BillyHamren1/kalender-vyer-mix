@@ -1,0 +1,1801 @@
+name: Operations project economy synthetic runtime
+on:
+  pull_request:
+    paths:
+      - 'src/hooks/useMapboxToken.ts'
+      - 'src/hooks/useMapboxToken.rendered.test.tsx'
+      - 'src/components/maps/ProjectAddressMapDialog.tsx'
+      - 'supabase/functions/_shared/project-personnel-*'
+      - 'supabase/functions/_shared/finance-project-invoice*'
+      - 'supabase/functions/_shared/project-cost-obligations*'
+      - 'supabase/functions/_shared/local-invoice-obligation-kernel-evidence*'
+      - 'supabase/functions/_shared/project-scope-invoice-kernel-evidence*'
+      - 'supabase/functions/_shared/project-scope-invoice-capture-admin*'
+      - 'supabase/migrations/*operations_scope_invoice_capture_admin_read.sql'
+      - 'src/lib/economy/projectScopeInvoiceCapture*'
+      - 'supabase/migrations/*operations_scope_invoice_kernel_capture*.sql'
+      - 'supabase/migrations/*operations_scope_obligation_drilldown_read*.sql'
+      - 'src/lib/economy/projectScopeObligationDrilldown*'
+      - 'src/components/project/OperationsObligationDrilldownPanel*'
+      - 'supabase/migrations/*operations_invoice_obligation_kernel_read*.sql'
+      - 'supabase/functions/_shared/project-obligation-credit-assignment*'
+      - 'supabase/functions/_shared/project-obligation-credit-capacity*'
+      - 'supabase/migrations/*operations_obligation_credit_capacity*.sql'
+      - 'supabase/migrations/*operations_obligation_credit_assignment*.sql'
+      - 'src/lib/economy/projectCateringEvidenceParity*'
+      - 'src/lib/economy/projectScopeObligationEvidence*'
+      - 'src/components/project/OperationsScopeObligationEvidencePanel*'
+      - 'src/components/project/OperationsScopeInvoiceCapturePanel*'
+      - 'supabase/migrations/*operations_scope_obligation_evidence_read*.sql'
+      - 'src/components/project/OperationsCateringEvidenceParityPanel*'
+      - 'supabase/functions/_shared/project-cost-obligation-authority*'
+      - 'supabase/functions/_shared/project-obligation-source-policy*'
+      - 'supabase/functions/_shared/project-scope-obligation-composition*'
+      - 'supabase/functions/_shared/project-credit-link-v2-destination*'
+      - 'supabase/migrations/*operations_project_obligation*.sql'
+      - 'supabase/migrations/*operations_obligation_source_policy*.sql'
+      - 'supabase/migrations/*operations_scope_obligation_composition*.sql'
+      - 'supabase/functions/_shared/project-operational-eac*'
+      - 'supabase/functions/_shared/canonical-project-scope*'
+      - 'supabase/functions/_shared/canonical-scope-view-alias*'
+      - 'supabase/migrations/*operations_project_scope*.sql'
+      - 'supabase/migrations/*operations_project_forecast*.sql'
+      - 'supabase/functions/_shared/catering-project-evidence*'
+      - 'supabase/functions/_shared/catering-project-reassignment*'
+      - 'scripts/project-economy/catering-allocation-*'
+      - 'scripts/project-economy/catering-allocation-native-counterparts/**'
+      - 'supabase/functions/_shared/catering-project-ingestion*'
+      - 'supabase/functions/_shared/catering-reconciliation-*'
+      - 'supabase/functions/catering-project-cost-publish/**'
+      - 'supabase/migrations/*operations_catering*.sql'
+      - 'supabase/functions/project-personnel-cost-publish/**'
+      - 'supabase/functions/finance-project-invoice-receive/**'
+      - 'supabase/functions/finance-project-invoice-receive-v2/**'
+      - 'supabase/functions/_shared/catering-finance-*'
+      - 'supabase/functions/_shared/catering-allocation-*'
+      - 'supabase/functions/catering-allocation-finance-delivery/**'
+      - 'supabase/functions/_shared/hired-personnel-authority*'
+      - 'supabase/migrations/*operations_hired_personnel_authority.sql'
+      - 'supabase/functions/catering-finance-delivery/**'
+      - 'supabase/migrations/*operations_finance_credit*.sql'
+      - 'supabase/migrations/*operations_invoice_economic*.sql'
+      - 'scripts/project-economy/catering-finance-*'
+      - 'supabase/config.toml'
+      - 'supabase/migrations/*operations_finance_project_invoice*.sql'
+      - 'supabase/migrations/*operations_personnel*.sql'
+      - 'supabase/migrations/*operations_project_cost_read.sql'
+      - 'src/lib/economy/projectCostEvidence*'
+      - 'src/lib/economy/projectNativeCostEvidence*'
+      - 'src/components/project/NativeCateringCostEvidencePanel*'
+      - 'src/components/project/ProjectEconomyTab.tsx'
+      - 'supabase/functions/_shared/project-booking-commercial-read*'
+      - 'supabase/migrations/*operations_project_cost_native_read*.sql'
+      - 'src/components/project/ProjectCostEvidencePanel*'
+      - 'scripts/project-economy/whole-scope-publication-try-*'
+      - 'scripts/project-economy/operations-*'
+      - 'scripts/project-economy/project-evidence-http-runtime/**'
+      - '.github/workflows/operations-project-economy.yml'
+      - 'scripts/project-economy/remaining-six-compatible-reader-*'
+      - 'supabase/migrations/20261002145349_operations_remaining_six_compatible_read_entries.sql'
+      - 'supabase/functions/_shared/whole-scope-product-grant-command-v1*'
+      - 'supabase/functions/_shared/whole-scope-product-grant-event-v1*'
+      - 'scripts/project-economy/operations-compatible-install-native*'
+      - 'scripts/project-economy/remaining-six-containing-owner-native*'
+      - 'docs/project-economy/remaining-six-containing-owner-native-matrix.md'
+      - 'docs/project-economy/operations-compatible-atomic-install-native-contract.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  EVENTFLOW_EXPECTED_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+jobs:
+  frozen-cost-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_economy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: operations_economy_test
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - run: npm ci
+      - name: Typecheck and adverse calculation cases
+        run: |
+          deno check supabase/functions/_shared/project-personnel-cost.ts supabase/functions/project-personnel-cost-publish/index.ts
+          npx vitest run --config scripts/project-economy/operations-vitest.config.ts
+          deno check supabase/functions/catering-project-cost-publish/index.ts
+          deno check supabase/functions/finance-project-invoice-receive/index.ts
+          deno check supabase/functions/_shared/project-booking-commercial-read.ts supabase/functions/_shared/project-booking-commercial-read-client.ts
+          deno test supabase/functions/finance-project-invoice-receive/handler.test.ts
+          deno test supabase/functions/_shared/project-credit-link-v2-destination.test.ts
+          deno check supabase/functions/finance-project-invoice-receive-v2/index.ts supabase/functions/catering-finance-delivery/index.ts
+          deno check supabase/functions/catering-allocation-finance-delivery/index.ts
+          deno test supabase/functions/finance-project-invoice-receive-v2/handler.test.ts supabase/functions/finance-project-invoice-receive-v2/receipt.test.ts
+      - name: Bounded reconciliation signed cursor and domain-separated command controls
+        run: |
+          deno check supabase/functions/_shared/catering-reconciliation-contract.ts supabase/functions/_shared/catering-reconciliation-cursor.ts
+          deno test supabase/functions/_shared/catering-reconciliation-contract.test.ts supabase/functions/_shared/catering-reconciliation-cursor.test.ts
+      - name: Separately signed actual original receipt integrity controls
+        run: |
+          deno check supabase/functions/_shared/catering-reconciliation-original-receipt.ts
+          deno test supabase/functions/_shared/catering-reconciliation-original-receipt.deno-test.ts
+      - name: Actual evidence DOM, null costs and actor/tenant cache isolation
+        run: npx vitest run --config scripts/project-economy/operations-rendered.config.ts
+      - name: Generate actual Operations calculation fixtures
+        run: deno run scripts/project-economy/operations-fixture.ts > /tmp/operations-fixtures.json
+      - name: Isolated PostgreSQL migration and RPC tests
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-postgres-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/operations-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-postgres-test.sql'],check=True)
+          PY
+      - name: Destination-scoped invoice receipt, tenant and replay SQL runtime
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-destination-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-destination-postgres-test.sql
+      - name: Actual outbox lease, receipt and atomicity SQL runtime
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-transport-seed.sql
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/operations-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-outbox-postgres-test.sql'],check=True)
+          PY
+
+      - name: Authenticated project review ledger and fingerprint parity
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-project-review-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001232438_operations_personnel_project_reviews.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql
+          deno run --allow-read scripts/project-economy/operations-project-review-fixture.ts /tmp/operations-fixtures.json > /tmp/project-review-fixtures.json
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-review-fixtures.json').read_text().strip()
+          for name in ['operations-project-review-postgres-test.sql',
+                       'operations-project-review-publication-postgres-test.sql',
+                       'operations-canonical-ingress-postgres-test.sql']:
+              subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                              '-f','scripts/project-economy/'+name],check=True)
+          PY
+
+      - name: Actual authenticated project cost read, correction and withdrawal
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002001842_operations_project_cost_read.sql
+          deno run --allow-read scripts/project-economy/operations-project-cost-read-fixture.ts /tmp/operations-fixtures.json > /tmp/project-cost-read-fixtures.json
+          python3 - <<'PY_READ'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-cost-read-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-project-cost-read-postgres-test.sql'],check=True)
+          PY_READ
+      - name: Build actual Operations web application
+        run: npm run build
+
+      - name: Historical rate enrollment, authorization and immutable saved cost
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql
+          python3 - <<'PY_RATE'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-review-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-rate-admin-postgres-test.sql'],check=True)
+          PY_RATE
+
+      - name: Native Catering calculation, immutable observation and scoped project publication
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261001235558_operations_catering_project_evidence.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-postgres-test.sql
+
+      - name: Native-only Catering rate authority and denied project scopes
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002011313_operations_catering_rate_admin_authority.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-rate-authority-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-project-negatives-postgres-test.sql
+
+      - name: Operations-owned isolated immutable EAC and source lineage
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002010107_operations_project_forecast_evidence.sql
+          deno run --allow-read scripts/project-economy/operations-forecast-fixture.ts /tmp/project-review-fixtures.json > /tmp/project-forecast-fixtures.json
+          python3 - <<'PY_FORECAST'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-forecast-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-forecast-postgres-test.sql'],check=True)
+          PY_FORECAST
+
+      - name: Rate-redacted native Catering project read with actual saved publications
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-native-cost-read-postgres-test.sql
+      - name: Immutable whole-project membership and authoritative existing relationships
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-scope-bootstrap.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002014937_operations_project_scope_enrollment.sql
+          deno run --allow-read scripts/project-economy/operations-scope-fixture.ts > /tmp/project-scope-fixtures.json
+          python3 - <<'PY_SCOPE'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-scope-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-postgres-test.sql'],check=True)
+          PY_SCOPE
+
+      - name: Actual admin local obligation baseline and permanent positive source ownership
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002023731_operations_project_obligation_authority.sql
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/project-obligation-fixtures.json
+          python3 - <<'PY_OBLIGATION'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-obligation-postgres-test.sql'],check=True)
+          PY_OBLIGATION
+
+      - name: Actual admin captured replacement and commitment consumption policy
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002025617_operations_obligation_source_policy.sql
+          python3 - <<'PY_POLICY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-source-policy-postgres-test.sql'],check=True)
+          PY_POLICY
+
+      - name: Actual whole-scope composition and captured baseline/source currentness
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002030747_operations_scope_obligation_composition.sql
+          python3 - <<'PY_COMPOSITION'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-composition-postgres-test.sql'],check=True)
+          PY_COMPOSITION
+
+      - name: Authenticated exact scope root saved composition and unavailable forecast read
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql
+          python3 - <<'PY_SCOPE_READ'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-scope-obligation-evidence-read-postgres-test.sql'],check=True)
+          PY_SCOPE_READ
+      - name: Native v2 recipient economics, replay and cross-protocol currentness
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-v2-receiver-postgres-test.sql
+      - name: Entry-level invoice source barriers preserve v1 and v2 contracts
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-barrier-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-destination-postgres-test.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-v2-receiver-postgres-test.sql
+      - name: Native Catering durable Finance capture, lease and unchanged parked source
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002024013_operations_catering_finance_delivery_v1.sql
+          CATERING_PROJECT_ECONOMY_ISOLATED_TEST=true deno run --allow-env scripts/project-economy/catering-finance-fixture.ts > /tmp/catering-finance-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f /tmp/catering-finance-fixture.sql -f scripts/project-economy/catering-finance-delivery-postgres-test.sql
+      - name: Actual authenticated own credit assignment and immutable source relationship proof
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql
+          python3 - <<'PY_OWN_CREDIT'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-assignment-postgres-test.sql'],check=True)
+          PY_OWN_CREDIT
+      - name: Actual immutable own credit capacity and retained source reservations
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002042005_operations_obligation_credit_capacity.sql
+          python3 - <<'PY_CAPACITY'
+          import subprocess
+          from pathlib import Path
+          data=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-credit-capacity-postgres-test.sql'],check=True)
+          PY_CAPACITY
+      - name: Native Catering protected current rows and persistent opaque withdrawal
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002035730_operations_catering_project_read_v3.sql
+          psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-catering-project-read-v3-postgres-test.sql
+      - name: Actual captured invoice evidence to unchanged Operations obligation kernel
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql
+          deno check scripts/project-economy/operations-invoice-kernel-vector-test.ts
+          python3 - <<'PY_KERNEL'
+          import subprocess,json
+          from pathlib import Path
+          fixture=Path('/tmp/project-obligation-fixtures.json').read_text().strip()
+          source=Path('scripts/project-economy/operations-invoice-obligation-kernel-postgres-test.sql').read_text()
+          old='select label,evidence::text from kernel_vectors order by label;'
+          if source.count(old)!=1:raise SystemExit('Exact kernel vector output selector required')
+          source=source.replace(old,"select jsonb_agg(jsonb_build_object('label',label,'evidence',evidence::text) order by label)::text from kernel_vectors;")
+          result=subprocess.run(['psql','-X','-At','-v','ON_ERROR_STOP=1','-v','fixture='+fixture],input=source,text=True,capture_output=True)
+          if result.returncode:raise SystemExit('Actual isolated kernel SQL failed; no partial vector acceptance')
+          rows=[json.loads(line) for line in result.stdout.splitlines() if line.startswith('[{')]
+          if len(rows)!=1 or len(rows[0])!=6 or 'operations-invoice-obligation-kernel-postgres PASS' not in result.stdout:raise SystemExit('Six native SQL vectors and complete fixture result required')
+          Path('/tmp/invoice-kernel-vectors.json').write_text(json.dumps(rows[0]))
+          print('Actual native invoice kernel SQL all assertions PASS; six original response strings captured')
+          PY_KERNEL
+          deno run --allow-read scripts/project-economy/operations-invoice-kernel-vector-test.ts /tmp/invoice-kernel-vectors.json
+      - name: Whole captured split invoice evidence and unchanged frozen kernel
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py vectors /tmp/project-obligation-fixtures.json
+      - name: Authenticated saved single obligation drilldown and unavailable forecast
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py drilldown /tmp/project-obligation-fixtures.json
+  scope-invoice-kernel-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_invoice_kernel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_invoice_kernel_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_scope_invoice_kernel_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_INVOICE_KERNEL_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Actual globally protected whole scope versus policy sources baseline and graph
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002025617_operations_obligation_source_policy.sql \
+            supabase/migrations/20261002030747_operations_scope_obligation_composition.sql \
+            supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql \
+            supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py vectors /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py seed /tmp/scope-native-fixture.json
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql
+          python3 scripts/project-economy/operations-scope-invoice-kernel-runtime.py admin /tmp/scope-native-fixture.json
+          python3 scripts/project-economy/operations-scope-invoice-capture-admin-http-native.test.py
+          python3 scripts/project-economy/operations-scope-invoice-capture-admin-http-native.py
+          bash scripts/project-economy/operations-scope-invoice-kernel-native-concurrency.sh
+
+  invoice-source-barrier-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_invoice_barrier_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_invoice_barrier_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_INVOICE_BARRIER_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - name: Fresh dedicated native invoice barrier concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          PGOPTIONS='-c eventflow.invoice_barrier_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-barrier-native-setup.sql
+          bash scripts/project-economy/operations-invoice-barrier-native-concurrency.sh
+  own-credit-authority-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_OWN_CREDIT_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Genuine authenticated own credit source assignment concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          bash scripts/project-economy/operations-own-credit-native-concurrency.sh
+
+  own-credit-capacity-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_capacity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_capacity_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_CREDIT_CAPACITY_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Genuine distinct credit original capacity and source correction concurrency
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql \
+            supabase/migrations/20261002042005_operations_obligation_credit_capacity.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          PGOPTIONS='-c eventflow.credit_capacity_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-credit-capacity-native-setup.sql
+          bash scripts/project-economy/operations-credit-capacity-native-concurrency.sh
+
+  invoice-kernel-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_kernel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: eventflow_own_credit_kernel_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_INVOICE_KERNEL_ISOLATED_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.8.1
+      - name: Actual invoice kernel read versus policy, baseline and source transactions
+        run: |
+          set -euo pipefail
+          for migration in \
+            scripts/project-economy/operations-postgres-bootstrap.sql \
+            supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql \
+            supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql \
+            scripts/project-economy/operations-project-review-bootstrap.sql \
+            supabase/migrations/20261001232438_operations_personnel_project_reviews.sql \
+            scripts/project-economy/operations-scope-bootstrap.sql \
+            supabase/migrations/20261002014937_operations_project_scope_enrollment.sql \
+            supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql \
+            supabase/migrations/20261002023731_operations_project_obligation_authority.sql \
+            supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql \
+            supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql \
+            supabase/migrations/20261002035459_operations_obligation_credit_assignment.sql \
+            supabase/migrations/20261002025617_operations_obligation_source_policy.sql \
+            supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql; do
+            psql -X -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          deno run scripts/project-economy/operations-obligation-fixture.ts > /tmp/own-credit-native-fixture.json
+          python3 - <<'PY_NATIVE_OWN'
+          import subprocess,os
+          from pathlib import Path
+          data=Path('/tmp/own-credit-native-fixture.json').read_text().strip()
+          subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-v','fixture='+data,
+                          '-f','scripts/project-economy/operations-own-credit-native-setup.sql'],check=True,
+                         env={**os.environ,'PGOPTIONS':'-c eventflow.own_credit_isolated=synthetic-disposable'})
+          PY_NATIVE_OWN
+          PGOPTIONS='-c eventflow.invoice_kernel_isolated=synthetic-disposable' psql -X -v ON_ERROR_STOP=1 -f scripts/project-economy/operations-invoice-kernel-native-setup.sql
+          bash scripts/project-economy/operations-invoice-kernel-native-concurrency.sh
+
+
+  authenticated-project-evidence-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ISOLATED_PROJECT_EVIDENCE_HTTP: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact selected canonical schema and private proof guards
+        run: |
+          python3 scripts/project-economy/project-evidence-http-runtime/verify-sources.py
+          python3 scripts/project-economy/project-evidence-http-runtime/isolation.test.py
+          python3 scripts/project-economy/project-evidence-http-runtime/proof.test.py
+          python3 scripts/project-economy/project-evidence-http-runtime/drilldown-proof.test.py
+          python3 scripts/project-economy/project-evidence-http-runtime/control-adversarial.test.py
+      - name: Check and cache unchanged actual reader models and native fixture graphs
+        run: |
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-drilldown-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-drilldown-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+      - name: Actual signed authenticated roles and live revocation through native PostgREST
+        run: bash scripts/project-economy/project-evidence-http-runtime/run.sh
+
+  catering-allocation-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_catering_allocation_v2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_catering_allocation_v2_ci"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      OPERATIONS_CATERING_ALLOCATION_ISOLATED: '1'
+      TEST_DATABASE_URL: postgresql://postgres:synthetic-test-only@127.0.0.1:5432/eventflow_catering_allocation_v2_ci
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact reviewed Finance source and named-database isolation
+        run: |
+          python3 scripts/project-economy/catering-allocation-native-source-verify.py
+          python3 scripts/project-economy/catering-allocation-native-guard-test.py
+          deno check scripts/project-economy/catering-allocation-native-fixture.ts scripts/project-economy/catering-allocation-sql-vector-check.ts scripts/project-economy/catering-allocation-native-counterparts/finance/src/domain/cateringProjectAllocationDelivery.ts
+          deno cache scripts/project-economy/catering-allocation-native-fixture.ts scripts/project-economy/catering-allocation-sql-vector-check.ts scripts/project-economy/catering-allocation-native-counterparts/finance/src/domain/cateringProjectAllocationDelivery.ts
+      - name: Actual authenticated allocation versus genuine native producer in both transaction orders
+        run: |
+          export CATERING_ALLOCATION_FINANCE_SOURCE_ROOT="$GITHUB_WORKSPACE/scripts/project-economy/catering-allocation-native-counterparts/finance"
+          git rev-parse HEAD
+          psql "$TEST_DATABASE_URL" -X -At -c 'select version()'
+          deno --version
+          bash scripts/project-economy/catering-allocation-native.sh
+
+  catering-allocation-dispatch-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_catering_allocation_v2_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_catering_allocation_v2_ci"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      OPERATIONS_CATERING_ALLOCATION_ISOLATED: '1'
+      OPERATIONS_CATERING_DISPATCH_ISOLATED: 'true'
+      TEST_DATABASE_URL: postgresql://postgres:synthetic-test-only@127.0.0.1:5432/eventflow_catering_allocation_v2_ci
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Genuine native dispatch SQL and explicitly synthetic acknowledgement controls
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/catering-allocation-native-guard-test.py
+          python3 scripts/project-economy/catering-allocation-dispatch-native.test.py
+          deno check supabase/functions/catering-allocation-finance-delivery/index.ts
+          git rev-parse HEAD
+          psql "$TEST_DATABASE_URL" -X -At -c 'select version()'
+          python3 scripts/project-economy/catering-allocation-dispatch-native.py
+
+  hired-personnel-authority-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_hired_authority_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_hired_authority_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_hired_authority_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_HIRED_PERSONNEL_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Actual hired source authority and both publisher assignment lock orders
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/operations-hired-personnel-native-guard.test.py
+          python3 scripts/project-economy/operations-hired-personnel-native.wrapperguard.test.py
+          deno test supabase/functions/_shared/hired-personnel-authority.test.ts
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          python3 scripts/project-economy/operations-hired-personnel-native.py
+
+  scope-view-alias-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_alias_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_alias_ci"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_alias_ci
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_ALIAS_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Actual coherent full-scope preview and legacy graph writer currentness
+        run: |
+          set -euo pipefail
+          umask 077
+          deno check supabase/functions/_shared/canonical-scope-view-alias.ts
+          deno check scripts/project-economy/operations-scope-view-alias-native-vector-test.ts
+          git diff --exit-code
+          git rev-parse HEAD
+          psql -X -At -c 'select version()'
+          task_alias_private=$(mktemp -d)
+          trap 'rm -rf "$task_alias_private"' EXIT
+          task_alias_apply() {
+            timeout --signal=TERM --kill-after=5s 90s psql -X --no-password -v ON_ERROR_STOP=1 < "$1" > "$task_alias_private/schema.log" 2>&1 || { echo 'Native alias exact schema phase failed; private diagnostics withheld' >&2; return 1; }
+          }
+          for task_alias_path in scripts/project-economy/operations-postgres-bootstrap.sql supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql scripts/project-economy/operations-project-review-bootstrap.sql supabase/migrations/20261001232438_operations_personnel_project_reviews.sql scripts/project-economy/operations-scope-bootstrap.sql supabase/migrations/20261002014937_operations_project_scope_enrollment.sql; do
+            task_alias_apply "$task_alias_path"
+          done
+          export PGOPTIONS='-c statement_timeout=30000 -c lock_timeout=10000 -c eventflow.scope_alias_isolated=synthetic-disposable'
+          task_alias_apply scripts/project-economy/operations-scope-view-alias-native-setup.sql
+          task_alias_apply scripts/project-economy/operations-scope-view-alias-native-capture.sql
+          unset PGOPTIONS
+          timeout --signal=TERM --kill-after=5s 180s bash scripts/project-economy/operations-scope-view-alias-native-concurrency.sh
+
+  obligation-mounted-browser-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      ISOLATED_PROJECT_EVIDENCE_HTTP: 'true'
+      ISOLATED_OPERATIONS_OBLIGATION_MOUNTED_BROWSER: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact source, private resource and genuine route boundary guards
+        run: |
+          set -euo pipefail
+          python3 scripts/project-economy/project-evidence-http-runtime/verify-sources.py
+          python3 scripts/project-economy/operations-obligation-mounted-browser-native.test.py
+          node --test scripts/project-economy/operations-obligation-mounted-browser-contract.test.mjs
+      - name: Exact canonical web dependencies and Playwright1.55 browser without source changes
+        run: |
+          set -euo pipefail
+          npm ci
+          task_mounted_dependencies="$RUNNER_TEMP/operations-mounted-playwright-${GITHUB_RUN_ID}"
+          npm install --prefix "$task_mounted_dependencies" --no-package-lock @playwright/test@1.55.0
+          mkdir -p node_modules/@playwright
+          ln -s "$task_mounted_dependencies/node_modules/@playwright/test" node_modules/@playwright/test
+          ln -s "$task_mounted_dependencies/node_modules/playwright" node_modules/playwright
+          ln -s "$task_mounted_dependencies/node_modules/playwright-core" node_modules/playwright-core
+          node "$task_mounted_dependencies/node_modules/playwright/cli.js" install --with-deps chromium
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+      - name: Cache actual native signed fixture and unchanged readers
+        run: |
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+      - name: Actual App project route on fresh native database in three independent builds
+        run: python3 scripts/project-economy/operations-obligation-mounted-browser-native.py
+
+  project-cost-mounted-browser-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      ISOLATED_PROJECT_EVIDENCE_HTTP: 'true'
+      ISOLATED_OPERATIONS_PROJECT_COST_MOUNTED_BROWSER: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact source, private resource and genuine route boundary guards
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/project-economy/project-evidence-http-runtime/verify-sources.py
+          python3 -I -B scripts/project-economy/operations-project-cost-mounted-browser-native-test.py
+          node --test scripts/project-economy/operations-obligation-mounted-browser-contract.test.mjs scripts/project-economy/operations-project-cost-mounted-browser-contract.node-test.mjs scripts/project-economy/operations-scope-invoice-mounted-browser-contract.node-test.mjs scripts/project-economy/operations-project-cost-mounted-state.node-test.mjs
+      - name: Exact canonical web dependencies and Playwright1.55 browser without source changes
+        run: |
+          set -euo pipefail
+          npm ci
+          task_mounted_dependencies="$RUNNER_TEMP/operations-mounted-playwright-${GITHUB_RUN_ID}"
+          npm install --prefix "$task_mounted_dependencies" --no-package-lock @playwright/test@1.55.0
+          mkdir -p node_modules/@playwright
+          ln -s "$task_mounted_dependencies/node_modules/@playwright/test" node_modules/@playwright/test
+          ln -s "$task_mounted_dependencies/node_modules/playwright" node_modules/playwright
+          ln -s "$task_mounted_dependencies/node_modules/playwright-core" node_modules/playwright-core
+          node "$task_mounted_dependencies/node_modules/playwright/cli.js" install --with-deps chromium
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+      - name: Cache actual native signed fixture and unchanged readers
+        run: |
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-project-evidence-http-journey.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/project-evidence-http-runtime/control.ts
+      - name: Cache exact genuine personnel generator without remote npm resolution
+        run: deno cache --no-config --no-lock --no-remote --no-npm --node-modules-dir=manual scripts/project-economy/operations-project-cost-mounted-browser.mjs scripts/project-economy/operations-project-cost-mounted-state.mjs supabase/functions/_shared/project-personnel-cost.ts
+      - name: Actual App old personnel evidence, native same-count state proof and eight actor cases
+        run: python3 -I -B scripts/project-economy/operations-project-cost-mounted-browser-native.py
+
+  whole-scope-projection-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_scope_projection_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_scope_projection_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_scope_projection_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_PROJECTION_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact test-only calculator closure and private boundary guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -B scripts/project-economy/operations-whole-scope-projection-native.guard.test.py
+          deno check scripts/project-economy/whole-scope-projection-parity-vectors.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/whole-scope-projection-parity-vectors.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual native PostgreSQL original41 and real reader11 differential parity
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          python3 -B scripts/project-economy/operations-whole-scope-projection-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-publication-transaction-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_PUBLICATION_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact test-only publication closure and private boundary guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -B scripts/project-economy/operations-whole-scope-publication-transaction-native.guard.test.py
+          bash -n scripts/project-economy/whole-scope-publication-transaction-native-concurrency.sh
+          deno check scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual PostgreSQL atomic source capture and publication lock orders
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          python3 -B scripts/project-economy/operations-whole-scope-publication-transaction-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  whole-scope-publication-try-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_PUBLICATION_TRY_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact test-only TRY closure and four-family private boundary guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -B scripts/project-economy/operations-whole-scope-publication-try-native.guard.test.py
+          bash -n scripts/project-economy/whole-scope-publication-try-native-concurrency.sh
+          deno check scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual four queued writer families with protected as-of or bounded busy rollback
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          python3 -B scripts/project-economy/operations-whole-scope-publication-try-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-reader-permission-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_READER_PERMISSION_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact reader-permission closure and isolated native guard checks
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -B scripts/project-economy/operations-whole-scope-reader-permission-native.guard.test.py
+          bash -n scripts/project-economy/whole-scope-reader-permission-native-concurrency.sh
+          deno check scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/whole-scope-publication-transaction-native-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual queued role and packing writers preserve saved readers and denial
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          python3 -B scripts/project-economy/operations-whole-scope-reader-permission-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  compatible-product-reader-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_SCOPE_COMPATIBLE_READ_ISOLATED_DB: 'true'
+      EVENTFLOW_SCOPE_COMPATIBLE_READ_POSTGREST_IMAGE: 'postgrest/postgrest@sha256:729bf65c733b73f5b52777f0e4b853f22ed73aa67a22d38269d289779b0a8401'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact product reader closure and finite resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.guard.test.py
+          bash -n scripts/project-economy/operations-scope-compatible-read-native-concurrency.sh
+          deno test --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-budget-test.ts
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-journey.ts scripts/project-economy/operations-scope-compatible-read-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-scope-compatible-read-http-journey.ts scripts/project-economy/operations-scope-compatible-read-vector-test.ts scripts/project-economy/operations-obligation-fixture.ts
+      - name: Actual public product readers signed JWT admission and authored queued writers
+        id: compatible_runtime
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]{1,10}$ ]]
+          run_key="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          registry="$RUNNER_TEMP/operations-compatible-read-owned-${run_key}.registry"
+          immutable_parent="/tmp/operations-compatible-immutable-${run_key}"
+          private_parent="/tmp/operations-compatible-reader-native-${run_key}"
+          container_name="scope-compatible-read-http-${run_key}"
+          test ! -e "$registry"
+          test ! -e "$immutable_parent"
+          test ! -e "$private_parent"
+          test -z "$(docker --host unix:///var/run/docker.sock ps -a --filter "name=^/${container_name}$" --format '{{.Names}}')"
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B - <<'PY_HELD_BOOTSTRAP' &
+          # BEGIN HELD BOOTSTRAP LAUNCHER V2
+          import hashlib,os,stat
+          BOOTSTRAP_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest.py'
+          BOOTSTRAP_SHA256='f08ad27e09b51dcd2b800e32883f2e5316ec0903e75e435aff69bb7ecc748ea7'
+          CLOSURE_PATH='scripts/project-economy/operations-scope-compatible-read-native-pinned-postgrest-closure.json'
+          CLOSURE_SHA256='e1d2d677af718e12f6549d05e5c4ba197a9fca1744f207993ad41ea2af41896c'
+          def identity(value):
+              return (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+          def open_held(path,expected,maximum):
+              fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+              try:
+                  before=os.fstat(fd)
+                  if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or before.st_mode&0o022 or before.st_size>maximum:
+                      raise RuntimeError('held_authority_refused')
+                  chunks=[];offset=0
+                  while True:
+                      part=os.pread(fd,min(65536,maximum+1-offset),offset)
+                      if not part:break
+                      chunks.append(part);offset+=len(part)
+                      if offset>maximum:raise RuntimeError('held_authority_refused')
+                  data=b''.join(chunks);after=os.fstat(fd);current=os.stat(path,follow_symlinks=False)
+                  if identity(before)!=identity(after) or identity(after)!=identity(current) or hashlib.sha256(data).hexdigest()!=expected:
+                      raise RuntimeError('held_authority_refused')
+                  return fd,identity(before),data
+              except BaseException:
+                  os.close(fd);raise
+          def authority(value):return {'fd':value[0],'identity':value[1],'bytes':value[2]}
+          outer_phase='outer_bootstrap_open'
+          bootstrap=None;closure=None
+          try:
+              bootstrap=open_held(BOOTSTRAP_PATH,BOOTSTRAP_SHA256,131072)
+              outer_phase='outer_closure_open'
+              closure=open_held(CLOSURE_PATH,CLOSURE_SHA256,2097152)
+              namespace={'__name__':'__main__','__file__':BOOTSTRAP_PATH,'__package__':None,'__held_bootstrap__':authority(bootstrap),'__held_closure__':authority(closure)}
+              outer_phase='outer_compile'
+              code=compile(bootstrap[2],'<held-bootstrap:'+BOOTSTRAP_SHA256+'>','exec',dont_inherit=True,optimize=0)
+              outer_phase='outer_execute'
+              exec(code,namespace,namespace)
+          except BaseException as error:
+              if type(error) is SystemExit:raise
+              print('operations-scope-compatible-read-native FAIL source_closure PHASE='+outer_phase,file=__import__('sys').stderr)
+              raise SystemExit(1) from None
+          finally:
+              try:
+                  if closure is not None:os.close(closure[0])
+                  if bootstrap is not None:os.close(bootstrap[0])
+              except BaseException:
+                  print('operations-scope-compatible-read-native FAIL source_closure PHASE=outer_close',file=__import__('sys').stderr)
+                  raise SystemExit(1) from None
+          # END HELD BOOTSTRAP LAUNCHER V2
+          PY_HELD_BOOTSTRAP
+          runtime_pid=$!
+          if test -r "/proc/${runtime_pid}/stat"; then
+            runtime_start="$(awk '{print $22}' "/proc/${runtime_pid}/stat")"
+          else
+            runtime_start=gone
+          fi
+          {
+            printf 'immutable_parent\t%s\n' "$immutable_parent"
+            printf 'private_parent\t%s\n' "$private_parent"
+            printf 'process\t%s\t%s\n' "$runtime_pid" "$runtime_start"
+            printf 'container\t%s\n' "$container_name"
+            printf 'network\tnone\n'
+          } > "$registry"
+          wait "$runtime_pid"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+      - name: Exact registered owned cleanup no-survivor
+        if: ${{ always() && steps.compatible_runtime.outcome != 'skipped' }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]{1,10}$ ]]
+          run_key="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          registry="$RUNNER_TEMP/operations-compatible-read-owned-${run_key}.registry"
+          immutable_parent="/tmp/operations-compatible-immutable-${run_key}"
+          private_parent="/tmp/operations-compatible-reader-native-${run_key}"
+          container_name="scope-compatible-read-http-${run_key}"
+          test -f "$registry"
+          test "$(stat -c '%u:%a' "$registry")" = "$(id -u):600"
+          mapfile -t owned < "$registry"
+          test "${#owned[@]}" -eq 5
+          test "${owned[0]}" = $'immutable_parent\t'"$immutable_parent"
+          test "${owned[1]}" = $'private_parent\t'"$private_parent"
+          IFS=$'\t' read -r process_kind runtime_pid runtime_start <<< "${owned[2]}"
+          test "$process_kind" = process
+          [[ "$runtime_pid" =~ ^[1-9][0-9]*$ ]]
+          test -n "$runtime_start"
+          test "${owned[3]}" = $'container\t'"$container_name"
+          test "${owned[4]}" = $'network\tnone'
+          test ! -e "$immutable_parent"
+          test ! -e "$private_parent"
+          if test "$runtime_start" != gone && test -e "/proc/${runtime_pid}"; then
+            current_start="$(awk '{print $22}' "/proc/${runtime_pid}/stat")"
+            test "$current_start" != "$runtime_start"
+          fi
+          test -z "$(docker --host unix:///var/run/docker.sock ps -a --filter "name=^/${container_name}$" --format '{{.Names}}')"
+          printf 'operations-compatible-read-owned-cleanup PASS run=%s parents=2 process=1 container=1 network=none\n' "$run_key"
+
+  compatible-selected-catalog-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_CATALOG_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact selected closure and metadata privacy resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-catalog-native.guard.test.py
+          deno check scripts/project-economy/operations-obligation-fixture.ts
+          deno cache scripts/project-economy/operations-obligation-fixture.ts
+      - name: Fresh selected installed metadata and eleven rollback controls
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-catalog-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-product-publication-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: syntheticProductOnly123_
+          POSTGRES_DB: eventflow_scope_product_publication_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_product_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_product_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: syntheticProductOnly123_
+      EVENTFLOW_WHOLE_SCOPE_PRODUCT_PUBLICATION_ISOLATED_DB: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact product publication sources and owned process Docker HTTP guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-whole-scope-product-publication-native.guard-test.py
+          deno check --no-config --no-lock --no-remote --no-npm scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-whole-scope-product-publication-vector-test.ts
+      - name: Genuine public coherent product publication and causal RR queue matrix
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-whole-scope-product-publication-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  remaining-six-compatible-reader-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_remaining_six_read_runtime
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_remaining_six_read_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_remaining_six_read_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_READ_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact remaining six sources and bounded owned native resources
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-compatible-reader-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+      - name: Genuine remaining six readers direct parity queue priorities and signed native HTTP
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-compatible-reader-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-product-grant-command-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Pure fixed request bytes and privacy controls without grant authority
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          deno --version
+          deno check --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-command-v1.ts supabase/functions/_shared/whole-scope-product-grant-command-v1.deno-test.ts
+          deno test --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-command-v1.deno-test.ts
+          echo 'PASS pure grant command encoding only; saved grant writer, source export and Finance admission remain closed'
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+
+  whole-scope-product-grant-event-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Pure event23 UTC membership and locked grant7 bytes without grant authority
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          deno --version
+          deno check --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-event-v1.ts supabase/functions/_shared/whole-scope-product-grant-event-v1.deno-test.ts
+          deno test --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-product-grant-event-v1.deno-test.ts
+          echo 'PASS pure event23 encoding only; saved grant writer, source export and Finance admission remain closed'
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  compatible-atomic-install-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_compatible_install_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_compatible_install_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_compatible_install_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_COMPATIBLE_INSTALL_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact atomic install source and bounded rollback resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/operations-compatible-install-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-obligation-fixture.ts
+      - name: Genuine late migration failures full rollback and sequential success
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/operations-compatible-install-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-hired-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: operations_hired_authority_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d operations_hired_authority_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: operations_hired_authority_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine hired containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-credit-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_remaining_six
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_own_credit_remaining_six"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_own_credit_remaining_six
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine credit containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+  remaining-six-containing-owner-capacity-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_own_credit_capacity_remaining_six
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_own_credit_capacity_remaining_six"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_own_credit_capacity_remaining_six
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_REMAINING_SIX_OWNER_ISOLATED_DB: 'true'
+      DENO_NO_PACKAGE_JSON: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact source head and current tree identity
+        run: bash scripts/project-economy/operations-exact-head-tree.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.8.1
+      - name: Exact containing owner source closure and bounded resource guards
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$EVENTFLOW_EXPECTED_SOURCE_HEAD"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.guard.test.py
+          deno check --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+          deno cache --unstable-sloppy-imports scripts/project-economy/operations-fixture.ts scripts/project-economy/operations-obligation-fixture.ts scripts/project-economy/operations-hired-personnel-native-fixture.ts
+      - name: Genuine capacity containing owner and reverse legacy concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          psql -X --no-password -At -c 'select version()'
+          deno --version
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/remaining-six-containing-owner-native.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"

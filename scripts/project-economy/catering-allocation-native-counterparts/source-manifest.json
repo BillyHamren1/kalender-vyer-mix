@@ -1,0 +1,25 @@
+{
+  "schema": "catering-allocation-native-finance-source.v1",
+  "repository": "BillyHamren1/eventflow-finance",
+  "commit": "dcd53831ffee6f5963ab0828b838a9760f66da8f",
+  "files": [
+    {
+      "path": "src/domain/cateringProjectAllocationDelivery.ts",
+      "git_sha1": "aff43fc2d3474d605b6e9873579b9c66c08871ec",
+      "sha256": "d08179efed9e8093a7ea7d0e565ad7119e909b5a6959bcfd0c21a6f8a815508b",
+      "bytes": 6234
+    },
+    {
+      "path": "src/domain/cateringProjectDelivery.ts",
+      "git_sha1": "7ba6a6815b5b1483fcd3552cdf940ce38e93d6a3",
+      "sha256": "1615fcd8a632964aaf8cd1780122b4fdebb968f86b5dcdbe81d3c2e86063f509",
+      "bytes": 10485
+    },
+    {
+      "path": "src/domain/cateringProjectEvidence.ts",
+      "git_sha1": "653f43fcd81964e2ac57df6b32c6ed896f86a984",
+      "sha256": "ddfaaf070600e1cfb31f4b063b6649778641c9190e343688433ed92bc053f31c",
+      "bytes": 5039
+    }
+  ]
+}

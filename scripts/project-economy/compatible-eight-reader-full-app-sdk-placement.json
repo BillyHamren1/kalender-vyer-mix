@@ -1,0 +1,40 @@
+{
+  "schema": "compatible-full-app-sdk-placement.v1",
+  "status": "descriptor-only-admission-blocked",
+  "exact_app": {
+    "commit": "809f64e0fd98322c53d9c4e9697df5b515303812",
+    "tree": "3d96301591652f9d86ccbbdf8ff26efcb7180ce9",
+    "manifest_sha256": "4c6005bb374fa13f89aafc52ce4a013feaa1673454dce76bd09aee77c95e6434",
+    "files": 2445,
+    "bytes": 20984073
+  },
+  "source": {
+    "repository_path": "scripts/project-economy/compatible-eight-reader-full-app-sdk-shape-test.mjs",
+    "sha256": "03a96740aed709db4bb13a0dda8a7f49d4ba25ce7a641a5eb4c4f645c6880d23",
+    "bytes": 8976
+  },
+  "destination": {
+    "relative_path": "scripts/project-economy/compatible-eight-reader-full-app-sdk-shape-test.mjs",
+    "mode": "0600",
+    "operation": "exclusive-create-from-captured-source-fd",
+    "symlinks": "deny-every-path-component",
+    "precondition": "destination-absent-and-materializer-receipt-exact",
+    "postcondition": "source-and-destination-sha256-equal-and-open-fd-identities-stable"
+  },
+  "receipt": {
+    "schema": "compatible-full-app-sdk-placement-receipt.v1",
+    "required_fields": [
+      "exact_app_manifest_sha256",
+      "sdk_sha256",
+      "sdk_bytes",
+      "destination_relative_path",
+      "destination_identity",
+      "materialized_root_identity"
+    ],
+    "must_precede_long_process_source_fd_snapshot": true
+  },
+  "admission": {
+    "placement": false,
+    "reason": "reviewed_fd_placement_implementation_and_native_negative_tests_are_absent"
+  }
+}

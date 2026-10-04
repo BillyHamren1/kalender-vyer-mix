@@ -1,0 +1,134 @@
+{
+  "schema": "test-only-catering-reconciliation-contract-controls.v1",
+  "scope": "Serialization and future admission-case descriptors only; no new protocol, Finance accepted cursor, source-provider input, authorization or delivery proof.",
+  "source_operations_commit": "b4272d1d0255034633c618d5728f72b83b1835e6",
+  "source_finance_commit": "0bad515303782124a677e25822746eccbf355978",
+  "scalar_controls": [
+    {
+      "label": "unicode_reason_null_review",
+      "domain": "eventflow.catering.reconciliation.scalar-control.v1",
+      "input": {
+        "reason": "Flytta kostnad – kök \"A\"\nprojekt B",
+        "review": null,
+        "issued_at": "2026-10-02T00:00:00.123456Z",
+        "enabled": true,
+        "revision": 3
+      },
+      "expected_sha256": "57cc592109395598a16d4d98d701af6fd390ba9165180192e98fb4b78a71be92",
+      "expected_utf8_bytes": 189
+    },
+    {
+      "label": "missing_price_historical_timestamp",
+      "domain": "eventflow.catering.reconciliation.scalar-control.v1",
+      "input": {
+        "amount_minor": null,
+        "hourly_rate_minor": null,
+        "source_review_fingerprint": null,
+        "source_status": "pending",
+        "created_at": "2026-10-02T00:00:00.123456+00:00"
+      },
+      "expected_sha256": "34246453413e704cc50fbf43378b187f030ec1f42309154b0d02f727493701e4",
+      "expected_utf8_bytes": 205
+    },
+    {
+      "label": "non_bmp_line_separator_and_max_safe_integer",
+      "domain": "eventflow.catering.reconciliation.scalar-control.v1",
+      "input": {
+        "text": "😀 / \\ \"\t\n ",
+        "revision": 9007199254740991,
+        "zero": 0
+      },
+      "expected_sha256": "22bd0fca06bca32e4da39f985c5edf64b4526585701013dce55641ab40f8b15f",
+      "expected_utf8_bytes": 119
+    }
+  ],
+  "history_control": {
+    "scope": "Chaining-only; seed uses captured fixture body hash as an arbitrary scalar, NOT accepted cursor evidence.",
+    "seed": {
+      "domain": "eventflow.catering.reconciliation.history.v1",
+      "input": {
+        "cursor_sha256": "1aa6cf772849bdf74466c8ba9180b99664f8cb0188047f1bc14a62cdbaa65033",
+        "step_count": 2
+      },
+      "expected_sha256": "252b0fa92dc3934cc1105dc4c758364e5bf752933fbb55f6b693ac9260f3d32f",
+      "expected_utf8_bytes": 144
+    },
+    "links": [
+      {
+        "domain": "eventflow.catering.reconciliation.link.v1",
+        "input": {
+          "index": 1,
+          "previous_link_sha256": "252b0fa92dc3934cc1105dc4c758364e5bf752933fbb55f6b693ac9260f3d32f",
+          "step_sha256": "57cc592109395598a16d4d98d701af6fd390ba9165180192e98fb4b78a71be92"
+        },
+        "expected_sha256": "b03ea550fda55164260cb9d095ce66d3aa76e1f1ec4e7b84d1b9d9507aa32fc8",
+        "expected_utf8_bytes": 224
+      },
+      {
+        "domain": "eventflow.catering.reconciliation.link.v1",
+        "input": {
+          "index": 2,
+          "previous_link_sha256": "b03ea550fda55164260cb9d095ce66d3aa76e1f1ec4e7b84d1b9d9507aa32fc8",
+          "step_sha256": "34246453413e704cc50fbf43378b187f030ec1f42309154b0d02f727493701e4"
+        },
+        "expected_sha256": "e56914b648d2eda5ec0cf2b68fbf1ae7ace5d1338aa8d85c3fa17828c4422cde",
+        "expected_utf8_bytes": 224
+      }
+    ],
+    "expected_root_sha256": "e56914b648d2eda5ec0cf2b68fbf1ae7ace5d1338aa8d85c3fa17828c4422cde"
+  },
+  "admission_cases": [
+    {
+      "case": "initial_v1_accepted_predecessor",
+      "local_allocation_revision": 0,
+      "cursor_event": null,
+      "cursor_allocation_revision": 0,
+      "required_receipt_schema": "operations-catering-receipt.v1",
+      "required_delivery_schema": "operations-catering-delivery.v1",
+      "expected_contract_branch": "initial_v1",
+      "actual_receipt_snapshot_resolution_required": true
+    },
+    {
+      "case": "subsequent_v2_accepted_predecessor",
+      "local_allocation_revision": 1,
+      "cursor_event": "exact_existing_event",
+      "cursor_allocation_revision": 1,
+      "required_receipt_schema": "operations-catering-receipt.v2",
+      "required_delivery_schema": "operations-catering-delivery.v2",
+      "expected_contract_branch": "subsequent_v2",
+      "actual_receipt_snapshot_resolution_required": true
+    },
+    {
+      "case": "initial_v1_with_v2_receipt_instead",
+      "expected_contract_result": "deny_schema_or_predecessor_mismatch"
+    },
+    {
+      "case": "subsequent_v2_with_only_local_delivered_flag",
+      "expected_contract_result": "deny_finance_own_cursor_or_receipt_unavailable"
+    },
+    {
+      "case": "owner_insert_missing_admission",
+      "expected_contract_result": "deny_missing_admission_under_active_guard"
+    },
+    {
+      "case": "owner_forges_jwt_private_proof_or_ddl",
+      "expected_contract_result": "trusted_schema_owner_outside_application_threat_model"
+    },
+    {
+      "case": "generated_event_consumes_wrong_command_admission",
+      "expected_contract_result": "deny_command_or_base_tuple_mismatch"
+    },
+    {
+      "case": "same_admission_consumed_for_second_event",
+      "expected_contract_result": "deny_one_use_relationship"
+    },
+    {
+      "case": "source_advance_after_cursor_before_map_stream_locks",
+      "expected_contract_result": "stale_no_event"
+    },
+    {
+      "case": "ordinary_ack_unknown_after_expired_permit",
+      "expected_contract_result": "resolve_actual_saved_reconciliation_receipt_only_no_fake_v2_delivered"
+    }
+  ]
+}

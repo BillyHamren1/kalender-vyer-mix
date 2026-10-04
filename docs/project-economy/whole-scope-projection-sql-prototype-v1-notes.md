@@ -1,0 +1,33 @@
+# Whole-scope SQL projection prototype: test contract
+
+Status: test-only prototype, default no product integration. This supplement does not change the [atomic authority audit](whole-scope-atomic-publication-authority-audit.md). It creates no production migration, RPC, saved publication, financial authority, permission, provider operation or Finance calculation.
+
+The [SQL file](../../scripts/project-economy/whole-scope-projection-sql-prototype.sql) defines five session-local `pg_temp` functions only: checked money, checked aggregation, the unchanged obligation calculator's JSON input/result projection, and invoice leaf/whole-scope adapters. Actual source validation, ownership, authorization, currentness, locks and persisted publication remain absent. Leaf and whole inputs have the explicit prerequisite that the unchanged TypeScript evidence validators accept them. They must never be exposed as an RPC or treated as an authoritative SQL source mapper.
+
+The [Deno vector generator](../../scripts/project-economy/whole-scope-projection-parity-vectors.ts) calls the original [obligation calculator](../../supabase/functions/_shared/project-cost-obligations.ts), [invoice adapter](../../supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts) and [whole adapter](../../supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts). It writes a new private JSON file with complete input, original result or exact original error message. No copied expected monetary constants replace the original function's result. The existing invoice six-label and scope five-label assertion helpers run unchanged. Optional genuine SQL-produced six/five catalogs are also checked by their original helpers and become eleven additional full comparisons.
+
+The [Node runner](../../scripts/project-economy/whole-scope-projection-parity-pglite.mjs) uses an explicitly supplied local PGlite module and a private vector file. It executes only this temporary SQL prototype in a new in-memory database. Query inputs are bound parameters; the function name is selected from a fixed enum. It compares the entire JSON result, including kernel input/result, scope metadata, copied monetary values, diagnostic ordering, status, NULLs and exclusions. Expected kernel failures require the identical error message. Diagnostics contain a bounded vector label only, never raw JSON/SQL/error output. PGlite is supplementary WASM PostgreSQL, not native PostgreSQL or PostgREST evidence.
+
+## Covered comparisons
+
+- Six original invoice states: missing/current policy, coequal V2 current proof, higher V2 exclusion, empty catalog and unsupported Time basis.
+- Five original scope states: split allocation portions, changed policy, coequal V2 proof, higher V2 exclusion and empty selection. Whole projection remains invoice-only, coverage unavailable and remaining/EAC/budget/margin NULL.
+- Kernel cases: empty/confirmed/partial, independently unknown baseline, NULL source amount, rejected/unresolved source, missing policy, explicit noncharging Time 0/0 and nonzero denial, credit appearing before its original, unresolved/rejected original, nonstring credited reference without coercion, single/cumulative credit over-cap denial, negative original, excess replacement/consumption, duplicate identity, foreign currency, fraction/unsafe input, safe input with unsafe sum/EAC and Unicode source identity including ECMAScript whitespace-only rejection.
+- Extra leaf/scope cases: unknown estimate, mixed known/excluded partial subtotal and safe individual amounts whose whole subtotal overflows.
+- The unchanged isolated [operational EAC contract](../../supabase/functions/_shared/project-operational-eac.ts) is read and executed separately: unresolved scope/categories with absent Booking budget preserve NULL EAC/budget/variance; five malformed source versions are rejected. These checks are **TypeScript-only**. The prototype does not implement project EAC, source-version authority, a Booking budget mapper or an EAC SQL counterpart.
+
+The six/five initial catalogs are synthetic calculation inputs satisfying existing validators and assertion helpers. They are not evidence of a persisted source journey. A local rehearsal additionally ran all actual Operations migrations and existing invoice/scope SQL fixtures, producing eleven genuine reader responses; those original TypeScript assertions and the prototype matched too. That remains local PGlite evidence.
+
+## Running the supplementary test
+
+From Operations, use the installed Deno executable to run the vector generator with `--allow-read --allow-write`, passing a NEW private output path. Optionally append the existing private invoice and scope catalog paths. Then run the Node runner with `--pglite-supplement`, the absolute vector path and absolute installed PGlite module path. The vectors are private fixtures, not artifacts to publish. The runner prints a count and explicit `native-postgres NOT_RUN`.
+
+Current local result: 41 generated comparisons plus 11 actual SQL-fixture response comparisons, **52 PASS**. Normal package-aware Deno execution passed. No native engine, opposite-order locking, concurrent revoke, saved head, outbox, HMAC, receiver or Finance copy result follows from this count.
+
+## Gates left open
+
+A native PostgreSQL runner must execute the same temporary functions and original vectors in a strict fresh disposable named database/session, with bounded private diagnostics and exact result/error comparison. Root owns that launcher/workflow. Do not deploy these temporary functions or move them into a production schema.
+
+Before any actual writer, review differential validation beyond these vectors, including the exact accepted JSON domain and canonical hash bytes. In particular the prototype does not replicate the full leaf/scope evidence schema validators, inventory hashes or source proof currentness; their acceptance is an input prerequisite, not a SQL security boundary. The temporary kernel compares JSON representations of the typed obligation envelope and the explicitly listed hostile vectors; this is not an exhaustive equivalence claim over arbitrary untyped JSON or JavaScript coercion. Undefined, prototypes, NaN/Infinity and other non-JSON JavaScript values are outside this transfer domain.
+
+An eventual Operations-owned persisted bridge still requires its own authenticated writer contract, genuine source/graph/barrier audit, actual source reconstruction under locks, immutable evidence/result/publication/outbox transaction, monotonic head guards, privileges and native concurrency. No zero-charge exclusion, completeness, credit eligibility or cost suppression is activated here.

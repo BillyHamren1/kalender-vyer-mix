@@ -1,0 +1,62 @@
+{
+  "schema": "compatible-full-app-node-distribution-preparation.v1",
+  "status": "source-locked-admission-blocked",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "libc": "glibc"
+  },
+  "distribution": {
+    "node_version": "v24.21.0",
+    "npm_version": "11.19.0",
+    "archive_name": "node-v24.21.0-linux-x64.tar.xz",
+    "archive_url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz",
+    "archive_sha256": "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6",
+    "release_evidence_url": "https://nodejs.org/en/blog/release/v24.21.0",
+    "release_manifest_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt",
+    "archive_root": "node-v24.21.0-linux-x64",
+    "node_relative_path": "bin/node",
+    "npm_cli_relative_path": "lib/node_modules/npm/bin/npm-cli.js",
+    "npm_link_relative_path": "bin/npm",
+    "npm_link_target": "../lib/node_modules/npm/bin/npm-cli.js"
+  },
+  "import_policy": {
+    "archive_hash_is_distribution_identity": true,
+    "absolute_or_parent_escape_members": "deny",
+    "device_fifo_socket_hardlink_members": "deny",
+    "symlinks": "only-relative-target-resolving-inside-archive-root",
+    "node_and_npm_entry_sha256": "derive-from-verified-archive-and-bind-before-exec",
+    "npm_transitive_imports": "must-resolve-inside-verified-archive-root",
+    "lifecycle_path": "verified-private-distribution-bin-only",
+    "ambient_node_or_npm": "deny"
+  },
+  "npm_trust_policy": {
+    "registry_origin": "https://registry.npmjs.org/",
+    "proxy": "direct-only-all-proxy-environment-removed",
+    "redirect": "wrapper-must-deny-cross-origin-and-downgrade",
+    "cache": "fresh-private-empty-no-seed-no-restore",
+    "strict_ssl": true,
+    "update_notifier": false,
+    "audit_during_ci": false,
+    "fund_during_ci": false,
+    "ca_source": "verified-node-distribution-tls.rootCertificates",
+    "ca_serialization": "utf8-each-certificate-single-trailing-lf-concatenated-in-node-order",
+    "ca_sha256": "derive-and-bind-from-verified-distribution-before-network",
+    "secrets": "none"
+  },
+  "adapter": {
+    "source_sha256": "96e827a5e726656c459fdae5db74120282de63e1b7a89c31c0861a924e08a53c",
+    "accepted_node_major": 22,
+    "requested_node_major": 24,
+    "compatible": false
+  },
+  "admission": {
+    "download": false,
+    "extract": false,
+    "npm_network": false,
+    "npm_ci": false,
+    "sdk_test": false,
+    "build": false,
+    "reason": "canonical_long_process_adapter_rejects_node24_and_reviewed_fetch_extract_wrapper_is_absent"
+  }
+}

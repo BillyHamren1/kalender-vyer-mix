@@ -1,0 +1,85 @@
+{
+  "schema": "compatible-full-app-native-integration.v4",
+  "status": "source-locked-admission-blocked",
+  "canonical": {
+    "base_commit": "b3e1b36a30e9af5359f7863386263e278aa6202a",
+    "base_tree": "783a7a20ab77032889d62d6515de1f4c5f8324f4",
+    "exact_app_commit": "809f64e0fd98322c53d9c4e9697df5b515303812",
+    "exact_app_tree": "3d96301591652f9d86ccbbdf8ff26efcb7180ce9",
+    "exact_app_manifest_sha256": "4c6005bb374fa13f89aafc52ce4a013feaa1673454dce76bd09aee77c95e6434"
+  },
+  "reviewed_predecessors": {
+    "integration_three": {
+      "capture_sha256": "3bb850fd925ceaf35b1061eeb7a81fa62678dabac7437a2b9f8ef4e7335e73ef",
+      "verdict": "SOURCE_ACK_ROUTE_HOLD"
+    },
+    "playwright_inputs_three": {
+      "capture_sha256": "cdb6ebf87623bf8f741ab94a2c513653035d7fcb567c4fc91859c58d551f5ebd",
+      "verdict": "SOURCE_ACK_ROUTE_HOLD",
+      "canonical_at_base": true,
+      "outer_refetch_required": true
+    }
+  },
+  "reviewed_sources": {
+    "node_static_server": "9a73fddf2d2a8e0de1692274ef2b9ef2e031466705948ff038e43c98ae7da93a",
+    "node_static_owner": "19f25cdfa6e41f5af525897981f84483d790ecc1c15222c324ad1aa5fadca986",
+    "browser_network": "3b88a4acea11f9305f0049e04b37e6fb6359616311060698decdf9a80af23511",
+    "browser_receipt_network": "33b77650d3d04dcd98b7e1285e8571b40cebcf81ce251c9c0b1ab77661d2b80e",
+    "playwright_inputs": "de440fcd25272eef547729651e77e0f2ffef487a145d90f4e82c9bab468dc93a",
+    "playwright_snapshot": "6a346d802543e845c5e79715b99d58fc2bbf58f2a509dccc00f08b634dcb7894",
+    "owned_process": {
+      "path": "scripts/project-economy/auth-chain-cleanup-owned-process.py",
+      "sha256": "b9011bfd85b7af59057892bef9b628514367e84cd12a2c5b8d168a2b77721c7a",
+      "git_blob_sha1": "11c764813b6ad04337d07ff89886602b98d1bea8",
+      "bytes": 11439,
+      "present_at_base": true
+    }
+  },
+  "node24": {
+    "policy_sha256": "978007cda2664e5fccd1974b377b0cf35f35c33a0a2e3253f5685d2f92c1d8bd",
+    "archive_sha256": "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6",
+    "version": "v24.21.0",
+    "executable_sha256": null,
+    "extraction_evidence_sha256": null
+  },
+  "playwright": {
+    "version": "1.55.0",
+    "chromium_revision": "1187",
+    "chromium_version": "140.0.7339.16",
+    "archive_sha256": null
+  },
+  "required_sequence": [
+    "refetch-base",
+    "acquire-exact-app",
+    "materialize-with-root-receipt",
+    "sdk-placement-and-readonly-transition",
+    "extract-exact-node24",
+    "cold-install-unit-build",
+    "bind-readonly-dist-receipt",
+    "start-owned-static-server",
+    "import-exact-playwright-browser",
+    "run-receipt-bound-native-actor",
+    "close-browser-and-static-server",
+    "prove-owned-resource-absence"
+  ],
+  "workflow": {
+    "path": null,
+    "source_sha256": null,
+    "runner": "ubuntu-24.04",
+    "checkout_action": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+    "persist_credentials": false,
+    "admitted": false
+  },
+  "admission": {
+    "allowed": false,
+    "blockers": [
+      "node24_extraction_and_executable_evidence_not_reviewed",
+      "materialized_root_and_readonly_dist_receipts_not_reviewed",
+      "node24_cold_build_controller_not_published_and_reviewed",
+      "playwright_browser_archive_sha256_and_import_not_sourced",
+      "native_actor_adapter_assertions_and_browser_cleanup_not_reviewed",
+      "workflow_source_not_staged",
+      "real_linux_end_to_end_chain_not_run"
+    ]
+  }
+}

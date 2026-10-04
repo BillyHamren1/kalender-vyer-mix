@@ -1,0 +1,28 @@
+{
+  "schema": "operations-project-evidence-http-schema-closure.v1",
+  "database": "eventflow_project_evidence_http_runtime",
+  "canonical_baseline_commit": "b059d3a1841618d84443d27c02509fcafde547fb",
+  "ordered_paths": [
+    "scripts/project-economy/operations-postgres-bootstrap.sql",
+    "scripts/project-economy/operations-project-review-bootstrap.sql",
+    "scripts/project-economy/operations-catering-bootstrap.sql",
+    "scripts/project-economy/operations-scope-bootstrap.sql",
+    "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+    "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+    "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+    "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql",
+    "supabase/migrations/20261001235558_operations_catering_project_evidence.sql",
+    "supabase/migrations/20261002001842_operations_project_cost_read.sql",
+    "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql",
+    "supabase/migrations/20261002023731_operations_project_obligation_authority.sql",
+    "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql",
+    "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql",
+    "supabase/migrations/20261002025617_operations_obligation_source_policy.sql",
+    "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql",
+    "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql",
+    "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql",
+    "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql",
+    "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql",
+    "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql"
+  ]
+}

@@ -213,3 +213,30 @@ verify_jwt = false
 
 [functions.planning-brain-read]
 verify_jwt = false
+
+
+[functions.project-personnel-cost-publish]
+# Internal bearer is rechecked by the handler; boundary is disabled by default.
+verify_jwt = false
+
+[functions.finance-project-invoice-receive]
+# Enrolled HMAC, raw body, tenant and persistent nonce are verified by the handler.
+# The receiver is disabled by default.
+verify_jwt = false
+
+[functions.catering-project-cost-publish]
+# Dedicated internal secret and scoped native source proof; disabled by default.
+verify_jwt = false
+
+
+[functions.finance-project-invoice-receive-v2]
+# Dedicated v2 purpose-bound HMAC, exact enrollment and persistent nonce; default-off.
+verify_jwt = false
+
+[functions.catering-finance-delivery]
+# Dedicated internal dispatch bearer and captured immutable native publication; default-off.
+verify_jwt = false
+
+[functions.catering-allocation-finance-delivery]
+# Dedicated v2 internal dispatch secret and captured HMAC purpose; disabled by default.
+verify_jwt = false

@@ -1,0 +1,190 @@
+name: Operations positive invoice obligation projection native
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/operations-positive-invoice-obligation-projection-native.yml'
+      - 'scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs'
+      - 'scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql'
+      - 'scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py'
+      - 'src/components/project/OperationsObligationDrilldownPanel.tsx'
+      - 'src/components/project/OperationsPositiveInvoiceObligationProjection.tsx'
+      - 'src/lib/economy/positiveInvoiceObligationProjection.ts'
+      - 'supabase/migrations/20261003123000_operations_positive_invoice_obligation_projection_v1.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact sole-parent source route
+        env:
+          EXPECTED_PARENT: 666fc0c8f4a6f821eaa184a8a59e6bf05a81cea3
+          EXPECTED_PARENT_TREE: 937188a728d51995a7f881348487835f76b41f3d
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_PARENT_TREE"
+          test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
+          git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
+          cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
+          .github/workflows/operations-positive-invoice-obligation-projection-native.yml
+          EOF
+          cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
+          test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs | cut -d' ' -f1)" = b0a95eb7f4e2c467d559751a938cf8f29ce31cde3f7824e14037feef7aaf4ae2
+          test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql | cut -d' ' -f1)" = 4083363b3b30ec6879c581eec82e188ec7cc8fe3810d35f3efdf0294e19751d2
+          test "$(sha256sum scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py | cut -d' ' -f1)" = b36e317b78f7ee89190d3cbf54cf8ee237c0c0bba4b9e46533fb53400f75ed01
+          test "$(sha256sum src/components/project/OperationsScopeObligationEvidencePanel.rendered.test.tsx | cut -d' ' -f1)" = 8903bcc83f3274f036962771fea04b31a75bf12b85a2c86b73034dccf7e31bb4
+          test "$(sha256sum src/components/project/OperationsObligationDrilldownPanel.tsx | cut -d' ' -f1)" = d05e162604e760851cb8c860a94f1123a98380217fb51e7abbaa098adcf5ebb4
+          test "$(sha256sum src/components/project/OperationsPositiveInvoiceObligationProjection.tsx | cut -d' ' -f1)" = 415fc9e8b17b0ce517aff11852c2cc00b82089a2f6b6b515c3bce5bd9080b5ec
+          test "$(sha256sum src/lib/economy/positiveInvoiceObligationProjection.ts | cut -d' ' -f1)" = 756df379d098a9a7c94872022f31a9e73e0ebfaac33845c8848995e8d506c7e3
+          test "$(sha256sum supabase/migrations/20261003123000_operations_positive_invoice_obligation_projection_v1.sql | cut -d' ' -f1)" = 404c22b18156bb46ade54c569f4358c1c624b53d3a099462ac0f9fee22551d1a
+          python3 -I -B scripts/project-economy/operations-positive-invoice-obligation-projection.guard-test.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Exact client and mounted DOM source checks
+        run: |
+          set -Eeuo pipefail
+          test "$(node --version)" = v24.21.0
+          test "$(npm --version)" = 11.19.0
+          node --experimental-strip-types scripts/project-economy/operations-positive-invoice-obligation-projection-client.test.mjs
+          test "$(grep -c '<OperationsPositiveInvoiceObligationProjection' src/components/project/OperationsObligationDrilldownPanel.tsx)" = 1
+          test "$(grep -Fc "from './OperationsPositiveInvoiceObligationProjection'" src/components/project/OperationsObligationDrilldownPanel.tsx)" = 1
+      - name: Synthetic PostgreSQL 15.19 projection and RLS
+        env:
+          PG_IMAGE: docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb
+        run: |
+          set -Eeuo pipefail
+          socket=unix:///var/run/docker.sock
+          cid=
+          ops_projection_native_phase=image_pull
+          native_failure_owner_pid=$BASHPID
+          native_failure() {
+            rc=$?
+            if test "$BASHPID" != "$native_failure_owner_pid"; then
+              return "$rc"
+            fi
+            trap - ERR
+            printf '%s\n' "OPS_PROJECTION_NATIVE_FAILURE ops_projection_native_phase=$ops_projection_native_phase exit=$rc" >&2
+            exit "$rc"
+          }
+          trap native_failure ERR
+          cleanup() {
+            rc=$?
+            trap - EXIT
+            if test -n "$cid"; then
+              timeout --signal=TERM --kill-after=5s 30s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+                docker --host "$socket" container rm --force "$cid" >/dev/null || rc=74
+            fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+          timeout --signal=TERM --kill-after=5s 180s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+            docker --host "$socket" pull --platform linux/amd64 "$PG_IMAGE" >/dev/null
+          ops_projection_native_phase=container_create
+          cid="$(timeout --signal=TERM --kill-after=5s 30s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+            docker --host "$socket" create --platform linux/amd64 --network none --read-only \
+            --memory 805306368 --memory-swap 805306368 --cpus 1.0 --pids-limit 256 \
+            --tmpfs /var/lib/postgresql/data:rw,noexec,nosuid,nodev,size=268435456 \
+            --tmpfs /var/run/postgresql:rw,noexec,nosuid,nodev,size=16777216 \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16777216 \
+            -e POSTGRES_PASSWORD=synthetic-only -e POSTGRES_DB=step7 "$PG_IMAGE")"
+          ops_projection_native_phase=container_id
+          test "${#cid}" = 64
+          ops_projection_native_phase=container_start
+          timeout 30s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" start "$cid" >/dev/null
+          ops_projection_native_phase=readiness_loop
+          for _ in $(seq 1 30); do
+            timeout 5s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" \
+              pg_isready -U postgres -d step7 >/dev/null 2>&1 && break
+            sleep 1
+          done
+          ops_projection_native_phase=readiness_final
+          timeout 5s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec "$cid" \
+            pg_isready -U postgres -d step7 >/dev/null
+          ops_projection_native_phase=postgres_version
+          postgres_version="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+              docker --host "$socket" exec "$cid" postgres --version 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_version" in
+            'postgres (PostgreSQL) 15.19 (Debian 15.19-1.pgdg13+2)
+          .') ;;
+            *) false ;;
+          esac
+          postgres_package="$(
+            set -e
+            timeout 10s env -u DOCKER_CONTEXT -u DOCKER_HOST \
+              docker --host "$socket" exec "$cid" /bin/sh -ceu 'printf "%s\n" "$PG_VERSION"' 2>/dev/null
+            printf '.'
+          )"
+          case "$postgres_package" in
+            '15.19-1.pgdg13+2
+          .') ;;
+            *) false ;;
+          esac
+          unset postgres_version postgres_package
+          ops_projection_native_phase=bootstrap
+          cat >"$RUNNER_TEMP/step7-bootstrap.sql" <<'SQL'
+          \set ON_ERROR_STOP on
+          create role anon noinherit;
+          create role authenticated noinherit;
+          create role service_role noinherit nologin nosuperuser nocreatedb nocreaterole noreplication bypassrls;
+          create schema operations_economy_private;
+          create function operations_economy_private.invoice_kernel_read_gate_guard_v1() returns trigger language plpgsql as $$begin return new;end$$;
+          create function public.operations_personnel_evidence_immutable() returns trigger language plpgsql as $$begin raise exception 'immutable';end$$;
+          SQL
+          PGOPTIONS='-c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000'
+          export PGOPTIONS
+          timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
+            psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <"$RUNNER_TEMP/step7-bootstrap.sql"
+          ops_projection_native_phase=migration
+          timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
+            psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <supabase/migrations/20261003123000_operations_positive_invoice_obligation_projection_v1.sql
+          ops_projection_native_phase=rls
+          cat >"$RUNNER_TEMP/step7-rls.sql" <<'SQL'
+          \set ON_ERROR_STOP on
+          do $assert$
+          begin
+            if not has_function_privilege('authenticated','public.read_operations_positive_invoice_obligation_projection_v1(jsonb)','execute') then
+              raise exception 'authenticated_execute_privilege_required' using errcode='42501';
+            end if;
+            if has_function_privilege('anon','public.read_operations_positive_invoice_obligation_projection_v1(jsonb)','execute') then
+              raise exception 'anon_execute_privilege_forbidden' using errcode='42501';
+            end if;
+          end
+          $assert$;
+          set role service_role;
+          insert into public.operations_positive_invoice_projection_read_gates values ('11111111-1111-4111-8111-111111111111',false);
+          reset role;
+          grant select on public.operations_positive_invoice_projection_read_gates to authenticated;
+          set role authenticated;
+          do $assert$
+          begin
+            if exists (select 1 from public.operations_positive_invoice_projection_read_gates) then
+              raise exception 'authenticated_read_gate_visibility_forbidden' using errcode='42501';
+            end if;
+          end
+          $assert$;
+          do $$begin
+            begin insert into public.operations_positive_invoice_projection_read_gates values ('11111111-1111-4111-8111-111111111111',true);raise exception 'authenticated_insert_accepted';
+            exception when insufficient_privilege then null;end;
+          end$$;
+          reset role;
+          SQL
+          timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
+            psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <"$RUNNER_TEMP/step7-rls.sql"
+          ops_projection_native_phase=regression
+          timeout 120s env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$socket" exec -i -e "PGOPTIONS=$PGOPTIONS" "$cid" \
+            psql -X --no-password -U postgres -d step7 -v ON_ERROR_STOP=1 <scripts/project-economy/operations-positive-invoice-obligation-projection-postgres-test.sql

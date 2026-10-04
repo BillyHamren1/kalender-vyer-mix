@@ -1,0 +1,29 @@
+services:
+  database:
+    image: postgres:15.19
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: disposable-evidence-only
+      POSTGRES_DB: eventflow_project_evidence_http_runtime
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres]
+      interval: 1s
+      timeout: 3s
+      retries: 40
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    environment:
+      PGRST_DB_URI: postgres://authenticator:disposable-authenticator-only@database:5432/eventflow_project_evidence_http_runtime
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${PROJECT_EVIDENCE_JWT_SECRET:?ephemeral fixture JWT required}
+      PGRST_DB_CONFIG: 'false'
+    depends_on:
+      database: {condition: service_healthy}
+  gateway:
+    image: nginx:1.28.0-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '127.0.0.1:55610:8001'
+    depends_on: [rest]

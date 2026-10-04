@@ -37,13 +37,18 @@ export interface UseMapboxTokenResult {
   retry: () => void;
 }
 
-export function useMapboxToken(): UseMapboxTokenResult {
+export function useMapboxToken(enabled = true): UseMapboxTokenResult {
   const [token, setToken] = useState<string | null>(cachedToken);
-  const [loading, setLoading] = useState(!cachedToken);
+  const [loading, setLoading] = useState(enabled && !cachedToken);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (cachedToken) {
       setToken(cachedToken);
       setLoading(false);
@@ -67,7 +72,7 @@ export function useMapboxToken(): UseMapboxTokenResult {
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [enabled, tick]);
 
   return { token, loading, error, retry: () => setTick((t) => t + 1) };
 }

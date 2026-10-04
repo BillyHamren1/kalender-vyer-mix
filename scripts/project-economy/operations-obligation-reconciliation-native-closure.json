@@ -1,0 +1,44 @@
+{
+  "schema_version": "operations-obligation-reconciliation-native-closure.v1",
+  "base_commit": "43ecab140ed7ffacc0ae36a0446ccfa9c890f7a2",
+  "base_tree": "382c32e9f1a7d4f7189798676e512c439f94874e",
+  "default_enabled": false,
+  "authority_owner": "operations",
+  "finance_mode": "copy_only_when_complete_no_recalculation_no_writes",
+  "runtime": {
+    "postgres_image": "docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb",
+    "postgres_binary": "postgres (PostgreSQL) 15.19 (Debian 15.19-1.pgdg13+2)",
+    "postgres_package": "15.19-1.pgdg13+2",
+    "network": "none",
+    "root_filesystem": "read_only",
+    "fixture": "synthetic_only",
+    "cleanup": "remove_and_assert_absent"
+  },
+  "required_vectors": [
+    "preliminary_to_confirmed_same_identity_no_double_count",
+    "allocated_plus_unallocated_equals_document",
+    "explicit_reallocation_supersedes_without_history_loss",
+    "unknown_prior_or_current_supersession_anchor_fails_closed",
+    "credit_and_overcredit_visible",
+    "post_close_credit_changes_current_not_frozen",
+    "reopen_retains_frozen_close",
+    "reclose_preserves_first_frozen_close",
+    "hired_deduplicated_and_noncharging",
+    "missing_hired_rate_remains_null",
+    "exact_retry_replays",
+    "changed_body_or_actor_replay_conflicts",
+    "stale_cas_nonmutating",
+    "tenant_and_auth_fail_closed",
+    "failed_append_rolls_back",
+    "concurrent_writers_one_accepted_one_stale",
+    "cleanup_survivor_forces_nonzero"
+  ],
+  "external_gates": [
+    "hosted_migration_and_rls",
+    "signed_jwt_postgrest",
+    "operations_ui",
+    "finance_copy_consumer",
+    "provider_and_device_runtime",
+    "publication_merge_deploy_enablement_release"
+  ]
+}
