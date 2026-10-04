@@ -71,6 +71,18 @@ describe("Scanner v2 CORS boundary", () => {
     expect(result.headers["Access-Control-Allow-Origin"]).toBe("*");
   });
 
+  it("permits only the existing read-only WMS identity lookup for signed scanners", () => {
+    const api = readFileSync("supabase/functions/scanner-api/index.ts", "utf8");
+    const allowlist = api.split("const SCANNER_CONTRACT_READ_ACTIONS = new Set([")[1].split("])")[0];
+    expect(allowlist.match(/'[^']+'/g)).toEqual([
+      "'list_active_packings'", "'get_packing_items'", "'identify_product'",
+    ]);
+    const lookup = api.split("case 'identify_product':")[1].split("case 'add_unknown_product':")[0];
+    expect(lookup).toContain("method: 'GET'");
+    expect(lookup).toContain("'x-organization-id': ORG_ID");
+    expect(lookup).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
+  });
+
   it("kopplar credential-utgivning och server-side read-only till Scanner-gränsen", () => {
     const login = readFileSync(
       "supabase/functions/mobile-app-auth/index.ts",
