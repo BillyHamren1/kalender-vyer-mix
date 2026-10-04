@@ -75,11 +75,20 @@ describe("Scanner v2 CORS boundary", () => {
     const api = readFileSync("supabase/functions/scanner-api/index.ts", "utf8");
     const allowlist = api.split("const SCANNER_CONTRACT_READ_ACTIONS = new Set([")[1].split("])")[0];
     expect(allowlist.match(/'[^']+'/g)).toEqual([
-      "'list_active_packings'", "'get_packing_items'", "'identify_product'",
+      "'list_active_packings'", "'get_packing_items'", "'resolve_epc'", "'identify_product'",
     ]);
     const lookup = api.split("case 'identify_product':")[1].split("case 'add_unknown_product':")[0];
     expect(lookup).toContain("method: 'GET'");
     expect(lookup).toContain("'x-organization-id': ORG_ID");
+    expect(lookup).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
+  });
+
+  it("EPC lookup binds the authenticated organization and cannot write scan events", () => {
+    const api = readFileSync("supabase/functions/scanner-api/index.ts", "utf8");
+    const lookup = api.split("case 'resolve_epc':")[1].split("case 'identify_product':")[0];
+    expect(lookup).toContain("'x-organization-id': ORG_ID");
+    expect(lookup).toContain("body: JSON.stringify({ epcs: [epc] })");
+    expect(lookup).toContain("AbortSignal.timeout(10_000)");
     expect(lookup).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
   });
 
