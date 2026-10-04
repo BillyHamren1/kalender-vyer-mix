@@ -2,16 +2,17 @@ import { createHash, createHmac } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'e5b8790b591c740beee1ebd7f0e875ed51a99cb3';
-const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'ba796c50f0d7ab1237a660ee592940f21ad80f25';
-const predecessor='ddde377f239f276a19cde807c000bbadd5868389';
-const predecessorTree='3874de6f17ff70d7cb00d75c85f9f9dc3385ac29';
-const serviceFoundation='efef2c364322a8e5ec83b2d6f57827c05c8157d0';
-const serviceFoundationTree='32fc630a7b3f1cb09cfbf8e7f17efc602b62d282';
+const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'2be1998c85c282046cc8d2be2446c894ea47eb3e';
+const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'e19fb55dd6e8976827271a085ba4d1ce564813cd';
+const predecessor='e5b8790b591c740beee1ebd7f0e875ed51a99cb3';
+const predecessorTree='ba796c50f0d7ab1237a660ee592940f21ad80f25';
+const serviceFoundation='ddde377f239f276a19cde807c000bbadd5868389';
+const serviceFoundationTree='3874de6f17ff70d7cb00d75c85f9f9dc3385ac29';
+const serviceBootstrap='efef2c364322a8e5ec83b2d6f57827c05c8157d0';
+const serviceBootstrapTree='32fc630a7b3f1cb09cfbf8e7f17efc602b62d282';
 const owned=[
   '.github/workflows/project-economy-step8-service-read.yml',
   'scripts/project-economy/step8-service-read-runtime.mjs',
-  'supabase/migrations/20261004004000_project_economy_step8_service_read_v1.sql',
 ];
 const run=(file,args=[],options={})=>execFileSync(file,args,{encoding:'utf8',stdio:['pipe','pipe','pipe'],...options});
 const lines=value=>value.trim().split('\n').filter(Boolean).sort();
@@ -20,7 +21,9 @@ if(run('git',['rev-parse',`${parent}^{tree}`]).trim()!==parentTree) throw new Er
 if(run('git',['rev-parse',`${parent}^`]).trim()!==predecessor||
  run('git',['rev-parse',`${predecessor}^{tree}`]).trim()!==predecessorTree||
  run('git',['rev-parse',`${predecessor}^`]).trim()!==serviceFoundation||
- run('git',['rev-parse',`${serviceFoundation}^{tree}`]).trim()!==serviceFoundationTree) {
+ run('git',['rev-parse',`${serviceFoundation}^{tree}`]).trim()!==serviceFoundationTree||
+ run('git',['rev-parse',`${serviceFoundation}^`]).trim()!==serviceBootstrap||
+ run('git',['rev-parse',`${serviceBootstrap}^{tree}`]).trim()!==serviceBootstrapTree) {
   throw new Error('service_lineage_mismatch');
 }
 if(run('git',['rev-list','--count',`${parent}..HEAD`]).trim()!=='1') throw new Error('service_non_linear_successor');
@@ -71,7 +74,7 @@ if(/insert\s+into\s+operations_step8_service_private\.(request_keys|response_key
 const migrationSha256=createHash('sha256').update(migration).digest('hex');
 if(process.env.STEP8_SERVICE_STATIC_ONLY==='1') {
   console.log(JSON.stringify({status:'PASS',mode:'static-only',parent,parentTree,predecessor,predecessorTree,
-    serviceFoundation,serviceFoundationTree,owned,migrationSha256},null,2));
+    serviceFoundation,serviceFoundationTree,serviceBootstrap,serviceBootstrapTree,owned,migrationSha256},null,2));
   process.exit(0);
 }
 
@@ -246,10 +249,17 @@ delete from public.operations_finance_invoice_snapshots where invoice_id='700000
 delete from public.operations_finance_invoice_streams where invoice_id='70000000-0000-4000-8000-000000000005';`);
 domainBefore=domainFingerprint();receiptsBefore=receiptCount();
 const availableReq=request();const available=call(availableReq);verifyEnvelope(available,availableReq);const availableBody=JSON.parse(available.rawBody);
-const payloadKeys=['authority','authoritativeTotals','coverage','exceptions','financeRecalculated','generatedAt','invoices',
+const payloadKeys=['authoritativeTotals','authority','coverage','exceptions','financeRecalculated','generatedAt','invoices',
  'organizationId','personnel','projectId','replacesLegacyTotals','schema','shadowOnly'];
+if(JSON.stringify(payloadKeys)!==JSON.stringify([...payloadKeys].sort())) throw new Error('expected_payload_keys_not_js_sorted');
+const previousIncorrectPayloadKeys=['authority','authoritativeTotals',...payloadKeys.slice(2)];
+if(JSON.stringify(previousIncorrectPayloadKeys)===JSON.stringify([...previousIncorrectPayloadKeys].sort())||
+ JSON.stringify([...previousIncorrectPayloadKeys].sort())!==JSON.stringify(payloadKeys)) {
+  throw new Error('payload_key_order_regression_vector_invalid');
+}
+const actualPayloadKeys=Object.keys(availableBody.payload??{}).sort();
 if(available.status!==200||availableBody.outcome!=='available'||availableBody.payload?.schema!=='operations-project-economy-step8-shadow.v1'||
- JSON.stringify(Object.keys(availableBody.payload??{}).sort())!==JSON.stringify(payloadKeys)||
+ JSON.stringify(actualPayloadKeys)!==JSON.stringify(payloadKeys)||
  availableBody.payload?.financeRecalculated!==false||availableBody.payload?.authoritativeTotals!==false||
  availableBody.payload?.replacesLegacyTotals!==false||availableBody.payload?.shadowOnly!==true) throw new Error('available_shadow_payload_failed');
 if(!availableBody.payload.personnel.some(row=>row.amountMinor===null)) throw new Error('missing_rate_null_lost');
@@ -398,6 +408,20 @@ assertHostileProjectorAvailable(scaledAmountPayload,'integral-scaled-jsonb-amoun
  `'{invoices,${scaledInvoiceIndex},amountMinor}','1.0'::jsonb)`);
 const hostileRootPayload=structuredClone(availableBody.payload);hostileRootPayload.schema=null;
 assertHostileProjectorUnavailable(hostileRootPayload,'root-null');
+const missingRootKeyPayload=structuredClone(availableBody.payload);
+const missingRootKeyCount=Object.keys(missingRootKeyPayload).length;
+delete missingRootKeyPayload.authority;
+if('authority' in missingRootKeyPayload||Object.keys(missingRootKeyPayload).length!==missingRootKeyCount-1) {
+ throw new Error('missing_root_key_probe_is_vacuous');
+}
+assertHostileProjectorUnavailable(missingRootKeyPayload,'root-key-missing');
+const extraRootKeyPayload=structuredClone(availableBody.payload);
+const extraRootKeyCount=Object.keys(extraRootKeyPayload).length;
+extraRootKeyPayload.unexpectedRootKey=true;
+if(!('unexpectedRootKey' in extraRootKeyPayload)||Object.keys(extraRootKeyPayload).length!==extraRootKeyCount+1) {
+ throw new Error('extra_root_key_probe_is_vacuous');
+}
+assertHostileProjectorUnavailable(extraRootKeyPayload,'root-key-extra');
 const hostileMinutesPayload=structuredClone(availableBody.payload);
 hostileMinutesPayload.personnel[0].minutes='not-an-integer';
 assertHostileProjectorUnavailable(hostileMinutesPayload,'personnel-minutes-wrong-type');
@@ -730,4 +754,5 @@ console.log(JSON.stringify({status:'PASS',schema:'eventflow.operations.project-e
  requestResponseEnrollmentRevocationDenied:true,directionalKeySeparation:true,exact500:true,overflow501Unavailable:true,
  anonOnlyExecute:true,privateDirectSelectDenied:true,canonicalPrivateDenied:true,canonicalProcContract:true,
  depthProcContract:true,privateHelperDirectDenied:true,productionCanonicalVectors:true,exactRequestScalars:true,
- deepRequestWrites0:true,projectorPayloadContract:true,hostileProjectorSignedUnavailable:true}},null,2));
+ deepRequestWrites0:true,projectorPayloadContract:true,hostileProjectorSignedUnavailable:true,
+ payloadRootMissingExtraRejected:true}},null,2));
