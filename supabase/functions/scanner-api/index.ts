@@ -38,6 +38,7 @@ const corsHeaders = {
 const SCANNER_CONTRACT_READ_ACTIONS = new Set([
   'list_active_packings',
   'get_packing_items',
+  'resolve_epc', // Read-only RFID identity lookup; never passes job_id.
   'identify_product', // Read-only WMS scan-status; identity lookup before packing.
 ])
 
@@ -2778,6 +2779,26 @@ Deno.serve(async (req) => {
         return json(computePackingProgress(data || []))
       }
 
+      case 'resolve_epc': {
+        const epc = typeof params.epc === 'string' ? params.epc.trim().toUpperCase() : ''
+        if (!/^(?:[0-9A-F]{2}){4,64}$/.test(epc)) return json({ error: 'Ogiltig RFID-kod' }, 400)
+        const key = Deno.env.get('PRICELIST_API_KEY')
+        if (!key) return json({ error: 'Lagersystem ej konfigurerat' }, 503)
+        try {
+          const response = await fetch('https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/resolve-epcs', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${key}`, 'x-organization-id': ORG_ID, 'Content-Type': 'application/json' },
+            // Omitting job_id keeps the canonical lookup strictly read-only.
+            body: JSON.stringify({ epcs: [epc] }),
+            signal: AbortSignal.timeout(10_000),
+          })
+          if (!response.ok) return json({ error: 'RFID-koden kunde inte kontrolleras mot lagret' }, 502)
+          return json(await response.json())
+        } catch {
+          return json({ error: 'Kunde inte nå lagersystemet' }, 502)
+        }
+      }
+
       case 'identify_product': {
         const { serialNumber } = params
         if (!serialNumber) {
@@ -3897,6 +3918,6 @@ Deno.serve(async (req) => {
   }
 })
 
-function json(data: any) {
-  return new Response(JSON.stringify(data), { headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
+function json(data: any, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
 }
