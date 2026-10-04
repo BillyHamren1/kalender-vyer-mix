@@ -26,6 +26,30 @@ function assert(condition: unknown, message = "assertion_failed"): asserts condi
   if (!condition) throw new Error(message);
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === "string");
+}
+
+function normalizedFetchRequest(
+  input: string | URL | Request,
+  init: unknown,
+): Request {
+  assert(typeof init === "object" && init !== null && !Array.isArray(init));
+  assert("method" in init && typeof init.method === "string");
+  assert("redirect" in init && init.redirect === "error");
+  assert("signal" in init && init.signal instanceof AbortSignal);
+  assert("headers" in init && isStringRecord(init.headers));
+  assert("body" in init && typeof init.body === "string");
+  return new Request(input, {
+    method: init.method,
+    redirect: init.redirect,
+    signal: init.signal,
+    headers: init.headers,
+    body: init.body,
+  });
+}
+
 function base64url(value: unknown): string {
   return btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_")
     .replace(/=+$/g, "");
@@ -262,17 +286,16 @@ Deno.test("step8 request rejects media type, over-limit body and malformed proof
   assert(
     (await handle(await serviceRequest(oversized), deps())).status === 413,
   );
-  for (
-    const headers of [
-      { "x-eventflow-key-version": "01" },
-      { "x-eventflow-issued-at": String(NOW + 6) },
-      { "x-eventflow-expires-at": String(NOW + 61) },
-      { "x-eventflow-nonce": "short" },
-      { "x-eventflow-signature": "v1=" + "1".repeat(64) },
-      { "x-eventflow-request-id": id(90) },
-      { "x-eventflow-body-sha256": "A".repeat(64) },
-    ]
-  ) {
+  const malformedHeaders: Record<string, string>[] = [
+    { "x-eventflow-key-version": "01" },
+    { "x-eventflow-issued-at": String(NOW + 6) },
+    { "x-eventflow-expires-at": String(NOW + 61) },
+    { "x-eventflow-nonce": "short" },
+    { "x-eventflow-signature": "v1=" + "1".repeat(64) },
+    { "x-eventflow-request-id": id(90) },
+    { "x-eventflow-body-sha256": "A".repeat(64) },
+  ];
+  for (const headers of malformedHeaders) {
     assert(
       (await handle(
         await serviceRequest(undefined, { headers }),
@@ -323,16 +346,17 @@ Deno.test("step8 backend uses only anon authority and forwards exact raw body pl
   const body = requestBody(), rawBody = canonicalJson(body);
   const envReads: string[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
+    const request = normalizedFetchRequest(input, init);
     assert(
       String(input) ===
         "https://isolated-project.supabase.co/rest/v1/rpc/read_project_economy_step8_service_v1",
     );
-    assert(init?.method === "POST" && init.redirect === "error");
-    assert(init.signal instanceof AbortSignal);
-    const headers = new Headers(init.headers);
+    assert(request.method === "POST" && request.redirect === "error");
+    assert(request.signal instanceof AbortSignal);
+    const headers = request.headers;
     assert(headers.get("apikey") === ANON_KEY);
     assert(headers.get("authorization") === `Bearer ${ANON_KEY}`);
-    const args = JSON.parse(String(init.body));
+    const args = JSON.parse(await request.text());
     assert(args.p_raw_body === rawBody);
     assert(Object.keys(args).length === 2);
     assert(args.p_headers.method === "POST");
@@ -390,12 +414,13 @@ Deno.test("step8 publishable database authority is apikey-only and never Bearer"
     env: (name) =>
       name === "SUPABASE_ANON_KEY" ? publishable : baseEnv[name],
     nowSeconds: () => NOW,
-    fetch: async (_input, init) => {
+    fetch: async (input, init) => {
+      const request = normalizedFetchRequest(input, init);
       calls++;
-      const headers = new Headers(init?.headers);
+      const headers = request.headers;
       assert(headers.get("apikey") === publishable);
       assert(headers.get("authorization") === null);
-      const args = JSON.parse(String(init?.body));
+      const args = JSON.parse(await request.text());
       return Response.json(
         await signedBackendEnvelope(
           body,
@@ -410,8 +435,9 @@ Deno.test("step8 publishable database authority is apikey-only and never Bearer"
 
 Deno.test("step8 passes through an exact signed unavailable response as 409", async () => {
   const body = requestBody();
-  const response = await handle(await serviceRequest(), deps(async (_input, init) => {
-    const args = JSON.parse(String(init?.body));
+  const response = await handle(await serviceRequest(), deps(async (input, init) => {
+    const request = normalizedFetchRequest(input, init);
+    const args = JSON.parse(await request.text());
     return Response.json(
       await signedBackendEnvelope(
         body,
@@ -464,8 +490,9 @@ Deno.test("step8 rejects unsigned, mismatched, shifted and oversized successful 
     "shifted_nonce",
     "shifted_ttl",
   ] as const) {
-    const response = await handle(await serviceRequest(), deps(async (_input, init) => {
-      const args = JSON.parse(String(init?.body));
+    const response = await handle(await serviceRequest(), deps(async (input, init) => {
+      const request = normalizedFetchRequest(input, init);
+      const args = JSON.parse(await request.text());
       const envelope = await signedBackendEnvelope(
         body,
         args.p_headers as Step8RequestHeaders,
