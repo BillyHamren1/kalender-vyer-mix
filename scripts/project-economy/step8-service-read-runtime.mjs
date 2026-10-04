@@ -2,10 +2,12 @@ import { createHash, createHmac } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'2be1998c85c282046cc8d2be2446c894ea47eb3e';
-const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'e19fb55dd6e8976827271a085ba4d1ce564813cd';
-const predecessor='e5b8790b591c740beee1ebd7f0e875ed51a99cb3';
-const predecessorTree='ba796c50f0d7ab1237a660ee592940f21ad80f25';
+const parent=process.env.STEP8_SERVICE_EXPECTED_PARENT??'767e320e8a673254fd50f33371dca2a0770ab7da';
+const parentTree=process.env.STEP8_SERVICE_EXPECTED_PARENT_TREE??'305f8a8c4a3f27cdeb23252316994b8d5f533113';
+const predecessor='2be1998c85c282046cc8d2be2446c894ea47eb3e';
+const predecessorTree='e19fb55dd6e8976827271a085ba4d1ce564813cd';
+const serviceRepairBase='e5b8790b591c740beee1ebd7f0e875ed51a99cb3';
+const serviceRepairBaseTree='ba796c50f0d7ab1237a660ee592940f21ad80f25';
 const serviceFoundation='ddde377f239f276a19cde807c000bbadd5868389';
 const serviceFoundationTree='3874de6f17ff70d7cb00d75c85f9f9dc3385ac29';
 const serviceBootstrap='efef2c364322a8e5ec83b2d6f57827c05c8157d0';
@@ -20,7 +22,9 @@ if(run('git',['rev-parse','HEAD^']).trim()!==parent) throw new Error('service_pa
 if(run('git',['rev-parse',`${parent}^{tree}`]).trim()!==parentTree) throw new Error('service_parent_tree_mismatch');
 if(run('git',['rev-parse',`${parent}^`]).trim()!==predecessor||
  run('git',['rev-parse',`${predecessor}^{tree}`]).trim()!==predecessorTree||
- run('git',['rev-parse',`${predecessor}^`]).trim()!==serviceFoundation||
+ run('git',['rev-parse',`${predecessor}^`]).trim()!==serviceRepairBase||
+ run('git',['rev-parse',`${serviceRepairBase}^{tree}`]).trim()!==serviceRepairBaseTree||
+ run('git',['rev-parse',`${serviceRepairBase}^`]).trim()!==serviceFoundation||
  run('git',['rev-parse',`${serviceFoundation}^{tree}`]).trim()!==serviceFoundationTree||
  run('git',['rev-parse',`${serviceFoundation}^`]).trim()!==serviceBootstrap||
  run('git',['rev-parse',`${serviceBootstrap}^{tree}`]).trim()!==serviceBootstrapTree) {
@@ -74,7 +78,8 @@ if(/insert\s+into\s+operations_step8_service_private\.(request_keys|response_key
 const migrationSha256=createHash('sha256').update(migration).digest('hex');
 if(process.env.STEP8_SERVICE_STATIC_ONLY==='1') {
   console.log(JSON.stringify({status:'PASS',mode:'static-only',parent,parentTree,predecessor,predecessorTree,
-    serviceFoundation,serviceFoundationTree,serviceBootstrap,serviceBootstrapTree,owned,migrationSha256},null,2));
+    serviceRepairBase,serviceRepairBaseTree,serviceFoundation,serviceFoundationTree,serviceBootstrap,
+    serviceBootstrapTree,owned,migrationSha256},null,2));
   process.exit(0);
 }
 
@@ -243,10 +248,45 @@ let domainBefore=domainFingerprint(),receiptsBefore=receiptCount();
 const conflictReq=request();const conflict=call(conflictReq);verifyEnvelope(conflict,conflictReq);
 if(conflict.status!==409||JSON.parse(conflict.rawBody).outcome!=='unavailable') throw new Error('signed_source_conflict_failed');
 if(domainFingerprint()!==domainBefore||receiptCount()!==receiptsBefore+1) throw new Error('conflict_domain_writes_or_receipt_count_failed');
-psql(`delete from public.operations_finance_credit_v2_snapshots where invoice_id='70000000-0000-4000-8000-000000000005';
-delete from public.operations_finance_credit_v2_streams where invoice_id='70000000-0000-4000-8000-000000000005';
-delete from public.operations_finance_invoice_snapshots where invoice_id='70000000-0000-4000-8000-000000000005';
-delete from public.operations_finance_invoice_streams where invoice_id='70000000-0000-4000-8000-000000000005';`);
+const v2InvoiceSourceOrg='60000000-0000-4000-8000-000000000001';
+const v2InvoiceId='70000000-0000-4000-8000-000000000005';
+const v2AllocationId='72000000-0000-4000-8000-000000000005';
+const v2DocumentFingerprint='a'.repeat(64);
+const v2SourceAnchor=sha(['finance-invoice-allocation-source-anchor-v1',v2InvoiceSourceOrg,v2InvoiceId,
+ v2AllocationId,v2DocumentFingerprint,'SEK'].join('\n'));
+if(v2SourceAnchor!=='ae6b60da02670b104c02b746e8fa3400b5b81fd69ef54c1e3651930dca835b95') {
+ throw new Error('v2_fixture_anchor_formula_changed');
+}
+psql(`do $fixture$declare v_rows integer;begin
+ delete from public.operations_finance_invoice_snapshots
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and source_revision=1;
+ get diagnostics v_rows=row_count;
+ if v_rows<>1 then raise exception 'v1_invoice_snapshot_fixture_cleanup_count:%',v_rows;end if;
+ delete from public.operations_finance_invoice_streams
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and current_revision=1;
+ get diagnostics v_rows=row_count;
+ if v_rows<>1 then raise exception 'v1_invoice_stream_fixture_cleanup_count:%',v_rows;end if;
+ update public.operations_finance_credit_v2_snapshots
+ set envelope=jsonb_set(envelope,'{allocations,0,source_anchor}',to_jsonb('${v2SourceAnchor}'::text))
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and source_revision=2;
+ get diagnostics v_rows=row_count;
+ if v_rows<>1 then raise exception 'v2_invoice_snapshot_fixture_repair_count:%',v_rows;end if;
+ select count(*) into v_rows from public.operations_finance_credit_v2_streams
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and current_revision=2;
+ if v_rows<>1 then raise exception 'v2_invoice_stream_fixture_retained_count:%',v_rows;end if;
+ select count(*) into v_rows from public.operations_finance_credit_v2_snapshots
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and source_revision=2;
+ if v_rows<>1 then raise exception 'v2_invoice_snapshot_fixture_retained_count:%',v_rows;end if;
+ select count(*) into v_rows from public.operations_finance_invoice_economic_current_v2
+ where organization_id='${sourceOrg}' and source_organization_id='${v2InvoiceSourceOrg}'
+  and invoice_id='${v2InvoiceId}' and source_protocol='v2';
+ if v_rows<>1 then raise exception 'v2_invoice_current_fixture_retained_count:%',v_rows;end if;
+end$fixture$;`);
 domainBefore=domainFingerprint();receiptsBefore=receiptCount();
 const availableReq=request();const available=call(availableReq);verifyEnvelope(available,availableReq);const availableBody=JSON.parse(available.rawBody);
 const payloadKeys=['authoritativeTotals','authority','coverage','exceptions','financeRecalculated','generatedAt','invoices',
@@ -264,6 +304,37 @@ if(available.status!==200||availableBody.outcome!=='available'||availableBody.pa
  availableBody.payload?.replacesLegacyTotals!==false||availableBody.payload?.shadowOnly!==true) throw new Error('available_shadow_payload_failed');
 if(!availableBody.payload.personnel.some(row=>row.amountMinor===null)) throw new Error('missing_rate_null_lost');
 if(!availableBody.payload.invoices.some(row=>row.creditRelationCoverage==='linked'&&typeof row.creditRelationshipFingerprint==='string')) throw new Error('linked_credit_lost');
+const projectedV2Invoices=availableBody.payload.invoices.filter(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId);
+const projectedV2Invoice=projectedV2Invoices[0];
+if(projectedV2Invoices.length!==1||projectedV2Invoice.sourceProtocol!=='v2'||projectedV2Invoice.kind!=='invoice'||
+ projectedV2Invoice.sourceOrganizationId!==v2InvoiceSourceOrg||projectedV2Invoice.sourceAnchor!==v2SourceAnchor||
+ projectedV2Invoice.sourceObservationId!=='71000000-0000-4000-8000-000000000005'||
+ projectedV2Invoice.revision!==2||projectedV2Invoice.sourceEconomicRevision!==1||
+ projectedV2Invoice.sourceEconomicFingerprint!=='b'.repeat(64)||projectedV2Invoice.publicationFingerprint!=='d'.repeat(64)||
+ projectedV2Invoice.documentFingerprint!=='a'.repeat(64)||projectedV2Invoice.status!=='preliminary'||
+ projectedV2Invoice.approvalState!=='pending'||projectedV2Invoice.accountingState!=='draft'||
+ projectedV2Invoice.settlementState!=='unpaid'||projectedV2Invoice.sourceChanged!==false||
+ projectedV2Invoice.amountMinor!==1000||projectedV2Invoice.creditedSourceAnchor!==null) {
+ throw new Error('synthetic_v2_invoice_fixture_not_projected_exactly');
+}
+const v2CreditInvoiceId='70000000-0000-4000-8000-000000000002';
+const v2CreditAllocationId='72000000-0000-4000-8000-000000000002';
+const projectedV2Credits=availableBody.payload.invoices.filter(row=>row.invoiceId===v2CreditInvoiceId&&
+ row.allocationId===v2CreditAllocationId);
+const projectedV2Credit=projectedV2Credits[0];
+if(projectedV2Credits.length!==1||projectedV2Credit.sourceProtocol!=='v2'||projectedV2Credit.kind!=='credit'||
+ projectedV2Credit.sourceOrganizationId!=='60000000-0000-4000-8000-000000000001'||
+ projectedV2Credit.sourceObservationId!=='71000000-0000-4000-8000-000000000002'||
+ projectedV2Credit.sourceAnchor!=='dd9f60cc79dc20168211d32b99177ea652a792ed424d2176e3e353348c02f695'||
+ projectedV2Credit.creditedSourceAnchor!=='8650074bd66bdab99b5ae461ed3394c8a1a23f45d33ee369faab5e2680b49f3e'||
+ projectedV2Credit.sourceEconomicFingerprint!=='c'.repeat(64)||projectedV2Credit.publicationFingerprint!=='8'.repeat(64)||
+ projectedV2Credit.documentFingerprint!=='d'.repeat(64)||projectedV2Credit.status!=='preliminary'||
+ projectedV2Credit.approvalState!=='pending'||projectedV2Credit.accountingState!=='draft'||
+ projectedV2Credit.settlementState!=='unpaid'||projectedV2Credit.sourceChanged!==true||
+ projectedV2Credit.amountMinor!==-10000||projectedV2Credit.creditRelationCoverage!=='linked'||
+ projectedV2Credit.sourceAnchor===projectedV2Credit.creditedSourceAnchor) {
+ throw new Error('synthetic_v2_credit_fixture_not_projected_exactly');
+}
 if(availableBody.payload.personnel.length>500||availableBody.payload.invoices.length>500||
  availableBody.payload.exceptions.length>2500||Buffer.byteLength(canonical(availableBody.payload))>262144) {
  throw new Error('projector_payload_bounds_failed');
@@ -438,7 +509,7 @@ if(hostileUppercaseReportPayload.personnel[0].reportId===hostileUppercaseReportP
 }
 assertHostileProjectorUnavailable(hostileUppercaseReportPayload,'personnel-report-id-not-canonical');
 const v2AnchorPayload=structuredClone(availableBody.payload);
-const hostileV2Invoice=v2AnchorPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='invoice');
+const hostileV2Invoice=v2AnchorPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId);
 if(!hostileV2Invoice) throw new Error('hostile_v2_invoice_fixture_missing');
 hostileV2Invoice.sourceAnchor=null;
 assertHostileProjectorUnavailable(v2AnchorPayload,'v2-null-source-anchor');
@@ -558,23 +629,25 @@ v1Credit.sourceAnchor='2'.repeat(64);v1Credit.creditedSourceAnchor='3'.repeat(64
 v1Credit.exceptions=v1Credit.exceptions.filter(code=>code!=='credit_relation_unresolved');rebuildTopExceptions(v1LinkedPayload);
 assertHostileProjectorUnavailable(v1LinkedPayload,'v1-linked-credit');
 const v2EqualAnchorPayload=structuredClone(availableBody.payload);
-const v2EqualAnchorCredit=v2EqualAnchorPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='credit');
+const v2EqualAnchorCredit=v2EqualAnchorPayload.invoices.find(row=>row.invoiceId===v2CreditInvoiceId&&
+ row.allocationId===v2CreditAllocationId);
 if(!v2EqualAnchorCredit) throw new Error('hostile_v2_credit_fixture_missing');
 v2EqualAnchorCredit.creditedSourceAnchor=v2EqualAnchorCredit.sourceAnchor;
 assertHostileProjectorUnavailable(v2EqualAnchorPayload,'v2-equal-source-anchors');
 const v2HashPayload=structuredClone(availableBody.payload);
-v2HashPayload.invoices.find(row=>row.sourceProtocol==='v2').sourceAnchor='0'.repeat(64);
+v2HashPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId).sourceAnchor='0'.repeat(64);
 assertHostileProjectorUnavailable(v2HashPayload,'v2-source-anchor-hash');
 const v2NilUuidPayload=structuredClone(availableBody.payload);
-v2NilUuidPayload.invoices.find(row=>row.sourceProtocol==='v2').sourceObservationId='00000000-0000-0000-0000-000000000000';
+v2NilUuidPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId)
+ .sourceObservationId='00000000-0000-0000-0000-000000000000';
 assertHostileProjectorUnavailable(v2NilUuidPayload,'v2-nil-source-observation-uuid');
 const v2VersionSevenPayload=structuredClone(availableBody.payload);
-const v2VersionSevenInvoice=v2VersionSevenPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='invoice');
+const v2VersionSevenInvoice=v2VersionSevenPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId);
 v2VersionSevenInvoice.invoiceId='70000000-0000-7000-8000-000000000001';
 v2VersionSevenInvoice.sourceAnchor=sourceAnchorFor(v2VersionSevenInvoice);rebuildTopExceptions(v2VersionSevenPayload);sortProjectorRows(v2VersionSevenPayload);
 assertHostileProjectorUnavailable(v2VersionSevenPayload,'v2-version-seven-invoice-uuid');
 const v2BadVariantPayload=structuredClone(availableBody.payload);
-const v2BadVariantInvoice=v2BadVariantPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='invoice');
+const v2BadVariantInvoice=v2BadVariantPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId);
 v2BadVariantInvoice.allocationId='72000000-0000-4000-7000-000000000001';
 v2BadVariantInvoice.sourceAnchor=sourceAnchorFor(v2BadVariantInvoice);rebuildTopExceptions(v2BadVariantPayload);sortProjectorRows(v2BadVariantPayload);
 assertHostileProjectorUnavailable(v2BadVariantPayload,'v2-bad-variant-allocation-uuid');
@@ -593,6 +666,19 @@ assertHostileProjectorUnavailable(invoiceSignPayload,'invoice-amount-sign');
 const invoiceZeroPayload=structuredClone(availableBody.payload);
 invoiceZeroPayload.invoices.find(row=>row.kind==='invoice').amountMinor=0;
 assertHostileProjectorUnavailable(invoiceZeroPayload,'invoice-zero-amount');
+const v2InvoiceSignPayload=structuredClone(availableBody.payload);
+const wrongSignV2Invoice=v2InvoiceSignPayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&row.allocationId===v2AllocationId);
+if(!wrongSignV2Invoice||!(wrongSignV2Invoice.amountMinor>0)) throw new Error('v2_invoice_sign_probe_fixture_invalid');
+wrongSignV2Invoice.amountMinor=-wrongSignV2Invoice.amountMinor;
+if(!(wrongSignV2Invoice.amountMinor<0)) throw new Error('v2_invoice_sign_probe_is_vacuous');
+assertHostileProjectorUnavailable(v2InvoiceSignPayload,'v2-invoice-wrong-sign');
+const v2CreditSignPayload=structuredClone(availableBody.payload);
+const wrongSignV2Credit=v2CreditSignPayload.invoices.find(row=>row.invoiceId===v2CreditInvoiceId&&
+ row.allocationId===v2CreditAllocationId);
+if(!wrongSignV2Credit||!(wrongSignV2Credit.amountMinor<0)) throw new Error('v2_credit_sign_probe_fixture_invalid');
+wrongSignV2Credit.amountMinor=-wrongSignV2Credit.amountMinor;
+if(!(wrongSignV2Credit.amountMinor>0)) throw new Error('v2_credit_sign_probe_is_vacuous');
+assertHostileProjectorUnavailable(v2CreditSignPayload,'v2-credit-wrong-sign');
 const confirmedChangedPayload=structuredClone(availableBody.payload);
 const confirmedChangedInvoice=confirmedChangedPayload.invoices.find(row=>row.kind==='invoice');
 confirmedChangedInvoice.status='confirmed';confirmedChangedInvoice.sourceChanged=true;
@@ -671,7 +757,8 @@ assertHostileProjectorUnavailable(invoiceOrderPayload,'invoice-projector-order')
 const topOrderPayload=structuredClone(availableBody.payload);topOrderPayload.exceptions.reverse();
 assertHostileProjectorUnavailable(topOrderPayload,'top-exception-projector-order');
 const nestedOrderPayload=structuredClone(availableBody.payload);
-const nestedOrderCredit=nestedOrderPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='credit');
+const nestedOrderCredit=nestedOrderPayload.invoices.find(row=>row.invoiceId===v2CreditInvoiceId&&
+ row.allocationId===v2CreditAllocationId);
 nestedOrderCredit.creditRelationCoverage='unresolved';
 if(!nestedOrderCredit.exceptions.includes('credit_relation_unresolved')) nestedOrderCredit.exceptions.push('credit_relation_unresolved');
 rebuildTopExceptions(nestedOrderPayload);nestedOrderCredit.exceptions.reverse();
@@ -686,13 +773,15 @@ const leapWorkDatePayload=structuredClone(availableBody.payload);leapWorkDatePay
 assertHostileProjectorAvailable(leapWorkDatePayload,'work-date-valid-leap-day');
 
 const unresolvedPartialPayload=structuredClone(availableBody.payload);
-const unresolvedPartialCredit=unresolvedPartialPayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='credit');
+const unresolvedPartialCredit=unresolvedPartialPayload.invoices.find(row=>row.invoiceId===v2CreditInvoiceId&&
+ row.allocationId===v2CreditAllocationId);
 unresolvedPartialCredit.creditRelationCoverage='unresolved';
 if(!unresolvedPartialCredit.exceptions.includes('credit_relation_unresolved')) unresolvedPartialCredit.exceptions.push('credit_relation_unresolved');
 rebuildTopExceptions(unresolvedPartialPayload);
 assertHostileProjectorAvailable(unresolvedPartialPayload,'v2-unresolved-partial-relation');
 const strictV2UppercasePayload=structuredClone(availableBody.payload);
-const strictV2UppercaseInvoice=strictV2UppercasePayload.invoices.find(row=>row.sourceProtocol==='v2'&&row.kind==='invoice');
+const strictV2UppercaseInvoice=strictV2UppercasePayload.invoices.find(row=>row.invoiceId===v2InvoiceId&&
+ row.allocationId===v2AllocationId);
 const strictV2LetteredIds={sourceOrganizationId:'a0000000-0000-4000-8000-000000000001',
  invoiceId:'b0000000-0000-4000-8000-000000000001',allocationId:'c0000000-0000-4000-8000-000000000001',
  sourceObservationId:'d0000000-0000-4000-8000-000000000001'};
@@ -755,4 +844,4 @@ console.log(JSON.stringify({status:'PASS',schema:'eventflow.operations.project-e
  anonOnlyExecute:true,privateDirectSelectDenied:true,canonicalPrivateDenied:true,canonicalProcContract:true,
  depthProcContract:true,privateHelperDirectDenied:true,productionCanonicalVectors:true,exactRequestScalars:true,
  deepRequestWrites0:true,projectorPayloadContract:true,hostileProjectorSignedUnavailable:true,
- payloadRootMissingExtraRejected:true}},null,2));
+ payloadRootMissingExtraRejected:true,exactV2InvoiceAndCreditFixtures:true,v2WrongSignsRejected:true}},null,2));
