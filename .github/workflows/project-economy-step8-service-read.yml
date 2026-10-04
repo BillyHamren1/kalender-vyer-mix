@@ -1,0 +1,134 @@
+name: Project economy Step 8 service read
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/project-economy-step8-service-read.yml'
+      - 'scripts/project-economy/step8-service-read-runtime.mjs'
+      - 'supabase/functions/_shared/project-economy-step8-service-read-contract.ts'
+      - 'supabase/functions/project-economy-step8-service-read/handler.deno-test.ts'
+      - 'supabase/functions/project-economy-step8-service-read/handler.ts'
+      - 'supabase/functions/project-economy-step8-service-read/index.ts'
+      - 'supabase/migrations/20261004004000_project_economy_step8_service_read_v1.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-economy-step8-service-read-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  exact-service-read-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: step8
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d step8"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --memory 805306368
+          --memory-swap 805306368
+          --cpus 1.0
+          --pids-limit 256
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact parent, tree and owned paths
+        env:
+          EXPECTED_PARENT: efef2c364322a8e5ec83b2d6f57827c05c8157d0
+          EXPECTED_PARENT_TREE: 32fc630a7b3f1cb09cfbf8e7f17efc602b62d282
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_PARENT^{tree}")" = "$EXPECTED_PARENT_TREE"
+          test "$(git rev-list --count "$EXPECTED_PARENT"..HEAD)" = 1
+          cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
+          .github/workflows/project-economy-step8-service-read.yml
+          scripts/project-economy/step8-service-read-runtime.mjs
+          supabase/functions/_shared/project-economy-step8-service-read-contract.ts
+          supabase/functions/project-economy-step8-service-read/handler.deno-test.ts
+          supabase/functions/project-economy-step8-service-read/handler.ts
+          supabase/functions/project-economy-step8-service-read/index.ts
+          supabase/migrations/20261004004000_project_economy_step8_service_read_v1.sql
+          EOF
+          git diff --name-only "$EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
+          cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
+          test "$(git status --porcelain)" = ""
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2
+        with:
+          deno-version: v2.8.1
+      - name: Exact toolchain and Edge contract
+        run: |
+          set -Eeuo pipefail
+          test "$(node --version)" = v24.21.0
+          test "$(deno --version | head -1)" = "deno 2.8.1 (stable, release, x86_64-unknown-linux-gnu)"
+          deno check \
+            supabase/functions/_shared/project-economy-step8-service-read-contract.ts \
+            supabase/functions/project-economy-step8-service-read/handler.ts \
+            supabase/functions/project-economy-step8-service-read/index.ts
+          deno test supabase/functions/project-economy-step8-service-read/handler.deno-test.ts
+          STEP8_SERVICE_STATIC_ONLY=1 node scripts/project-economy/step8-service-read-runtime.mjs
+      - name: Adversarial provenance
+        run: |
+          set -Eeuo pipefail
+          if STEP8_SERVICE_STATIC_ONLY=1 STEP8_SERVICE_EXPECTED_PARENT=8ddf7ca266a936ce8885da2c5e99493b65866fb7 \
+            node scripts/project-economy/step8-service-read-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial parent was accepted' >&2
+            exit 1
+          fi
+          if STEP8_SERVICE_STATIC_ONLY=1 STEP8_SERVICE_EXPECTED_PARENT_TREE=c67e12c91e9ad56f0ec513d6af5af5dc8917d63c \
+            node scripts/project-economy/step8-service-read-runtime.mjs >/dev/null 2>&1; then
+            echo 'adversarial parent tree was accepted' >&2
+            exit 1
+          fi
+      - name: PostgreSQL 15.19 parent projector and service channel runtime
+        env:
+          STEP8_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/step8
+          STEP8_SERVICE_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/step8
+          STEP8_EXPECTED_BASE: c0ac3b7d7c7968b6be709bd512518c43bc62f50e
+          STEP8_EXPECTED_BASE_TREE: 1e7816d4483ecc495ea4c405790d54650c6dc15f
+          STEP8_EXPECTED_FOUNDATION: 1be3b68920c479725fab54da36e78ef317a01b25
+          STEP8_EXPECTED_FOUNDATION_TREE: 0fc91a22cc70b938841b9b6e9fcf331f46884c2a
+          STEP8_EXPECTED_CI_REPAIR: db27fcd6cc8507db060875b33b603a5eb92e1df5
+          STEP8_EXPECTED_CI_REPAIR_TREE: 8304dff80cb7c5246f67e383f3d3e1f1e531f0ab
+          STEP8_EXPECTED_SQL_REPAIR: 63d41ebdc5942eb79b56a4ac4ab7b02ee59f985f
+          STEP8_EXPECTED_SQL_REPAIR_TREE: 4a7b1dafcc87175a19c12395941f49b0668501e0
+          STEP8_EXPECTED_MOUNT: 8ddf7ca266a936ce8885da2c5e99493b65866fb7
+          STEP8_EXPECTED_MOUNT_TREE: c67e12c91e9ad56f0ec513d6af5af5dc8917d63c
+        run: |
+          set -Eeuo pipefail
+          test "$(psql "$STEP8_DATABASE_URL" -XAt --no-password -c 'show server_version_num')" = 150019
+          git worktree add --detach "$RUNNER_TEMP/step8-parent" efef2c364322a8e5ec83b2d6f57827c05c8157d0
+          (
+            cd "$RUNNER_TEMP/step8-parent"
+            node scripts/project-economy/step8-shadow-runtime.mjs >"$RUNNER_TEMP/projector-runtime.json"
+          )
+          test "$(jq -r .status "$RUNNER_TEMP/projector-runtime.json")" = PASS
+          STEP8_PROJECTOR_RUNTIME_ACK=STEP8_RUNTIME_PASS node scripts/project-economy/step8-service-read-runtime.mjs
+          git worktree remove "$RUNNER_TEMP/step8-parent"
+          test "$(git status --porcelain)" = ""
+      - name: Always remove synthetic parent worktree
+        if: always()
+        run: |
+          set -Eeuo pipefail
+          if test -d "$RUNNER_TEMP/step8-parent"; then
+            git worktree remove --force "$RUNNER_TEMP/step8-parent"
+          fi
+          git worktree prune
+          test ! -e "$RUNNER_TEMP/step8-parent"
+          test "$(git status --porcelain)" = ""
