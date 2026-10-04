@@ -38,6 +38,7 @@ const corsHeaders = {
 const SCANNER_CONTRACT_READ_ACTIONS = new Set([
   'list_active_packings',
   'get_packing_items',
+  'identify_product', // Read-only WMS scan-status; identity lookup before packing.
 ])
 
 type ScannerAuth = {
