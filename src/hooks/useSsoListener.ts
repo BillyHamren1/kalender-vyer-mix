@@ -5,31 +5,25 @@ import {
   getLastKnownOrganizationId,
   setLastKnownOrganizationId,
 } from '@/lib/tenant/tenantCacheGuard';
-
-
-
-const HUB_ALLOWED_ORIGINS = [
-  'https://e-flow.se',
-  'https://www.e-flow.se',
-  'https://eventflow-harmony-hub.lovable.app',
-  'https://id-preview--619bc35d-e2d6-4874-822e-21a151f48315.lovable.app',
-  'https://619bc35d-e2d6-4874-822e-21a151f48315.lovableproject.com',
-  'http://localhost:5173',
-  'http://localhost:8080',
-  'http://localhost:3000',
-];
+import { isAllowedHubOrigin } from '@/lib/sso/hubOrigins';
+import {
+  activateOperationsSupportSsoSession,
+  beginOperationsSupportSsoAttempt,
+  clearOperationsSupportContextSession,
+  type OperationsSupportSsoAttempt,
+} from '@/lib/sso/supportContextProducer';
 
 // Origin som HUB faktiskt skickade senaste SSO/preferences-meddelandet från.
 // Svar (SSO_ACK/SSO_ERROR) ska alltid gå tillbaka dit, aldrig till en hårdkodad URL.
 let lastHubMessageOrigin: string | null = null;
 
 function getHubParentOrigin(): string | null {
-  if (lastHubMessageOrigin && HUB_ALLOWED_ORIGINS.includes(lastHubMessageOrigin)) {
+  if (isAllowedHubOrigin(lastHubMessageOrigin)) {
     return lastHubMessageOrigin;
   }
   try {
     const origin = document.referrer ? new URL(document.referrer).origin : null;
-    return origin && HUB_ALLOWED_ORIGINS.includes(origin) ? origin : null;
+    return isAllowedHubOrigin(origin) ? origin : null;
   } catch {
     return null;
   }
@@ -55,6 +49,16 @@ interface SsoPayload {
 interface SsoToken {
   payload: SsoPayload;
   signature: string;
+}
+
+function hasSafeSsoTokenShape(value: unknown): value is SsoToken {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const token = value as Record<string, unknown>;
+  return typeof token.signature === 'string'
+    && token.signature.length > 0
+    && !!token.payload
+    && typeof token.payload === 'object'
+    && !Array.isArray(token.payload);
 }
 
 interface SsoError {
@@ -164,12 +168,17 @@ export function useSsoListener() {
     return 'planning';
   }, []);
 
-  const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
+  const verifySsoToken = useCallback(async (
+    ssoToken: SsoToken,
+    supportAttempt: OperationsSupportSsoAttempt | null = null,
+  ) => {
     const requestedOrgId = ssoToken.payload?.organization_id ?? null;
+    const targetView = supportAttempt?.audience ?? getTargetView();
     // Fingerprinten MÅSTE innehålla organisationen. Annars kan HUB skicka
     // "samma" token-signatur för en annan organisation och dedupe-logiken
     // hoppar över verifieringen – kvar blir föregående organisations context.
-    const fingerprint = `${getTokenFingerprint(ssoToken.signature)}:${requestedOrgId ?? 'none'}`;
+    const fingerprint = supportAttempt?.trustKey
+      ?? `${getTokenFingerprint(ssoToken.signature)}:${requestedOrgId ?? 'none'}:${targetView}`;
 
     // TENANT SWITCH: HUB begär en annan organisation än den aktiva.
     // Då får ingen dedupe-check stoppa oss, och all tidigare tenant-state
@@ -191,6 +200,19 @@ export function useSsoListener() {
       }
       clearPersistedTenantState();
       setLastKnownOrganizationId(null);
+      // SIGNED_OUT intentionally clears all support trust. Re-establish only
+      // the already parent/origin-validated attempt after the old tenant is gone.
+      if (supportAttempt) {
+        supportAttempt = beginOperationsSupportSsoAttempt({
+          trustKey: supportAttempt.trustKey,
+          origin: supportAttempt.origin,
+          source: supportAttempt.parentWindow,
+          parentWindow: supportAttempt.parentWindow,
+          expectedUserId: supportAttempt.expectedUserId,
+          expectedOrganizationId: supportAttempt.expectedOrganizationId,
+          audience: supportAttempt.audience,
+        });
+      }
     }
 
     notifySsoStart();
@@ -243,7 +265,6 @@ export function useSsoListener() {
     isProcessingRef.current = true;
     sessionStorage.setItem(SSO_PROCESSING_KEY, fingerprint);
     
-    const targetView = getTargetView();
     console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint, 'target_view:', targetView);
 
     try {
@@ -302,6 +323,14 @@ export function useSsoListener() {
       const verifiedOrgId = data.user?.organization_id ?? requestedOrgId;
       if (verifiedOrgId) setLastKnownOrganizationId(verifiedOrgId);
 
+      activateOperationsSupportSsoSession(supportAttempt, {
+        sessionHubUserId: sessionData.session?.user.user_metadata?.hub_user_id,
+        verifiedUserId: data.user?.id,
+        sessionUserId: sessionData.session?.user.id,
+        sessionOrganizationId: sessionData.session?.user.user_metadata?.organization_id,
+        organizationId: verifiedOrgId,
+      });
+
       // Apply preferences from SSO token
       if (data.preferences) {
         applyPreferences(data.preferences);
@@ -338,6 +367,7 @@ export function useSsoListener() {
           const ssoToken = JSON.parse(tokenJson) as SsoToken;
           // Rensa hashen från URL
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          clearOperationsSupportContextSession();
           verifySsoToken(ssoToken);
         } catch (e) {
           console.error('[SSO] Failed to parse hash token:', e);
@@ -348,7 +378,7 @@ export function useSsoListener() {
 
     // 2. Lyssna på postMessage
     function handleMessage(event: MessageEvent) {
-      if (!HUB_ALLOWED_ORIGINS.includes(event.origin)) {
+      if (!isAllowedHubOrigin(event.origin)) {
         if (event.data?.type === 'SSO_TOKEN' || event.data?.type === 'PREFERENCES_UPDATE') {
           console.warn('[SSO] Blocked message from untrusted origin:', event.origin);
         }
@@ -386,9 +416,23 @@ export function useSsoListener() {
           ssoToken = data.token;
         }
         
-        if (ssoToken) {
-          verifySsoToken(ssoToken);
+        if (hasSafeSsoTokenShape(ssoToken)) {
+          const audience = getTargetView();
+          const trustKey = `${getTokenFingerprint(ssoToken.signature)}:${ssoToken.payload?.organization_id ?? 'none'}:${audience}`;
+          const supportAttempt = beginOperationsSupportSsoAttempt({
+            trustKey,
+            origin: event.origin,
+            source: event.source,
+            parentWindow: window.parent,
+            expectedUserId: ssoToken.payload?.user_id,
+            expectedOrganizationId: ssoToken.payload?.organization_id,
+            audience,
+          });
+          verifySsoToken(ssoToken, supportAttempt);
         } else {
+          // Only the exact iframe parent may revoke an existing support realm.
+          // A sibling window on the same allowed origin must not gain a DoS path.
+          if (event.source === window.parent) clearOperationsSupportContextSession();
           console.error('[SSO] No valid token found in postMessage');
           sendSsoResponse(false, { status: 400, code: 'INVALID_TOKEN', message: 'No valid SSO token in message' });
         }
@@ -409,8 +453,9 @@ export function useSsoListener() {
     
     return () => {
       window.removeEventListener('message', handleMessage);
+      clearOperationsSupportContextSession();
     };
-  }, [verifySsoToken]);
+  }, [getTargetView, verifySsoToken]);
 }
 
 // Hook to get current preferences

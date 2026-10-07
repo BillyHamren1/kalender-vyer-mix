@@ -32,6 +32,7 @@ import {
 } from "@/services/projectService";
 import { fetchSupplierRequestThreads, saveSimpleProjectNotes, SIMPLE_SUPPLIER_STATUS, SIMPLE_THREAD_STATUS } from "@/services/simpleProjectWorkspaceService";
 import type { MergedSupplier } from "@/types/supplier";
+import { useOperationsSupportContext } from "@/hooks/useOperationsSupportContext";
 
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("sv-SE").format(new Date(value)) : "Ej angivet";
 
@@ -53,6 +54,16 @@ export default function SimpleProjectWorkspacePage() {
   const threadsQuery = useQuery({ queryKey: ["supplier-request-threads", projectId], queryFn: () => fetchSupplierRequestThreads(projectId), enabled: !!projectId });
   const { suppliers, isLoading: suppliersLoading, addSupplier } = useProjectSuppliers(projectId);
   const project = projectQuery.data;
+  useOperationsSupportContext({
+    kind: 'project',
+    entityId: project?.id,
+    entityOrganizationId: (project as { organization_id?: string } | null | undefined)?.organization_id,
+    routeId: projectId,
+    isPending: projectQuery.isPending,
+    isFetching: projectQuery.isFetching,
+    isError: projectQuery.isError,
+    hasEntity: !!project,
+  });
   const booking = project?.booking;
   const bookingId = project?.booking_id || booking?.id || null;
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
