@@ -23,6 +23,7 @@ on:
       - src/__tests__/scannerCommandGateway.test.ts
       - src/__tests__/scannerTimeWmsPackingQuantity.test.ts
       - supabase/functions/_shared/scannerTimeWmsPacking.ts
+      - supabase/functions/_shared/timeWmsProjection.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
@@ -58,6 +59,7 @@ on:
       - src/__tests__/scannerTimeWmsPackingQuantity.test.ts
       - supabase/functions/_shared/scannerCommandGateway.ts
       - supabase/functions/_shared/scannerTimeWmsPacking.ts
+      - supabase/functions/_shared/timeWmsProjection.ts
       - supabase/functions/scanner-command-api/index.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
@@ -115,6 +117,7 @@ jobs:
           supabase/functions/_shared/scannerCors.ts
           supabase/functions/_shared/scannerWmsPackingProjection.ts
           supabase/functions/_shared/scannerCommandGateway.ts
+          supabase/functions/_shared/scannerTimeWmsPacking.ts
           supabase/functions/_shared/scannerBundleProjection.ts
           src/__tests__/scannerReadContractV1.test.ts
           src/__tests__/scannerLegacyAuth.test.ts
@@ -130,5 +133,6 @@ jobs:
           scripts/scanner-deploy-preflight.mjs
           supabase/functions/scanner-command-api/index.ts
           src/__tests__/scannerCommandGateway.test.ts
+          src/__tests__/scannerTimeWmsPackingQuantity.test.ts
       - name: Production build
         run: npm run build

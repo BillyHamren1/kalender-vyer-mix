@@ -72,3 +72,40 @@ Testet använder ingen anslutning till produktionsdatabas.
   blanda med individ, ångra, avbruten anslutning och identisk retry.
 - Formell retur och ett känt totalt lagersaldo är separata förmågor och
   påstås inte vara färdigställda av denna ändring.
+
+## Uppföljning: leveransblockeringen åtgärdad 2026-10-07
+
+- Capacitor Android/iOS/core/CLI är exakt låsta till 8.5.2.
+- Vitest uppdaterat till 4.1.11; den sårbara tinypool-kedjan är borttagen.
+  Node 22-typer uppdaterade för testverktygets kompatibilitetskrav.
+- npm- och Bun-textlåsfiler omgenererade med pakethanterarna.
+- Säkerhetskontrollen är oförändrad och passerar: 0 kritiska fynd.
+  Övriga advisory-nivåer är inte förklarade åtgärdade av detta arbete.
+- Tre föråldrade wiring-tester ersatta med kontroller av det aktiva signerade
+  Time-WMS-flödet och körbara ID-/status-/packbarhets-/dubbleringskontroller.
+- Hela Scanner-read-gaten lokalt: 135/135 tester, Contract lint och
+  produktionsbygge PASS med de nya beroendena.
+- Tvärgående manuell antalshantering med faktisk SQL i isolerad PostgreSQL/WASM
+  fortsatt PASS.
+- Scanner PR #50:s fulla CI är grön, inklusive web-E2E, Androidbygge, TypeScript,
+  lint, tester, build och isolerade DB-tester. WMS PR #51:s Scanner-/Time-gater
+  är gröna. WMS Menu Catalogue-gatens typecheck-fel identifierat som Object.hasOwn i
+  vårt nya test: ersatt lokalt med Object.prototype.hasOwnProperty.call för
+  projektets äldre TypeScript-lib. Endast en semantiskt likvärdig testrad ändras.
+- Detta är en källkods- och CI-rättning. Ingen produktionsdeploy, datamigration,
+  merge eller mobilrelease är genomförd. Staging med fullständigt WMS-schema
+  och flera samtidiga klienter återstår före aktivering.
+
+### Checkpoint efter automatisk granskningsspärr
+
+Push till den befintliga PR #52-grenen nekades av automatisk godkännandekontroll
+med skälet att export av kod till en offentlig GitHub-destination kräver explicit
+användarauktorisation. Samma besked kvarstod efter verifiering av GitHub-PR,
+remote, befintlig head, exakt ändringslista och hemlighetssökning. Inget alternativt
+publiceringsverktyg används för att kringgå beslutet.
+
+Lokalt verifierad Planning-commit bygger direkt på 3bc4e5836fc18d58510e1892004ffe4a31439ca2.
+WMS-testfix är förberedd mot 2067f6a9f1a404af863ff10fe229b1d8ae1ab952 i
+../owner/fix-ci-hasown.patch. Nästa steg efter uttryckligt godkännande: publicera
+dessa rättningar till samma PR #52 respektive #51, verifiera remote-SHA och följ
+server-CI. Ingen main-merge eller produktionsdeploy ingår i denna push.
