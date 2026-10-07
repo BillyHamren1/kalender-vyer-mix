@@ -1,7 +1,9 @@
 export const SCANNER_COMMAND_GATEWAY_SCHEMA =
   "eventflow-scanner-command-gateway.v1" as const;
 
-export const SCANNER_COMMANDS = ["PACK_INSTANCE", "UNPACK_INSTANCE"] as const;
+export const SCANNER_COMMANDS = [
+  "PACK_INSTANCE", "UNPACK_INSTANCE", "PACK_QUANTITY", "UNPACK_QUANTITY",
+] as const;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,7 +37,9 @@ export type ScannerMvpCommand = {
   reservationLineId: string;
   itemTypeId: string;
   deviceId: string;
-  scanValue: string;
+  scanValue: string | null;
+  quantity: number;
+  reason?: string;
   occurredAt: string;
 };
 
@@ -55,6 +59,8 @@ export function parseScannerMvpCommand(input: unknown):
     "deviceId",
     "scanValue",
     "occurredAt",
+    "quantity",
+    "reason",
     "scanner_contract_version",
   ]);
   if (Object.keys(body).some((key) => !allowed.has(key))) {
@@ -86,11 +92,29 @@ export function parseScannerMvpCommand(input: unknown):
   const deviceId = text(body.deviceId, 160);
   const scanValue = text(body.scanValue, 512);
   const occurredAt = text(body.occurredAt, 40);
+  const isQuantity = body.command === "PACK_QUANTITY" || body.command === "UNPACK_QUANTITY";
+  const isUnpack = body.command === "UNPACK_INSTANCE" || body.command === "UNPACK_QUANTITY";
+  const quantity = body.quantity ?? (isQuantity ? null : 1);
+  const reason = body.reason === undefined ? undefined : text(body.reason, 500);
   if (!bookingId || !reservationId || !reservationLineId || !itemTypeId) {
     return { ok: false, error: "invalid_canonical_id" };
   }
-  if (!deviceId || !scanValue) {
+  if (!deviceId || (!isQuantity && !scanValue)) {
     return { ok: false, error: "missing_required_value" };
+  }
+  if (!Number.isSafeInteger(quantity) || (quantity as number) < 1 ||
+      (quantity as number) > 1000 || (!isQuantity && quantity !== 1)) {
+    return { ok: false, error: "invalid_quantity" };
+  }
+  if (isQuantity && body.scanValue != null) {
+    return { ok: false, error: "quantity_scan_value_forbidden" };
+  }
+  if (body.reason !== undefined && (!isUnpack || !reason || reason.length < 3)) {
+    return { ok: false, error: "invalid_reason" };
+  }
+  // Existing instance clients may omit the reason. New manual undo requires it.
+  if (body.command === "UNPACK_QUANTITY" && !reason) {
+    return { ok: false, error: "unpack_reason_required" };
   }
   if (
     !occurredAt ||
@@ -110,7 +134,9 @@ export function parseScannerMvpCommand(input: unknown):
       reservationLineId,
       itemTypeId,
       deviceId,
-      scanValue,
+      scanValue: isQuantity ? null : scanValue,
+      quantity: quantity as number,
+      ...(reason ? { reason } : {}),
       occurredAt,
     },
   };
@@ -139,7 +165,7 @@ export function buildBundleScannerCommand(input: {
     reservationLineId: input.command.reservationLineId,
     itemTypeId: input.command.itemTypeId,
     itemInstanceId: null,
-    quantity: 1,
+    quantity: input.command.quantity,
     packingSessionId: null,
     performedBy: staffId,
     performedByLabel: input.staffName.slice(0, 160),
@@ -147,5 +173,6 @@ export function buildBundleScannerCommand(input: {
     scanSource: "eventflow_scanner",
     scanValue: input.command.scanValue,
     occurredAt: input.command.occurredAt,
+    ...(input.command.reason ? { reason: input.command.reason } : {}),
   } as const;
 }

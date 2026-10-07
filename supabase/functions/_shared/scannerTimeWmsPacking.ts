@@ -25,6 +25,10 @@ export interface ScannerTimeWmsLine {
   display_name: string | null;
   quantity_reserved: number | null;
   quantity_picked: number | null;
+  /** Owner evidence only: absent fields remain unknown, never inferred from total picked. */
+  manual_packed_quantity: number | null;
+  allocated_quantity: number | null;
+  stock_available_quantity: number | null;
   quantity_returned: number | null;
   packing_date: string | null;
   updated_at: string | null;
@@ -92,6 +96,9 @@ export function mapTimeWmsProjectionForScanner(body: Rec): ScannerTimeWmsPacking
       display_name: str(l.sourceDisplayName) ?? str(l.label) ?? str(l.name),
       quantity_reserved: num(l.requiredQuantity) ?? num(l.quantity),
       quantity_picked: num(l.packedQuantity) ?? num(l.packed),
+      manual_packed_quantity: num(l.manualPackedQuantity),
+      allocated_quantity: num(l.allocatedQuantity),
+      stock_available_quantity: num(l.stockAvailableQuantity),
       // Returantal behövs bara för retur och blockerar aldrig utleverans.
       quantity_returned: num(l.returnedQuantity) ?? num(l.returned_quantity),
       packing_date: str(l.packingDate) ?? str(l.packing_date) ?? str(src.packingDate),

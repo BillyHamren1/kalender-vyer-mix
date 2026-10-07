@@ -21,6 +21,8 @@ on:
       - src/__tests__/scannerContractResponse.test.ts
       - src/__tests__/scannerDependencyPin.test.ts
       - src/__tests__/scannerCommandGateway.test.ts
+      - src/__tests__/scannerTimeWmsPackingQuantity.test.ts
+      - supabase/functions/_shared/scannerTimeWmsPacking.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
@@ -52,6 +54,11 @@ on:
       - src/__tests__/scannerDeploymentChain.test.ts
       - src/__tests__/scannerContractResponse.test.ts
       - src/__tests__/scannerDependencyPin.test.ts
+      - src/__tests__/scannerCommandGateway.test.ts
+      - src/__tests__/scannerTimeWmsPackingQuantity.test.ts
+      - supabase/functions/_shared/scannerCommandGateway.ts
+      - supabase/functions/_shared/scannerTimeWmsPacking.ts
+      - supabase/functions/scanner-command-api/index.ts
       - supabase/functions/_shared/scannerReadContractV1.ts
       - supabase/functions/_shared/scannerLegacyAuth.ts
       - supabase/functions/_shared/scannerSignedAuth.ts
@@ -98,6 +105,7 @@ jobs:
           src/__tests__/scannerContractResponse.test.ts
           src/__tests__/scannerDependencyPin.test.ts
           src/__tests__/scannerCommandGateway.test.ts
+          src/__tests__/scannerTimeWmsPackingQuantity.test.ts
       - name: Contract lint
         run: >-
           npx eslint
