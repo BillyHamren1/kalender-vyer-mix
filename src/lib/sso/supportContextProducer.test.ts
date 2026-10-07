@@ -299,7 +299,7 @@ describe('Operations support context producer', () => {
     expect(s.parent.postMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps one pending attempt and an active realm across identical token redelivery', () => {
+  it('revalidates an active realm across identical token redelivery before answering again', () => {
     clearOperationsSupportContextSession();
     const parent = { postMessage: vi.fn() } as unknown as Window;
     const input = {
@@ -322,7 +322,15 @@ describe('Operations support context producer', () => {
       organizationId: ORG_ID,
     })).toBe(true);
 
-    expect(beginOperationsSupportSsoAttempt(input)).toBeNull();
+    const redelivery = beginOperationsSupportSsoAttempt(input);
+    expect(redelivery).not.toBeNull();
+    expect(activateOperationsSupportSsoSession(redelivery, {
+      sessionHubUserId: LEGACY_HUB_SUBJECT,
+      verifiedUserId: USER_ID,
+      sessionUserId: USER_ID,
+      sessionOrganizationId: ORG_ID,
+      organizationId: ORG_ID,
+    })).toBe(true);
     const uninstall = installOperationsSupportContextProducer({
       hostWindow: window,
       parentWindow: parent,

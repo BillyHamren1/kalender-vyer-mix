@@ -215,20 +215,11 @@ export function beginOperationsSupportSsoAttempt(input: {
     return pendingAttempt;
   }
 
-  // Routine redelivery of the exact token keeps the already verified realm.
-  // A different token, actor, tenant, parent or audience revokes it immediately.
-  if (
-    activeSession
-    && activeSession.trustKey === input.trustKey
-    && activeSession.origin === input.origin
-    && activeSession.parentWindow === input.parentWindow
-    && activeSession.hubSubjectUserId === input.expectedUserId
-    && activeSession.organizationId === input.expectedOrganizationId
-    && activeSession.audience === input.audience
-  ) {
-    return null;
-  }
-
+  // Every parent-bound redelivery becomes a pending attempt. This deliberately
+  // pauses an already active support realm until the live Supabase session has
+  // been rebound to the exact actor/tenant below. It also gives a remounted
+  // listener an attempt it can reactivate before acknowledging a stored
+  // fingerprint.
   clearOperationsSupportContextSession();
 
   const attempt = Object.freeze({
@@ -241,6 +232,13 @@ export function beginOperationsSupportSsoAttempt(input: {
   });
   pendingAttempt = attempt;
   return attempt;
+}
+
+/** Stale async verifications must never activate or acknowledge support trust. */
+export function isOperationsSupportSsoAttemptCurrent(
+  attempt: OperationsSupportSsoAttempt | null,
+): boolean {
+  return attempt !== null && pendingAttempt === attempt;
 }
 
 /** Activate only after normal SSO established the exact signed actor and tenant. */

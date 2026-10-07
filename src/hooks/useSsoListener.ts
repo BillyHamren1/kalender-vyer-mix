@@ -10,6 +10,7 @@ import {
   activateOperationsSupportSsoSession,
   beginOperationsSupportSsoAttempt,
   clearOperationsSupportContextSession,
+  isOperationsSupportSsoAttemptCurrent,
   type OperationsSupportSsoAttempt,
 } from '@/lib/sso/supportContextProducer';
 
@@ -86,6 +87,14 @@ interface SsoResult {
 
 const SSO_VERIFY_MAX_ATTEMPTS = 3;
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function getSsoErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const context = (error as { context?: unknown }).context;
+  if (!context || typeof context !== 'object') return undefined;
+  const status = (context as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+}
 
 function decodeUtf8Base64(input: string): string {
   const normalized = decodeURIComponent(input).replace(/-/g, '+').replace(/_/g, '/');
@@ -193,13 +202,13 @@ export function useSsoListener() {
       lastProcessedRef.current = null;
       sessionStorage.removeItem(SSO_PROCESSED_KEY);
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
+      clearPersistedTenantState();
+      setLastKnownOrganizationId(null);
       try {
         await supabase.auth.signOut();
       } catch (e) {
         console.warn('[SSO] signOut vid tenant-byte misslyckades', e);
       }
-      clearPersistedTenantState();
-      setLastKnownOrganizationId(null);
       // SIGNED_OUT intentionally clears all support trust. Re-establish only
       // the already parent/origin-validated attempt after the old tenant is gone.
       if (supportAttempt) {
@@ -223,8 +232,31 @@ export function useSsoListener() {
       const { data: sessionData } = await supabase.auth.getSession();
       const activeSession = sessionData.session;
       const activeTenant = getLastKnownOrganizationId();
-      const tenantMatches = !requestedOrgId || !activeTenant || activeTenant === requestedOrgId;
-      if (activeSession && tenantMatches) {
+      const sessionUserId = activeSession?.user.id;
+      const sessionOrganizationId = activeSession?.user.user_metadata?.organization_id;
+      // verify-sso-token stores HUB's verified subject and tenant in Auth user
+      // metadata before it creates the local Supabase session. Missing values
+      // are never a match, and the unverified incoming token cannot replace
+      // either value on this fast path.
+      const sessionHubUserId = activeSession?.user.user_metadata?.hub_user_id;
+      const exactLiveSession = Boolean(
+        activeSession
+        && supportAttempt
+        && requestedOrgId
+        && activeTenant === requestedOrgId
+        && sessionOrganizationId === requestedOrgId
+        && supportAttempt.expectedOrganizationId === requestedOrgId
+        && sessionHubUserId === supportAttempt.expectedUserId
+        && typeof sessionUserId === 'string'
+        && sessionUserId,
+      );
+      if (exactLiveSession && activateOperationsSupportSsoSession(supportAttempt, {
+        sessionHubUserId,
+        verifiedUserId: sessionUserId,
+        sessionUserId,
+        sessionOrganizationId,
+        organizationId: activeTenant,
+      })) {
         sessionStorage.setItem('isSsoUser', 'true');
         sessionStorage.setItem('skipRoleCheck', 'true');
         lastProcessedRef.current = fingerprint;
@@ -235,6 +267,8 @@ export function useSsoListener() {
       }
       lastProcessedRef.current = null;
       sessionStorage.removeItem(SSO_PROCESSED_KEY);
+      // The attempt remains pending so the normal verified path can establish
+      // it. No context exists while cached/live metadata is absent or differs.
       return false;
     };
 
@@ -283,7 +317,7 @@ export function useSsoListener() {
 
         if (!error && data?.success) break;
 
-        const status = (error as any)?.context?.status as number | undefined;
+        const status = getSsoErrorStatus(error);
         const retryable = status === undefined || status >= 500 || data?.error_code === 'SESSION_CREATE_FAILED';
         if (!retryable || attempt === SSO_VERIFY_MAX_ATTEMPTS) break;
 
@@ -292,10 +326,19 @@ export function useSsoListener() {
       }
 
       if (error || !data?.success) {
-        const status = (error as any)?.context?.status as number | undefined;
+        const status = getSsoErrorStatus(error);
         const errorMessage = error instanceof Error ? error.message : undefined;
         console.error('[SSO] Verification failed:', { error, data, status });
         sendSsoResponse(false, { status, code: data?.error_code ?? 'VERIFY_FAILED', message: data?.message ?? errorMessage });
+        notifySsoSettled(false);
+        return;
+      }
+
+      // A newer exact-parent token may have replaced this attempt while the
+      // Edge verification was in flight. Do not let the stale result mutate
+      // the local session or produce an ACK.
+      if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
+        console.warn('[SSO] Ignoring stale verification result before session mutation');
         notifySsoSettled(false);
         return;
       }
@@ -315,21 +358,72 @@ export function useSsoListener() {
         return;
       }
 
-      // Mark user as SSO user in sessionStorage (for ProtectedRoute to skip role check)
+      const clearRejectedSsoState = () => {
+        sessionStorage.removeItem('isSsoUser');
+        sessionStorage.removeItem('skipRoleCheck');
+        lastProcessedRef.current = null;
+        sessionStorage.removeItem(SSO_PROCESSED_KEY);
+        clearOperationsSupportContextSession();
+        // Cache eviction must be synchronous with rejection. Auth sign-out can
+        // be delayed by storage/network hooks and must not leave a stale tenant
+        // available to the rest of the application in the meantime.
+        clearPersistedTenantState();
+        setLastKnownOrganizationId(null);
+      };
+
+      // Fence the narrow race where a newer delivery arrives while setSession
+      // is awaiting. Remove the stale session and never ACK the old attempt.
+      if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
+        console.warn('[SSO] Verification attempt became stale while setting session');
+        clearRejectedSsoState();
+        try { await supabase.auth.signOut(); } catch (e) {
+          console.warn('[SSO] Failed to clear stale session', e);
+        }
+        notifySsoSettled(false);
+        return;
+      }
+
+      const verifiedUserId = data.user?.id;
+      const verifiedOrgId = data.user?.organization_id;
+      const sessionUserId = sessionData.session?.user.id;
+      const sessionHubUserId = sessionData.session?.user.user_metadata?.hub_user_id;
+      const sessionOrganizationId = sessionData.session?.user.user_metadata?.organization_id;
+      const exactVerifiedSession = Boolean(
+        requestedOrgId
+        && verifiedOrgId === requestedOrgId
+        && sessionOrganizationId === requestedOrgId
+        && typeof verifiedUserId === 'string'
+        && verifiedUserId
+        && sessionUserId === verifiedUserId
+        && (!supportAttempt || (
+          supportAttempt.expectedOrganizationId === requestedOrgId
+          && sessionHubUserId === supportAttempt.expectedUserId
+        )),
+      );
+      const supportActivated = exactVerifiedSession && supportAttempt
+        ? activateOperationsSupportSsoSession(supportAttempt, {
+            sessionHubUserId,
+            verifiedUserId,
+            sessionUserId,
+            sessionOrganizationId,
+            organizationId: verifiedOrgId,
+          })
+        : !supportAttempt && exactVerifiedSession;
+
+      if (!supportActivated) {
+        clearRejectedSsoState();
+        try { await supabase.auth.signOut(); } catch (e) {
+          console.warn('[SSO] Failed to clear identity-mismatched session', e);
+        }
+        notifySsoSettled(false);
+        return;
+      }
+
+      // Tenant cache and route-bypass flags are written only after the edge
+      // identity, live session and parent-bound HUB subject all agree.
+      setLastKnownOrganizationId(requestedOrgId);
       sessionStorage.setItem('isSsoUser', 'true');
       sessionStorage.setItem('skipRoleCheck', 'true');
-
-      // Canonical aktiv organisation = den HUB/edge-funktionen verifierade.
-      const verifiedOrgId = data.user?.organization_id ?? requestedOrgId;
-      if (verifiedOrgId) setLastKnownOrganizationId(verifiedOrgId);
-
-      activateOperationsSupportSsoSession(supportAttempt, {
-        sessionHubUserId: sessionData.session?.user.user_metadata?.hub_user_id,
-        verifiedUserId: data.user?.id,
-        sessionUserId: sessionData.session?.user.id,
-        sessionOrganizationId: sessionData.session?.user.user_metadata?.organization_id,
-        organizationId: verifiedOrgId,
-      });
 
       // Apply preferences from SSO token
       if (data.preferences) {
@@ -385,6 +479,13 @@ export function useSsoListener() {
         return;
       }
       const data = event.data;
+      // A same-origin sibling is not the iframe parent. Reject both message
+      // types before they can affect origin memory, preferences, Supabase
+      // session state or ACKs.
+      if ((data?.type === 'SSO_TOKEN' || data?.type === 'PREFERENCES_UPDATE') && event.source !== window.parent) {
+        console.warn(`[SSO] Blocked ${data.type} from non-parent window`);
+        return;
+      }
       if (data?.type === 'SSO_TOKEN' || data?.type === 'PREFERENCES_UPDATE') {
         lastHubMessageOrigin = event.origin;
       }
