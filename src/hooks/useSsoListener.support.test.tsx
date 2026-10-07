@@ -37,6 +37,7 @@ import {
   activateOperationsSupportSsoSession,
   beginOperationsSupportSsoAttempt,
   clearOperationsSupportContextSession,
+  clearOperationsSupportContextAfterAuthSignOut,
   installOperationsSupportContextProducer,
   registerLoadedOperationsSupportEntity,
 } from '@/lib/sso/supportContextProducer';
@@ -202,7 +203,7 @@ beforeEach(() => {
   mocks.activeOrganizationId = ORG_A;
   mocks.signOut.mockImplementation(async () => {
     // Mirrors AuthContext's SIGNED_OUT listener during the tenant transition.
-    clearOperationsSupportContextSession();
+    clearOperationsSupportContextAfterAuthSignOut();
     return { error: null };
   });
   mocks.invoke.mockResolvedValue({
@@ -496,6 +497,118 @@ it.each([
   expect(parent.postMessage).not.toHaveBeenCalled();
 
   uninstall();
+  hook.unmount();
+});
+
+it('does not revive an older tenant after a newer parent delivery completes during signout', async () => {
+  const parent = { postMessage: vi.fn() } as unknown as Window;
+  Object.defineProperty(window, 'parent', { configurable: true, value: parent });
+  let finishSignOut: (() => void) | undefined;
+  mocks.signOut.mockImplementationOnce(() => {
+    clearOperationsSupportContextAfterAuthSignOut();
+    return new Promise((resolve) => {
+      finishSignOut = () => resolve({ error: null });
+    });
+  });
+  mocks.invoke.mockImplementation(async (_name, options) => successfulEdgeResult({
+    organizationId: options.body.payload.organization_id,
+  }));
+  mocks.setSession.mockImplementation(async () => establishedSession({
+    organizationId: mocks.invoke.mock.calls.at(-1)?.[1].body.payload.organization_id,
+  }));
+  const older = ssoToken(ORG_B, 'older-org-b-signout-with-enough-entropy');
+  const newer = ssoToken(ORG_A, 'newer-org-a-signout-with-enough-entropy');
+  const hook = renderHook(() => useSsoListener());
+
+  sendSsoToken(parent, older);
+  await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
+  sendSsoToken(parent, newer);
+  await waitFor(() => expect(mocks.setSession).toHaveBeenCalledTimes(1));
+  expect(mocks.activeOrganizationId).toBe(ORG_A);
+  vi.mocked(parent.postMessage).mockClear();
+
+  await act(async () => { finishSignOut?.(); });
+
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  expect(mocks.invoke.mock.calls[0][1].body.payload.organization_id).toBe(ORG_A);
+  expect(mocks.setSession).toHaveBeenCalledTimes(1);
+  expect(mocks.activeOrganizationId).toBe(ORG_A);
+  expectNoAck(parent);
+  const uninstall = installContextProbe(parent);
+  requestContext(parent);
+  expect(parent.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+    type: 'HUB_SUPPORT_CONTEXT', organization_id: ORG_A,
+  }), HUB_ORIGIN);
+
+  uninstall();
+  hook.unmount();
+});
+
+it.each(['malformed parent token', 'listener disposal', 'explicit logout', 'second auth signout'])('does not resume tenant verification after %s during signout', async (replacement) => {
+  const parent = { postMessage: vi.fn() } as unknown as Window;
+  Object.defineProperty(window, 'parent', { configurable: true, value: parent });
+  let finishSignOut: (() => void) | undefined;
+  mocks.signOut.mockImplementationOnce(() => {
+    clearOperationsSupportContextAfterAuthSignOut();
+    return new Promise((resolve) => {
+      finishSignOut = () => resolve({ error: null });
+    });
+  });
+  const hook = renderHook(() => useSsoListener());
+  sendSsoToken(parent, ssoToken(ORG_B));
+  await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
+
+  if (replacement === 'listener disposal') {
+    hook.unmount();
+  } else if (replacement === 'explicit logout') {
+    // AuthContext.signOut revokes synchronously before its imports and SDK await.
+    clearOperationsSupportContextSession();
+  } else if (replacement === 'second auth signout') {
+    clearOperationsSupportContextAfterAuthSignOut();
+  } else {
+    const event = new MessageEvent('message', {
+      origin: HUB_ORIGIN, data: { type: 'SSO_TOKEN', token: { signature: '' } },
+    });
+    Object.defineProperty(event, 'source', { value: parent });
+    act(() => window.dispatchEvent(event));
+  }
+  vi.mocked(parent.postMessage).mockClear();
+  await act(async () => { finishSignOut?.(); });
+
+  expect(mocks.invoke).not.toHaveBeenCalled();
+  expect(mocks.setSession).not.toHaveBeenCalled();
+  expect(mocks.activeOrganizationId).toBeNull();
+  expectNoAck(parent);
+  const uninstall = installContextProbe(parent, ORG_B);
+  requestContext(parent, ORG_B);
+  expect(parent.postMessage).not.toHaveBeenCalled();
+
+  uninstall();
+  if (replacement !== 'listener disposal') hook.unmount();
+});
+
+it('ignores sibling delivery while the current parent tenant switch is signing out', async () => {
+  const parent = { postMessage: vi.fn() } as unknown as Window;
+  const sibling = { postMessage: vi.fn() } as unknown as Window;
+  Object.defineProperty(window, 'parent', { configurable: true, value: parent });
+  let finishSignOut: (() => void) | undefined;
+  mocks.signOut.mockImplementationOnce(() => {
+    clearOperationsSupportContextAfterAuthSignOut();
+    return new Promise((resolve) => {
+      finishSignOut = () => resolve({ error: null });
+    });
+  });
+  const hook = renderHook(() => useSsoListener());
+  sendSsoToken(parent, ssoToken(ORG_B));
+  await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
+  sendSsoToken(parent, ssoToken(ORG_A), sibling);
+  await act(async () => { finishSignOut?.(); });
+
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  expect(mocks.invoke.mock.calls[0][1].body.payload.organization_id).toBe(ORG_B);
+  expect(mocks.setSession).toHaveBeenCalledTimes(1);
+  expect(mocks.activeOrganizationId).toBe(ORG_B);
+  expect(parent.postMessage).toHaveBeenCalledWith({ type: 'SSO_ACK', success: true }, HUB_ORIGIN);
   hook.unmount();
 });
 

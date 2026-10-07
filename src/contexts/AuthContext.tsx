@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { PLANNING_SSO_START_EVENT, PLANNING_SSO_SETTLED_EVENT } from '@/hooks/useSsoListener';
-import { clearOperationsSupportContextSession } from '@/lib/sso/supportContextProducer';
+import {
+  clearOperationsSupportContextAfterAuthSignOut,
+  clearOperationsSupportContextSession,
+} from '@/lib/sso/supportContextProducer';
 
 interface AuthContextType {
   user: User | null;
@@ -75,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsSsoUser(false);
           sessionStorage.removeItem('isSsoUser');
           sessionStorage.removeItem('skipRoleCheck');
-          clearOperationsSupportContextSession();
+          clearOperationsSupportContextAfterAuthSignOut();
           setIsLoading(false);
           return;
         }

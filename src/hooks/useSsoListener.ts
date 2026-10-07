@@ -11,6 +11,7 @@ import {
   beginOperationsSupportSsoAttempt,
   clearOperationsSupportContextSession,
   isOperationsSupportSsoAttemptCurrent,
+  prepareOperationsSupportTenantSignOut,
   type OperationsSupportSsoAttempt,
 } from '@/lib/sso/supportContextProducer';
 
@@ -168,6 +169,10 @@ function notifySsoSettled(success: boolean) {
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
   const lastProcessedRef = useRef<string | null>(null);
+  // SIGNED_OUT clears support attempts during an ordinary tenant switch.
+  // Keep delivery ownership separately so that this lifecycle cannot revive
+  // an older attempt after a newer parent token or listener disposal.
+  const deliveryGenerationRef = useRef(0);
 
   // Determine target view based on current route (use window.location to avoid Router dependency)
   const getTargetView = useCallback((): 'planning' | 'warehouse' => {
@@ -180,6 +185,7 @@ export function useSsoListener() {
   const verifySsoToken = useCallback(async (
     ssoToken: SsoToken,
     supportAttempt: OperationsSupportSsoAttempt | null = null,
+    deliveryGeneration: number = deliveryGenerationRef.current,
   ) => {
     const requestedOrgId = ssoToken.payload?.organization_id ?? null;
     const targetView = supportAttempt?.audience ?? getTargetView();
@@ -204,10 +210,17 @@ export function useSsoListener() {
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
       clearPersistedTenantState();
       setLastKnownOrganizationId(null);
+      const mayResumeTenantSwitch = prepareOperationsSupportTenantSignOut(supportAttempt);
       try {
         await supabase.auth.signOut();
       } catch (e) {
         console.warn('[SSO] signOut vid tenant-byte misslyckades', e);
+      }
+      const ownsTenantSwitch = mayResumeTenantSwitch();
+      if (!ownsTenantSwitch || deliveryGeneration !== deliveryGenerationRef.current) {
+        // The newer delivery owns both auth and support state. Do not recreate
+        // this attempt or settle the newer delivery's loading lifecycle.
+        return;
       }
       // SIGNED_OUT intentionally clears all support trust. Re-establish only
       // the already parent/origin-validated attempt after the old tenant is gone.
@@ -453,6 +466,7 @@ export function useSsoListener() {
     // 1. Kolla URL-hash först
     const hash = window.location.hash;
     if (hash.includes('sso_token=')) {
+      const deliveryGeneration = ++deliveryGenerationRef.current;
       console.log('[SSO] Found sso_token in URL hash');
       const tokenB64 = hash.split('sso_token=')[1]?.split('&')[0];
       if (tokenB64) {
@@ -462,7 +476,7 @@ export function useSsoListener() {
           // Rensa hashen från URL
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           clearOperationsSupportContextSession();
-          verifySsoToken(ssoToken);
+          verifySsoToken(ssoToken, null, deliveryGeneration);
         } catch (e) {
           console.error('[SSO] Failed to parse hash token:', e);
           sendSsoResponse(false, { status: 400, code: 'INVALID_TOKEN', message: 'Failed to parse SSO token' });
@@ -493,6 +507,7 @@ export function useSsoListener() {
       
       // Handle SSO_TOKEN message
       if (data?.type === 'SSO_TOKEN') {
+        const deliveryGeneration = ++deliveryGenerationRef.current;
         console.log('[SSO] Received SSO_TOKEN via postMessage');
         
         // Försök med olika format som Hubben kan skicka
@@ -529,7 +544,7 @@ export function useSsoListener() {
             expectedOrganizationId: ssoToken.payload?.organization_id,
             audience,
           });
-          verifySsoToken(ssoToken, supportAttempt);
+          verifySsoToken(ssoToken, supportAttempt, deliveryGeneration);
         } else {
           // Only the exact iframe parent may revoke an existing support realm.
           // A sibling window on the same allowed origin must not gain a DoS path.
@@ -553,6 +568,7 @@ export function useSsoListener() {
     console.log('[SSO] Listener initialized');
     
     return () => {
+      deliveryGenerationRef.current += 1;
       window.removeEventListener('message', handleMessage);
       clearOperationsSupportContextSession();
     };

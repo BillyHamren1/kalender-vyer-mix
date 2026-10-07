@@ -57,6 +57,7 @@ type ProducerOptions = {
 let pendingAttempt: OperationsSupportSsoAttempt | null = null;
 let activeSession: ActiveHubSession | null = null;
 let loadedEntity: LoadedEntity | null = null;
+let tenantSignOut: { revoked: boolean; observedAuthSignOut: boolean } | null = null;
 
 function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_PATTERN.test(value);
@@ -280,9 +281,39 @@ export function activateOperationsSupportSsoSession(
 }
 
 export function clearOperationsSupportContextSession(): void {
+  if (tenantSignOut) tenantSignOut.revoked = true;
+  tenantSignOut = null;
+  clearSupportState();
+}
+
+function clearSupportState(): void {
   pendingAttempt = null;
   activeSession = null;
   loadedEntity = null;
+}
+
+/** Preserve only the one SIGNED_OUT caused by the current internal switch. */
+export function clearOperationsSupportContextAfterAuthSignOut(): void {
+  if (tenantSignOut && !tenantSignOut.observedAuthSignOut) {
+    tenantSignOut.observedAuthSignOut = true;
+    clearSupportState();
+  } else {
+    clearOperationsSupportContextSession();
+  }
+}
+
+/** Explicit logout/new delivery/disposal revokes the switch even during await. */
+export function prepareOperationsSupportTenantSignOut(
+  attempt: OperationsSupportSsoAttempt | null,
+): () => boolean {
+  if (attempt && pendingAttempt !== attempt) return () => false;
+  if (tenantSignOut) tenantSignOut.revoked = true;
+  const ticket = { revoked: false, observedAuthSignOut: false };
+  tenantSignOut = ticket;
+  return () => {
+    if (tenantSignOut === ticket) tenantSignOut = null;
+    return !ticket.revoked;
+  };
 }
 
 /** Register only an ordinary, already-loaded, current-tenant query result. */
