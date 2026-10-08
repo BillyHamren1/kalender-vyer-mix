@@ -582,7 +582,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             ) : (
               <Package className="h-4 w-4 mr-2" />
             )}
-            {isExcluded ? 'Markera som packningsbar' : 'Markera som ej packningsbar'}
+            {isExcluded ? 'Ta tillbaka i packningen' : 'Stryk från packningen'}
           </ContextMenuItem>
           {!isExcluded && touched && (
             <p className="px-2 py-1 text-xs text-muted-foreground">
