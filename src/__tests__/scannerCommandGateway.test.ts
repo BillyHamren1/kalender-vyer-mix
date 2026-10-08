@@ -120,3 +120,26 @@ describe("Scanner MVP command gateway", () => {
     if (parsed.ok) expect(parsed.value).toMatchObject({ quantity: 4, reason: "Fyra togs bort", scanValue: null });
   });
 });
+
+
+describe("manual order row identity", () => {
+  it.each(["PACK_QUANTITY", "UNPACK_QUANTITY"])("forwards explicit null unchanged for %s", (name) => {
+    const parsed = parseScannerMvpCommand({ ...command, command: name, itemTypeId: null,
+      scanValue: null, quantity: 2, ...(name === "UNPACK_QUANTITY" ? { reason: "Fel antal" } : {}) });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(buildBundleScannerCommand({ command: parsed.value, organizationId: ID.org,
+      staffId: ID.staff, staffName: "Lager Ett", bookingNumber: "B-1001" })).toMatchObject({
+      itemTypeId: null, itemInstanceId: null, reservationLineId: ID.line,
+      quantity: 2, performedBy: ID.staff, organizationId: ID.org,
+    });
+  });
+  it.each([undefined, "", "manual", "not-a-uuid"])("rejects missing or malformed type %s", (itemTypeId) => {
+    expect(parseScannerMvpCommand({ ...command, command: "PACK_QUANTITY", itemTypeId,
+      scanValue: null, quantity: 2 })).toEqual({ ok: false, error: "invalid_canonical_id" });
+  });
+  it.each(["PACK_INSTANCE", "UNPACK_INSTANCE"])("requires type identity for %s", (name) => {
+    expect(parseScannerMvpCommand({ ...command, command: name, itemTypeId: null }))
+      .toEqual({ ok: false, error: "invalid_canonical_id" });
+  });
+});

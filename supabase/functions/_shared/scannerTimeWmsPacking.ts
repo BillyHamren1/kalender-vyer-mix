@@ -22,6 +22,8 @@ export interface ScannerTimeWmsLine {
   package_id: string | null;
   package_component_id: string | null;
   inventory_type_id: string | null;
+  /** Canonical owner classification; null must not be inferred as manual. */
+  line_type: string | null;
   display_name: string | null;
   quantity_reserved: number | null;
   quantity_picked: number | null;
@@ -93,6 +95,7 @@ export function mapTimeWmsProjectionForScanner(body: Rec): ScannerTimeWmsPacking
       package_id: str(l.packageId) ?? str(l.package_id),
       package_component_id: componentId,
       inventory_type_id: str(l.itemTypeId) ?? str(l.inventoryTypeId) ?? str(l.inventory_type_id),
+      line_type: str(l.lineType) ?? str(l.line_type),
       display_name: str(l.sourceDisplayName) ?? str(l.label) ?? str(l.name),
       quantity_reserved: num(l.requiredQuantity) ?? num(l.quantity),
       quantity_picked: num(l.packedQuantity) ?? num(l.packed),

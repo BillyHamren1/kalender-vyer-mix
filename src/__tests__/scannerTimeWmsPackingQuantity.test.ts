@@ -26,3 +26,17 @@ describe("manual and scanned packing evidence", () => {
       stock_available_quantity: 0 });
   });
 });
+
+
+describe("manual row owner evidence", () => {
+  it.each([{ lineType: "manual" }, { line_type: "manual" }])("preserves canonical manual classification %j", (marker) => {
+    expect(mapTimeWmsProjectionForScanner(source({ ...marker, itemTypeId: null,
+      manualPackedQuantity: 3, allocatedQuantity: 0, packedQuantity: 3 })).lines[0])
+      .toMatchObject({ line_type: "manual", inventory_type_id: null, quantity_picked: 3,
+        manual_packed_quantity: 3, allocated_quantity: 0, stock_available_quantity: null });
+  });
+  it("does not turn a missing inventory link into a manual order row", () => {
+    expect(mapTimeWmsProjectionForScanner(source({ itemTypeId: null })).lines[0])
+      .toMatchObject({ line_type: null, inventory_type_id: null });
+  });
+});

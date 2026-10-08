@@ -35,7 +35,7 @@ export type ScannerMvpCommand = {
   bookingId: string;
   reservationId: string;
   reservationLineId: string;
-  itemTypeId: string;
+  itemTypeId: string | null;
   deviceId: string;
   scanValue: string | null;
   quantity: number;
@@ -96,7 +96,10 @@ export function parseScannerMvpCommand(input: unknown):
   const isUnpack = body.command === "UNPACK_INSTANCE" || body.command === "UNPACK_QUANTITY";
   const quantity = body.quantity ?? (isQuantity ? null : 1);
   const reason = body.reason === undefined ? undefined : text(body.reason, 500);
-  if (!bookingId || !reservationId || !reservationLineId || !itemTypeId) {
+  // Null is an explicit manual-row identity, never an omitted or malformed UUID.
+  // Bundle verifies that this exact reservation row really is manual.
+  if (!bookingId || !reservationId || !reservationLineId ||
+      (!itemTypeId && !(isQuantity && body.itemTypeId === null))) {
     return { ok: false, error: "invalid_canonical_id" };
   }
   if (!deviceId || (!isQuantity && !scanValue)) {

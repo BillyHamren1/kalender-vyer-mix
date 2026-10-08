@@ -19,7 +19,7 @@ const db = new PGlite()
 await db.exec(`
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
 CREATE TABLE reservations(id uuid primary key,organization_id uuid,external_id text);
-CREATE TABLE reservation_lines(id uuid primary key,organization_id uuid,reservation_id uuid,item_type_id uuid,package_id uuid,quantity integer,is_packable boolean,product_packable_default boolean,component_packability_snapshot jsonb,booking_packability_override boolean,warehouse_packability_override boolean);
+CREATE TABLE reservation_lines(id uuid primary key,organization_id uuid,reservation_id uuid,line_type text NOT NULL DEFAULT 'catalog',item_type_id uuid,package_id uuid,quantity integer,is_packable boolean,product_packable_default boolean,component_packability_snapshot jsonb,booking_packability_override boolean,warehouse_packability_override boolean);
 CREATE TABLE item_types(id uuid primary key,organization_id uuid,is_deleted boolean default false);
 CREATE TABLE package_components(id uuid primary key,organization_id uuid,package_id uuid,item_type_id uuid,quantity integer);
 CREATE TABLE item_instances(id uuid primary key,organization_id uuid,item_type_id uuid);
@@ -34,8 +34,8 @@ const org=id(1),res=id(2),line=id(3),type=id(4),otherLine=id(5),instance=id(6)
 await db.query('insert into reservations values ($1,$2,$3)',[res,org,'B-1'])
 await db.query('insert into reservation_lines(id,organization_id,reservation_id,item_type_id,package_id,quantity) values ($1,$2,$3,$4,null,5),($5,$2,$3,$4,null,5)',[line,org,res,type,otherLine])
 await db.query('insert into item_types(id,organization_id) values($1,$2)',[type,org])
-const send = async (command, quantity, n, reason) => {
- const input = scannerMvpCommandInputSchema.parse({operationId:'op-'+id(n),command,quantity,bookingId:id(50),reservationId:res,reservationLineId:line,itemTypeId:type,deviceId:'tc22',occurredAt:'2026-10-07T08:00:00.000Z',...(reason?{reason}:{})});
+const send = async (command, quantity, n, reason, row = { line, type }) => {
+ const input = scannerMvpCommandInputSchema.parse({operationId:'op-'+id(n),command,quantity,bookingId:id(50),reservationId:res,reservationLineId:row.line,itemTypeId:row.type,deviceId:'tc22',occurredAt:'2026-10-07T08:00:00.000Z',...(reason?{reason}:{})});
  const planning = parseScannerMvpCommand({...input,schema:'eventflow-scanner-command-gateway.v1',scanner_contract_version:'scanner_contract_v1'});
  assert.equal(planning.ok,true);
  const owner = parseEventFlowScannerBundleRequest(buildBundleScannerCommand({command:planning.value,organizationId:org,staffId:id(8),staffName:'Tester',bookingNumber:'B-1'}));
@@ -53,5 +53,18 @@ assert.equal((await send('PACK_QUANTITY',3,902)).outcome,'REJECTED');
 assert.equal((await send('UNPACK_QUANTITY',2,903,'Fel antal')).packedQuantity,1);
 assert.equal((await db.query('select count(*)::int n from inventory_movements')).rows[0].n,2);
 assert.equal((await db.query('select count(*)::int n from item_instances')).rows[0].n,0);
-console.log('PASS cross-repository app schema -> Planning parser -> owner parser + gateway -> real SQL transaction -> app authoritative receipt: manual pack, replay, conflict, quota rejection and undo; no instances created');
+const manualRow = { line: id(20), type: null };
+await db.query("insert into reservation_lines(id,organization_id,reservation_id,line_type,item_type_id,package_id,quantity) values ($1,$2,$3,'manual',null,null,5)",[manualRow.line,org,res]);
+assert.equal((await send('PACK_QUANTITY',3,910,undefined,manualRow)).packedQuantity,3);
+assert.equal((await send('PACK_QUANTITY',3,910,undefined,manualRow)).packedQuantity,3);
+assert.equal((await send('PACK_QUANTITY',4,910,undefined,manualRow)).outcome,'REJECTED');
+assert.equal((await send('PACK_QUANTITY',3,911,undefined,manualRow)).outcome,'REJECTED');
+assert.equal((await send('UNPACK_QUANTITY',2,912,'Fel antal',manualRow)).packedQuantity,1);
+assert.equal((await send('UNPACK_QUANTITY',2,913,'Fel antal',manualRow)).outcome,'REJECTED');
+// A broken catalog link is never promoted to a manual row by null alone.
+assert.equal((await send('PACK_QUANTITY',1,914,undefined,{line:otherLine,type:null})).outcome,'REJECTED');
+assert.equal((await db.query('select count(*)::int n from inventory_movements where item_type_id is null')).rows[0].n,2);
+assert.equal((await db.query('select count(*)::int n from inventory_movements')).rows[0].n,4);
+assert.equal((await db.query('select count(*)::int n from item_instances')).rows[0].n,0);
+console.log('PASS cross-repository app schema -> Planning parser -> owner parser + gateway -> real SQL transaction -> app authoritative receipt: catalog and manual null-type pack, replay, conflict, quota rejection, undo and invalid null identity; no instances created');
 await db.close();

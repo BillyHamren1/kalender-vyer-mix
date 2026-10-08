@@ -109,3 +109,19 @@ WMS-testfix är förberedd mot 2067f6a9f1a404af863ff10fe229b1d8ae1ab952 i
 ../owner/fix-ci-hasown.patch. Nästa steg efter uttryckligt godkännande: publicera
 dessa rättningar till samma PR #52 respektive #51, verifiera remote-SHA och följ
 server-CI. Ingen main-merge eller produktionsdeploy ingår i denna push.
+
+## Tillägg 2026-10-08: manuella orderrader utan lagerartikel
+
+- Gateway accepterar explicit `itemTypeId: null` enbart för antalskommandon.
+  Saknat, tomt eller ogiltigt artikel-ID avvisas. Individkommandon kräver UUID.
+  Bundle verifierar kanonisk `line_type = manual`, utan artikel- eller paketkoppling.
+- Aktiv Scanner-projektion vidarebefordrar ägarens `lineType`/`line_type` som
+  `line_type`. Null artikelkoppling gissas aldrig vara en manuell orderrad.
+- Lokal verifiering: 39 riktade tester, totalt 146 kontrakttester, kontraktlint,
+  strikt TypeScript och produktionsbygge PASS. Produktionsaudit har 0 kritiska
+  fynd vid omkörning; ingen ändring av auditgrind eller beroenden behövdes.
+- Integrationsskriptet omfattar nu både lagerartikel och manuell null-artikel:
+  packning, retry, idempotenskonflikt, kvot, ångra och felaktig null-identitet.
+- Samordnad driftsättning: Bundle-migration och ägarfunktioner först, därefter
+  Planning `scanner-command-api` och `scanner-api`, därefter Scanner-klient.
+  Befintliga autentiserings- och signerade transporthemligheter bevaras.
