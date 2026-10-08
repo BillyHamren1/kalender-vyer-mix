@@ -773,7 +773,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                       </div>
                     )}
                     <div className="divide-y divide-border/30 max-h-[60vh] overflow-y-auto">
-                      {buildPackingHierarchy<PackingItem>(groupProductItems).map((entry) => entry.kind === 'standalone' ? (
+                      {buildPackingHierarchy<PackingItem>(
+                        groupProductItems.filter((i) => i.is_packable !== false),
+                      ).map((entry) => entry.kind === 'standalone' ? (
                         renderItem(entry.item)
                       ) : (
                         <div key={entry.group.key} className="divide-y divide-border/30">
@@ -798,6 +800,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                           )}
                         </div>
                       ))}
+                      {groupProductItems.some((i) => i.is_packable === false) && (
+                        <div data-testid="non-packable-section" className="divide-y divide-border/30">
+                          <div className="px-4 py-1.5 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase">
+                            Ska inte packas
+                          </div>
+                          {groupProductItems.filter((i) => i.is_packable === false).map(renderItem)}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
