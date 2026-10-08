@@ -1,0 +1,333 @@
+{
+  "schema": "operations-whole-scope-product-publication-native-closure.v1",
+  "database": "eventflow_scope_product_publication_runtime",
+  "commit": "d8265818c9a8012539657460a377993dacdce8e6",
+  "ordered_schema_paths": [
+    "scripts/project-economy/operations-postgres-bootstrap.sql",
+    "scripts/project-economy/operations-project-review-bootstrap.sql",
+    "scripts/project-economy/operations-catering-bootstrap.sql",
+    "scripts/project-economy/operations-scope-bootstrap.sql",
+    "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+    "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+    "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+    "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql",
+    "supabase/migrations/20261001235558_operations_catering_project_evidence.sql",
+    "supabase/migrations/20261002001842_operations_project_cost_read.sql",
+    "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql",
+    "supabase/migrations/20261002023731_operations_project_obligation_authority.sql",
+    "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql",
+    "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql",
+    "supabase/migrations/20261002025617_operations_obligation_source_policy.sql",
+    "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql",
+    "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql",
+    "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql",
+    "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql",
+    "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql",
+    "supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql",
+    "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql",
+    "scripts/project-economy/operations-transport-seed.sql"
+  ],
+  "files": {
+    "scripts/project-economy/operations-catering-bootstrap.sql": {
+      "sha256": "0fe6be94d0f1423dbeedf2b41c1e73c615720253c22688f6a032e959ddd3484c",
+      "git_blob": "6b1f483c6c07304bc16dfb2eae70939cf8030247",
+      "size": 326
+    },
+    "scripts/project-economy/operations-hired-personnel-native.py": {
+      "sha256": "cf09748e2796085ffde8577efda560df1aaa70e02bafce239982cde09ffbcd76",
+      "git_blob": "ba51f90d7d02d43f7a9212d74ddf9876edd15a82",
+      "size": 15469
+    },
+    "scripts/project-economy/operations-invoice-kernel-vector-test.ts": {
+      "sha256": "5426b8d1c4d07e702804ef02ee576a8fcf8d0c01161b194810b0d35ba251296e",
+      "git_blob": "dff6cbf3c64e1aac51990dae3eb3e26d566afc2b",
+      "size": 3159
+    },
+    "scripts/project-economy/operations-invoice-obligation-kernel-postgres-test.sql": {
+      "sha256": "fbea953e8b50f940d6f83a5ecc7c25f293b14891899028320a1f1b84358c2e92",
+      "git_blob": "e128f72d7d6f181c81565c55aabf156f3fcfbd8d",
+      "size": 10563
+    },
+    "scripts/project-economy/operations-obligation-fixture.ts": {
+      "sha256": "4d2128899addeb0ec5405b05780dc7019e5b9f276f26e8e93c4b2794d3a1c984",
+      "git_blob": "2e85e06508b0c56cde2e9db7d69aae0d092f5af0",
+      "size": 2158
+    },
+    "scripts/project-economy/operations-postgres-bootstrap.sql": {
+      "sha256": "198da5f625ee7e34658d9269e8a4b303f887c40a617dd133b74d606192c4de22",
+      "git_blob": "a157c6814d27fec678da954285e8fb8ffa0c7c23",
+      "size": 180
+    },
+    "scripts/project-economy/operations-project-review-bootstrap.sql": {
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6",
+      "git_blob": "b28da1ae48ef768868701d77a1de576bd55a3f3f",
+      "size": 2527
+    },
+    "scripts/project-economy/operations-scope-bootstrap.sql": {
+      "sha256": "eb08814ac11a7911916915552ac7ab7c9ee73ab852f32344d541f07021247506",
+      "git_blob": "180268ac39378f43cdfdf21fb5d7657c3798af1d",
+      "size": 1931
+    },
+    "scripts/project-economy/operations-scope-invoice-kernel-postgres-test.sql": {
+      "sha256": "a0155d4e9a494e062d30efc2f4925bb6b406e29e9bc9ec15cd72d68f72f55655",
+      "git_blob": "014d5a2df1d7817764081a46733742df12dd9a2d",
+      "size": 18377
+    },
+    "scripts/project-economy/operations-scope-invoice-kernel-vector-test.ts": {
+      "sha256": "17f5ba0f54fabf2bdc8c0ddb03d75f1f6118807ad03d88cb7683c00c46a8496d",
+      "git_blob": "ed17a28b83dcc41e60f8f9f791e60c5bbcad748b",
+      "size": 4870
+    },
+    "scripts/project-economy/operations-transport-seed.sql": {
+      "sha256": "bf1e69eaaa0570eb6630fa8d2958cb664bdd76d433e9d332144e18d853fba27b",
+      "git_blob": "e41e996be0f176d5d8993215727aadf710b45e5d",
+      "size": 1906
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-postgres-test.sql": {
+      "sha256": "17017536948b612a9ac1343342bda887059e117caec48c00acee79b510e3aa8e",
+      "git_blob": "4e34a6640cd202db61b0beae26ab700cbd28211b",
+      "size": 14625
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-vector-test.ts": {
+      "sha256": "e4b4e91337c985d0fcdbc25bdb6598682a88c0369897acebe8a445b918c03ee4",
+      "git_blob": "de4ed9fd3a75a499892e5115674acf31b5b0ca57",
+      "size": 5055
+    },
+    "scripts/project-economy/operations-whole-scope-projection-native.py": {
+      "sha256": "3001042c4aaa06e2a0c7558818a84920d261a34d55d28101a4b5a84fefa24fdd",
+      "git_blob": "6e3d5da6641d01fde1bb256d685149879936a9de",
+      "size": 15992
+    },
+    "scripts/project-economy/project-evidence-http-runtime/schema-closure.json": {
+      "sha256": "62761562c12ab01e1883bd9b96011182c5ba8d59ebc47cd9e1fa9bb9dc1069d9",
+      "git_blob": "291af0c08a32eeddb898dfd3a872f80346068a7a",
+      "size": 1931
+    },
+    "scripts/project-economy/whole-scope-projection-parity-pglite.mjs": {
+      "sha256": "a0ec7e95e31a5074d7ecc2c3c3f002e8e41caca922c7ebdbaaebb7b24438ab1b",
+      "git_blob": "3e4382abc314285db37d10e9876fed086b4dbc5f",
+      "size": 4824
+    },
+    "scripts/project-economy/whole-scope-projection-parity-vectors.ts": {
+      "sha256": "a18e6532e34a7f4574c381fa4075f9438c64192297ea4318522da53196fb665e",
+      "git_blob": "f1b2b5634a0bdd0e5bf5341729dd2be2cf12fa83",
+      "size": 20720
+    },
+    "scripts/project-economy/whole-scope-projection-sql-prototype.sql": {
+      "sha256": "5f3c95ad51c6c65f1dbd7bfcadbbbae1672ed3becdfd64dc917ce7b4c7370780",
+      "git_blob": "a22c0231e0dc5636cfa20e8c1c20c9ea0cf92dcc",
+      "size": 12463
+    },
+    "supabase/functions/_shared/finance-project-invoice-destination.ts": {
+      "sha256": "dce12d3bcc12ea40116ef2722ea652cb1e0e08ce18ac002960fe8fce6c5411ac",
+      "git_blob": "82846cae6960f9586a7fdfe9829adeee02198de1",
+      "size": 8481
+    },
+    "supabase/functions/_shared/finance-project-invoice.ts": {
+      "sha256": "aa1507ef4430792842ac1478312dd35839ff0ade1d0db1b6acc6f379c1c84860",
+      "git_blob": "7ffa7717dcc5403e2a76fd8d600fb748155a48d6",
+      "size": 8268
+    },
+    "supabase/functions/_shared/local-invoice-obligation-kernel-evidence.ts": {
+      "sha256": "32cca05ac11fa99c74ca54e699770ba2495c0956beca730f4a576452ef882081",
+      "git_blob": "0f958ce7b0e890b443e4e3f10a48cd9b0e8248ea",
+      "size": 9071
+    },
+    "supabase/functions/_shared/project-cost-obligation-authority.ts": {
+      "sha256": "1794f6cf68622719fe2fff364e94e245992072eb255ee46e727751481b93ca0c",
+      "git_blob": "462d5ed38adf96024b500d1a3677781bcc8afae8",
+      "size": 4726
+    },
+    "supabase/functions/_shared/project-cost-obligations.ts": {
+      "sha256": "dd9c1487d20cb9bace7f20d049cd7022ee933b322f03f8dd17cf8b166bb2979e",
+      "git_blob": "684e753a2fd36467ea03a35ed662d07ff9b9d572",
+      "size": 8533
+    },
+    "supabase/functions/_shared/project-operational-eac.ts": {
+      "sha256": "0415afbe992b4d21665d927f42d650640a851869295872ad9eea773813db891a",
+      "git_blob": "99c573b5ba5c7f44e775401212301ec7ba58c349",
+      "size": 9946
+    },
+    "supabase/functions/_shared/project-scope-invoice-kernel-evidence.ts": {
+      "sha256": "760aef63bea5e3965f2b26ac9daf6b972fd5a53f2162e5a5d59e97d1ce1ee737",
+      "git_blob": "79a00fca740f47fcb9a9bfbe0c0c1720081bf1bb",
+      "size": 16394
+    },
+    "supabase/functions/_shared/whole-scope-product-source-proof.ts": {
+      "sha256": "58767a0e921fc29bd543a273a40c1921ad946f3388d6f2d1305de836094ff2dc",
+      "git_blob": "3f8aef4ce65d0895765a706c44f9d0cf6ac88be0",
+      "size": 9044
+    },
+    "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql": {
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235",
+      "git_blob": "a94d6f6e78639307aa55525c7babac36c90c4e50",
+      "size": 18483
+    },
+    "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql": {
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b",
+      "git_blob": "27d46a55880f19986e0cfaab090a64acf755e2cc",
+      "size": 22665
+    },
+    "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql": {
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362",
+      "git_blob": "1828ff4b8390c0932f24e9b08de3c78a75021282",
+      "size": 22067
+    },
+    "supabase/migrations/20261001233744_operations_finance_project_invoice_destination.sql": {
+      "sha256": "1f7baf53415f44b791391e25e2888d5e156add42d609748dc63ced08928f60a2",
+      "git_blob": "99aa2759bef4298dd11b6a00a7d3ac43196f455b",
+      "size": 18119
+    },
+    "supabase/migrations/20261001235558_operations_catering_project_evidence.sql": {
+      "sha256": "d3c86dca1531f20396bf167fd99c854f8f710aea147a9f42f52eb1c81c134c13",
+      "git_blob": "f433fc032f8c29b2b180ccfa9819a074469090a6",
+      "size": 29225
+    },
+    "supabase/migrations/20261002001842_operations_project_cost_read.sql": {
+      "sha256": "c3fe1c689930de33c96276b5bd3b32dd580ca70aca1f0d6d9277c66cb89c2e20",
+      "git_blob": "888d34e3c9ad5ef74c1839dd844ba050f0c297b7",
+      "size": 4549
+    },
+    "supabase/migrations/20261002014937_operations_project_scope_enrollment.sql": {
+      "sha256": "5274e1ee675487797fb5fc12fb8d9afd6cd1c2cf1f3b3e9c8a70d3b0ddf0da60",
+      "git_blob": "1cfca93e1ab9309db0d4ab5d4f8b5cfffacaa4d5",
+      "size": 28308
+    },
+    "supabase/migrations/20261002023731_operations_project_obligation_authority.sql": {
+      "sha256": "6c2f6a22f89932eba0eea8c6ce1b2e51edf92ccba97d31d205cb0586dff5af73",
+      "git_blob": "17cc4ec8573127afbe940180e062bfd76b630308",
+      "size": 28198
+    },
+    "supabase/migrations/20261002023809_operations_project_cost_native_read_v2.sql": {
+      "sha256": "bc243755ceb0dd6f1eb7f94cd8d90a0579ac6bde964da64bc47a9d2c51d9a81d",
+      "git_blob": "fa9808f0166af78642b678a52d3aebcd1cde9867",
+      "size": 2848
+    },
+    "supabase/migrations/20261002024700_operations_finance_credit_v2_receiver.sql": {
+      "sha256": "871b824efffa449eeb6a524e38bb52b6b1da6691715315384f23229a69c78b1a",
+      "git_blob": "0c15c93bb948f3a7fa5e7c5a06dbfbafe82bc238",
+      "size": 27211
+    },
+    "supabase/migrations/20261002025617_operations_obligation_source_policy.sql": {
+      "sha256": "95107e956ef879d15889f8427502152df6c17b4e98849506229b53da143792c9",
+      "git_blob": "26337f48f519440c005d5f588957c2489a089689",
+      "size": 16002
+    },
+    "supabase/migrations/20261002030747_operations_scope_obligation_composition.sql": {
+      "sha256": "1cb2ff0120d48e8bdce9372169a730f76c741a97767252655ef05a8ae9cb2754",
+      "git_blob": "c5efa647024e64beedfd47b93e43bd9bb6d37c23",
+      "size": 23336
+    },
+    "supabase/migrations/20261002032702_operations_invoice_economic_source_barriers.sql": {
+      "sha256": "2e718d519426098fa1dd641d0a0e91aad0bf9df08d4fd5f5af812f1110e30527",
+      "git_blob": "5c0ab2b6214578669a4949921d62a2e0aae232cb",
+      "size": 5873
+    },
+    "supabase/migrations/20261002035730_operations_catering_project_read_v3.sql": {
+      "sha256": "e6b6f3e7379d3d161cf31d65a3ba1e68baf9f9fad89c6933cf6054a92fcb1c2a",
+      "git_blob": "5d6b336dbb6a3fbace30f5cee6f360b051f08faf",
+      "size": 5462
+    },
+    "supabase/migrations/20261002042934_operations_scope_obligation_evidence_read_v1.sql": {
+      "sha256": "5e3e9b92a7282554a3070bc2940e5c533da9807cf2d4e79b931678a4b1527e0e",
+      "git_blob": "36cf0bbe31ccb3d577cbf9b03b2bbc62cff1de1c",
+      "size": 8533
+    },
+    "supabase/migrations/20261002044751_operations_invoice_obligation_kernel_read.sql": {
+      "sha256": "93126c37db47794ca5f4780070f56e7216d73544422f33e7221d1e29fb6747f0",
+      "git_blob": "034edc28b7ef41ea97bd04f4793e0baf1dbd33b3",
+      "size": 10609
+    },
+    "supabase/migrations/20261002052436_operations_scope_invoice_kernel_capture.sql": {
+      "sha256": "be970c2bf1124ab6a63f09241f2097659f31ce923a7636b4a084df2f1305fc6c",
+      "git_blob": "c98572215a3e3fb2a8f89f54b02ead48701ffee8",
+      "size": 17275
+    },
+    "supabase/migrations/20261002054010_operations_scope_obligation_drilldown_read_v1.sql": {
+      "sha256": "4e67b0c5f534992c9c45798731067d2dc94e67811aca63d4728f29df978a0651",
+      "git_blob": "7ba0deebac4248832ea22e9e21acf11c6870a089",
+      "size": 11856
+    },
+    "supabase/migrations/20261002061253_operations_scope_invoice_capture_admin_read.sql": {
+      "sha256": "6835726268be0809e2eef57075d6c794712ecbb44ced1e22399da0aa1cb4bca3",
+      "git_blob": "fd122ec68e2742f4851f86e13f8855c4b959de65",
+      "size": 6072
+    },
+    "supabase/migrations/20261002130228_operations_scope_invoice_compatible_read_entry.sql": {
+      "sha256": "2bd6d7ba1dcd0edc052bb45c4abb4f5458be7d624472b115b8ba20e15e1921b8",
+      "git_blob": "31c1235cb8e4b28554f0844e63bafb4199086e41",
+      "size": 23867
+    },
+    "supabase/migrations/20261002143348_operations_whole_scope_product_publication_v1.sql": {
+      "sha256": "eec048f01ebaf77cd6f2d85289817336728630ecdf4cb48173f06c352050b253",
+      "git_blob": "585abf9b71f26bad2d37c3a7d940e32e6bd54006",
+      "size": 37861
+    },
+    "scripts/project-economy/whole-scope-publication-transaction-native-setup.sql": {
+      "sha256": "bb3a72e99676841e3df997948eac3bf348b20291d0d85ea79b420d1624393fc3",
+      "git_blob": "9eef2ae177ad226e96f86bfda53955ba5bc7d0ca",
+      "size": 21851
+    },
+    "scripts/project-economy/whole-scope-reader-permission-native-setup.sql": {
+      "sha256": "f6405a33ee15115108980c7063ba7d59090fc7bc325e4c7fd7718dc5808f8b37",
+      "git_blob": "58133640f070a5536aa94f59e1e660cadfb756a5",
+      "size": 12117
+    },
+    "supabase/migrations/20260925103906_4b61bf34-4afa-4e77-9eed-933e2872da1f.sql": {
+      "sha256": "a8d11f09d2597c29c3ea93df4d7c55c01658aa0fec8714a99e19372258d84a28",
+      "git_blob": "9e9a582456312df13454bb27ddcbbd1b5cfbc668",
+      "size": 2482
+    }
+  },
+  "owned_paths": {
+    "scripts/project-economy/operations-whole-scope-product-publication-native-bootstrap.sql": {
+      "sha256": "ceea8e55456b7f72aaf2a495e2d6b5df96a2b514dfe96f3f7c42203f604b5ef2",
+      "git_blob": null,
+      "size": 4773
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-native-cases-setup.sql": {
+      "sha256": "51a443d2bd8fe01ee7a6fbbe267bc12f8c2216af7fb7f07f66a5866f914e2b9d",
+      "git_blob": null,
+      "size": 3425
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-native-cases.py": {
+      "sha256": "d854f1af2f88249b93699373bd9f9f5ef8d805bd19f44fa30eec50215e19b6f0",
+      "git_blob": null,
+      "size": 15101
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-native-setup.sql": {
+      "sha256": "d12eee632b5df07052695565a1e4f0ecbfef3fcec8c3a0e54b256189ef77c77e",
+      "git_blob": null,
+      "size": 23603
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-native.py": {
+      "sha256": "205475706556958ea038aacbeb2fd94ab93115b8e93f144e0ae3bc57feae444f",
+      "git_blob": null,
+      "size": 28999
+    },
+    "scripts/project-economy/operations-whole-scope-product-publication-native.guard-test.py": {
+      "sha256": "2eefda61b88d51c2e07a7a40695c714f87f81712a37aa1e883177d15c88cc7fe",
+      "git_blob": null,
+      "size": 16020
+    }
+  },
+  "provenance": {
+    "known_setup": {
+      "commit": "3737655f6e26230527e0ad8a37255fa643760738",
+      "path": "scripts/project-economy/whole-scope-publication-transaction-native-setup.sql",
+      "git_blob": "9eef2ae177ad226e96f86bfda53955ba5bc7d0ca"
+    },
+    "unknown_setup": {
+      "commit": "3737655f6e26230527e0ad8a37255fa643760738",
+      "path": "scripts/project-economy/whole-scope-reader-permission-native-setup.sql",
+      "git_blob": "58133640f070a5536aa94f59e1e660cadfb756a5"
+    },
+    "legacy_link_function": {
+      "commit": "3737655f6e26230527e0ad8a37255fa643760738",
+      "path": "supabase/migrations/20260925103906_4b61bf34-4afa-4e77-9eed-933e2872da1f.sql",
+      "git_blob": "9e9a582456312df13454bb27ddcbbd1b5cfbc668"
+    },
+    "augmentation": "test_only_user_role_fk_unique_and_large_link_sort_order_id_default",
+    "scope": "scoped_schema_not_hosted_ddl_or_rls"
+  }
+}

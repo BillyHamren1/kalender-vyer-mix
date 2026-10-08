@@ -1,0 +1,36 @@
+name: Operations project economy new source contracts
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/operations-project-economy-source-contracts.yml'
+      - 'supabase/functions/_shared/catering-held-permit-inspection-command*'
+      - 'scripts/project-economy/catering-held-permit-inspection-*'
+      - 'scripts/project-economy/whole-scope-product-grant-*'
+      - 'supabase/functions/_shared/operations-whole-scope-product-grant-*'
+      - 'supabase/migrations/20261002180016_operations_catering_held_permit_inspection_v1.sql'
+      - 'supabase/migrations/20261002180958_operations_whole_scope_export_grant_v1.sql'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  typed-source-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact commit and canonical engine
+        run: |
+          git rev-parse HEAD
+          deno --version
+      - name: New actual source adapters and fixed command ABI
+        run: |
+          deno check --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/catering-held-permit-inspection-command.ts scripts/project-economy/catering-held-permit-inspection-source.deno-test.ts scripts/project-economy/whole-scope-product-grant-event-sql-parity.ts scripts/project-economy/whole-scope-product-grant-caller-controls.ts
+          deno test --allow-read=supabase/migrations --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/catering-held-permit-inspection-command.deno-test.ts scripts/project-economy/catering-held-permit-inspection-source.deno-test.ts
+          git diff --exit-code

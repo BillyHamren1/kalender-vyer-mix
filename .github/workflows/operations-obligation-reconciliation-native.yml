@@ -1,0 +1,52 @@
+name: Operations obligation reconciliation native
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/operations-obligation-reconciliation-native.yml'
+      - 'docs/project-economy/operations-obligation-reconciliation-v1-contract.md'
+      - 'scripts/project-economy/operations-obligation-reconciliation-native-closure.json'
+      - 'scripts/project-economy/operations-obligation-reconciliation-native-setup.sql'
+      - 'scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py'
+      - 'scripts/project-economy/operations-obligation-reconciliation-native.py'
+      - 'scripts/project-economy/operations-obligation-reconciliation-postgres-test.sql'
+      - 'supabase/migrations/20261003210000_operations_obligation_reconciliation_v1.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PG_IMAGE: docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact additive source route
+        env:
+          OPS_RECONCILIATION_PROVENANCE_MODE: published
+          OPS_RECONCILIATION_EXPECTED_PARENT: d3a74beda4c6ed615f3ee3f8ecf0a274f0563355
+          OPS_RECONCILIATION_EXPECTED_PARENT_TREE: 8a0d4446490e32be6065636a8995fddc152f3ac7
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "$OPS_RECONCILIATION_EXPECTED_PARENT"
+          test "$(git rev-parse "$OPS_RECONCILIATION_EXPECTED_PARENT^{tree}")" = "$OPS_RECONCILIATION_EXPECTED_PARENT_TREE"
+          test "$(git rev-list --count "$OPS_RECONCILIATION_EXPECTED_PARENT"..HEAD)" = 1
+          git diff --name-only "$OPS_RECONCILIATION_EXPECTED_PARENT" HEAD | LC_ALL=C sort >"$RUNNER_TEMP/actual-paths"
+          cat >"$RUNNER_TEMP/expected-paths" <<'EOF'
+          .github/workflows/operations-obligation-reconciliation-native.yml
+          scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py
+          supabase/migrations/20261003210000_operations_obligation_reconciliation_v1.sql
+          EOF
+          cmp "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/actual-paths"
+          python3 -I -B scripts/project-economy/operations-obligation-reconciliation-native.guard-test.py
+      - name: Synthetic PostgreSQL 15.19 authority and concurrency matrix
+        run: |
+          set -Eeuo pipefail
+          test "$PG_IMAGE" = 'docker.io/library/postgres@sha256:e27d24a29acce1b554771ba68c43afa55446069d228310451bb8c96c1531d2cb'
+          python3 -I -B scripts/project-economy/operations-obligation-reconciliation-native.py

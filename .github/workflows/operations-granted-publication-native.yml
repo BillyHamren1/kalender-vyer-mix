@@ -1,0 +1,74 @@
+name: Operations grant-bound physical publication native proof
+on:
+  pull_request:
+    paths:
+      - 'scripts/project-economy/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/_shared/**'
+      - 'docs/project-economy/whole-scope-grant-publication-successor-native-proof-v2.md'
+      - '.github/workflows/operations-granted-publication-native.yml'
+permissions:
+  contents: read
+jobs:
+  actual-grant-bound-publication-history-and-causal-queues:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15.19
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+          POSTGRES_DB: eventflow_scope_product_publication_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d eventflow_scope_product_publication_runtime"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      CI: 'true'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: eventflow_scope_product_publication_runtime
+      PGUSER: postgres
+      PGPASSWORD: synthetic-test-only
+      EVENTFLOW_WHOLE_SCOPE_GRANTED_PUBLICATION_ISOLATED_DB: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.8.1'
+      - name: Exact finite source before guards or isolated database mutation
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          python3 -I -B - <<'PY_GRANTED_SOURCE'
+          import hashlib,pathlib
+          locked={"docs/project-economy/whole-scope-grant-publication-successor-native-proof-v2.md":{"sha256":"2222793d76d26471b0dad41b9e4c1380ef68ee905c9f6b3fc9d85761223b97bf","bytes":8129},"scripts/project-economy/whole-scope-grant-publication-successor-native-cases.py":{"sha256":"9355950e6c6b291de0b2110a43e9d62053be355ee67d12c3f589e350b0b009f3","bytes":18036},"scripts/project-economy/whole-scope-grant-publication-successor-native-closure.json":{"sha256":"bf3f2c7d10b1dc8951c2aed489f0302ffc2acbe1e12bb3a2f6f5fa4be1176c94","bytes":19292},"scripts/project-economy/whole-scope-grant-publication-successor-native-guard-test.py":{"sha256":"d0eb83eefbab1904a8a3fd9b24a72529f493acdb0bd765142a906d347b39959e","bytes":23109},"scripts/project-economy/whole-scope-grant-publication-successor-native-owned-processes.py":{"sha256":"0c4b2cc9474c805986e4e22193a41641f6af4a76034e4f41c0a973d595841aac","bytes":7874},"scripts/project-economy/whole-scope-grant-publication-successor-native-runner.py":{"sha256":"63ad56a14c5c622611715123ba1ab952582ccdcc342571f5a00bb791801e334f","bytes":25018},"scripts/project-economy/whole-scope-grant-publication-successor-native-setup.sql":{"sha256":"bbfa3215aab11de16a41d17bad9d426675dc4dbfd1c7c808bd168fcb96bb88f0","bytes":2706}}
+          for name,row in locked.items():
+            path=pathlib.Path(name)
+            if path.is_symlink() or not path.is_file():raise SystemExit("GRANTED_PUBLICATION_NATIVE_SOURCE_DENIED")
+            raw=path.read_bytes()
+            if len(raw)!=row["bytes"] or hashlib.sha256(raw).hexdigest()!=row["sha256"]:raise SystemExit("GRANTED_PUBLICATION_NATIVE_SOURCE_DENIED")
+          PY_GRANTED_SOURCE
+          python3 -I -B scripts/project-economy/whole-scope-grant-publication-successor-native-guard-test.py
+          deno check --no-config --no-lock --no-remote --no-npm scripts/project-economy/whole-scope-grant-publication-successor-caller-controls.ts scripts/project-economy/whole-scope-grant-publication-successor-sql-parity.ts
+          deno test --no-config --no-lock --no-remote --no-npm supabase/functions/_shared/whole-scope-grant-publication-successor-command-v2.deno-test.ts
+          deno test --no-config --no-lock --no-remote --no-npm --allow-read --allow-write --allow-sys=uid --allow-run=/usr/bin/mkfifo scripts/project-economy/whole-scope-grant-publication-successor-sql-parity.guard-test.ts
+      - name: Actual same physical history, grant rights, exact receipts and causal concurrency
+        run: |
+          set -euo pipefail
+          umask 077
+          git rev-parse HEAD
+          python3 --version
+          deno --version
+          PGCONNECT_TIMEOUT=5 PGOPTIONS='-c statement_timeout=5000' psql -X --no-password -At -c 'select version()'
+          env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy python3 -I -B scripts/project-economy/whole-scope-grant-publication-successor-native-runner.py
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=normal)"

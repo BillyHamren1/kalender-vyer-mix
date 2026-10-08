@@ -1,0 +1,71 @@
+{
+  "schema": "compatible-full-app-native-chain-plan.v2",
+  "status": "source-locked-admission-blocked",
+  "canonical": {
+    "ancestor": "5758a3f73be43d0d171a3e0b8dce0ff67f787f60",
+    "predecessor_head": "e58d32c7e7ac6b450b28cbee5ce0b22490442e0e",
+    "current_head": "e6dc82249e64ab1d037ab592ce29a2358ec526a1",
+    "exact_app_commit": "809f64e0fd98322c53d9c4e9697df5b515303812",
+    "exact_app_tree": "3d96301591652f9d86ccbbdf8ff26efcb7180ce9",
+    "exact_app_manifest_sha256": "4c6005bb374fa13f89aafc52ce4a013feaa1673454dce76bd09aee77c95e6434"
+  },
+  "runner": {
+    "label": "ubuntu-24.04",
+    "checkout_action": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+    "persist_credentials": false
+  },
+  "sources": {
+    "long_process": "96e827a5e726656c459fdae5db74120282de63e1b7a89c31c0861a924e08a53c",
+    "node_input_policy": "978007cda2664e5fccd1974b377b0cf35f35c33a0a2e3253f5685d2f92c1d8bd",
+    "sdk_placement_descriptor": "92fa31abe6cb52454a203b841b2a4bc90cdce5b541dac87c1a668fa83b36396d",
+    "owned_process": "b9011bfd85b7af59057892bef9b628514367e84cd12a2c5b8d168a2b77721c7a",
+    "static_server": "73ac24417f4de80c1020afb7a4ad1a12c3d0c610ca797b1dc32bca001d71b578",
+    "browser_network": "3b88a4acea11f9305f0049e04b37e6fb6359616311060698decdf9a80af23511",
+    "browser_receipt_network": "33b77650d3d04dcd98b7e1285e8571b40cebcf81ce251c9c0b1ab77661d2b80e"
+  },
+  "node_distribution": {
+    "descriptor_sha256": "978007cda2664e5fccd1974b377b0cf35f35c33a0a2e3253f5685d2f92c1d8bd",
+    "version": "v24.21.0",
+    "npm_version": "11.19.0",
+    "archive": "node-v24.21.0-linux-x64.tar.xz",
+    "archive_sha256": "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6",
+    "long_process_compatible": false
+  },
+  "playwright_distribution": {
+    "version": "1.55.0",
+    "test_integrity": "sha512-04IXzPwHrW69XusN/SIdDdKZBzMfOT9UNT/YiJit/xpy2VuAoB8NHc8Aplb96zsWDddLnbkPL3TsmrS04ZU2xQ==",
+    "playwright_integrity": "sha512-sdCWStblvV1YU909Xqx0DhOjPZE4/5lJsIS84IfN9dAZfcl/CIZ5O8l3o0j7hPMjDvqoTF8ZUcc+i/GL5erstA==",
+    "core_integrity": "sha512-GvZs4vU3U5ro2nZpeiwyb0zuFaqb9sUiAJuyrWpcGouD8y9/HLgGbNRjIph7zU9D3hnPaisMl9zG9CgFi/biIg==",
+    "chromium_revision": "1187",
+    "chromium_version": "140.0.7339.16",
+    "browser_archive_sha256": null
+  },
+  "sdk_placement": {
+    "descriptor_sha256": "92fa31abe6cb52454a203b841b2a4bc90cdce5b541dac87c1a668fa83b36396d",
+    "admitted": false
+  },
+  "sequence": [
+    "source-acquisition",
+    "materialization",
+    "sdk-placement",
+    "node-version",
+    "npm-version",
+    "npm-ci",
+    "sdk-unit",
+    "app-build",
+    "static-server",
+    "native-browser",
+    "owned-cleanup"
+  ],
+  "admission": {
+    "allowed": false,
+    "blockers": [
+      "node24_long_process_successor_not_reviewed",
+      "sdk_shape_requires_node22_but_distribution_is_node24",
+      "sdk_fd_placement_implementation_not_reviewed",
+      "playwright_chromium_archive_sha256_not_sourced",
+      "static_server_and_browser_owned_process_controller_not_reviewed",
+      "native_actor_adapter_and_cleanup_chain_not_run"
+    ]
+  }
+}

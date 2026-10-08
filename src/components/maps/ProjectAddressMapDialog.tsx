@@ -46,7 +46,7 @@ export default function ProjectAddressMapDialog({
   initial,
   onSave,
 }: ProjectAddressMapDialogProps) {
-  const { token } = useMapboxToken();
+  const { token } = useMapboxToken(open);
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [radius, setRadius] = useState(DEFAULT_RADIUS);

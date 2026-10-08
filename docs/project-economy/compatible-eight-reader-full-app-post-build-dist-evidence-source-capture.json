@@ -1,0 +1,83 @@
+{
+  "schema": "compatible-full-app-post-build-dist-evidence-source-capture.v1",
+  "repository": "BillyHamren1/kalender-vyer-mix",
+  "base_commit": "8e83f41965fd6153b665a12d95791e592c00b16a",
+  "base_tree": "15dfbe62f89ecedf3638e22af7e6a3f54c0dba4d",
+  "base_parent": "b0645ad52ced6ee44ccf5a96a308c1e63b585d2d",
+  "source_interface_dependency": {
+    "status": "independent_source_route_ack_published_no_genuine_receipt",
+    "schema": "compatible-full-app-writable-build-root-evidence.v1",
+    "producer_path": "scripts/project-economy/compatible-eight-reader-full-app-writable-build-root.py",
+    "producer_sha256": "dd063d2fd138dea08bae107a73bb81704fc9f129b3ea7f63e210bb9df0062c8d",
+    "producer_git_blob_sha1": "04845860fb40b586cf6657f4076d5534f219fdc0"
+  },
+  "files": [
+    {
+      "destination": "scripts/project-economy/compatible-eight-reader-full-app-post-build-dist-evidence.py",
+      "local": "compatible-eight-reader-full-app-post-build-dist-evidence.py",
+      "sha256": "354493ed3c8ca56fbee762208e682e87e2a0639b5d0889190caeea2900f4026b",
+      "git_blob_sha1": "60faa35ac62dc0dc9b6b8f8f17d201da9041bdd7",
+      "bytes": 20505,
+      "mode": "100644"
+    },
+    {
+      "destination": "scripts/project-economy/compatible-eight-reader-full-app-post-build-dist-evidence.test.py",
+      "local": "compatible-eight-reader-full-app-post-build-dist-evidence.test.py",
+      "sha256": "7217043356164c8239e32812481585914e40fefbf1cfb7c60938dba8a8f4ae95",
+      "git_blob_sha1": "5a5e21302da5759b58af8f5733909c6cd90069d3",
+      "bytes": 12050,
+      "mode": "100644"
+    },
+    {
+      "destination": "docs/project-economy/compatible-eight-reader-full-app-post-build-dist-evidence-contract.md",
+      "local": "compatible-eight-reader-full-app-post-build-dist-evidence-contract.md",
+      "sha256": "10d9564c7c382cf9c0487f096716eba8493a22d7cf62448f71f5000ea73f6dc5",
+      "git_blob_sha1": "b5cdb8ee5857ac599241a8deaa911a4894675adf",
+      "bytes": 5249,
+      "mode": "100644"
+    }
+  ],
+  "verification": {
+    "python_tests": 14,
+    "python_tests_passed": 14,
+    "py_compile": true,
+    "main_exit": 78,
+    "base_commit_fetched": true,
+    "base_commit_file_delta": 3,
+    "bounded_streaming_scan": true,
+    "global_entry_cap": 4096,
+    "global_body_cap_bytes": 67108864,
+    "per_file_cap_bytes": 16777216,
+    "shared_deadline_seconds": 180,
+    "held_receipt_fd_reread": true,
+    "three_stable_dist_scans": true,
+    "exclusive_mode_0600_evidence": true
+  },
+  "claims": {
+    "source_only": true,
+    "derived_build_root_created": false,
+    "genuine_derived_build_root_receipt": false,
+    "npm_ci_executed": false,
+    "app_build_executed": false,
+    "build_execution_provenance": false,
+    "sdk_routed": false,
+    "genuine_dist_verified": false,
+    "dist_read_only_transition": false,
+    "static_server_admitted": false,
+    "browser_admitted": false,
+    "runtime_admission": false,
+    "workflow_admission": false,
+    "release_admission": false,
+    "destructive_cleanup": false,
+    "published": false
+  },
+  "next_gates": [
+    "independent_source_review",
+    "writable_build_root_source_publication_and_genuine_receipt",
+    "reviewed_npm_ci_and_app_build_cwd_receipt_join",
+    "genuine_post_build_dist_native_evidence",
+    "governed_dist_read_only_transition",
+    "static_server_and_browser_native_evidence",
+    "outer_workflow_and_release"
+  ]
+}

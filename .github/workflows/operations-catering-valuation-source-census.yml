@@ -1,0 +1,31 @@
+name: Operations Catering valuation source census
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/catering-valuation-source-census.ts'
+      - 'supabase/functions/_shared/catering-valuation-source-census.test.ts'
+      - 'docs/project-economy/catering-valuation-source-census-v1-contract.md'
+      - '.github/workflows/operations-catering-valuation-source-census.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Exact runtime version
+        run: test "$(node --version)" = "v24.21.0"
+      - name: Exact dependency closure
+        run: |
+          test "$(sha256sum supabase/functions/_shared/catering-project-evidence.ts | cut -d' ' -f1)" = "0760348b57475c334abfce43b846d4136eb05ada1c99bc244ae7179e6815362a"
+          test "$(sha256sum supabase/functions/_shared/project-personnel-cost.ts | cut -d' ' -f1)" = "69c7a35c9e144b20c4db3938d61d96b519a1419b27e7689e39c48d58635b2870"
+      - name: Catering valuation census source-only contract
+        run: node --experimental-transform-types --test supabase/functions/_shared/catering-valuation-source-census.test.ts

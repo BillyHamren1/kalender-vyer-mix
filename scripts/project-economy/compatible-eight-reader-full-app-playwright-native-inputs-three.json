@@ -1,0 +1,105 @@
+{
+  "schema": "compatible-full-app-playwright-native-inputs.v3",
+  "status": "source-locked-admission-blocked",
+  "canonical": {
+    "predecessor_head": "c08dd21b21e2c8050e59f8270d7364094effbea7",
+    "current_head": "834f91ed842ab26a54160a7e43716db3c022def5",
+    "current_tree": "00925178686c18aa6f69ea9f85655e1f76fb51b8",
+    "exact_app_commit": "809f64e0fd98322c53d9c4e9697df5b515303812",
+    "exact_app_tree": "3d96301591652f9d86ccbbdf8ff26efcb7180ce9",
+    "exact_app_package_lock_blob_sha1": "56cbf67ce03fd29258acc38ad723e13fa0ab7d6e",
+    "exact_app_package_lock_bytes": 491691
+  },
+  "publication_transition": {
+    "observed_404_at_current_path": "scripts/project-economy/compatible-eight-reader-full-app-playwright-native-inputs-two.json",
+    "candidate_additive_path": "scripts/project-economy/compatible-eight-reader-full-app-playwright-native-inputs-three.json",
+    "candidate_additive": true,
+    "outer_refetch_required": true
+  },
+  "packages": {
+    "@playwright/test": {
+      "version": "1.55.0",
+      "integrity": "sha512-04IXzPwHrW69XusN/SIdDdKZBzMfOT9UNT/YiJit/xpy2VuAoB8NHc8Aplb96zsWDddLnbkPL3TsmrS04ZU2xQ=="
+    },
+    "playwright": {
+      "version": "1.55.0",
+      "integrity": "sha512-sdCWStblvV1YU909Xqx0DhOjPZE4/5lJsIS84IfN9dAZfcl/CIZ5O8l3o0j7hPMjDvqoTF8ZUcc+i/GL5erstA=="
+    },
+    "playwright-core": {
+      "version": "1.55.0",
+      "integrity": "sha512-GvZs4vU3U5ro2nZpeiwyb0zuFaqb9sUiAJuyrWpcGouD8y9/HLgGbNRjIph7zU9D3hnPaisMl9zG9CgFi/biIg=="
+    }
+  },
+  "browser": {
+    "name": "chromium",
+    "revision": "1187",
+    "version": "140.0.7339.16",
+    "platform": "ubuntu24.04-x64",
+    "archive_path": "builds/chromium/1187/chromium-linux.zip",
+    "archive_origins": [
+      "https://cdn.playwright.dev/dbazure/download/playwright",
+      "https://playwright.download.prss.microsoft.com/dbazure/download/playwright",
+      "https://cdn.playwright.dev"
+    ],
+    "archive_sha256": null,
+    "metadata_snapshot_sha256": "6a346d802543e845c5e79715b99d58fc2bbf58f2a509dccc00f08b634dcb7894",
+    "metadata_snapshot_candidate_path": "scripts/project-economy/compatible-eight-reader-full-app-playwright-browsers-1.55.0-three.json",
+    "registry_source_sha256": "c79e676c73ca11f0cc69954bdb5c3a9ba797449ae1600d500e70f8baf23c5351",
+    "host_platform_source_sha256": "e27fb61af426b70736a1a7c942a8aa895bd5250fd20bfa4a38a70d0a09255bd1"
+  },
+  "local_cache_observations": {
+    "chromium-1187": {
+      "entries": 476,
+      "directories": 8,
+      "files": 468,
+      "bytes": 621257716,
+      "tree_fingerprint": "fc7ed38ce14a87f681835537e8ee31f3d787aae22555f4dce3d8ce74044067ad",
+      "executable_relative_path": "chrome-linux/chrome",
+      "executable_bytes": 459860328,
+      "executable_sha256": "2fa605e3639b8cfbe8037d0b8e0324dbf7f9e6ad7beb345374ecd26764e2d92b"
+    },
+    "chromium_headless_shell-1187": {
+      "entries": 15,
+      "directories": 2,
+      "files": 13,
+      "bytes": 336010568,
+      "tree_fingerprint": "55c60189eadae5e4d09362ac89d4a46b5768deacf6b372877d05662450f39c5f",
+      "executable_relative_path": "chrome-linux/headless_shell",
+      "executable_bytes": 304286872,
+      "executable_sha256": "a6bd350a143a92159c12291f336d2f3cc65ea501e521070d9ebb596c8c90a2a7"
+    },
+    "ffmpeg-1011": {
+      "entries": 4,
+      "directories": 0,
+      "files": 4,
+      "bytes": 5127582,
+      "tree_fingerprint": "dcb305e52832df112e03632f411bdb3708ad376f4b94f521561dbeca83f7c5f9",
+      "executable_relative_path": "ffmpeg-linux",
+      "executable_bytes": 5101056,
+      "executable_sha256": "460d44f3416005662f528d4b92e7b94ace924e8a0288106d3803b73c56eaadc8"
+    }
+  },
+  "owned_controller_inputs": {
+    "owned_process": {
+      "path": "scripts/project-economy/auth-chain-cleanup-owned-process.py",
+      "sha256": "b9011bfd85b7af59057892bef9b628514367e84cd12a2c5b8d168a2b77721c7a",
+      "git_blob_sha1": "11c764813b6ad04337d07ff89886602b98d1bea8",
+      "bytes": 11439,
+      "present_at_current": true
+    },
+    "static_server_sha256": "9a73fddf2d2a8e0de1692274ef2b9ef2e031466705948ff038e43c98ae7da93a",
+    "static_owner_sha256": "19f25cdfa6e41f5af525897981f84483d790ecc1c15222c324ad1aa5fadca986",
+    "browser_network_sha256": "3b88a4acea11f9305f0049e04b37e6fb6359616311060698decdf9a80af23511",
+    "browser_receipt_network_sha256": "33b77650d3d04dcd98b7e1285e8571b40cebcf81ce251c9c0b1ab77661d2b80e",
+    "static_browser_controller_sha256": null
+  },
+  "admission": {
+    "allowed": false,
+    "blockers": [
+      "browser_archive_bytes_and_sha256_not_available_in_local_evidence",
+      "installed_cache_tree_is_observation_not_archive_provenance",
+      "static_browser_controller_not_reviewed",
+      "native_browser_chain_not_run"
+    ]
+  }
+}
