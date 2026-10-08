@@ -81,7 +81,7 @@ describe('Time reporting product (end-to-end contract)', () => {
 
   beforeEach(async () => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch;
     localStorage.clear();
     // Force a fresh module graph so the timerSyncQueue singleton state
     // (the `flushing` flag and pending setTimeouts) does not leak between

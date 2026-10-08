@@ -8,7 +8,7 @@ describe("mobileApiService — auth lifecycle", () => {
 
   beforeEach(() => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch;
     localStorage.clear();
   });
 

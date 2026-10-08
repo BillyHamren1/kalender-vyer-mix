@@ -90,7 +90,7 @@ describe("Messaging product (end-to-end contract)", () => {
 
   beforeEach(async () => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch;
     localStorage.clear();
     // Authenticate the SDK so callApi attaches a token + reaches fetch().
     const mod = await import("../services/mobileApiService");

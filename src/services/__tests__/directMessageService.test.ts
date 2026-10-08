@@ -10,7 +10,7 @@ describe("directMessageService", () => {
 
   beforeEach(async () => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch;
     localStorage.clear();
     // Authenticate the SDK so callApi attaches a token and reaches fetch().
     const mod = await import("../mobileApiService");
