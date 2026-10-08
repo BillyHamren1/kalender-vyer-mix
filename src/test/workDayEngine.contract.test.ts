@@ -133,7 +133,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
       mockFetch = vi.fn();
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
       localStorage.clear();
       vi.resetModules();
       const mod = await import('../services/mobileApiService');
@@ -216,7 +216,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
       mockFetch = vi.fn();
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
       localStorage.clear();
       vi.resetModules();
       const mod = await import('../services/mobileApiService');
@@ -270,7 +270,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
       mockFetch = vi.fn();
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
       localStorage.clear();
       vi.resetModules();
       const mod = await import('../services/mobileApiService');
@@ -327,7 +327,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
       mockFetch = vi.fn();
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
       localStorage.clear();
       vi.resetModules();
       const mod = await import('../services/mobileApiService');
@@ -478,7 +478,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
       mockFetch = vi.fn();
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
       localStorage.clear();
       vi.resetModules();
       const mod = await import('../services/mobileApiService');
