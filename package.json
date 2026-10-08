@@ -28,6 +28,8 @@
     "test:time-reporting": "bash scripts/test-time-reporting.sh",
     "test:scanner": "vitest run src/services/__tests__/scannerService.scanning.test.ts",
     "test:scanner-flow": "vitest run src/__tests__/scanner-wms-flow.static.test.ts",
+    "test:support-context": "vitest run src/lib/sso/supportContextProducer.test.ts src/hooks/useOperationsSupportContext.test.tsx src/hooks/useSsoListener.support.test.tsx src/__tests__/support-context-integration.static.test.ts",
+    "typecheck:support-context": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit -p tsconfig.support-context.json",
     "scanner:deploy-preflight": "node scripts/scanner-deploy-preflight.mjs",
     "scanner:production-audit": "npm audit --omit=dev --omit=optional --audit-level=critical"
   },

@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
+import { useOperationsSupportContext } from "@/hooks/useOperationsSupportContext";
 
 const navItems = [
   { key: "overview", label: "Översikt", icon: LayoutDashboard, path: "/overview" },
@@ -52,7 +53,17 @@ const LargeProjectLayout = () => {
   }, []);
 
   const detail = useLargeProjectDetail(id || "");
-  const { project, isLoading } = detail;
+  const { project, isLoading, isPending, isFetching, isError } = detail;
+  useOperationsSupportContext({
+    kind: 'large_project',
+    entityId: project?.id,
+    entityOrganizationId: (project as { organization_id?: string } | null | undefined)?.organization_id,
+    routeId: id,
+    isPending,
+    isFetching,
+    isError,
+    hasEntity: !!project,
+  });
   const bookings = project?.bookings || [];
 
   // Sibling booking ids — read directly from stubs so useBookingPhaseDays

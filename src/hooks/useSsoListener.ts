@@ -5,31 +5,27 @@ import {
   getLastKnownOrganizationId,
   setLastKnownOrganizationId,
 } from '@/lib/tenant/tenantCacheGuard';
-
-
-
-const HUB_ALLOWED_ORIGINS = [
-  'https://e-flow.se',
-  'https://www.e-flow.se',
-  'https://eventflow-harmony-hub.lovable.app',
-  'https://id-preview--619bc35d-e2d6-4874-822e-21a151f48315.lovable.app',
-  'https://619bc35d-e2d6-4874-822e-21a151f48315.lovableproject.com',
-  'http://localhost:5173',
-  'http://localhost:8080',
-  'http://localhost:3000',
-];
+import { isAllowedHubOrigin } from '@/lib/sso/hubOrigins';
+import {
+  activateOperationsSupportSsoSession,
+  beginOperationsSupportSsoAttempt,
+  clearOperationsSupportContextSession,
+  isOperationsSupportSsoAttemptCurrent,
+  prepareOperationsSupportTenantSignOut,
+  type OperationsSupportSsoAttempt,
+} from '@/lib/sso/supportContextProducer';
 
 // Origin som HUB faktiskt skickade senaste SSO/preferences-meddelandet från.
 // Svar (SSO_ACK/SSO_ERROR) ska alltid gå tillbaka dit, aldrig till en hårdkodad URL.
 let lastHubMessageOrigin: string | null = null;
 
 function getHubParentOrigin(): string | null {
-  if (lastHubMessageOrigin && HUB_ALLOWED_ORIGINS.includes(lastHubMessageOrigin)) {
+  if (isAllowedHubOrigin(lastHubMessageOrigin)) {
     return lastHubMessageOrigin;
   }
   try {
     const origin = document.referrer ? new URL(document.referrer).origin : null;
-    return origin && HUB_ALLOWED_ORIGINS.includes(origin) ? origin : null;
+    return isAllowedHubOrigin(origin) ? origin : null;
   } catch {
     return null;
   }
@@ -57,6 +53,16 @@ interface SsoToken {
   signature: string;
 }
 
+function hasSafeSsoTokenShape(value: unknown): value is SsoToken {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const token = value as Record<string, unknown>;
+  return typeof token.signature === 'string'
+    && token.signature.length > 0
+    && !!token.payload
+    && typeof token.payload === 'object'
+    && !Array.isArray(token.payload);
+}
+
 interface SsoError {
   status?: number;
   code?: string;
@@ -82,6 +88,14 @@ interface SsoResult {
 
 const SSO_VERIFY_MAX_ATTEMPTS = 3;
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function getSsoErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const context = (error as { context?: unknown }).context;
+  if (!context || typeof context !== 'object') return undefined;
+  const status = (context as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+}
 
 function decodeUtf8Base64(input: string): string {
   const normalized = decodeURIComponent(input).replace(/-/g, '+').replace(/_/g, '/');
@@ -155,6 +169,10 @@ function notifySsoSettled(success: boolean) {
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
   const lastProcessedRef = useRef<string | null>(null);
+  // SIGNED_OUT clears support attempts during an ordinary tenant switch.
+  // Keep delivery ownership separately so that this lifecycle cannot revive
+  // an older attempt after a newer parent token or listener disposal.
+  const deliveryGenerationRef = useRef(0);
 
   // Determine target view based on current route (use window.location to avoid Router dependency)
   const getTargetView = useCallback((): 'planning' | 'warehouse' => {
@@ -164,12 +182,18 @@ export function useSsoListener() {
     return 'planning';
   }, []);
 
-  const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
+  const verifySsoToken = useCallback(async (
+    ssoToken: SsoToken,
+    supportAttempt: OperationsSupportSsoAttempt | null = null,
+    deliveryGeneration: number = deliveryGenerationRef.current,
+  ) => {
     const requestedOrgId = ssoToken.payload?.organization_id ?? null;
+    const targetView = supportAttempt?.audience ?? getTargetView();
     // Fingerprinten MÅSTE innehålla organisationen. Annars kan HUB skicka
     // "samma" token-signatur för en annan organisation och dedupe-logiken
     // hoppar över verifieringen – kvar blir föregående organisations context.
-    const fingerprint = `${getTokenFingerprint(ssoToken.signature)}:${requestedOrgId ?? 'none'}`;
+    const fingerprint = supportAttempt?.trustKey
+      ?? `${getTokenFingerprint(ssoToken.signature)}:${requestedOrgId ?? 'none'}:${targetView}`;
 
     // TENANT SWITCH: HUB begär en annan organisation än den aktiva.
     // Då får ingen dedupe-check stoppa oss, och all tidigare tenant-state
@@ -184,13 +208,33 @@ export function useSsoListener() {
       lastProcessedRef.current = null;
       sessionStorage.removeItem(SSO_PROCESSED_KEY);
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
+      clearPersistedTenantState();
+      setLastKnownOrganizationId(null);
+      const mayResumeTenantSwitch = prepareOperationsSupportTenantSignOut(supportAttempt);
       try {
         await supabase.auth.signOut();
       } catch (e) {
         console.warn('[SSO] signOut vid tenant-byte misslyckades', e);
       }
-      clearPersistedTenantState();
-      setLastKnownOrganizationId(null);
+      const ownsTenantSwitch = mayResumeTenantSwitch();
+      if (!ownsTenantSwitch || deliveryGeneration !== deliveryGenerationRef.current) {
+        // The newer delivery owns both auth and support state. Do not recreate
+        // this attempt or settle the newer delivery's loading lifecycle.
+        return;
+      }
+      // SIGNED_OUT intentionally clears all support trust. Re-establish only
+      // the already parent/origin-validated attempt after the old tenant is gone.
+      if (supportAttempt) {
+        supportAttempt = beginOperationsSupportSsoAttempt({
+          trustKey: supportAttempt.trustKey,
+          origin: supportAttempt.origin,
+          source: supportAttempt.parentWindow,
+          parentWindow: supportAttempt.parentWindow,
+          expectedUserId: supportAttempt.expectedUserId,
+          expectedOrganizationId: supportAttempt.expectedOrganizationId,
+          audience: supportAttempt.audience,
+        });
+      }
     }
 
     notifySsoStart();
@@ -201,8 +245,31 @@ export function useSsoListener() {
       const { data: sessionData } = await supabase.auth.getSession();
       const activeSession = sessionData.session;
       const activeTenant = getLastKnownOrganizationId();
-      const tenantMatches = !requestedOrgId || !activeTenant || activeTenant === requestedOrgId;
-      if (activeSession && tenantMatches) {
+      const sessionUserId = activeSession?.user.id;
+      const sessionOrganizationId = activeSession?.user.user_metadata?.organization_id;
+      // verify-sso-token stores HUB's verified subject and tenant in Auth user
+      // metadata before it creates the local Supabase session. Missing values
+      // are never a match, and the unverified incoming token cannot replace
+      // either value on this fast path.
+      const sessionHubUserId = activeSession?.user.user_metadata?.hub_user_id;
+      const exactLiveSession = Boolean(
+        activeSession
+        && supportAttempt
+        && requestedOrgId
+        && activeTenant === requestedOrgId
+        && sessionOrganizationId === requestedOrgId
+        && supportAttempt.expectedOrganizationId === requestedOrgId
+        && sessionHubUserId === supportAttempt.expectedUserId
+        && typeof sessionUserId === 'string'
+        && sessionUserId,
+      );
+      if (exactLiveSession && activateOperationsSupportSsoSession(supportAttempt, {
+        sessionHubUserId,
+        verifiedUserId: sessionUserId,
+        sessionUserId,
+        sessionOrganizationId,
+        organizationId: activeTenant,
+      })) {
         sessionStorage.setItem('isSsoUser', 'true');
         sessionStorage.setItem('skipRoleCheck', 'true');
         lastProcessedRef.current = fingerprint;
@@ -213,6 +280,8 @@ export function useSsoListener() {
       }
       lastProcessedRef.current = null;
       sessionStorage.removeItem(SSO_PROCESSED_KEY);
+      // The attempt remains pending so the normal verified path can establish
+      // it. No context exists while cached/live metadata is absent or differs.
       return false;
     };
 
@@ -243,7 +312,6 @@ export function useSsoListener() {
     isProcessingRef.current = true;
     sessionStorage.setItem(SSO_PROCESSING_KEY, fingerprint);
     
-    const targetView = getTargetView();
     console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint, 'target_view:', targetView);
 
     try {
@@ -262,7 +330,7 @@ export function useSsoListener() {
 
         if (!error && data?.success) break;
 
-        const status = (error as any)?.context?.status as number | undefined;
+        const status = getSsoErrorStatus(error);
         const retryable = status === undefined || status >= 500 || data?.error_code === 'SESSION_CREATE_FAILED';
         if (!retryable || attempt === SSO_VERIFY_MAX_ATTEMPTS) break;
 
@@ -271,10 +339,19 @@ export function useSsoListener() {
       }
 
       if (error || !data?.success) {
-        const status = (error as any)?.context?.status as number | undefined;
+        const status = getSsoErrorStatus(error);
         const errorMessage = error instanceof Error ? error.message : undefined;
         console.error('[SSO] Verification failed:', { error, data, status });
         sendSsoResponse(false, { status, code: data?.error_code ?? 'VERIFY_FAILED', message: data?.message ?? errorMessage });
+        notifySsoSettled(false);
+        return;
+      }
+
+      // A newer exact-parent token may have replaced this attempt while the
+      // Edge verification was in flight. Do not let the stale result mutate
+      // the local session or produce an ACK.
+      if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
+        console.warn('[SSO] Ignoring stale verification result before session mutation');
         notifySsoSettled(false);
         return;
       }
@@ -294,13 +371,72 @@ export function useSsoListener() {
         return;
       }
 
-      // Mark user as SSO user in sessionStorage (for ProtectedRoute to skip role check)
+      const clearRejectedSsoState = () => {
+        sessionStorage.removeItem('isSsoUser');
+        sessionStorage.removeItem('skipRoleCheck');
+        lastProcessedRef.current = null;
+        sessionStorage.removeItem(SSO_PROCESSED_KEY);
+        clearOperationsSupportContextSession();
+        // Cache eviction must be synchronous with rejection. Auth sign-out can
+        // be delayed by storage/network hooks and must not leave a stale tenant
+        // available to the rest of the application in the meantime.
+        clearPersistedTenantState();
+        setLastKnownOrganizationId(null);
+      };
+
+      // Fence the narrow race where a newer delivery arrives while setSession
+      // is awaiting. Remove the stale session and never ACK the old attempt.
+      if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
+        console.warn('[SSO] Verification attempt became stale while setting session');
+        clearRejectedSsoState();
+        try { await supabase.auth.signOut(); } catch (e) {
+          console.warn('[SSO] Failed to clear stale session', e);
+        }
+        notifySsoSettled(false);
+        return;
+      }
+
+      const verifiedUserId = data.user?.id;
+      const verifiedOrgId = data.user?.organization_id;
+      const sessionUserId = sessionData.session?.user.id;
+      const sessionHubUserId = sessionData.session?.user.user_metadata?.hub_user_id;
+      const sessionOrganizationId = sessionData.session?.user.user_metadata?.organization_id;
+      const exactVerifiedSession = Boolean(
+        requestedOrgId
+        && verifiedOrgId === requestedOrgId
+        && sessionOrganizationId === requestedOrgId
+        && typeof verifiedUserId === 'string'
+        && verifiedUserId
+        && sessionUserId === verifiedUserId
+        && (!supportAttempt || (
+          supportAttempt.expectedOrganizationId === requestedOrgId
+          && sessionHubUserId === supportAttempt.expectedUserId
+        )),
+      );
+      const supportActivated = exactVerifiedSession && supportAttempt
+        ? activateOperationsSupportSsoSession(supportAttempt, {
+            sessionHubUserId,
+            verifiedUserId,
+            sessionUserId,
+            sessionOrganizationId,
+            organizationId: verifiedOrgId,
+          })
+        : !supportAttempt && exactVerifiedSession;
+
+      if (!supportActivated) {
+        clearRejectedSsoState();
+        try { await supabase.auth.signOut(); } catch (e) {
+          console.warn('[SSO] Failed to clear identity-mismatched session', e);
+        }
+        notifySsoSettled(false);
+        return;
+      }
+
+      // Tenant cache and route-bypass flags are written only after the edge
+      // identity, live session and parent-bound HUB subject all agree.
+      setLastKnownOrganizationId(requestedOrgId);
       sessionStorage.setItem('isSsoUser', 'true');
       sessionStorage.setItem('skipRoleCheck', 'true');
-
-      // Canonical aktiv organisation = den HUB/edge-funktionen verifierade.
-      const verifiedOrgId = data.user?.organization_id ?? requestedOrgId;
-      if (verifiedOrgId) setLastKnownOrganizationId(verifiedOrgId);
 
       // Apply preferences from SSO token
       if (data.preferences) {
@@ -330,6 +466,7 @@ export function useSsoListener() {
     // 1. Kolla URL-hash först
     const hash = window.location.hash;
     if (hash.includes('sso_token=')) {
+      const deliveryGeneration = ++deliveryGenerationRef.current;
       console.log('[SSO] Found sso_token in URL hash');
       const tokenB64 = hash.split('sso_token=')[1]?.split('&')[0];
       if (tokenB64) {
@@ -338,7 +475,8 @@ export function useSsoListener() {
           const ssoToken = JSON.parse(tokenJson) as SsoToken;
           // Rensa hashen från URL
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          verifySsoToken(ssoToken);
+          clearOperationsSupportContextSession();
+          verifySsoToken(ssoToken, null, deliveryGeneration);
         } catch (e) {
           console.error('[SSO] Failed to parse hash token:', e);
           sendSsoResponse(false, { status: 400, code: 'INVALID_TOKEN', message: 'Failed to parse SSO token' });
@@ -348,13 +486,20 @@ export function useSsoListener() {
 
     // 2. Lyssna på postMessage
     function handleMessage(event: MessageEvent) {
-      if (!HUB_ALLOWED_ORIGINS.includes(event.origin)) {
+      if (!isAllowedHubOrigin(event.origin)) {
         if (event.data?.type === 'SSO_TOKEN' || event.data?.type === 'PREFERENCES_UPDATE') {
           console.warn('[SSO] Blocked message from untrusted origin:', event.origin);
         }
         return;
       }
       const data = event.data;
+      // A same-origin sibling is not the iframe parent. Reject both message
+      // types before they can affect origin memory, preferences, Supabase
+      // session state or ACKs.
+      if ((data?.type === 'SSO_TOKEN' || data?.type === 'PREFERENCES_UPDATE') && event.source !== window.parent) {
+        console.warn(`[SSO] Blocked ${data.type} from non-parent window`);
+        return;
+      }
       if (data?.type === 'SSO_TOKEN' || data?.type === 'PREFERENCES_UPDATE') {
         lastHubMessageOrigin = event.origin;
       }
@@ -362,6 +507,7 @@ export function useSsoListener() {
       
       // Handle SSO_TOKEN message
       if (data?.type === 'SSO_TOKEN') {
+        const deliveryGeneration = ++deliveryGenerationRef.current;
         console.log('[SSO] Received SSO_TOKEN via postMessage');
         
         // Försök med olika format som Hubben kan skicka
@@ -386,9 +532,23 @@ export function useSsoListener() {
           ssoToken = data.token;
         }
         
-        if (ssoToken) {
-          verifySsoToken(ssoToken);
+        if (hasSafeSsoTokenShape(ssoToken)) {
+          const audience = getTargetView();
+          const trustKey = `${getTokenFingerprint(ssoToken.signature)}:${ssoToken.payload?.organization_id ?? 'none'}:${audience}`;
+          const supportAttempt = beginOperationsSupportSsoAttempt({
+            trustKey,
+            origin: event.origin,
+            source: event.source,
+            parentWindow: window.parent,
+            expectedUserId: ssoToken.payload?.user_id,
+            expectedOrganizationId: ssoToken.payload?.organization_id,
+            audience,
+          });
+          verifySsoToken(ssoToken, supportAttempt, deliveryGeneration);
         } else {
+          // Only the exact iframe parent may revoke an existing support realm.
+          // A sibling window on the same allowed origin must not gain a DoS path.
+          if (event.source === window.parent) clearOperationsSupportContextSession();
           console.error('[SSO] No valid token found in postMessage');
           sendSsoResponse(false, { status: 400, code: 'INVALID_TOKEN', message: 'No valid SSO token in message' });
         }
@@ -408,9 +568,11 @@ export function useSsoListener() {
     console.log('[SSO] Listener initialized');
     
     return () => {
+      deliveryGenerationRef.current += 1;
       window.removeEventListener('message', handleMessage);
+      clearOperationsSupportContextSession();
     };
-  }, [verifySsoToken]);
+  }, [getTargetView, verifySsoToken]);
 }
 
 // Hook to get current preferences

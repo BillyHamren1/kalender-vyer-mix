@@ -18,6 +18,7 @@ import { useTenantCacheGuard } from "@/hooks/useTenantCacheGuard";
 import { enforcePersistedCacheOwner } from "@/lib/tenant/tenantCacheGuard";
 import { ModuleThemeMount } from "@/hooks/useModuleTheme";
 import PreviewModuleToggle from "@/components/dev/PreviewModuleToggle";
+import { OperationsSupportContextMount } from "@/components/support/OperationsSupportContextMount";
 
 const LegacyProjectRedirect = () => {
   const { projectId } = useParams();
@@ -401,6 +402,7 @@ const WebRoutes: React.FC = () => {
       <Route path="/*" element={
         <AuthProvider>
           <TenantCacheGuardMount />
+          <OperationsSupportContextMount />
           <Routes>
 
             {/* Persistent main-system layout: AuthProvider + ProtectedRoute + Sidebar/FloatingInbox
@@ -449,6 +451,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/booking/:bookingId" element={<BookingDetail />} />
               <Route path="/booking-list" element={<BookingList />} />
               <Route path="/projects" element={<ProjectManagement />} />
+              <Route path="/project-planning" element={<Navigate to="/projects" replace />} />
               <Route path="/projects/archive" element={<ProjectArchive />} />
               <Route path="/projects/closing" element={<ProjectClosing />} />
               <Route path="/project-next/:projectId" element={<SimpleProjectWorkspacePage />} />

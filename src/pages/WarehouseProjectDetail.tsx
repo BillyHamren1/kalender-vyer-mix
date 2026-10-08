@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { useOperationsSupportContext } from "@/hooks/useOperationsSupportContext";
 
 const WarehouseProjectDetail = () => {
   const { warehouseProjectId } = useParams<{ warehouseProjectId: string }>();
@@ -44,7 +45,7 @@ const WarehouseProjectDetail = () => {
     ],
   });
 
-  const { data: project, isLoading } = useQuery({
+  const { data: project, isLoading, isPending, isFetching, isError } = useQuery({
     queryKey: ['warehouse-project', warehouseProjectId],
     queryFn: () => fetchWarehouseProject(warehouseProjectId!),
     enabled: !!warehouseProjectId,
@@ -60,6 +61,17 @@ const WarehouseProjectDetail = () => {
     queryKey: ['warehouse-project-packings', warehouseProjectId],
     queryFn: () => fetchWarehousePackings(warehouseProjectId!),
     enabled: !!warehouseProjectId,
+  });
+
+  useOperationsSupportContext({
+    kind: 'warehouse_project',
+    entityId: project?.id,
+    entityOrganizationId: project?.organization_id,
+    routeId: warehouseProjectId,
+    isPending,
+    isFetching,
+    isError,
+    hasEntity: !!project,
   });
 
   const handleDelete = async () => {

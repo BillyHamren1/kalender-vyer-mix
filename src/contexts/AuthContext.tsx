@@ -2,6 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { PLANNING_SSO_START_EVENT, PLANNING_SSO_SETTLED_EVENT } from '@/hooks/useSsoListener';
+import {
+  clearOperationsSupportContextAfterAuthSignOut,
+  clearOperationsSupportContextSession,
+} from '@/lib/sso/supportContextProducer';
 
 interface AuthContextType {
   user: User | null;
@@ -74,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsSsoUser(false);
           sessionStorage.removeItem('isSsoUser');
           sessionStorage.removeItem('skipRoleCheck');
+          clearOperationsSupportContextAfterAuthSignOut();
           setIsLoading(false);
           return;
         }
@@ -160,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem('isSsoUser');
     sessionStorage.removeItem('skipRoleCheck');
     sessionStorage.removeItem('sso_last_processed_fingerprint');
+    clearOperationsSupportContextSession();
     setIsSsoUser(false);
     // Clear shared org-id cache so the next user doesn't inherit it
     const { clearOrganizationIdCache } = await import('@/hooks/useOrganizationId');
