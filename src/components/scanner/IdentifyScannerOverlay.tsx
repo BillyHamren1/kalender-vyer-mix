@@ -51,6 +51,8 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<IdentifiedItem[]>([]);
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapOpenRef = useRef(false);
+  useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -139,6 +141,7 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
   const handleDetected = useCallback((value: string) => {
     const now = Date.now();
     // Dedup same value within 2.5s
+    if (mapOpenRef.current) return; // read-only map open: ignore camera frames, keep list intact
     if (value === lastScanRef.current.value && now - lastScanRef.current.at < 2500) return;
     lastScanRef.current = { value, at: now };
 
@@ -404,6 +407,12 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <ArticleLocationDialog
+        open={!!mapTarget}
+        onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+        target={mapTarget}
+        fetcher={fetchArticleLocationsScanner}
+      />
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
         <div className="flex items-center gap-2">
