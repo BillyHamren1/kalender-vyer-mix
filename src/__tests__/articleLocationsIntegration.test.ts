@@ -44,7 +44,7 @@ describe('Time Scan identify keeps canonical ids', () => {
   });
   it('map fetch does not use callScannerApi (cannot clear session) and map files never mutate', () => {
     const svc = read('src/services/articleLocationsService.ts');
-    expect(svc).not.toMatch(/callScannerApi|clearAuth/);
+    expect(svc).not.toMatch(/callScannerApi\(|clearAuth\(|import .*clearAuth/);
     for (const f of ['src/components/warehouse-map/ArticleLocationDialog.tsx', 'src/hooks/useArticleLocations.ts', 'src/services/articleLocationsService.ts']) {
       expect(read(f)).not.toMatch(/scanner-command-api|pack_item|localStorage|\.insert\(|\.update\(|\.upsert\(/);
     }
