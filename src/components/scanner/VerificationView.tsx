@@ -705,6 +705,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   //   └─────────────────────────────────────────┘
   return (
     <div className="flex flex-col h-full bg-background">
+      <ArticleLocationDialog
+        open={!!mapTarget}
+        onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+        target={mapTarget}
+        fetcher={fetchArticleLocationsScanner}
+        sessionKey={verifierStaffId}
+      />
       {/* Header */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-card border-b safe-area-top">
         <Button variant="ghost" size="icon" onClick={handleGuardedBack} className="shrink-0 h-8 w-8">
