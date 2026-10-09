@@ -7,14 +7,14 @@ interface Props { rack: WarehouseRack; slots: ArticleSlot[] }
 export const RackFrontView: React.FC<Props> = ({ rack, slots }) => {
   const bays = rack.storage?.bays ?? [];
   if (bays.length === 0) {
-    return <p className="text-xs text-muted-foreground">Ställets fack är inte registrerade.</p>;
+    return <p className="text-xs text-muted-foreground">Stallagets fack är inte registrerade.</p>;
   }
   const maxLevel = Math.max(1, ...bays.flatMap((b) => b.levels.map((l) => l.level)));
   const levels = Array.from({ length: maxLevel }, (_, i) => maxLevel - i);
   return (
-    <div className="space-y-1" aria-label={`Framsida ställ ${rack.name}`}>
+    <div className="space-y-1" aria-label={`Framsida stallage ${rack.name}`}>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Ställ {rack.name}</span>
+        <span>Stallage {rack.name}</span>
         {rack.storage?.status === 'provisional' && <span>Preliminär indelning</span>}
       </div>
       <div className="overflow-x-auto">

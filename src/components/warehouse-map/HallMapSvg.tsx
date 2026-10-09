@@ -40,7 +40,7 @@ export const HallMapSvg: React.FC<Props> = ({ map, selectedRackId, highlightedRa
         const selected = r.id === selectedRackId;
         const hit = highlightedRackIds.has(r.id);
         return (
-          <g key={r.id} role="button" tabIndex={0} aria-label={`Ställ ${r.name}${hit ? ', innehåller artikeln' : ''}`}
+          <g key={r.id} role="button" tabIndex={0} aria-label={`Stallage ${r.name}${hit ? ', innehåller artikeln' : ''}`}
             aria-pressed={selected} className="cursor-pointer focus:outline-none"
             onClick={() => onSelectRack(r.id)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectRack(r.id); } }}>
