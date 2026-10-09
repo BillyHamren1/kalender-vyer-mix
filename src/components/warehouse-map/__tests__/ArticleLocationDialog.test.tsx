@@ -39,7 +39,7 @@ describe('ArticleLocationDialog', () => {
     fireEvent.click(screen.getByText('H2-R9-A-3'));
     expect(screen.getByRole('img', { name: /Hallkarta Hall 2/ })).toBeTruthy();
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toMatchObject({ itemTypeId: ITEM, instanceId: null });
+    expect((fetcher.mock.calls as any)[0][0]).toMatchObject({ itemTypeId: ITEM, instanceId: null });
     fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByText('H1-R1-A-1')).toBeNull());
     expect(screen.getByTestId('scan-count').textContent).toBe('3');
@@ -103,6 +103,6 @@ describe('ArticleLocationDialog', () => {
     resolveFirst(articleFixture());
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.queryByText('Uniflex Glasvägg')).toBeNull();
-    expect((fetcher.mock.calls[0][1] as AbortSignal).aborted).toBe(true);
+    expect(((fetcher.mock.calls as any)[0][1] as AbortSignal).aborted).toBe(true);
   });
 });
