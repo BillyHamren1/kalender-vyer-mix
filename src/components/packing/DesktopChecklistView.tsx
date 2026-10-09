@@ -17,7 +17,11 @@ import {
   History,
   PackageX,
   Undo2,
+  MapPin,
 } from 'lucide-react';
+import { ArticleLocationDialog, type ArticleLocationTarget } from '@/components/warehouse-map/ArticleLocationDialog';
+import { fetchArticleLocationsDesktop } from '@/services/articleLocationsService';
+import { resolveCanonicalItemTypeId } from '@/services/desktopPackingService';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -91,6 +95,7 @@ interface PackingItem {
   packability_revision?: number;
   source_booking_id?: string | null;
   wms_line_id?: string | null;
+  wms_item_type_id?: string | null;
   wms_sku?: string | null;
   notes?: string | null;
   manual_name?: string | null;
@@ -523,6 +528,18 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           >
             {displayName}
           </span>
+          {(() => {
+            const itemTypeId = resolveCanonicalItemTypeId(item as any);
+            return itemTypeId ? (
+              <button type="button" onClick={() => setMapTarget({ name: cleanName, itemTypeId, instanceId: null })}
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline mr-2"
+                aria-label={`Visa lagerplats för ${cleanName}`}>
+                <MapPin className="h-3 w-3" /> Lagerplats
+              </button>
+            ) : (
+              <span className="text-[11px] text-muted-foreground mr-2" title="Raden saknar WMS-artikelkoppling">Ingen platskoppling</span>
+            );
+          })()}
           {(item.wms_sku || item.booking_products?.sku) && (
             <span className="text-[11px] text-muted-foreground font-mono">
               [{item.wms_sku || item.booking_products?.sku}]
