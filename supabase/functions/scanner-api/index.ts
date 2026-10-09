@@ -5,6 +5,7 @@ import { repairPackingItems } from '../_shared/packingRepair.ts'
 import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
 import { buildTimeWmsProjectionRequest, fetchTimeWmsProjection } from '../_shared/timeWmsProjection.ts'
 import { mapTimeWmsProjectionForScanner } from '../_shared/scannerTimeWmsPacking.ts'
+import { buildArticleLocationsRequest, fetchArticleLocations, isUuid } from '../_shared/warehouseArticleLocations.ts'
 import {
   activeScannerSessionMatches,
   resolveScannerTokenTransport,
@@ -40,6 +41,7 @@ const SCANNER_CONTRACT_READ_ACTIONS = new Set([
   'get_packing_items',
   'resolve_epc', // Read-only RFID identity lookup; never passes job_id.
   'identify_product', // Read-only WMS scan-status; identity lookup before packing.
+  'get_article_locations', // Read-only warehouse map lookup (warehouse-article-locations.v1).
 ])
 
 type ScannerAuth = {
@@ -2799,6 +2801,33 @@ Deno.serve(async (req) => {
         }
       }
 
+      case 'get_article_locations': {
+        // Read-only. Tenant + actor come ONLY from the authenticated session.
+        const respond = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+          status, headers: { ...responseCorsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        })
+        const itemTypeId = (params as any)?.itemTypeId
+        const instanceId = (params as any)?.instanceId ?? null
+        if (!isUuid(itemTypeId) || (instanceId !== null && !isUuid(instanceId))) {
+          return respond({ error: 'itemTypeId/instanceId måste vara giltiga UUID', code: 'invalid_request', debugCode: 'invalid_request' }, 400)
+        }
+        const rawDevice = (params as any)?.deviceId
+        const deviceId = typeof rawDevice === 'string' && rawDevice.length > 0 && rawDevice.length <= 128 ? rawDevice : 'eventflow-scanner'
+        const result = await fetchArticleLocations(
+          buildArticleLocationsRequest({
+            deviceId,
+            actor: { organizationId: ORG_ID, personnelId: auth.staffId, label: auth.staffName || auth.staffId },
+            itemTypeId, instanceId,
+          }),
+          { hmacSecret: Deno.env.get('PLANNING_WMS_HMAC_SECRET') || '' },
+        )
+        if (!result.ok) {
+          console.warn('[get_article_locations] failed', result.code, result.upstreamCode ?? '')
+          return respond({ error: result.error, code: result.code, debugCode: result.code, upstreamCode: result.upstreamCode ?? null }, result.status)
+        }
+        return respond(result.data)
+      }
+
       case 'identify_product': {
         const { serialNumber } = params
         if (!serialNumber) {
@@ -2843,6 +2872,9 @@ Deno.serve(async (req) => {
                 payload.active_reservation?.booking_number ||
                 null,
               activeReservation: payload.active_reservation || null,
+              // Canonical WMS ids (additive) — used only for read-only map lookup.
+              itemTypeId: [payload.item_type_id, payload.itemTypeId].find((v: unknown) => isUuid(v)) ?? null,
+              instanceId: [payload.instance_id, payload.instanceId].find((v: unknown) => isUuid(v)) ?? null,
               rawData: lookupData,
             })
           }
