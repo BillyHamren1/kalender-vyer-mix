@@ -39,7 +39,7 @@ export function classifyFailure(status: number, body: any): ArticleLocationsErro
 function validateClient(q: ArticleLocationsQuery, body: unknown): ArticleLocationsResponse {
   const orgId = q.organizationId ?? (body as any)?.organizationId;
   const parsed = parseArticleLocationsResponse(body, { organizationId: orgId, itemTypeId: q.itemTypeId, instanceId: q.instanceId });
-  if (!parsed.ok) throw classifyFailure(parsed.status, { code: parsed.code, error: parsed.error });
+  if (parsed.ok === false) throw classifyFailure(parsed.status, { code: parsed.code, error: parsed.error });
   return parsed.data;
 }
 

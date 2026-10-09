@@ -212,7 +212,7 @@ function parsePlacement(v: unknown, p: string): ArticlePlacement {
     };
   }
   if (state === 'EXACT' && !slot) throw new ContractError(`${p}: EXACT kräver slot`);
-  const instanceId = v.instanceId === null || v.instanceId === undefined ? null : v.instanceId;
+  const instanceId = (v.instanceId === null || v.instanceId === undefined ? null : v.instanceId) as string | null;
   if (instanceId !== null && !isUuid(instanceId)) throw new ContractError(`${p}.instanceId ogiltig`);
   return {
     palletId: str(v.palletId, 'palletId'), palletCode: str(v.palletCode, 'palletCode'),
