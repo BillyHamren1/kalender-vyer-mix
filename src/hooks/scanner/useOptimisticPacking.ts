@@ -19,6 +19,7 @@ export interface PackingItem {
   packability_source?: 'product_default' | 'booking_override' | 'warehouse_override' | null;
   packability_revision?: number | null;
   wms_line_id?: string | null;
+  wms_item_type_id?: string | null;
   source_booking_id?: string | null;
   booking_products: {
     id: string;
@@ -29,6 +30,7 @@ export interface PackingItem {
     parent_product_id: string | null;
     parent_package_id: string | null;
     is_package_component: boolean | null;
+    inventory_item_type_id?: string | null;
   } | null;
 }
 

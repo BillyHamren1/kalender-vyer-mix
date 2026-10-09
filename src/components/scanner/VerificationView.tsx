@@ -8,7 +8,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, Plus, List, QrCode, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, Plus, List, QrCode, Loader2, MapPin } from 'lucide-react';
+import { ArticleLocationDialog, type ArticleLocationTarget } from '@/components/warehouse-map/ArticleLocationDialog';
+import { fetchArticleLocationsScanner } from '@/services/articleLocationsService';
+import { resolveCanonicalItemTypeId } from '@/services/desktopPackingService';
 import { getItemParcels, startPackingSession, repairPackingItems, type PackingWorkSession } from '@/services/scannerService';
 import { getStoredStaff } from '@/services/mobileApiService';
 import { useNavigate } from 'react-router-dom';
@@ -108,6 +111,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   // ── Packningssession ─────────────────────────────────────────────────
   const [activeSession, setActiveSession] = useState<PackingWorkSession | null>(null);
+  // Read-only map dialog. Opening/closing never touches scan/pack state.
+  const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showSignDialog, setShowSignDialog] = useState(false);
@@ -478,6 +483,23 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             {info.isChild && <span className="text-muted-foreground/70">{info.prefixIndicator}</span>}
             {info.displayName}
           </span>
+          {(() => {
+            const itemTypeId = resolveCanonicalItemTypeId(item as any);
+            if (!itemTypeId) return null;
+            const open = (e: React.SyntheticEvent) => {
+              e.stopPropagation(); e.preventDefault();
+              setMapTarget({ name: info.displayName, itemTypeId, instanceId: null });
+            };
+            // span[role=button]: rows can themselves be <button> in scan mode.
+            return (
+              <span role="button" tabIndex={0} onClick={open}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') open(e); }}
+                className="inline-flex items-center gap-0.5 text-[10px] text-primary underline-offset-2 hover:underline cursor-pointer"
+                aria-label={`Visa lagerplats för ${info.displayName}`}>
+                <MapPin className="h-3 w-3" /> Plats
+              </span>
+            );
+          })()}
           {!info.isPackable && (
             <span className="text-[9px] text-muted-foreground">Ej packningsbar</span>
           )}

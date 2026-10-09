@@ -111,6 +111,7 @@ interface PackingItem {
     parent_package_id: string | null;
     is_package_component: boolean | null;
     booking_id?: string;
+    inventory_item_type_id?: string | null;
   } | null;
 }
 
@@ -152,6 +153,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
+  const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const itemOrderRef = useRef<Record<string, number>>({});
@@ -922,6 +924,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         onOpenChange={setShowPrintDialog}
         meta={printMeta}
         rows={printRows}
+      />
+      <ArticleLocationDialog
+        open={!!mapTarget}
+        onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+        target={mapTarget}
+        fetcher={fetchArticleLocationsDesktop}
       />
 
     </div>
