@@ -1,3 +1,4 @@
+import { useMobileArticleMapScope } from '@/hooks/useArticleMapScope';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -57,6 +58,7 @@ const MobileScannerApp: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapScope = useMobileArticleMapScope();
   const mapOpenRef = useRef(false);
   useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
   const [isIdentifying, setIsIdentifying] = useState(false);
@@ -573,6 +575,9 @@ const MobileScannerApp: React.FC = () => {
                 onOpenChange={(o) => { if (!o) setMapTarget(null); }}
                 target={mapTarget}
                 fetcher={fetchArticleLocationsScanner}
+                organizationId={mapScope.organizationId}
+                sessionKey={mapScope.sessionKey}
+                scopeLoading={mapScope.scopeLoading}
               />
             </div>
           )}

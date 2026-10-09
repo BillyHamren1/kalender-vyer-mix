@@ -1,3 +1,4 @@
+import { useMobileArticleMapScope } from '@/hooks/useArticleMapScope';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Camera, X, Loader2, Tag, MapPin, CalendarDays, Package, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -51,6 +52,7 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<IdentifiedItem[]>([]);
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapScope = useMobileArticleMapScope();
   const mapOpenRef = useRef(false);
   useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
 
@@ -412,6 +414,9 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
         onOpenChange={(o) => { if (!o) setMapTarget(null); }}
         target={mapTarget}
         fetcher={fetchArticleLocationsScanner}
+        organizationId={mapScope.organizationId}
+        sessionKey={mapScope.sessionKey}
+        scopeLoading={mapScope.scopeLoading}
       />
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">

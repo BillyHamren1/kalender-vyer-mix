@@ -1,3 +1,4 @@
+import { useDesktopArticleMapScope } from '@/hooks/useArticleMapScope';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -154,6 +155,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapScope = useDesktopArticleMapScope();
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const itemOrderRef = useRef<Record<string, number>>({});
@@ -930,6 +932,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         onOpenChange={(o) => { if (!o) setMapTarget(null); }}
         target={mapTarget}
         fetcher={fetchArticleLocationsDesktop}
+        organizationId={mapScope.organizationId}
+        sessionKey={mapScope.sessionKey}
+        scopeLoading={mapScope.scopeLoading}
       />
 
     </div>
