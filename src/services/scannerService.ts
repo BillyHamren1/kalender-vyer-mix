@@ -677,7 +677,7 @@ export const runPackingPreflightCheck = async (
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
-export const identifyProduct = async (serialOrSku: string): Promise<{
+export interface IdentifyProductResult {
   found: boolean;
   name?: string;
   sku?: string;
@@ -686,8 +686,29 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
   client?: string;
   location?: string;
   error?: string;
-}> => {
-  return callScannerApi('identify_product', { serialNumber: serialOrSku });
+  /** Canonical WMS article id (read-only map lookup). */
+  itemTypeId?: string | null;
+  /** Canonical WMS instance id of the scanned unit, if WMS identified one. */
+  instanceId?: string | null;
+}
+
+const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const pickId = (...vals: unknown[]): string | null =>
+  (vals.find((v) => typeof v === 'string' && ID_RE.test(v)) as string | undefined) ?? null;
+
+/** Retain canonical ids from server fields or rawData (scan-status); never from name/SKU. */
+export const normalizeIdentifyResult = (r: any): IdentifyProductResult => {
+  const raw = r?.rawData ?? {};
+  const d = raw?.data && typeof raw.data === 'object' ? raw.data : {};
+  return {
+    ...r,
+    itemTypeId: pickId(r?.itemTypeId, raw.item_type_id, raw.itemTypeId, d.item_type_id, d.itemTypeId),
+    instanceId: pickId(r?.instanceId, raw.instance_id, raw.instanceId, d.instance_id, d.instanceId),
+  };
+};
+
+export const identifyProduct = async (serialOrSku: string): Promise<IdentifyProductResult> => {
+  return normalizeIdentifyResult(await callScannerApi('identify_product', { serialNumber: serialOrSku }));
 };
 
 // ============== WMS RESERVATION ALLOCATIONS ==============

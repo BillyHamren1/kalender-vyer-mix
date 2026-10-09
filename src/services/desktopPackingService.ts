@@ -42,7 +42,7 @@ export const fetchPackingForDesktop = async (id: string): Promise<PackingWithBoo
 export const fetchPackingListItemsForDesktop = async (packingId: string) => {
   const { data, error } = await supabase
     .from('packing_list_items')
-    .select('id, created_at, source_booking_id, wms_line_id, wms_sku, notes, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, planning_excluded_at, packed_at, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, booking_products(id, name, quantity, sku, notes, sort_index, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
+    .select('id, created_at, source_booking_id, wms_line_id, wms_item_type_id, wms_sku, notes, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, planning_excluded_at, packed_at, booking_product_id, product_packable_default, booking_packability_override, warehouse_packability_override, is_packable, packability_source, packability_revision, booking_products(id, name, quantity, sku, notes, sort_index, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
     .eq('packing_id', packingId)
     .order('created_at', { ascending: true });
 
@@ -309,4 +309,17 @@ export const setWarehousePackingListItemPackability = async (
     packability_revision: receipt.packability_revision,
     booking_unchanged: true,
   };
+};
+
+/**
+ * Canonical WMS article id for read-only map lookup. ONLY the projected
+ * wms_item_type_id or Booking's inventory_item_type_id — never name/SKU guesses.
+ */
+export const resolveCanonicalItemTypeId = (item: {
+  wms_item_type_id?: string | null;
+  booking_products?: { inventory_item_type_id?: string | null } | null;
+}): string | null => {
+  const re = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const v = item.wms_item_type_id ?? item.booking_products?.inventory_item_type_id ?? null;
+  return typeof v === 'string' && re.test(v) ? v : null;
 };

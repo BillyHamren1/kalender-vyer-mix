@@ -6,6 +6,8 @@ import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { identifyProduct } from '@/services/scannerService';
 import { parseScanResult } from '@/services/scannerService';
 import { toast } from 'sonner';
+import { ArticleLocationDialog, type ArticleLocationTarget } from '@/components/warehouse-map/ArticleLocationDialog';
+import { fetchArticleLocationsScanner } from '@/services/articleLocationsService';
 
 interface IdentifiedItem {
   id: string;
@@ -20,6 +22,8 @@ interface IdentifiedItem {
   client?: string;
   location?: string;
   error?: string;
+  itemTypeId?: string | null;
+  instanceId?: string | null;
 }
 
 interface IdentifyScannerOverlayProps {
@@ -46,6 +50,9 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<IdentifiedItem[]>([]);
+  const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapOpenRef = useRef(false);
+  useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -114,6 +121,8 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
         client: result.client,
         location: result.location,
         error: result.error,
+        itemTypeId: result.itemTypeId ?? null,
+        instanceId: result.instanceId ?? null,
       } : it));
       if (!result.found) {
         playBeep(false);
@@ -132,6 +141,7 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
   const handleDetected = useCallback((value: string) => {
     const now = Date.now();
     // Dedup same value within 2.5s
+    if (mapOpenRef.current) return; // read-only map open: ignore camera frames, keep list intact
     if (value === lastScanRef.current.value && now - lastScanRef.current.at < 2500) return;
     lastScanRef.current = { value, at: now };
 
@@ -397,6 +407,12 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <ArticleLocationDialog
+        open={!!mapTarget}
+        onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+        target={mapTarget}
+        fetcher={fetchArticleLocationsScanner}
+      />
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
         <div className="flex items-center gap-2">
@@ -485,7 +501,16 @@ export const IdentifyScannerOverlay: React.FC<IdentifyScannerOverlayProps> = ({ 
                         <p className="text-sm text-muted-foreground">Söker {item.scannedValue}...</p>
                       ) : item.found ? (
                         <>
-                          <p className="font-medium text-sm">{item.name}</p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-medium text-sm">{item.name}</p>
+                            {item.itemTypeId && (
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0"
+                                onClick={() => setMapTarget({ name: item.name || item.scannedValue, itemTypeId: item.itemTypeId!, instanceId: item.instanceId ?? null })}
+                                aria-label={`Visa lagerplats för ${item.name ?? item.scannedValue}`}>
+                                <MapPin className="h-3 w-3 mr-1" /> Karta
+                              </Button>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs">
                             {item.sku && (
                               <span className="flex items-center gap-1 text-muted-foreground font-mono">

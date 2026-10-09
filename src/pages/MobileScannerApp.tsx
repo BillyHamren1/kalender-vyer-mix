@@ -11,6 +11,8 @@ import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
 import { IdentifyScannerOverlay } from '@/components/scanner/IdentifyScannerOverlay';
 import { parseScanResult, fetchActivePackings, identifyProduct } from '@/services/scannerService';
+import { ArticleLocationDialog, type ArticleLocationTarget } from '@/components/warehouse-map/ArticleLocationDialog';
+import { fetchArticleLocationsScanner } from '@/services/articleLocationsService';
 import { PackingWithBooking } from '@/types/packing';
 import { useScannerController } from '@/hooks/scanner/useScannerController';
 import { ScanEvent } from '@/services/scanner/types';
@@ -54,6 +56,9 @@ const MobileScannerApp: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDebug, setShowDebug] = useState(false);
   const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
+  const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapOpenRef = useRef(false);
+  useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
   const [isIdentifying, setIsIdentifying] = useState(false);
   const [identifyInput, setIdentifyInput] = useState('');
   const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
@@ -154,6 +159,7 @@ const MobileScannerApp: React.FC = () => {
 
   // Handle barcode scan on home screen — navigates to packing or identifies product
   const handleBarcodeScan = useCallback(async (scannedValue: string) => {
+    if (mapOpenRef.current) return; // read-only map open: do not replace the identified product
     const result = parseScanResult(scannedValue);
     
     if (result.type === 'packing_id' && result.packingId) {
@@ -556,6 +562,18 @@ const MobileScannerApp: React.FC = () => {
                   <span>{identifiedProduct.location}</span>
                 </div>
               )}
+              {identifiedProduct.itemTypeId && (
+                <Button size="sm" variant="outline" className="h-7 text-xs mt-1"
+                  onClick={() => setMapTarget({ name: identifiedProduct.name || identifyInput, itemTypeId: identifiedProduct.itemTypeId, instanceId: identifiedProduct.instanceId ?? null })}>
+                  <MapPin className="h-3 w-3 mr-1" /> Visa på lagerkartan
+                </Button>
+              )}
+              <ArticleLocationDialog
+                open={!!mapTarget}
+                onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+                target={mapTarget}
+                fetcher={fetchArticleLocationsScanner}
+              />
             </div>
           )}
         </Card>
