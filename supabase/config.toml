@@ -213,3 +213,6 @@ verify_jwt = false
 
 [functions.planning-brain-read]
 verify_jwt = false
+
+[functions.warehouse-article-locations]
+verify_jwt = true
