@@ -19,7 +19,7 @@ const Harness: React.FC<{ fetcher: any; instanceId?: string | null }> = ({ fetch
       <span data-testid="scan-count">{scanned}</span>
       <button onClick={() => setScanned((n) => n)}>noop</button>
       <button onClick={() => setOpen(true)}>öppna karta</button>
-      <ArticleLocationDialog open={open} onOpenChange={setOpen} target={{ name: 'Glasvägg', itemTypeId: ITEM, instanceId }} fetcher={fetcher} />
+      <ArticleLocationDialog open={open} onOpenChange={setOpen} target={{ name: 'Glasvägg', itemTypeId: ITEM, instanceId }} fetcher={fetcher} organizationId={ORG} sessionKey="s1" />
     </>
   );
 };
@@ -97,12 +97,82 @@ describe('ArticleLocationDialog', () => {
     const fetcher = vi.fn((q: any) => q.itemTypeId === ITEM
       ? new Promise((r) => { resolveFirst = r; })
       : Promise.resolve({ ...articleFixture(), itemTypeId: OTHER, article: { name: 'Annan artikel', sku: null } }));
-    const { rerender } = render(<ArticleLocationDialog open onOpenChange={() => {}} target={{ name: 'A', itemTypeId: ITEM }} fetcher={fetcher} organizationId={ORG} />);
-    rerender(<ArticleLocationDialog open onOpenChange={() => {}} target={{ name: 'B', itemTypeId: OTHER }} fetcher={fetcher} organizationId={ORG} />);
+    const { rerender } = render(<ArticleLocationDialog open onOpenChange={() => {}} target={{ name: 'A', itemTypeId: ITEM }} fetcher={fetcher} organizationId={ORG} sessionKey="s1" />);
+    rerender(<ArticleLocationDialog open onOpenChange={() => {}} target={{ name: 'B', itemTypeId: OTHER }} fetcher={fetcher} organizationId={ORG} sessionKey="s1" />);
     await screen.findByText('Annan artikel');
     resolveFirst(articleFixture());
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.queryByText('Uniflex Glasvägg')).toBeNull();
     expect(((fetcher.mock.calls as any)[0][1] as AbortSignal).aborted).toBe(true);
+  });
+
+  it('switching article AND org while pending never renders the old map under the new heading', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const ORG2 = '55555555-5555-4555-8555-555555555555';
+    const resolvers: Array<(v: any) => void> = [];
+    const fetcher = vi.fn(() => new Promise((r) => resolvers.push(r)));
+    const D = (p: any) => <ArticleLocationDialog open onOpenChange={() => {}} fetcher={fetcher} {...p} />;
+    const { rerender } = render(<D target={{ name: 'A', itemTypeId: ITEM }} organizationId={ORG} sessionKey="s1" />);
+    resolvers[0](articleFixture());
+    await screen.findByText('H1-R1-A-1');
+    rerender(<D target={{ name: 'Ny artikel', itemTypeId: OTHER }} organizationId={ORG2} sessionKey="s1" />);
+    // Synchronously after rerender: old map must already be gone.
+    expect(screen.queryByText('H1-R1-A-1')).toBeNull();
+    expect(screen.queryByText('Uniflex Glasvägg')).toBeNull();
+    expect(screen.getByText('Ny artikel')).toBeTruthy();
+    expect((fetcher.mock.calls as any)[1][0]).toMatchObject({ itemTypeId: OTHER, organizationId: ORG2 });
+  });
+
+  it('session change aborts in-flight request and clears immediately; late result is ignored', async () => {
+    const resolvers: Array<(v: any) => void> = [];
+    const fetcher = vi.fn(() => new Promise((r) => resolvers.push(r)));
+    const D = (p: any) => <ArticleLocationDialog open onOpenChange={() => {}} target={{ name: 'A', itemTypeId: ITEM }} fetcher={fetcher} organizationId={ORG} {...p} />;
+    const { rerender } = render(<D sessionKey="s1" />);
+    rerender(<D sessionKey="s2" />);
+    expect(((fetcher.mock.calls as any)[0][1] as AbortSignal).aborted).toBe(true);
+    resolvers[0](articleFixture());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByText('H1-R1-A-1')).toBeNull();
+    // Logout (no session) fails closed: no new fetch, unauthorized shown, no map.
+    rerender(<D sessionKey={null} />);
+    expect(((fetcher.mock.calls as any)[1][1] as AbortSignal).aborted).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((await screen.findByRole('alert')).getAttribute('data-error-kind')).toBe('unauthorized');
+    resolvers[1](articleFixture());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByText('H1-R1-A-1')).toBeNull();
+  });
+
+  it('article fallback resets on close: reopening same instance requests the instance again', async () => {
+    const fetcher = vi.fn(async (q: any) => q.instanceId
+      ? { ...articleFixture({ instanceId: INSTANCE }), status: 'UNPLACED', placements: [], maps: [] }
+      : articleFixture());
+    render(<Harness fetcher={fetcher} instanceId={INSTANCE} />);
+    fireEvent.click(screen.getByText('öppna karta'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Visa artikelns platser' }));
+    await screen.findByText('H1-R1-A-1');
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByText('H1-R1-A-1')).toBeNull());
+    fireEvent.click(screen.getByText('öppna karta'));
+    expect(await screen.findByText(/ingen registrerad plats/)).toBeTruthy();
+    expect(screen.queryByRole('note')).toBeNull();
+    const last = (fetcher.mock.calls as any).at(-1)[0];
+    expect(last).toMatchObject({ instanceId: INSTANCE });
+    expect(screen.getByTestId('scan-count').textContent).toBe('3');
+  });
+
+  it('new instance clears fallback', async () => {
+    const I2 = '66666666-6666-4666-8666-666666666666';
+    const fetcher = vi.fn(async (q: any) => q.instanceId
+      ? { ...articleFixture({ instanceId: q.instanceId }), status: 'UNPLACED', placements: [], maps: [] }
+      : articleFixture());
+    const D = (p: any) => <ArticleLocationDialog open onOpenChange={() => {}} fetcher={fetcher} organizationId={ORG} sessionKey="s1" {...p} />;
+    const { rerender } = render(<D target={{ name: 'A', itemTypeId: ITEM, instanceId: INSTANCE }} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Visa artikelns platser' }));
+    await screen.findByText('H1-R1-A-1');
+    rerender(<D target={{ name: 'A', itemTypeId: ITEM, instanceId: I2 }} />);
+    expect(screen.queryByText('H1-R1-A-1')).toBeNull();
+    await screen.findByText(/ingen registrerad plats/);
+    expect((fetcher.mock.calls as any).at(-1)[0]).toMatchObject({ instanceId: I2 });
   });
 });

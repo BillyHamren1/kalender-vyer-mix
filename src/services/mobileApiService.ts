@@ -285,6 +285,10 @@ export interface ScheduledShift {
 }
 
 // Token management
+/** Fired on login/logout so scoped UI (e.g. warehouse map) can drop prior-session data. */
+export const MOBILE_AUTH_CHANGED_EVENT = 'mobile-auth-changed';
+function emitAuthChanged() { try { window.dispatchEvent(new Event(MOBILE_AUTH_CHANGED_EVENT)); } catch { /* non-browser */ } }
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -298,11 +302,13 @@ export function getStoredStaff(): MobileStaff | null {
 export function setAuth(token: string, staff: MobileStaff) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+  emitAuthChanged();
 }
 
 export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(STAFF_KEY);
+  emitAuthChanged();
 }
 
 // ── Retry policy (additive, ultra-safe) ───────────────────────────────────

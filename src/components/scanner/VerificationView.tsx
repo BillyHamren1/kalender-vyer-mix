@@ -1,3 +1,4 @@
+import { useMobileArticleMapScope } from '@/hooks/useArticleMapScope';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RecentScanEntry } from '@/hooks/scanner/useScanProcessor';
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [activeSession, setActiveSession] = useState<PackingWorkSession | null>(null);
   // Read-only map dialog. Opening/closing never touches scan/pack state.
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapScope = useMobileArticleMapScope();
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showSignDialog, setShowSignDialog] = useState(false);
@@ -710,7 +712,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         onOpenChange={(o) => { if (!o) setMapTarget(null); }}
         target={mapTarget}
         fetcher={fetchArticleLocationsScanner}
-        sessionKey={verifierStaffId}
+        organizationId={mapScope.organizationId}
+        sessionKey={mapScope.sessionKey}
+        scopeLoading={mapScope.scopeLoading}
       />
       {/* Header */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-card border-b safe-area-top">

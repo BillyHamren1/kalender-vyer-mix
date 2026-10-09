@@ -19,16 +19,19 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   target: ArticleLocationTarget | null;
   fetcher: ArticleLocationsFetcher;
-  organizationId?: string | null;
-  sessionKey?: string | null;
+  /** Real tenant scope (desktop: profile org; mobile: staff session org). */
+  organizationId: string | null;
+  /** Account/session identity (never a raw token). Change aborts + clears. */
+  sessionKey: string | null;
+  scopeLoading?: boolean;
 }
 
 const ERROR_ICON = { offline: WifiOff, permission: Lock, unauthorized: Lock } as const;
 
-export const ArticleLocationDialog: React.FC<Props> = ({ open, onOpenChange, target, fetcher, organizationId, sessionKey }) => {
+export const ArticleLocationDialog: React.FC<Props> = ({ open, onOpenChange, target, fetcher, organizationId, sessionKey, scopeLoading }) => {
   const instanceId = target?.instanceId ?? null;
-  const { state, refresh, isArticleFallback, showArticleLocations, showInstance } = useArticleLocations({
-    enabled: open && !!target, itemTypeId: target?.itemTypeId ?? null, instanceId, organizationId, sessionKey, fetcher,
+  const { state, requestKey, refresh, isArticleFallback, showArticleLocations, showInstance } = useArticleLocations({
+    enabled: open && !!target, itemTypeId: target?.itemTypeId ?? null, instanceId, organizationId, sessionKey, scopeLoading, fetcher,
   });
   const data = state.phase === 'ready' ? state.data : null;
 
@@ -85,6 +88,7 @@ export const ArticleLocationDialog: React.FC<Props> = ({ open, onOpenChange, tar
 
         {data && (
           <LocationsBody
+            key={requestKey}
             data={data}
             onArticleFallback={instanceId && !isArticleFallback && data.status !== 'PLACED' ? showArticleLocations : undefined}
           />
