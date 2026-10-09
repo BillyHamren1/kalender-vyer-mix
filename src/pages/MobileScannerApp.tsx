@@ -57,6 +57,8 @@ const MobileScannerApp: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [identifiedProduct, setIdentifiedProduct] = useState<any | null>(null);
   const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapOpenRef = useRef(false);
+  useEffect(() => { mapOpenRef.current = !!mapTarget; }, [mapTarget]);
   const [isIdentifying, setIsIdentifying] = useState(false);
   const [identifyInput, setIdentifyInput] = useState('');
   const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
@@ -157,6 +159,7 @@ const MobileScannerApp: React.FC = () => {
 
   // Handle barcode scan on home screen — navigates to packing or identifies product
   const handleBarcodeScan = useCallback(async (scannedValue: string) => {
+    if (mapOpenRef.current) return; // read-only map open: do not replace the identified product
     const result = parseScanResult(scannedValue);
     
     if (result.type === 'packing_id' && result.packingId) {
