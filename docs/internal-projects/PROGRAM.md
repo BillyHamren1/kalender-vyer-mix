@@ -2,7 +2,20 @@
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
 
-## Current continuation — 2026-10-12 20:59 UTC
+## Current continuation — 2026-10-12 21:28 UTC
+
+Draft publication only; no merge, deployment, hosted migration or WMS/Scanner publication. Root remains coordinator.
+
+Operations PR55 dc0d3cc1cad774f5bf09a3d6e7cc2526c6192053 has all seven workflows SUCCESS, including 60 PGlite +64 native PostgreSQL17.11 bootstrap checks and full app tests/types/build. Finance PR56 820a02ae8bc0cf3450af5c4d7ca4f03e2e7f4dc8 has all eight workflows SUCCESS; pending command recovery survives project navigation and competing panels.
+
+Root independently reproduced genuine first-day bootstrap -> actual caller ingest/dispatch -> metadata/cost/ACK -> explicit Finance command; canonical240000→180000→0, exact retry and unchanged customer/invoice rows. Sixty dependency hashes/Git blobs verified, identical log f85f02aa0e64f0410e8ee067050920c5f32cd992622dfa1f38498c8312a0d183. Two PGlite databases/in-memory HTTP/synthetic Time read/auth, not native cross-system or hosted acceptance. Durable24-path docs/evidence archive prepared locally.
+
+Operations review API/UI48a0850f4dd15f51c756e1ad078b5f5b5b1c5664 independently approved:61 SQL +17 UI PASS, protects same-project shared pending commands and late conflicting responses. Native65/exact app CI awaits publication.
+Finance partial canonical recorded-cost read a2433ba340a9a1f0be2491658ae9c849996a1b44 independently code/runtime approved:20 SQL +9 React PASS. Correctly separates observed from financially applied revisions and requires exact applied accepted receipt; money counted once; project census/domain coverage remains unknown. Adjacent default-off route host05d8e89 independently approved. Root preparing genuine-parent reviewed deltas; native/full CI remains gate.
+
+Remaining: authoritative project obligation roster/late offline policy and complete domain coverage/close; unsupported customer identities; WMS/Scanner owner schema/authority (direct metadata permission denied, no bypass); separately authorized hosted migration/rollback and actual signed-in published UI. No automatic secure-login retry. No empty module restarts; active agents handle concrete review/publication checks.
+
+## Prior continuation — 2026-10-12 20:59 UTC
 
 This section supersedes earlier caller/command gaps. Draft publication remains authorized in Operations, Time, Finance and Catering only; no hosted migration, deployment, remote merge, financial action or WMS/Scanner publication.
 
@@ -87,9 +100,9 @@ Root integration local073e0388c contains genuine source5a0601b plus local eviden
 Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
 Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
 
-## Active recovery lease — renewed 2026-10-12 20:59 UTC
+## Active recovery lease — renewed 2026-10-12 21:28 UTC
 
-Owner /root; expires 2026-10-12 21:35 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
+Owner /root; expires 2026-10-12 22:05 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
