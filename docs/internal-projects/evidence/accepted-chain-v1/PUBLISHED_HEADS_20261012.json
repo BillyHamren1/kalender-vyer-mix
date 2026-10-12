@@ -1,0 +1,34 @@
+{
+  "operationsPublishedBase": "4ce826322dc703da64f7439abc739481487cac09",
+  "financePublishedBase": "603b8ad035b1fdf54b748e9b58555afd0a022ab0",
+  "candidateFiles": [
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-operations/scripts/internal-projects/accepted-personnel-issuer.sql",
+      "sha256": "f85ce5bb334a23690709b1db1b944a7bee22dce3a9242a6c3843f3c06e1d4737"
+    },
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-operations/scripts/internal-projects/accepted-personnel-transport.sql",
+      "sha256": "4f7bece03191f2957c1054ae51dc927fc2b0ef91ed84185c868871c8daca852e"
+    },
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-operations/supabase/functions/_shared/project-personnel-accepted-transport.ts",
+      "sha256": "2349058a4cc16cd714566c463f669b8b9d79125a7fc81420a3e6fdedfcdfaa6e"
+    },
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-operations/supabase/functions/_shared/project-personnel-ingestion-transport.ts",
+      "sha256": "1fc8d37857d36cd509f596a3763066f2b09e41619d5a51a6ac87fec3ba72a730"
+    },
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-finance-accepted/scripts/internal-projects/accepted-cost-receipt.sql",
+      "sha256": "878abc0dbe1ee7ff8443a08856b53236f5fc2cf6b62cca66322e1b2d62d81e7f"
+    },
+    {
+      "path": "/workspace/scratch/3f646f03b350/recovery-finance-accepted/supabase/functions/_shared/operations-accepted-cost-receive.ts",
+      "sha256": "2b40b13c70422f40e46cc5070faa6a9118bca4d902979b367e61bc0721709a8a"
+    }
+  ],
+  "checks": 11,
+  "hosted": false,
+  "recorded_at": "2026-10-12T19:59:00Z",
+  "scope": "Exact six core source hashes checked; existing reviewed donor/schema fixtures, actual TS/SQL, in-memory HTTP. No descendant-specific or hosted acceptance claim."
+}

@@ -1,5 +1,58 @@
 # Internal projects integration checkpoint
 
+## Current continuation — 2026-10-12 19:52 UTC
+
+Supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized. No merge, deployment, hosted migration or WMS/Scanner source publication. Root control lease expires 20:26 UTC, PROGRAM commit fb970ce1ff66c447d958c52781ed3fb4e6446870.
+
+- Operations PR55 exact `ac13685f485fe714bc7279ac4bad0c4e509e6d09`, tree `4464a6f3b118c03df29662554b04dcb712cd90f3`: all three workflows green. Accepted review descendant 38299434044 proves 49 PGlite + 51 PostgreSQL 17.11 checks including two physical role-revocation overlaps. Existing accepted transport has 57 PGlite/60 native checks including three overlaps; full application 84 tests, types and build31.34s PASS. Private default-off wrappers retain canonical writers/outbox.
+- Finance PR56 exact `603b8ad035b1fdf54b748e9b58555afd0a022ab0`, tree `b02fbf80e56bd829497eb520836d06606f84d6fa`, genuine parent034bc255. Eleven reviewed files published; synthetic local b5c2c1f history not pushed. Native job114981069581/run38300224097 PASS: 31 receipt/writer scenarios plus seven physically instrumented overlaps (38 total); root independently read raw logs. Original atomic33, accepted31 PGlite and Edge9 also PASS. All seven workflows now SUCCESS, including main38300224109 and browser38300224093. Source/destination pins, current issuer/metadata, actor membership/ACL fences, immutable receipts, signed ACK and canonical writer are dormant/unwired.
+- Time PR40 `adae19549703d3b12b1730c15a32a49afbe40df5`: both workflows wholly green, 1882 unit tests and browser100mock+31live-shell fixtures. These are CI fixtures, not hosted signed-in acceptance.
+- Catering PR30 remains4c2353c8299fceb419aa8f1a9feb69ab2c550812, prior verified CI green.
+
+Mixed-day gate reproduced independently at recovery-mixed-cost34b23a6: actual Operations engine preserves customer4h/internal3h/activity1h, 480minutes and240000minor; Finance internal-only metadata rejects customer identity and therefore the complete stream. Zero partial receipts or money. Operations and Finance now own a typed customer_cost_identity extension with explicit prospective enrollment, real direct Booking TEXT identity and null customer budget fields. Operations attests its own project classification and tenant-checked project/Booking relationship, not a Booking-origin signature. Finance binds to an explicitly enrolled existing customer project. Customer budget/status/revenue/invoice behavior remains unchanged. Large/multi-booking/legacy-null identities remain explicit unsupported gates, never fabricated bookings.
+
+Independent composition evidence recovery-cost-chain8a952cf67c897cf7011ddd95990631e406718dfa:45 issuer regressions+11 actual-code transport cases using two PGlite databases and in-memory HTTP. Not hosted; no money events. Evidence histories are synthetic and must not be pushed.
+
+New cross-channel finding: missing signed metadata currently becomes P0001→HTTP422→blocked source delivery, so valid cost-before-metadata is stranded. The next batch must distinguish dependency-not-ready retry from conflicting/malformed identity; the approved default-off accepted-envelope.v2 adds exact sorted unique project_metadata_refs objects {source_project_id, revision, fingerprint}, captured atomically and frozen in the accepted marker, without changing canonical money snapshots. Missing enrolled exact receipt is P0M01/503; conflicting authority remains denial. v1 stays unchanged/internal-only. This implementation is in progress, not accepted yet. Operations/Finance/reviewer/independent composition owner are coordinating. No instantaneous cross-channel revocation guarantee.
+
+Remaining gates: typed mixed-day full-stream cost application/withdrawal, causal metadata readiness, safe caller/coverage activation, WMS/Scanner ownership and full equipment lifecycle, coordinated hosted migration/rollback, actual signed-in published UI. Never automatically restart secure login. Module loops stay paused; restart only concrete work. Overall not complete.
+
+## Current continuation — 2026-10-12 19:29 UTC
+
+This section supersedes historical failures and source-publication restrictions below. Reviewed draft publication in Operations, Time, Finance and Catering is authorized. Merge, deploy, hosted migrations and WMS/Scanner source publication remain outside that authorization. Root control lease expires 19:56 UTC; control PROGRAM commit `bcb97fd872972026baaa1208ac2173021f358be7` records scoped delegates and current evidence.
+
+| Track | Exact published head | Verified evidence |
+| --- | --- | --- |
+| Operations PR55 | `5a0601b6fb2e5aa0cce564ec5a72b77c3c34bb5e` | Workflows 38296675873 and 38296675876 green: 62 unit, 45 PGlite, 45 PostgreSQL 17.11 sequential issuer/provenance checks, full application/types/build and existing metadata concurrency. |
+| Finance PR56 | `034bc2552cb46987f2c7c45304478d3aacee72b5` | Seven workflows green: 33 PGlite + 33 PostgreSQL 17.11 sequential receiver cases; 1,259 domain tests, types/build, lint zero errors/nine existing warnings and 20 fixture browser tests. |
+| Time PR40 | `adae19549703d3b12b1730c15a32a49afbe40df5` | Reader all three jobs green. Full workflow 38296930727 verify 1,882 tests/build, native and database green; browser still running. Tested merge tree equals exact head tree `f5dca7b99c785bf062fb8565721ce4f5e07174e2`. |
+| Catering PR30 | `4c2353c8299fceb419aa8f1a9feb69ab2c550812` | Unchanged, CI 38271411742 green. |
+
+Operations issuer is deliberately unwired/private and attests the trusted Operations publisher's authenticated TLS read, not a Time-signed response. Same-version shadow ancestry and cross-epoch reuse cannot acquire accepted markers. Marker faults roll back canonical publication, nonce and outbox. Finance whole-stream receiver remains dormant; replay now rechecks actor, current project classification, canonical line ownership and foreign history before exact or stale returns. It reuses the existing monetary writer and does not activate close or trusted totals.
+
+Current concrete batch: operations_recovery owns accepted delivery/ACK, atomic prospective enrollment floor and shadow-mode isolation; finance_recovery owns the signed accepted immutable source port; recovery_review independently reviews the contract and code; warehouse_recovery owns isolated actual-code chain composition. A composition defect was found before publication: the accepted source port must retain captured destination organization and project, and the downstream binding must validate both, including omitted historical lines. Finance is correcting that boundary and retaining verified metadata and close guards.
+
+time_recovery completes terminal browser evidence before taking a separate Operations accepted project-review descendant candidate. Its genuine isolated worktree is `recovery-review-descendant` at 5a0601b; only new private draft SQL, harness and evidence files are assigned. Existing canonical project-review publication, actor authority, source ancestry and frozen prices must remain authoritative. No public grants, deployment or activation are implied.
+
+Warehouse's local dormant reservation candidate passes 30 PGlite checks plus three actual-owner SQL availability checks. The owner default `pending` reservation does not hold stock; server-owned `confirmed` does. The candidate preserves existing owner functions, prevents allocated replacement, and rolls reservation changes back on receipt failure. Source authority intentionally fails closed; no endpoint, WMS publication or Scanner conformance is claimed.
+
+All new native figures above are isolated CI PostgreSQL evidence. The 45/33 cost cases are sequential, not overlapping-session tests. Browser fixtures are not real hosted authentication. Remaining acceptance includes accepted end-to-end cost receipt/application/coverage, overlapping delivery/receipt faults, booking-free stock lifecycle, coordinated hosted migration/rollback and actual signed-in published UI. Never automatically restart the interrupted secure-login dialog. Private repository materializations and synthetic evidence ancestry must never be pushed.
+
+## Recovery checkpoint — 2026-10-12 19:01 UTC
+
+This supersedes older source-publication and local-continuity statements below. Reviewed draft publication in Operations, Time, Finance and Catering remains authorized; no merge, deployment or hosted migration.
+
+The previous local worktrees were absent. Root restored this genuine Operations branch from GitHub at 26da19b9699e52875a95a03d79d4d06a30b2a769, then fetched the reviewed correction 0520f931bf596de5070fd7b28471f7ec4f78f37c. Unpublished prior handoffs are not assumed to survive. Control PROGRAM.md 5922566997585c4d8578c87fdba50be6f12d1f90 records root lease until 19:56 UTC.
+
+- Operations PR55: 26da19b main workflow38280207566 PASS; provenance workflow38280207481 failed because node-postgres serialized a JavaScript proof array as a PostgreSQL array literal for JSONB parameter $2. Exact one-line fixture correction explicitly JSON.stringify([fakeProof]); no SQL, authority checks or assertions changed. Independent review approved blob bedf66b4b9f873424a2fb9a910132f8b62469de3. Local33PGlite scenarios and locked pg8.16.3 serialization reproduction PASS. Published0520f931, tree a85aebd61ef1c7484f5375f13d5d524a0e3700ae; fresh native CI pending.
+- Time PR40 remains2b8f95dea6cf089ce5418976d966841b7fabe5a2. CI38280076346 database/native PASS, verify/browser FAIL. Actual logs identify one async Catering readiness assertion and live fixture missing current worker import head / Swedish locale. Agent time_recovery preparing isolated test compatibility fixes; product current-assignment guards remain intact. No new passing browser claim.
+- Finance PR56 4a5f3128a34f7f6f12c0719b62aee59b276f6e0d freshly rechecked: all six workflows SUCCESS, including main38279173931 and browser38279173946. Prior raw evidence1259 domain and20 browser checks. Accepted whole-stream receipt/withdrawal/coverage is still missing. finance_recovery owns bounded dormant adapter correction; source port remains absent.
+- Catering PR30 4c2353c8299fceb419aa8f1a9feb69ab2c550812 freshly rechecked CI38271411742 SUCCESS.
+- Warehouse recovery confirms WMS main4f97b6de / PR7f8d28f05 / Scanner main85ce28fc unchanged. Local reservation-only recovery in progress; no WMS/Scanner publication authorization and no stock writes.
+
+Current owners: root integration/publication; operations_recovery native CI; time_recovery Time test fixtures; recovery_review independent review; finance_recovery dormant receiver; warehouse_recovery reservation-only local work. Separate directories and leases. Supervisor automation remains enabled; module loops remain paused. This does not guarantee continuous execution. Real authenticated published UI, coordinated migration/rollback, accepted cost transmission and booking-free equipment lifecycle remain open.
+
+
 Coordinator session 2026-10-12. User authorized per-module long-session implementation, hourly continuation and authenticated end-to-end tests.
 
 ## Local reviewed integration
