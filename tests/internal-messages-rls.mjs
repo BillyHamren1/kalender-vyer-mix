@@ -18,7 +18,9 @@ insert into direct_messages(id,organization_id,sender_id,recipient_id,content,is
  ('30000000-0000-4000-8000-000000000003','20000000-0000-4000-8000-000000000001','staff-b','staff-c','private others',false),
  ('30000000-0000-4000-8000-000000000004','20000000-0000-4000-8000-000000000002','staff-a','staff-b','foreign organization',false);
 `);
-await db.exec(await readFile(new URL('../supabase/migrations/20261012090000_private_direct_message_participants.sql', import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/20261012134510_a41b3aae-bd1c-4fa8-89aa-2a13060a68a0.sql', import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/20261012134548_79f64cdb-d069-48cc-8c1d-687abf3c5720.sql', import.meta.url),'utf8'));
+assert.equal((await db.query("select has_function_privilege('anon','public.is_direct_message_actor(text,uuid)','execute') as allowed")).rows[0].allowed,false);
 await db.exec(`set role authenticated;set request.jwt.claim.sub='10000000-0000-4000-8000-000000000001';set request.jwt.claim.org='20000000-0000-4000-8000-000000000001';set request.jwt.claim.role='authenticated';`);
 assert.equal((await db.query('select * from direct_messages')).rows.length,2);
 assert.equal((await db.query("update direct_messages set is_read=true where content='private others' returning id")).rows.length,0);

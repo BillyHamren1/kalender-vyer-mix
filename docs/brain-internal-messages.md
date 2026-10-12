@@ -32,3 +32,10 @@ Inbox grouping still uses the latest 200 rows. The response explicitly reports `
 Push failure after a successful DB insert remains best-effort; retry guarantees one message, not guaranteed push delivery. A durable notification outbox is a separate improvement.
 
 No migration, deployment, live secret change, main merge or real recipient send is included in the Git change itself.
+
+
+## Deployment receipt — 2026-10-12
+
+Operations PR #53 merged at 659693a6ef1877e413d2be4769e1f0c6f97f7aa0. Lovable applied the reviewed participant migration as `20261012134510_a41b3aae-bd1c-4fa8-89aa-2a13060a68a0.sql` and added `20261012134548_79f64cdb-d069-48cc-8c1d-687abf3c5720.sql` to revoke anonymous execution of the authorization helper. The original 20261012090000 file was never recorded as applied and is removed in favor of these canonical deployed migrations, preventing duplicate CREATE POLICY/CREATE TRIGGER on fresh installs. Applied migration files remain unchanged. The isolated RLS test executes both deployed files and checks the anonymous function grant.
+
+Both mobile-app-auth and mobile-app-api deployed. Database metadata confirms all restrictive policies and trigger; unsigned/fabricated request probes were rejected. Valid-login and end-to-end message/push checks are still not claimed.
