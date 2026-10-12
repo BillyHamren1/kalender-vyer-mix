@@ -17,25 +17,26 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'X-New-Token',
 }
 
-// Simple token generation using HMAC-like approach
-const TOKEN_SECRET = Deno.env.get('STAFF_SECRET_KEY') || 'default-secret-key'
+// Domain-separated HMAC using a server-only credential already present in both login functions.
+import { createMobileMessageToken, verifyMobileMessageClaims } from '../_shared/mobile-message-token.ts'
+const TOKEN_SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 // Sliding 30-day session. Tokens older than REFRESH_THRESHOLD_HOURS get
 // transparently rotated via the X-New-Token response header so users never
 // hit a hard logout while they keep using the app.
 const TOKEN_EXPIRY_HOURS = 24 * 30
 const REFRESH_THRESHOLD_HOURS = 24 * 7
 
-function generateToken(staffId: string, sessionId?: string): string {
+async function generateToken(staffId: string, sessionId?: string): Promise<string> {
   const timestamp = Date.now()
-  const expiresAt = timestamp + (TOKEN_EXPIRY_HOURS * 60 * 60 * 1000)
-  const payload: Record<string, unknown> = { staffId, timestamp, expiresAt }
-  if (sessionId) payload.sessionId = sessionId
-  return btoa(JSON.stringify(payload))
+  if (!sessionId) throw new Error('mobile_session_missing')
+  return await createMobileMessageToken({ staffId, sessionId, timestamp, expiresAt: timestamp + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000 }, TOKEN_SECRET)
 }
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; sessionId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
+async function verifyToken(token: string): Promise<{ signed?: boolean; valid: boolean; staffId?: string; sessionId?: string; issuedAt?: number; expiresAt?: number; error?: string }> {
   try {
     const payload = JSON.parse(atob(token))
+    const signed = await verifyMobileMessageClaims(payload, TOKEN_SECRET)
+    if (payload.signature !== undefined && !signed) return { valid: false, error: 'Invalid token signature' }
     if (!payload.staffId || !payload.expiresAt) {
       return { valid: false, error: 'Invalid token format' }
     }
@@ -44,6 +45,7 @@ function verifyToken(token: string): { valid: boolean; staffId?: string; session
     }
     return {
       valid: true,
+      signed,
       staffId: payload.staffId,
       sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       issuedAt: typeof payload.timestamp === 'number' ? payload.timestamp : undefined,
@@ -79,13 +81,13 @@ async function resolveJwtUserId(
  *  - the token has less than REFRESH_THRESHOLD_HOURS left until expiry.
  * Returns the new token to send back via X-New-Token, or null to keep current.
  */
-function maybeRotateToken(staffId: string, sessionId: string | undefined, issuedAt?: number, expiresAt?: number): string | null {
+async function maybeRotateToken(staffId: string, sessionId: string | undefined, issuedAt?: number, expiresAt?: number): Promise<string | null> {
   const now = Date.now()
   const refreshMs = REFRESH_THRESHOLD_HOURS * 60 * 60 * 1000
   const ageOk = typeof issuedAt === 'number' && (now - issuedAt) >= refreshMs
   const closeToExpiry = typeof expiresAt === 'number' && (expiresAt - now) <= refreshMs
   if (!ageOk && !closeToExpiry) return null
-  const fresh = generateToken(staffId, sessionId)
+  const fresh = await generateToken(staffId, sessionId)
   console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry}, sessionId=${sessionId ?? 'none'})`)
   return fresh
 }
@@ -459,7 +461,7 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       staffId = verified.staffId
       staffOrg = { organization_id: verified.organizationId, user_id: verified.userId }
     } else if (token) {
-      const tokenResult = verifyToken(token)
+      const tokenResult = await verifyToken(token)
       if (!tokenResult.valid) {
         return new Response(
           JSON.stringify({ error: tokenResult.error }),
@@ -479,7 +481,7 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         .maybeSingle()
       const activeSid = sessRow?.active_mobile_session_id as string | null | undefined
       const messagingAction = MESSAGE_ACTIONS.includes(action) || ['get_direct_messages', 'get_dm_messages', 'get_inbox_all', 'get_messaging_activity', 'unarchive_dm'].includes(action)
-      if (sessionError || (messagingAction && (!activeSid || !tokenResult.sessionId)) || (activeSid && tokenResult.sessionId !== activeSid)) {
+      if (sessionError || (messagingAction && (!tokenResult.signed || !activeSid || !tokenResult.sessionId)) || (activeSid && tokenResult.sessionId !== activeSid)) {
         console.warn(`[mobile-app-api] 🚫 token_revoked staff=${staffId} tokenSid=${tokenResult.sessionId ?? 'none'} activeSid=${activeSid}`)
         return new Response(
           JSON.stringify({
@@ -491,7 +493,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       }
 
       // Sliding refresh: behåll sessionId vid rotation.
-      rotationSlot.token = maybeRotateToken(staffId, tokenResult.sessionId, tokenResult.issuedAt, tokenResult.expiresAt)
+      // Never upgrade an unsigned token into a signed credential via refresh.
+      rotationSlot.token = tokenResult.signed ? await maybeRotateToken(staffId, tokenResult.sessionId, tokenResult.issuedAt, tokenResult.expiresAt) : null
     } else {
       // Web JWT fallback (planner UI)
       const authHeader = req.headers.get('Authorization') || ''
@@ -992,7 +995,7 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
     )
   }
 
-  const token = generateToken(account.staff_id, sessionId)
+  const token = await generateToken(account.staff_id, sessionId)
 
   console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`)
 
