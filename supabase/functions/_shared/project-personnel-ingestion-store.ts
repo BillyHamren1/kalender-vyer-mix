@@ -40,10 +40,19 @@ export function createOperationsPersonnelStore(databaseUrl: string, serviceKey: 
       if(!Array.isArray(heads)||heads.length>1)throw new Error('ambiguous_stream');
       if(!heads.length)return {current_revision:0,cost_snapshot:null,raw_time_snapshot:null,source_evidence:null};
       const revision=heads[0].current_revision;
+      if(!Number.isSafeInteger(revision)||revision<0)throw new Error('invalid_stream_revision');
+      const revisionFilter=revision===0?{}:{source_revision:'eq.'+revision};
       const [publications,outbox]=await Promise.all([
-        request('operations_personnel_cost_publications',{select:'cost_snapshot,raw_time_snapshot',organization_id:'eq.'+org,source_time_stream_id:'eq.'+stream,source_revision:'eq.'+revision,limit:'2'}),
-        request('operations_personnel_cost_outbox',{select:'source_evidence',organization_id:'eq.'+org,source_time_stream_id:'eq.'+stream,source_revision:'eq.'+revision,limit:'2'}),
+        request('operations_personnel_cost_publications',{select:'cost_snapshot,raw_time_snapshot',organization_id:'eq.'+org,source_time_stream_id:'eq.'+stream,...revisionFilter,limit:'2'}),
+        request('operations_personnel_cost_outbox',{select:'source_evidence',organization_id:'eq.'+org,source_time_stream_id:'eq.'+stream,...revisionFilter,limit:'2'}),
       ]);
+      if(revision===0){
+        // Revision-zero is an explicit empty canonical head, never inferred from
+        // missing reports. Validated FKs tie links/proofs/reviews to publications
+        // and accepted markers to outbox; checking ALL revisions rules out them too.
+        if(!Array.isArray(publications)||!Array.isArray(outbox)||publications.length||outbox.length)throw new Error('zero_stream_has_evidence');
+        return {current_revision:0,cost_snapshot:null,raw_time_snapshot:null,source_evidence:null};
+      }
       if(publications.length!==1||outbox.length!==1)throw new Error('stream_evidence_missing');
       return {current_revision:revision,...publications[0],source_evidence:outbox[0].source_evidence};
     },

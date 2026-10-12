@@ -161,3 +161,28 @@ describe('accepted dispatcher caller',()=>{
   expect(response.status).toBe(200);expect((await response.json()).financially_applied).toBe(false);expect(calls).toEqual(['/rest/v1/rpc/claim_operations_personnel_accepted_v1','/functions/v1/operations-personnel-accepted-receive','/rest/v1/rpc/finish_operations_personnel_accepted_v1']);
  });
 });
+
+describe('prospective revision-zero canonical head',()=>{
+ it('prepares first accepted CAS from explicit empty head without bootstrap or shadow calls',async()=>{
+  const s=await setup();const urls:URL[]=[];
+  const f:typeof fetch=async(u,i)=>{const url=new URL(String(u));urls.push(url);
+   if(url.pathname.endsWith('/operations_personnel_cost_streams'))return new Response(JSON.stringify([{current_revision:0}]));
+   if(url.pathname.endsWith('/operations_personnel_cost_publications')||url.pathname.endsWith('/operations_personnel_cost_outbox'))return new Response('[]');
+   return s.fetcher(u,i);
+  };
+  const r=(await preparePersonnelIssuerCommand(cfg,s.input,f))!;expect(JSON.parse(r.body).expected_revision).toBe(0);
+  expect(urls.filter(u=>/cost_publications|cost_outbox/.test(u.pathname)).every(u=>!u.searchParams.has('source_revision'))).toBe(true);
+  expect(urls.some(u=>u.pathname.includes('/rpc/'))).toBe(false);
+ });
+ it.each(['0',null,-1,0.5,Number.MAX_SAFE_INTEGER+1])('rejects malformed revision %s',async revision=>{
+  const s=await setup();const f:typeof fetch=async(u,i)=>String(u).includes('/operations_personnel_cost_streams')?new Response(JSON.stringify([{current_revision:revision}])):s.fetcher(u,i);
+  await expect(preparePersonnelIssuerCommand(cfg,s.input,f)).rejects.toThrow('invalid_stream_revision');
+ });
+ it.each(['operations_personnel_cost_publications','operations_personnel_cost_outbox'])('rejects any historical evidence behind zero head: %s',async table=>{
+  const s=await setup();const f:typeof fetch=async(u,i)=>{const p=new URL(String(u)).pathname;
+   if(p.endsWith('/operations_personnel_cost_streams'))return new Response('[{"current_revision":0}]');
+   if(p.endsWith('/'+table))return new Response('[{"source_revision":7}]');
+   if(/cost_publications|cost_outbox/.test(p))return new Response('[]');return s.fetcher(u,i);
+  };await expect(preparePersonnelIssuerCommand(cfg,s.input,f)).rejects.toThrow('zero_stream_has_evidence');
+ });
+});
