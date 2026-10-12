@@ -70,5 +70,5 @@ export async function provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,e
  await db.exec('drop trigger issuer_fixture_fault on operations_economy_private.personnel_accepted_issuances_v1');
  assert.equal((await issue(faultAttempt)).rows[0].r.status,'accepted');
  pass('marker failure rolls back publication, outbox, head and nonce; identical retry succeeds');
- if(afterIssuer)await afterIssuer({db,read,as,org,worker,stream,issuer,epoch,epoch2,route,command,next,head,lastAcceptedRevision:next.snapshot.source_revision,makeIssuerRequest:request,pass});
+ if(afterIssuer)await afterIssuer({db,read,as,org,worker,stream,issuer,epoch,epoch2,route,command,next,head,lastAcceptedRevision:next.snapshot.source_revision,makeIssuerRequest:request,pass,fixture,engine,ctx});
 }

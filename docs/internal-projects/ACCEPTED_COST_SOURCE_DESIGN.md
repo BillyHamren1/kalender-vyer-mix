@@ -1,4 +1,4 @@
-# Prospective accepted personnel source — design, not implementation
+# Prospective accepted personnel source — design and dormant implementation
 
 Reviewed source: Operations PR55 `0520f931bf596de5070fd7b28471f7ec4f78f37c`. Owner `/root/operations_recovery`, delegated root recovery lease. Parent approved a dedicated trusted Operations publisher attesting its own authenticated TLS read. Dormant source issuer implementation now exists; no key provisioning, enrollment, public mutation caller or dispatcher activation.
 
@@ -8,7 +8,7 @@ The canonical publication stores a complete `cost_snapshot`, raw Time snapshot, 
 
 The service role can still directly insert publication/outbox/proof-shaped records. Outbox payload immutability prevents later alteration, but does not prove initial authenticity. A timestamp, correct monetary formula, accepted-looking schema, or hash supplied with its own body is not an accepted source. Current canonical service ingress trusts Time metadata supplied by its caller. Therefore adding an AFTER INSERT issuance trigger or merely using `created_at` would let old/generic service writers mint accepted evidence.
 
-Current `readAuthenticatedTimePersonnel` signs the **request** with ES256; its response carries validated metadata/raw digest over TLS, not an independent Time-origin signature. A new Operations attestation must not claim that Time signed this response. Parent chose a separately trusted Operations publisher issuer explicitly attesting its own authenticated TLS read. The generic service role cannot mint that issuer proof. The mutating SQL issuer function remains private with no caller grants; the only exposed addition is a service-only read predicate returning an ancestry boolean. Public mutation adapter and accepted dispatcher remain absent.
+Current `readAuthenticatedTimePersonnel` signs the **request** with ES256; its response carries validated metadata/raw digest over TLS, not an independent Time-origin signature. A new Operations attestation must not claim that Time signed this response. Parent chose a separately trusted Operations publisher issuer explicitly attesting its own authenticated TLS read. The generic service role cannot mint that issuer proof. The mutating SQL issuer function remains private with no caller grants; the only exposed addition is a service-only read predicate returning an ancestry boolean. The callable public mutation adapter remains absent. Dormant accepted transport/ACK and mode isolation were published in `4ce826322`; accepted project-review descendants were published in `ac13685f`. No dispatch scheduler or activation is installed.
 
 ## Smallest safe extension boundary
 
@@ -37,7 +37,7 @@ Full membership authorizes identifying omitted previously bound lines for withdr
 - Default-off accepted transport emits no HTTP; shadow ACK in accepted domain and vice versa fail; invalid/expired signatures, nonce replay and mismatched ACK cannot finish lease.
 - Two dispatch workers, lease expiry, lost response and current route/issuer revocation preserve ordered immutable delivery. Native PostgreSQL tests required in addition to PGlite.
 
-Dormant draft SQL and source command preparation are implemented under this design, not installed as migrations. Receiver adapter, public issuer port, accepted dispatcher, project-review accepted descendants and feature activation remain absent. Accepted Finance source chain remains an open gate.
+Dormant draft SQL and source command preparation are implemented under this design, not installed as migrations. Dormant transport and accepted review descendants are now published and tested. Callable issuer/financial adapter integration, real keys/enrollment, coverage and hosted activation remain open; the historical design above is retained.
 
 ## Dormant implementation checkpoint
 
@@ -51,7 +51,7 @@ Validation: **45 PGlite checks PASS**, retaining all 33 prior rate/review assert
 
 The existing isolated CI workflow now runs this strict superset on PGlite and PostgreSQL 17 separately. Native results on a newly published exact head remain pending until publication. All keys/enrollment rows exist only as disposable test fixtures.
 
-Still deliberately absent: a callable issuer mutation port, hosted migration, real key provisioning and atomic enrollment operation, accepted-versus-shadow claim isolation, signed accepted dispatcher/ACK, project-review accepted descendants, Finance receiver wiring and real authenticated hosted acceptance. Private issuer invocation is owner-only in the disposable fixture. No deployable path can call it; do not grant a caller or enable this draft until those coupled gates are implemented and reviewed.
+Current open gates: callable issuer/financial adapter integration, hosted migration/rollback, real key provisioning/enrollment, complete coverage and authenticated hosted acceptance. The later reviewed transport batch provides atomic floor enrollment code, accepted-versus-shadow isolation and signed dispatcher/ACK; accepted project-review descendants are implemented. These are dormant code, not deployed trust facts. Private issuer invocation is owner-only in the disposable fixture. No deployable path can call it; do not grant a caller or enable this draft until those coupled gates are implemented and reviewed.
 
 ## Published exact-head evidence
 

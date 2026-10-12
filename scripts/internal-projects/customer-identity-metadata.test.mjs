@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';import{readFileSync,readdirSync}from'node:fs';
+import {openTestDatabase} from './accepted-rate-test-db.mjs';const db=await openTestDatabase();
+const org='11111111-1111-4111-8111-111111111111',org2='22222222-2222-4222-8222-222222222222';
+await db.exec(`create role anon;create role authenticated;create role service_role;create role restricted;
+create schema auth;grant usage on schema auth to authenticated,restricted;
+create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.actor',true),'')::uuid$$;
+create function get_user_organization_id(uuid) returns uuid language sql as $$select $1$$;
+create table projects(id uuid primary key,organization_id uuid,deleted_at timestamptz,name text,project_leader text,booking_id text,is_internal boolean default false,location_id uuid,status text,rigdaydate date,rigdowndate date);
+create table bookings(id text primary key,organization_id uuid,client text,status text,is_internal boolean,internal_type text,booking_number text,eventdate date,assigned_to_project boolean);
+create table project_billing(id uuid primary key,project_id text,project_type text,organization_id uuid);
+create table project_tasks(id uuid primary key default gen_random_uuid(),project_id uuid references projects(id),organization_id uuid,title text,deadline date,sort_order integer,is_info_only boolean,completed boolean);
+create function ensure_internal_lager_booking(uuid) returns text language sql as $$select null::text$$;
+alter table projects enable row level security;alter table project_tasks enable row level security;
+create policy org_projects on projects for all to authenticated using(organization_id=auth.uid()) with check(organization_id=auth.uid());
+create policy org_tasks on project_tasks for all to authenticated using(organization_id=auth.uid()) with check(organization_id=auth.uid());
+grant select,insert,update,delete on projects,project_tasks to authenticated;grant select on project_billing,bookings to authenticated;
+`);
+for(const suffix of ['internal_project_classification.sql','atomic_internal_project_creation.sql','internal_project_metadata_outbox.sql'])await db.exec(readFileSync('supabase/migrations/'+readdirSync('supabase/migrations').find(f=>f.endsWith(suffix)),'utf8'));
+
+await db.exec(readFileSync('supabase/migrations/20261012155516_internal_project_metadata_delivery.sql','utf8'));
+await db.exec(readFileSync('scripts/internal-projects/customer-identity-metadata.sql','utf8'));
+let n=0;const ok=x=>{console.log('PASS',x);n++};const id='33333333-3333-4333-8333-333333333333',booking='real-booking/TEXT:one';
+const enroll=()=>db.query('select enroll_customer_identity_metadata_v1($1,$2) n',[id,booking]);
+const rows=async()=> (await db.query('select * from operations_project_metadata_outbox where source_project_id=$1 order by revision',[id])).rows;
+await db.query("insert into bookings(id,organization_id,is_internal) values($1,$2,false)",[booking,org]);
+await db.query("insert into projects(id,organization_id,project_kind,booking_id) values($1,$2,'customer',$3)",[id,org,booking]);
+assert.equal((await rows()).length,0);await enroll();await enroll();assert.equal((await rows()).length,1);assert.equal((await rows())[0].metadata.booking_id,booking);assert.equal((await db.query('select enabled from operations_project_metadata_destinations')).rows[0].enabled,false);ok('prospective exact TEXT identity enrollment atomic and disabled, retry one receipt');
+await db.query("update projects set name='ordinary',budget_cost_minor=900,budget_currency='SEK',status='completed' where id=$1",[id]);assert.equal((await rows()).length,1);assert.equal((await db.query('select budget_cost_minor from projects where id=$1',[id])).rows[0].budget_cost_minor,900);ok('customer budget name and lifecycle remain unchanged and do not emit metadata');
+await db.exec('set role service_role');await assert.rejects(enroll(),/permission denied/);await assert.rejects(db.exec("select tombstone_customer_identity_metadata_v1('33333333-3333-4333-8333-333333333333')"),/permission denied/);await db.exec('reset role');ok('generic service cannot enroll or mint identity tombstone');
+await assert.rejects(db.query("update operations_project_metadata_destinations set source_booking_id='other'"),/immutable/);ok('purpose and exact source booking cannot be rebound');
+await db.query('update operations_project_metadata_destinations set enabled=true where source_project_id=$1',[id]);
+await db.query('update bookings set organization_id=$1 where id=$2',[org2,booking]);let r=await rows();assert.equal(r.length,2);assert.equal(r[1].operation,'delete');assert.deepEqual(r[1].metadata,r[0].metadata);assert.equal((await db.query('select enabled from operations_project_metadata_destinations')).rows[0].enabled,true);ok('Booking tenant drift emits frozen terminal tombstone still deliverable');
+await db.query('update bookings set organization_id=$1 where id=$2',[org,booking]);await assert.rejects(enroll(),/enrollment_conflict/);await db.query('delete from projects where id=$1',[id]);await db.query("insert into projects(id,organization_id,project_kind,booking_id) values($1,$2,'customer',$3)",[id,org,booking]);assert.equal((await rows()).length,2);await assert.rejects(enroll(),/enrollment_conflict/);ok('restoration and same-ID resurrection cannot revive terminal source proof');
+await assert.rejects(db.exec('truncate bookings'),/individual_booking_delete/);ok('Booking truncate cannot silently erase enrolled authority');
+const missing='44444444-4444-4444-8444-444444444444';await db.query('insert into projects(id,organization_id) values($1,$2)',[missing,org]);await assert.rejects(db.query('select enroll_customer_identity_metadata_v1($1,$2)',[missing,booking]),/explicit_customer/);await assert.rejects(db.query('select enroll_customer_identity_metadata_v1($1,$2)',[missing,'fabricated']),/booking_required/);ok('legacy null, missing direct booking, fabricated booking unsupported and fail closed');
+const soft='66666666-6666-4666-8666-666666666666';await db.query("insert into projects(id,organization_id,project_kind,booking_id,deleted_at) values($1,$2,'customer',$3,now())",[soft,org,booking]);await assert.rejects(db.query('select enroll_customer_identity_metadata_v1($1,$2)',[soft,booking]),/explicit_customer/);await db.query('update projects set deleted_at=null where id=$1',[soft]);await db.query('select enroll_customer_identity_metadata_v1($1,$2)',[soft,booking]);await db.query('update projects set deleted_at=now() where id=$1',[soft]);await db.query('update projects set deleted_at=null where id=$1',[soft]);await assert.rejects(db.query('select enroll_customer_identity_metadata_v1($1,$2)',[soft,booking]),/enrollment_conflict/);assert.equal((await db.query('select operation from operations_project_metadata_outbox where source_project_id=$1 order by revision desc limit 1',[soft])).rows[0].operation,'delete');ok('soft delete emits terminal identity proof and clearing deleted_at cannot resurrect it');
+if(process.env.INTERNAL_PROJECTS_TEST_DSN){const {proveCustomerMetadataConcurrency}=await import('./customer-identity-metadata-native.mjs');await proveCustomerMetadataConcurrency({db,org,booking,ok});}
+console.log(`${n} customer identity metadata checks PASS`);await db.close();
