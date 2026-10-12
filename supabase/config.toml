@@ -216,3 +216,8 @@ verify_jwt = false
 
 [functions.warehouse-article-locations]
 verify_jwt = true
+
+# Dormant canonical personnel publisher. Separate environment flags default false;
+# custom service secret is checked by the handler. No scheduler or caller enabled.
+[functions.project-personnel-cost-publish]
+verify_jwt = false

@@ -1,0 +1,177 @@
+{
+  "integration_base": "82b9e3f81",
+  "unchanged_existing_proof_blob": "68d0e1411e3c5a9213874e8f8d8a7fc336d84700",
+  "files": [
+    {
+      "path": ".github/workflows/operations-accepted-rate-provenance.yml",
+      "source_commit": "cfd579a566240d2898b3968cb7f121ae6aec247a",
+      "source_blob": "9c1cf1815b0e542cc867a829ddad54cccc590a36",
+      "sha256": "a415db32ef172229eae4516c815379378870b2734b3580627eacf87d4e716e7d",
+      "integrated_sha256": "f863912fdfff019eff00a7a66f93ccd5eba7d83b589f9c3e8b4dbbb24d0869c3",
+      "identical_to_source": false
+    },
+    {
+      "path": "docs/internal-projects/ACCEPTED_RATE_PROVENANCE.md",
+      "source_commit": "da79dd2f85e6d42e875f5e4a3fcc97b79b425ca0",
+      "source_blob": "acac2937a150a6d103efb258801f717933f21b9f",
+      "sha256": "7cd9a965b96662f46b59cb4edd568f5f7e6f8ebe1ca7ed106415143f27bde910",
+      "integrated_sha256": "7cd9a965b96662f46b59cb4edd568f5f7e6f8ebe1ca7ed106415143f27bde910",
+      "identical_to_source": true
+    },
+    {
+      "path": "scripts/internal-projects/accepted-rate-provenance.test.mjs",
+      "source_commit": "da79dd2f85e6d42e875f5e4a3fcc97b79b425ca0",
+      "source_blob": "e94641bf937c776ffb94c71e4c9a6e7fc5454842",
+      "sha256": "6cc90a70c72638b17fdbb058a8f264a0c3b4291d92206b890c6d6c595a8e6306",
+      "integrated_sha256": "075b5e649b9f5a06c344ffcd0b08d02818f2353deda4def93f462c9aad3b448f",
+      "identical_to_source": false
+    },
+    {
+      "path": "scripts/internal-projects/accepted-rate-test-db.mjs",
+      "source_commit": "cfd579a566240d2898b3968cb7f121ae6aec247a",
+      "source_blob": "0bbbed9cb4a1a620d5beb23481d4c338c80262d2",
+      "sha256": "e2e31ff8716bd707292081bb6b4de3c6e6d750ee842a17e42c57ec1f7af046c5",
+      "integrated_sha256": "e2e31ff8716bd707292081bb6b4de3c6e6d750ee842a17e42c57ec1f7af046c5",
+      "identical_to_source": true
+    },
+    {
+      "path": "scripts/project-economy/operations-project-review-bootstrap.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "b28da1ae48ef768868701d77a1de576bd55a3f3f",
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6",
+      "integrated_sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-cost.test.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "309c159fcce3512f7b39d4024c9460480daa0c53",
+      "sha256": "e74f24d9808563088f01716d2f2178e66e20aae9cd88854e5475c85a7a4b3911",
+      "integrated_sha256": "e74f24d9808563088f01716d2f2178e66e20aae9cd88854e5475c85a7a4b3911",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "5637ba8e1f10f994835adc73881e7d23d70d15ba",
+      "sha256": "69c7a35c9e144b20c4db3938d61d96b519a1419b27e7689e39c48d58635b2870",
+      "integrated_sha256": "69c7a35c9e144b20c4db3938d61d96b519a1419b27e7689e39c48d58635b2870",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion-store.ts",
+      "source_commit": "da79dd2f85e6d42e875f5e4a3fcc97b79b425ca0",
+      "source_blob": "ba2b96087519872418e6d6432687b7a1eb429939",
+      "sha256": "692789146ebe3727d92d37f8cc58bc92566f32e9ae43813724f602499d7b14e2",
+      "integrated_sha256": "692789146ebe3727d92d37f8cc58bc92566f32e9ae43813724f602499d7b14e2",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion-transport.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "f90c1796f837ad29248a00e33ef3437e202312bb",
+      "sha256": "1fc8d37857d36cd509f596a3763066f2b09e41619d5a51a6ac87fec3ba72a730",
+      "integrated_sha256": "1fc8d37857d36cd509f596a3763066f2b09e41619d5a51a6ac87fec3ba72a730",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion.test.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "21157e20f58fea78bae094e4ecbc25a834d07e7d",
+      "sha256": "edca5dbd0a49db4bd4b4bf44d9c136900a20dd5eb0abcbf7fb8ebacd200b3088",
+      "integrated_sha256": "edca5dbd0a49db4bd4b4bf44d9c136900a20dd5eb0abcbf7fb8ebacd200b3088",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "799986274dd4925f8937d69bd084987bf9c90882",
+      "sha256": "4dfb9225855f6d287395f8995709ba8a5bf7a7af917f44c16e319488608d874d",
+      "integrated_sha256": "4dfb9225855f6d287395f8995709ba8a5bf7a7af917f44c16e319488608d874d",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/project-personnel-cost-publish/handler.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "8d0741095e52e43d3fba303db1e50b7ff10c4efa",
+      "sha256": "2279c03bfb532e5dd45d0693024632e509152c71c82a4397597479dfe0899d38",
+      "integrated_sha256": "2279c03bfb532e5dd45d0693024632e509152c71c82a4397597479dfe0899d38",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/functions/project-personnel-cost-publish/index.ts",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "31969ef670e577e3091ccda09a395d96bd86bb4b",
+      "sha256": "51e39c1b09c387eaee77ccec25de0d0be0ea3661e2e147fe768344fc7b86039b",
+      "integrated_sha256": "51e39c1b09c387eaee77ccec25de0d0be0ea3661e2e147fe768344fc7b86039b",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "a94d6f6e78639307aa55525c7babac36c90c4e50",
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235",
+      "integrated_sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "27d46a55880f19986e0cfaab090a64acf755e2cc",
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b",
+      "integrated_sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "1828ff4b8390c0932f24e9b08de3c78a75021282",
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362",
+      "integrated_sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "a63bdf8196990aea7f452558a405707200603b8f",
+      "sha256": "df71478a68af6f98934c86b547ea05411181a7ef6a0bd2a1212477e9a09e462a",
+      "integrated_sha256": "df71478a68af6f98934c86b547ea05411181a7ef6a0bd2a1212477e9a09e462a",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "3b3939bc2507e6f35614f7905f96d6a747a58b1b",
+      "sha256": "8ef092dc2fd3c858db74f4d0c8701c40d9fafcf11f7b741d979d580dd77c5761",
+      "integrated_sha256": "8ef092dc2fd3c858db74f4d0c8701c40d9fafcf11f7b741d979d580dd77c5761",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql",
+      "source_commit": "5f0c934ab99795f1185cfa165f1f21131d81cd61",
+      "source_blob": "77dac02304158f3fb37c133c2252e46f1cfc51f3",
+      "sha256": "2c9fec3b79df2d7a509363de84f7f2655f90a9745f057a94029005f13b271868",
+      "integrated_sha256": "2c9fec3b79df2d7a509363de84f7f2655f90a9745f057a94029005f13b271868",
+      "identical_to_source": true
+    },
+    {
+      "path": "supabase/migrations/20261012162100_operations_personnel_accepted_rate_provenance.sql",
+      "source_commit": "da79dd2f85e6d42e875f5e4a3fcc97b79b425ca0",
+      "source_blob": "5e3d84bacd73e2e44083d9930155e4b272e023af",
+      "sha256": "ff3c45a9d1f36504fef9014ddf5aa7d3591345b247e05b118f7c3f06b4935d6a",
+      "integrated_sha256": "ff3c45a9d1f36504fef9014ddf5aa7d3591345b247e05b118f7c3f06b4935d6a",
+      "identical_to_source": true
+    }
+  ],
+  "local_integration_files": [
+    "scripts/internal-projects/personnel-classification-bootstrap.sql",
+    "scripts/internal-projects/personnel-vitest.config.mjs",
+    "scripts/internal-projects/personnel-review-issuance.mjs",
+    "supabase/migrations/20261012165000_operations_personnel_review_issuance.sql"
+  ],
+  "compatibility_changes": {
+    "scripts/internal-projects/accepted-rate-provenance.test.mjs": "Apply full current classification migration and prospective review issuance fixture; 33 combined scenarios.",
+    ".github/workflows/operations-accepted-rate-provenance.yml": "Run expanded23-check oracle,41 existing tests and transitive handler types; path filters cover compatibility inputs.",
+    "supabase/config.toml": "Add disabled-by-environment custom-auth endpoint configuration; no secrets, enrollment, caller or deployment."
+  }
+}
