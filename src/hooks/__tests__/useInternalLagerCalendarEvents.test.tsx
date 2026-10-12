@@ -17,22 +17,16 @@ vi.mock('@/integrations/supabase/client', () => ({
           }),
         };
       }
-      return {
-        select: () => ({
-          eq: () => Promise.resolve({
-            data: [{
-              id: 'proj-1',
-              name: 'Lager',
-              is_internal: true,
-              booking_id: 'b-uuid-that-ends-in-d0179463',
-              bookings: { id: 'b-uuid-that-ends-in-d0179463', booking_number: null },
-            }],
-            error: null,
-          }),
-        }),
-      };
+      throw new Error(`Unexpected table ${table}`);
     },
   },
+}));
+
+vi.mock('@/services/internalWarehouseIdentityService', () => ({
+  fetchInternalWarehouseIdentity: async () => ({
+    id: 'proj-1', name: 'Lager', is_internal: true, organization_id: 'org-1',
+    booking_id: 'b-uuid-that-ends-in-d0179463',
+  }),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {

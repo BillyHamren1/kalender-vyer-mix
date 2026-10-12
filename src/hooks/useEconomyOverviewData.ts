@@ -137,6 +137,8 @@ export const useEconomyOverviewData = () => {
         supabase
           .from('projects')
           .select('id, name, status, booking_id')
+          .eq('is_internal', false)
+          .or('project_kind.is.null,project_kind.eq.customer')
           .order('created_at', { ascending: false }),
         supabase
           .from('jobs')

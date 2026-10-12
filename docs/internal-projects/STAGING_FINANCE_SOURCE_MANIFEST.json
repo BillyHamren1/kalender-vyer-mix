@@ -1,0 +1,144 @@
+{
+  "repository": "BillyHamren1/eventflow-finance",
+  "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243",
+  "tree": "df9e707c520b60057d2dd28207a38f34f54b2558",
+  "source": "GitHub exact recursive tree; complete, not truncated; blob SHA-1 identities, not deployed database proof",
+  "files": [
+    {
+      "path": "scripts/internal-projects/accepted-cost-command-runtime.mjs",
+      "git_blob_sha": "38aa56d2d39e8470720cb1b29b5eae45b08e7c36"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-command.sql",
+      "git_blob_sha": "1e8e9aa504ea5c05cd957fd79f6929984c2c34c3"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-facades-runtime.mjs",
+      "git_blob_sha": "aeb405e1c9b25cbad6cab700d6e3a3b27c5ff088"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-facades.sql",
+      "git_blob_sha": "9aedc56124151ad5b428d3d2f54e56560c3cc64f"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-receipt.sql",
+      "git_blob_sha": "74a6accffb48fff6335b7d33dcaae82f66952409"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-runtime.mjs",
+      "git_blob_sha": "ec8238cb7bd4024fa955e9baa5157ef6503856e6"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001220213_operations_personnel_cost_shadow_v1.sql",
+      "git_blob_sha": "d2b3bba76c1026a533902e561d4bb4066c59a1f0"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001230603_operations_personnel_bound_read_v1.sql",
+      "git_blob_sha": "0cb7a2b77459ceb7fd71548a888f6764bd38a3a5"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-project-cost-read-runtime.mjs",
+      "git_blob_sha": "1683ed3689d86b9011c8c860ee41f7b879f23356"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-project-cost-read.sql",
+      "git_blob_sha": "20b0b234e9646424b6c787a68b6f9585b0c1b1e3"
+    },
+    {
+      "path": "scripts/internal-projects/atomic-cost-receiver.sql",
+      "git_blob_sha": "784bbcd29490f541adbfc371b4ba4fe707865915"
+    },
+    {
+      "path": "scripts/internal-projects/customer-cost-booking-text.sql",
+      "git_blob_sha": "353a729884f957a9198d3a76da58887522edef7b"
+    },
+    {
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "git_blob_sha": "d65245ab7f6da60fa9b4ac459b56278b7db996bc"
+    },
+    {
+      "path": "src/components/finance/OperationsProjectCostEvidencePanel.tsx",
+      "git_blob_sha": "8c122852dc105f74e236845df8c07be41bba573a"
+    },
+    {
+      "path": "src/components/finance/OperationsReceiptReviewPanel.tsx",
+      "git_blob_sha": "2fa939f2aa84521439e362bdcfa3722abae9bfce"
+    },
+    {
+      "path": "src/lib/operationsProjectCostEvidence.ts",
+      "git_blob_sha": "a24037a7e2019dc3fd800c90e603d05153aab485"
+    },
+    {
+      "path": "src/lib/operationsReceiptReview.ts",
+      "git_blob_sha": "9123787379d2f3c330b6bd98433b51ea4baa8c98"
+    },
+    {
+      "path": "src/routes/projekt.$projectId.tsx",
+      "git_blob_sha": "b0c8eb649545aaf9cc068a6b38e95ff0b5d2f82a"
+    },
+    {
+      "path": "supabase/functions/_shared/operations-accepted-cost-receive.ts",
+      "git_blob_sha": "b5e02bb0704966bf5a57df156afb5650ddae337b"
+    },
+    {
+      "path": "supabase/functions/_shared/operations-project-metadata-contract.ts",
+      "git_blob_sha": "a7ac0db540d4bcb037086cc5cf8393b39a3d1ab8"
+    },
+    {
+      "path": "supabase/functions/operations-project-metadata/index.ts",
+      "git_blob_sha": "3caa3d867cb6301db10b9b4b7d5c075c1939442b"
+    },
+    {
+      "path": "supabase/migrations/20260826104657_finance_core_v1.sql",
+      "git_blob_sha": "a99fcfee1f5112412f85cb9dd3ea47c467b8c9c9"
+    },
+    {
+      "path": "supabase/migrations/20260826105013_finance_security_v1.sql",
+      "git_blob_sha": "8f983aba0da8e694e4a92cdb0fbc4aca451633c3"
+    },
+    {
+      "path": "supabase/migrations/20260826110915_finance_project_commands_v1.sql",
+      "git_blob_sha": "9d432ecc4aef503b35a34b74b23953a8160fbb36"
+    },
+    {
+      "path": "supabase/migrations/20260826111041_finance_actual_fact_attestation_v1.sql",
+      "git_blob_sha": "91215124f31f5aab45291837bafa986049d53a6e"
+    },
+    {
+      "path": "supabase/migrations/20260826211500_finance_cost_event_forecast_floor_v1.sql",
+      "git_blob_sha": "18c79d213e6900a97747698942f14b409e63847e"
+    },
+    {
+      "path": "supabase/migrations/20260911290000_finance_period_and_financial_close_v1.sql",
+      "git_blob_sha": "28d274a6bfc0638019bc625fd28a87dafbf6542b"
+    },
+    {
+      "path": "supabase/migrations/20261012124248_finance_internal_project_classification_v1.sql",
+      "git_blob_sha": "dfe5d1c51431be8e13042fd0e66b9c62ea906a32"
+    },
+    {
+      "path": "supabase/migrations/20261012130138_finance_internal_dashboard_v1.sql",
+      "git_blob_sha": "aa023112336ed1cf34b40e5fbcc744fb4f34c303"
+    },
+    {
+      "path": "supabase/migrations/20261012135130_finance_internal_source_activation_guard_v1.sql",
+      "git_blob_sha": "91d041d8ff4ea19169d3362ad4c0982b988a8a4a"
+    },
+    {
+      "path": "supabase/migrations/20261012155253_finance_operations_metadata_receiver_v1.sql",
+      "git_blob_sha": "106f19995563b3e4848b0cd5ed7fdf5b7122195f"
+    },
+    {
+      "path": "supabase/migrations/20261012162053_finance_command_replay_actor_binding_v1.sql",
+      "git_blob_sha": "2e5aeb8220b7577effe935303cc1cf1695d5d818"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-ingress.sql",
+      "git_blob_sha": "4606eee0cfd8f304261d8c89bce4272bd6706045"
+    },
+    {
+      "path": "supabase/functions/operations-personnel-accepted-receive/index.ts",
+      "git_blob_sha": "e6dd6698d2d1a2fcf8b9f9ceec96e361c6a786e2"
+    }
+  ]
+}

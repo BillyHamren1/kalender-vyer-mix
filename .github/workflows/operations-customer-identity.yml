@@ -1,0 +1,61 @@
+name: Dormant customer identity and causal metadata
+on:
+  pull_request:
+    paths:
+      - 'scripts/internal-projects/customer-identity-*'
+      - 'scripts/internal-projects/*metadata-v2*'
+      - 'scripts/internal-projects/personnel-issuer*'
+      - '.github/workflows/operations-customer-identity.yml'
+  push:
+    branches: ['codex/project-economy-personnel-cost']
+    paths:
+      - 'scripts/internal-projects/customer-identity-*'
+      - 'scripts/internal-projects/*metadata-v2*'
+      - 'scripts/internal-projects/personnel-issuer*'
+      - '.github/workflows/operations-customer-identity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        oracle: [customer, causal]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: accepted_personnel_cost_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d accepted_personnel_cost_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Record exact source
+        run: git rev-parse HEAD
+      - name: Isolated pinned dependencies
+        run: npm install --prefix "$RUNNER_TEMP/customer-test" --no-save --package-lock=false @electric-sql/pglite@0.5.9 typescript@5.6.3 pg@8.16.3
+      - name: Link isolated dependencies
+        run: ln -s "$RUNNER_TEMP/customer-test/node_modules" node_modules
+      - name: Same oracle in PGlite
+        env:
+          ORACLE: ${{ matrix.oracle }}
+        run: |
+          if [ "$ORACLE" = customer ]; then node scripts/internal-projects/customer-identity-metadata.test.mjs; else PERSONNEL_METADATA_TEST=1 node scripts/internal-projects/personnel-issuer.test.mjs; fi
+      - name: PostgreSQL with observed physical overlap
+        env:
+          ORACLE: ${{ matrix.oracle }}
+          INTERNAL_PROJECTS_TEST_DSN: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/accepted_personnel_cost_ci
+        run: |
+          if [ "$ORACLE" = customer ]; then node scripts/internal-projects/customer-identity-metadata.test.mjs; else PERSONNEL_METADATA_TEST=1 node scripts/internal-projects/personnel-issuer.test.mjs; fi

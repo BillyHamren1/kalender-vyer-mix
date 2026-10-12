@@ -138,7 +138,7 @@ const ProjectManagement = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteProject,
+    mutationFn: (id: string) => deleteProject(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast.success('Projekt borttaget');

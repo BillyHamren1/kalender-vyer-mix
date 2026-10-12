@@ -7,6 +7,17 @@ export interface SyncResult {
   errors: string[];
 }
 
+/** Defense in depth; the server proxy repeats this check using authenticated tenant scope. */
+async function requireCommercialBooking(id: string): Promise<void> {
+  const { data, error } = await supabase.from('bookings')
+    .select('id, is_internal, internal_type').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!data || data.id !== id) throw new Error('Bokningen saknas eller är inte tillgänglig.');
+  if (data.is_internal !== false || data.internal_type != null) {
+    throw new Error('Intern bokning får inte skickas till kommersiell fakturering.');
+  }
+}
+
 /**
  * Sync one or more bookings to external Booking system (markReadyForInvoicing).
  * Returns a structured result so callers can decide whether to proceed.
@@ -20,6 +31,7 @@ export async function syncBookingsForInvoicing(bookingIds: string[]): Promise<Sy
   await Promise.all(
     unique.map(async (id) => {
       try {
+        await requireCommercialBooking(id);
         await markReadyForInvoicing(id);
         result.successIds.push(id);
       } catch (err: any) {
@@ -77,6 +89,7 @@ export async function reopenBookingsInInvoicing(bookingIds: string[]): Promise<S
   await Promise.all(
     unique.map(async (id) => {
       try {
+        await requireCommercialBooking(id);
         await markReopenedInBooking(id);
         result.successIds.push(id);
       } catch (err: any) {
@@ -113,6 +126,7 @@ export async function resyncClosedProjects(): Promise<SyncResult & { totalProjec
   const { data: closedProjects } = await supabase
     .from('projects')
     .select('id, booking_id')
+    .eq('is_internal', false)
     .eq('status', 'completed')
     .not('booking_id', 'is', null);
   if (closedProjects) {

@@ -1,0 +1,56 @@
+{
+  "files": [
+    {
+      "path": "upstream/tests/sql/bundle-core-chain-fixture.sql",
+      "sha256": "e4b5b24b5c514b4a633bafd157bf4d8a83feeb63d1b90873e7a59de76ec24bf4"
+    },
+    {
+      "path": "upstream/supabase/migrations/20260822201759_2ed23ac3-2ce7-4808-aef0-e62e55252e48.sql",
+      "sha256": "3f7fb821d374b737c6aef467c2c7b46c01b18460a4b238a642f30614aa2c4fe5"
+    },
+    {
+      "path": "upstream/supabase/migrations/20260822175834_9d07d362-72ef-49f1-a765-823bb79c0d8e.sql",
+      "sha256": "02e8b9f871b87804f51af2faa1c305fff86f343d892ec1d9122e7391622b8695"
+    },
+    {
+      "path": "reservation-candidate.sql",
+      "sha256": "67d507700dcfb078a0f751c6e2246b0996a341fba025cd1fe3832ea58db57bee"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817120000_scanner_operations.sql",
+      "sha256": "0b6163b190b8c08a1e2c6d6f7e06b8df646a4ad71e1d10527b29db0d8906da7b"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817140000_scanner_instance_v2.sql",
+      "sha256": "4439492113ce9ef96117828b02268d1c47b84adc46838d65c0724f6b9629a781"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817145000_scanner_checkout_v2.sql",
+      "sha256": "bca969e459892ea987dd614f58ba617cad08c3e2c9fea8fc862e063e7717e8b6"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817146000_scanner_checkout_reservation_lock.sql",
+      "sha256": "3c2a012cb6a8971cd63de506f6fac5065c02b7886877aa0d01e5d2382c41e296"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817150000_scanner_return_v2.sql",
+      "sha256": "c37de4349608d2cd194c117314815a0422b67af8c3e1605dca00ba1583b1edbd"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817151000_scanner_return_chain_guard.sql",
+      "sha256": "998de9aae72317edf28c99b0a447af635958be031f003ef96972adca901e2878"
+    },
+    {
+      "path": "pr7-owner/db/pending-migrations/20260817152000_scanner_lifecycle_phase_guard.sql",
+      "sha256": "79116b5dac49b08b41fa3a6b3f9b20c90c9655be9c6e52175e44c0754621d6f6"
+    },
+    {
+      "path": "main-owner/db/pending-migrations/20260817130000_scanner_quantity_v2.sql",
+      "sha256": "0d32edf200234537b4d1deae0dfe1f268005f0db5a7b1ce2e6591ced302dc0ca"
+    }
+  ],
+  "checks": 14,
+  "sourceAuthority": false,
+  "hosted": false,
+  "nativeConcurrency": false
+}

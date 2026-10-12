@@ -1,0 +1,47 @@
+# Booking-free equipment: owner seam review
+
+Checkpoint 2026-10-12. Read-only authoritative repository review; no publication, deployment, owner mutation, or stock calls. This is a concrete implementation design, not an implemented equipment workflow.
+
+## Newly verified constraints
+
+WMS repository `BillyHamren1/bundle-builder-base`, indexed main `4f97b6de4afdfa30b679e7e44a49c1ef8e729d6d`; Scanner `BillyHamren1/datacapture-hub`, indexed main `5fc3d8e7ee2f3046a7113cb91e14ccbe9c7e090e`. Individual file blobs below are the authoritative review identity.
+
+| Owner file | Blob | Consequence |
+|---|---|---|
+| WMS `supabase/functions/_shared/reserve-inventory.ts` | `96ee7744e437ce03e7f2c96291a24a5093dff8ed` | Generic TS reserve helper actually invokes Booking-specific `reserve_inventory_from_booking_atomic`; replace invokes its Booking-specific counterpart. |
+| WMS `supabase/migrations/20260923134500_manual_booking_reservation_lines.sql` | `ea4d0840629ebca3597ac9890e5d20ca21035596` | Wrapper casts source_booking_id to UUID and source_version to timestamptz. The proposed opaque project version cannot reuse this column or wrapper unchanged. It delegates catalog stock to `reserve_inventory_atomic` and replacement to `replace_reservation_lines_atomic`. |
+| WMS `supabase/functions/create-reservation/index.ts` | `ffae55d54d770a7198d602303802fa21158fa5e5` | Uses global pricelist/storefront credential and caller organization header; no project actor authorization. Current code explicitly passes allow_overbooking=true despite opposite nearby comment. Duplicate external ID updates header outside line replacement transaction. Not a safe project protocol adapter. |
+| WMS `supabase/functions/_shared/bundle-scanner-command-v1/gateway.ts` | `6e3d41f99735cbccc51b0834c1171650b9ce2201` | Reservation requires bookingNumber matching external_id after trim/lowercase. Receipt also carries bookingNumber. Cannot substitute project UUID or claim exact source identity. Instance mutation and receipt persistence are separate ports, so crash recovery must retain pending/unknown rather than invent success. |
+| WMS `supabase/functions/_shared/bundle-scanner-command-v1/adapters.ts` | `e3b11eb399459ce5c148b1a2820f6f093aa1db8f` | Reusable stock authority is allocate_instance_atomic / partial_deallocate_atomic; quantity path already invokes eventflow_scanner_quantity_atomic_v1. Reuse these owner transactions, never write stock in Operations or Scanner. |
+| WMS `supabase/functions/eventflow-scanner-command-v1/index.ts` | `897f8ea0fa20f309b6a2523fb0d7eb40581a5890` | Existing server envelope verifies dedicated HMAC and consumes nonce. Reuse signature/nonce logic for a separately versioned project-capable route; signature alone does not establish source-project access. |
+| Scanner `src/lib/outbound.functions.ts` | `8b17c3224836003c3a6e1388d4ff8017cd12b164` | Existing authorizer is requireStaffSession then resolveStaffActor; keep server-derived actor/org and strict browser schemas. Project capability must be checked after this authorizer. |
+| Scanner `src/lib/wms-contract.server.ts` | `12a2cf728a43ce4ebdb3c7620b2c4124f73885be` | WMS_UPSTREAM_CONFORMANCE_VERIFIED=false. Runtime blocks generic outbound/retur even with valid environment; these routes are explicitly an unproven scaffold. |
+
+WMS API documentation `docs/api/eventflow-scanner-command-v1.md`, blob `a15bb21eaec3ec2d71b2676dd6aecef02c0c257d`, still says no quantity mutation although current gateway/adapter supports a quantity RPC. Do not use this older paragraph as capability evidence. Its return/projection gaps remain material: return conditions, damage/missing, session/signoff and a monotonic reservation revision are not established by the instance receipt. Revision SQL is staged in `db/pending-migrations/20260911053532_eventflow_scanner_reservation_revision.sql`; a staged file is not deployed evidence. Search found no WMS return_order_revision implementation; absence from search is not proof of absence from every branch/deployment.
+
+## Smallest coherent implementation slice
+
+First deliver reservation creation/recovery only, with equipment UI still disabled for outbound/return until their owner contract is implemented. This slice has an independent real result: a same-tenant internal project obtains an idempotent WMS reservation and can read its authoritative status without a Booking row.
+
+1. **Operations source boundary:** authenticated user and existing tenant/role checks; load exact active finite internal project (not permanent activity), lock/version the equipment request, validate dates and canonical catalog line identities, record immutable request UUID and payload digest in an outbox. Derive source org/actor server-side. A server-owned mapping supplies WMS org, never the browser. Revision is an opaque request identity; define successor ordering explicitly instead of lexical comparison or timestamp coercion.
+2. **WMS additive transaction:** introduce a work-reference relation keyed by WMS org + source system + source org + kind + project UUID, linked to reservation UUID; store immutable request revision, digest and operation receipt. A new project reservation RPC takes the verified reference, checks replay/conflict under its lock, calls existing reserve_inventory_atomic with allow_overbooking=false, and writes provenance plus receipt in the SAME transaction. On failure nothing commits. Do not route through create-reservation upsert or populate source_booking_id. Replacement must atomically verify expected current request revision, call existing replace_reservation_lines_atomic, and update header/provenance/receipt together. Retain legacy wrappers untouched.
+3. **WMS signed route:** reuse HMAC verification and nonce mechanism, add a separately scoped Operations equipment issuer and explicit tenant mapping; never accept arbitrary organization header as authorization. Verify active source grant/request proof and its expiry/replay rules before RPC. Exact source grant transport and its issuer are still missing and must be designed in Operations, not inferred from pricelist credentials.
+4. **Scanner owner extension:** preserve requireStaffSession/resolveStaffActor, add versioned work-reference query/command and immutable persisted pending-operation identity. New WMS projection, receipt and operation-status must carry the same exact reference. Maintain fingerprint/revision/session/lifecycle proof gates. Never translate UNPACK_INSTANCE into return receipt, nor convert WMS COMMITTED into generic APPLIED without full owner evidence. Booking v1 follows its current branch unchanged.
+
+The next implementation owner is WMS for the additive transaction and receipt, paired with Operations for the source grant. Scanner can only consume this after the contract is concrete. No consistent end-to-end path exists today to patch with a small adapter; introducing a writer now would cross an unimplemented authorization and return boundary. Accordingly no owner runtime files were changed in this review.
+
+## Local acceptance before activation
+
+- Disposable PostgreSQL runs actual new RPC plus existing owner stock migrations: reserve with stock shortage fails, valid reserve commits once, replay is identical, same ID/different payload conflicts, cross-tenant source rejects, concurrent competing demand cannot double reserve, and provenance failure rolls back inventory/receipt together.
+- Injected signed-handler tests: session/issuer/tenant mismatch, invalid signature/nonce, stale grant, failed source read, reference substitution all produce zero stock RPC calls; valid authorized reference reaches exactly one RPC.
+- Owner Scanner tests: legacy Booking fixtures unchanged, exact project identity preserved in query/command/fingerprint/pending storage/recovery, foreign and incomplete receipts remain UNKNOWN, and read-only reconciliation never submits a mutation.
+- Full return acceptance requires WMS-owned return order, quantities, conditions, revision, actor/session and original receipt recovery. These are not proved by reservation success or synthetic parser tests.
+- Only after owner integration tests and approved authenticated disposable E2E may upstream conformance evidence and capability be enabled. Keep legacy pending operations on their original version during rollback.
+
+## Executed evidence
+
+`scripts/internal-projects/scanner-owner-gate.test.cjs`: **3/3 PASS**, executing the actual fetched Scanner module (above blob), transpiled locally with declared TypeScript dependency. Tests prove valid environment, explicitly allowed local URL, and missing config cannot bypass upstream evidence gate. No network/stock call is made. This is a synthetic execution of the real config code, not signed-in or deployed verification.
+
+Reproduce: fetch the exact owner blob to `/tmp/internal-equipment-seam/wms-contract.server.ts`; transpile it to CommonJS with TypeScript `transpileModule` (target ES2022), output `/tmp/internal-equipment-seam/wms-contract.server.cjs`; run `OWNER_WMS_GATE_MODULE=/tmp/internal-equipment-seam/wms-contract.server.cjs node --test scripts/internal-projects/scanner-owner-gate.test.cjs`. Test requires the owner module explicitly and never supplies a replacement fixture implementation.
+
+Current deliverable: exact owner seams, testable reservation slice and blockers documented; full booking-free reserve/outbound/return remains OPEN. Prior commercial-Lager guard and inbox fixes remain separately implemented and integrated.

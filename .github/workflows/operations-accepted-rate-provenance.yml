@@ -1,0 +1,78 @@
+name: Accepted personnel rate provenance
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/project-personnel-*.ts'
+      - 'supabase/migrations/*operations_personnel*.sql'
+      - 'scripts/internal-projects/accepted-rate-*.mjs'
+      - 'scripts/internal-projects/accepted-personnel-*.sql'
+      - 'scripts/internal-projects/personnel-*'
+      - 'supabase/functions/project-personnel-cost-publish/**'
+      - 'supabase/migrations/20261012124216_internal_project_classification.sql'
+      - 'scripts/project-economy/operations-project-review-bootstrap.sql'
+      - '.github/workflows/operations-accepted-rate-provenance.yml'
+  # Conflicted canonical PRs do not emit pull_request runs. This isolated check
+  # also runs on reviewed source updates to that one branch; never deploys.
+  push:
+    branches:
+      - 'codex/project-economy-personnel-cost'
+    paths:
+      - 'supabase/functions/_shared/project-personnel-*.ts'
+      - 'supabase/migrations/*operations_personnel*.sql'
+      - 'scripts/internal-projects/accepted-rate-*.mjs'
+      - 'scripts/internal-projects/accepted-personnel-*.sql'
+      - 'scripts/internal-projects/personnel-*'
+      - 'supabase/functions/project-personnel-cost-publish/**'
+      - 'supabase/migrations/20261012124216_internal_project_classification.sql'
+      - 'scripts/project-economy/operations-project-review-bootstrap.sql'
+      - '.github/workflows/operations-accepted-rate-provenance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: accepted-rate-provenance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  accepted-rate-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: accepted_personnel_cost_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d accepted_personnel_cost_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Record exact source
+        run: git rev-parse HEAD
+      - name: Install isolated test dependencies
+        run: npm install --prefix "$RUNNER_TEMP/accepted-rate-test" --no-save --package-lock=false @electric-sql/pglite@0.5.9 typescript@5.6.3 pg@8.16.3 vitest@4.1.11
+      - name: Link isolated test packages
+        run: ln -s "$RUNNER_TEMP/accepted-rate-test/node_modules" node_modules
+      - name: Canonical personnel engine and disabled handler tests
+        run: '"$RUNNER_TEMP/accepted-rate-test/node_modules/.bin/vitest" run --config scripts/internal-projects/personnel-vitest.config.mjs'
+      - name: Canonical publisher transitive types
+        run: '"$RUNNER_TEMP/accepted-rate-test/node_modules/.bin/tsc" --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --lib ES2022,DOM supabase/functions/project-personnel-cost-publish/handler.ts supabase/functions/_shared/project-personnel-source-issuer.ts supabase/functions/_shared/project-personnel-accepted-transport.ts'
+      - name: Same accepted-rate oracle in PGlite
+        env:
+          PERSONNEL_ACCEPTED_TRANSPORT_TEST: '1'
+          NODE_PATH: ${{ runner.temp }}/accepted-rate-test/node_modules
+        run: node scripts/internal-projects/personnel-issuer.test.mjs
+      - name: Actual engine to resolver to canonical ingress in PostgreSQL
+        env:
+          PERSONNEL_ACCEPTED_TRANSPORT_TEST: '1'
+          NODE_PATH: ${{ runner.temp }}/accepted-rate-test/node_modules
+          INTERNAL_PROJECTS_TEST_DSN: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/accepted_personnel_cost_ci
+        run: node scripts/internal-projects/personnel-issuer.test.mjs

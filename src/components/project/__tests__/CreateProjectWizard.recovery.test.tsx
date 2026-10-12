@@ -1,0 +1,47 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), calendar: vi.fn(), warning: vi.fn() }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'actor' } }) }));
+vi.mock('@/hooks/useOrganizationId', () => ({ useOrganizationId: () => ({ organizationId: 'org' }) }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: mocks.rpc, from: () => {
+  const query: any = { then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve) };
+  for (const method of ['select', 'order', 'neq', 'eq', 'is', 'not']) query[method] = () => query;
+  return query;
+} } }));
+vi.mock('@/services/projectCalendarService', () => ({ syncStandaloneProjectToCalendar: mocks.calendar }));
+vi.mock('sonner', () => ({ toast: { warning: mocks.warning, error: vi.fn(), success: vi.fn() } }));
+vi.mock('@/components/logistics/AddressAutocomplete', () => ({ AddressAutocomplete: () => null }));
+import CreateProjectWizard from '../CreateProjectWizard';
+const request = { name: 'Recovered internal', expected_actor_id: 'actor', expected_organization_id: 'org' };
+const key = 'internal-project-create:actor:org';
+beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
+afterEach(cleanup);
+it('restores exact pending creation through timeout and dialog reopen, then warns for absent calendar events', async () => {
+  localStorage.setItem(key, JSON.stringify({ id: 'pending-id', request }));
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error('Network outcome unknown') });
+  mocks.rpc.mockResolvedValueOnce({ data: { id: 'pending-id', organization_id: 'org' }, error: null });
+  mocks.calendar.mockResolvedValue({ success: false, eventsCreated: 0 });
+  const onSuccess = vi.fn();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const ui = (open: boolean) => <QueryClientProvider client={client}><CreateProjectWizard open={open} onOpenChange={() => {}} onSuccess={onSuccess} /></QueryClientProvider>;
+  const view = render(ui(true));
+  fireEvent.click(await screen.findByRole('button', { name: 'Kontrollera tidigare skapande' }));
+  await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Kontrollera tidigare skapande' })).not.toBeDisabled());
+  expect(localStorage.getItem(key)).not.toBeNull();
+  view.rerender(ui(false)); view.rerender(ui(true));
+  fireEvent.click(await screen.findByRole('button', { name: 'Kontrollera tidigare skapande' }));
+  await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+  expect(mocks.rpc.mock.calls[0][1]).toEqual({ p_id: 'pending-id', p_request: request });
+  expect(mocks.rpc.mock.calls[1][1]).toEqual(mocks.rpc.mock.calls[0][1]);
+  expect(localStorage.getItem(key)).toBeNull();
+  expect(mocks.warning).toHaveBeenCalledWith(expect.stringContaining('kalenderhändelser saknas'), expect.any(Object));
+});
+it('blocks creation when pending storage is malformed', async () => {
+  localStorage.setItem(key, '{broken');
+  const client = new QueryClient();
+  render(<QueryClientProvider client={client}><CreateProjectWizard open onOpenChange={() => {}} onSuccess={() => {}} /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Skapa projekt' })).toBeDisabled());
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});

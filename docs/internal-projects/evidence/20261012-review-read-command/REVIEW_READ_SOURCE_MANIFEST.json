@@ -1,0 +1,323 @@
+{
+  "roots": {
+    "operations": "/workspace/scratch/3f646f03b350/recovery-review-read-source",
+    "finance": "/workspace/scratch/3f646f03b350/recovery-finance-evidence-read",
+    "text": "/workspace/scratch/3f646f03b350/recovery-text-booking",
+    "financeMetadata": "/workspace/scratch/3f646f03b350/recovery-finance-customer",
+    "time": "/workspace/scratch/3f646f03b350/recovery-time/source"
+  },
+  "files": [
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql",
+      "sha256": "df71478a68af6f98934c86b547ea05411181a7ef6a0bd2a1212477e9a09e462a"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql",
+      "sha256": "8ef092dc2fd3c858db74f4d0c8701c40d9fafcf11f7b741d979d580dd77c5761"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql",
+      "sha256": "2c9fec3b79df2d7a509363de84f7f2655f90a9745f057a94029005f13b271868"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012124216_internal_project_classification.sql",
+      "sha256": "22e9794a247d7fc8472c23d1a3160572bff82a4e70c161b740b94d9adaaa6a30"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012130533_atomic_internal_project_creation.sql",
+      "sha256": "1626a5dfe1df8f4b0694d2fd34f8226498dfd74e28b6c2a4e82cdf8fd0433a79"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012150947_internal_project_metadata_outbox.sql",
+      "sha256": "31dede4f10e4f35d693db3cfeef37c89b7255a4b5492fd07c862b11cf74fcd79"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012155516_internal_project_metadata_delivery.sql",
+      "sha256": "8590de1fc2ceb7cb0e9d2175fde2dddabdbfd03bcd586c05e086d82ec06047d5"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012162100_operations_personnel_accepted_rate_provenance.sql",
+      "sha256": "ff3c45a9d1f36504fef9014ddf5aa7d3591345b247e05b118f7c3f06b4935d6a"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012165000_operations_personnel_review_issuance.sql",
+      "sha256": "1169f13905e15efaf02fb05bb6868006e6b234436dd559d2a799b6dcf44c5b17"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-rate-provenance.test.mjs",
+      "sha256": "b9efef00868d8ee378c83f27fd4df0093d13529db0d22ecb335ed271c3e9412b"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-rate-test-db.mjs",
+      "sha256": "e2e31ff8716bd707292081bb6b4de3c6e6d750ee842a17e42c57ec1f7af046c5"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-issuer.test.mjs",
+      "sha256": "6dc2dee9e59105b85f6bbb3b1af134bb78df7fce17c6dbc2e30c9ec06acccf12"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-issuer-fixture.mjs",
+      "sha256": "890736b077fa02249642e03057e9916b38729bb0337d8b0f1772a42cca18bf98"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-review-issuance.mjs",
+      "sha256": "18c9b71a1c48dc8c5c5d037a4f706a34ba0d95e1edb1b08d0ace73af8498363b"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-metadata-v2-fixture.mjs",
+      "sha256": "bd3b745fdd6826022ddab9f5e3bef2e7f47b13b024bdf99472da7e43838996a6"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-classification-bootstrap.sql",
+      "sha256": "ee03df3a17bd3420357e4348af3bf35664d67c377f985ef4862a9241ceaa4b14"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-review-caller.sql",
+      "sha256": "b0ba871dfdb4a77c458bb3809417dda23ab175c5035eed537b80791254d292cc"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-caller.sql",
+      "sha256": "aa70374081414448eacdbfcaee4708a27c1ff77241f3e70d8acc3865e1f6a223"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-issuer.sql",
+      "sha256": "f85ce5bb334a23690709b1db1b944a7bee22dce3a9242a6c3843f3c06e1d4737"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-transport.sql",
+      "sha256": "4f7bece03191f2957c1054ae51dc927fc2b0ef91ed84185c868871c8daca852e"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-metadata-v2.sql",
+      "sha256": "ce6ca8bbce59d4dd380b4ecda6b050cc0de872fa88962c4c606eb1ab067862a0"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-review-metadata-v2.sql",
+      "sha256": "72b90c1af75f4a6d4c8e38e067b86a5333ccbe6c3a62cf661a42f1206777686c"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "sha256": "d80dacd97eee819110b1424ce0030a69732c5667df2825fd34946374fc8b24ef"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/project-economy/operations-project-review-bootstrap.sql",
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-source-issuer.ts",
+      "sha256": "4d7ce9dd70f1d74c921fed5a0dbd76bac893c0588553752efafc5d061707f914"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion.ts",
+      "sha256": "4dfb9225855f6d287395f8995709ba8a5bf7a7af917f44c16e319488608d874d"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/timeServiceProof.ts",
+      "sha256": "8d6a6725ca730b3ce8bd259f44b1cc990c9890117902297e871aa4ff55d8b25f"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "sha256": "75df72f9c738cc36b1c606cacadf76b65b1de183bf13102d341735f50adb57dd"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-cost.test.ts",
+      "sha256": "e74f24d9808563088f01716d2f2178e66e20aae9cd88854e5475c85a7a4b3911"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion-store.ts",
+      "sha256": "405ac5e867a9ce1ed38713d80081ed0b93d45c2116a8ea6cdb6a51db6f6ff08e"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion-transport.ts",
+      "sha256": "1fc8d37857d36cd509f596a3763066f2b09e41619d5a51a6ac87fec3ba72a730"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-accepted-transport.ts",
+      "sha256": "2349058a4cc16cd714566c463f669b8b9d79125a7fc81420a3e6fdedfcdfaa6e"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/project-personnel-cost-publish/handler.ts",
+      "sha256": "31ab2dd00cab6da333c6b8349c4497957980c1674cd7e519f80346c13284a1b8"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/project-economy-read-handler.ts",
+      "sha256": "8d77e6ef73e85c4e8714a7f6590a1e7ceebf53a85ee87f3156a5f526d834bddc"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/project-economy-service-proof.ts",
+      "sha256": "e2097a48d6b80f2097b55b1aa780f8918a2a8002cf814c56f5ae671b6091a5bb"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/canonical.ts",
+      "sha256": "8a74c3c297e12152a3788fb927165fba13967c69d7bd177ac9c1917096bff7fe"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/dispatch-project-metadata/handler.ts",
+      "sha256": "13e199bbccb2a7a1e4c26d0544a076475bfc4137a212a6b19987f6351a444187"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826104657_finance_core_v1.sql",
+      "sha256": "708b7e6a497355d8006d675f7f4ce768ba322713d5cc7cafb12c9d11df491c86"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826105013_finance_security_v1.sql",
+      "sha256": "7da1e227ad90da137d3c7b34e8b291ce4166e238fa7d4fa1e0dfdb15fbb6e0b2"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826110915_finance_project_commands_v1.sql",
+      "sha256": "d3a7d9c91da2e17bc71d7afe03cd9378e116facb6e0093148929a3ce75192332"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826111041_finance_actual_fact_attestation_v1.sql",
+      "sha256": "f5a94b7b9150159c0eef6a1d72f65f9c27bd9c12dad7afcaa80cdd5ab6103db2"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826211500_finance_cost_event_forecast_floor_v1.sql",
+      "sha256": "0329753a967f72179314e0c1e53efc59c35e2dee8ba7874404d8c28b044c4d30"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260911290000_finance_period_and_financial_close_v1.sql",
+      "sha256": "4cea52aebf3a0bb1c775b960e082b1944ff489cd4a2978c77949505cb58a2bcb"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20261012155253_finance_operations_metadata_receiver_v1.sql",
+      "sha256": "9281f6452689c298ce04cd5a3aed09571cd6ef6a916026f2db84c4cc73e92313"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20261012162053_finance_command_replay_actor_binding_v1.sql",
+      "sha256": "ee2d8f2e7f4718def5742e37c367996e926f69987623ffd485cd2f823756531a"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-project-cost-read.sql",
+      "sha256": "c6a2691d6b5c4ef9613eed669950de250ad4abe14cceb668d6b843a5026590f0"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-command.sql",
+      "sha256": "b844dc20f012d92e46907593570867788b5b271838b3baa5b2b966a8f3aed187"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-receipt.sql",
+      "sha256": "ed4fab4d88ae856a00d13c538de14ac26e7b5275c49494563082eeffe42b81d4"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/atomic-cost-receiver.sql",
+      "sha256": "2e12c67595aa5a3f3940085393e62e1f49abcf289c5f873934ed762eb03210f0"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "sha256": "db0c16ee029a767cca964b20f6198d18669ce78cded7580c3e661d464d237992"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/customer-cost-booking-text.sql",
+      "sha256": "c2fa80fb6e55f462ebe44899640842901b1aa7fcae52dc979cf749e9c96bb6df"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001220213_operations_personnel_cost_shadow_v1.sql",
+      "sha256": "93c436bed1946d61c2f4f3dad1a8c509fa94595c8eff5791c917cd8dc5548a29"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001230603_operations_personnel_bound_read_v1.sql",
+      "sha256": "b07e655a59fa462033097d995e6db74fac637b8fb71a929969d1326479cc31bd"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/functions/_shared/operations-accepted-cost-receive.ts",
+      "sha256": "111bb3b168dacc52cf8b8dc185655cdeba01fd3679e544a7f2370ba84f00046e"
+    },
+    {
+      "root": "financeMetadata",
+      "path": "supabase/functions/_shared/operations-project-metadata-contract.ts",
+      "sha256": "31ec8a5d06c250bb99b19a3dd02ec3216913f63e810e796b1a90c635ba549147"
+    },
+    {
+      "root": "financeMetadata",
+      "path": "supabase/functions/operations-project-metadata/index.ts",
+      "sha256": "a6aea6deda93e001183a5757328ea01ee6d9323292ccb0dc40ff0969de65ff36"
+    },
+    {
+      "root": "text",
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "sha256": "75df72f9c738cc36b1c606cacadf76b65b1de183bf13102d341735f50adb57dd"
+    },
+    {
+      "root": "text",
+      "path": "scripts/internal-projects/personnel-text-booking.sql",
+      "sha256": "a195d2de5253b6baa868bdbcdc7f86d8f903af28816b74f2abb7c656a5004fef"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-bootstrap.sql",
+      "sha256": "f6a3136941b4a5b86dc2211c1ca659895b6510947453e0e1dd40005dabecba09"
+    }
+  ],
+  "hosted": false,
+  "activated": false
+}

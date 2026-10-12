@@ -254,10 +254,12 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
       plannedAssignments.forEach((a) => a.staff_id && staffIds.add(a.staff_id));
 
       // 6. Shifts (time_reports) för intervallet — kopplade till internt Lager-bokningsled (is_internal)
-      const { data: lagerBookings } = await supabase
+      const { data: lagerBookings, error: lagerBookingError } = await supabase
         .from("bookings")
         .select("id")
-        .eq("is_internal", true);
+        .eq("is_internal", true)
+        .eq("internal_type", "warehouse");
+      if (lagerBookingError) throw lagerBookingError;
       const lagerBookingIds = (lagerBookings || []).map((b: any) => b.id);
 
       let shiftRows: any[] = [];

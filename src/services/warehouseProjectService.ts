@@ -1,3 +1,5 @@
+import { isInternalProject } from '@/lib/projects/projectKind';
+import { fetchInternalWarehouseIdentity } from '@/services/internalWarehouseIdentityService';
 import { supabase } from "@/integrations/supabase/client";
 import {
   WarehouseProject,
@@ -227,6 +229,18 @@ export const createWarehouseProjectFromInbox = async (
   options: CreateFromInboxOptions
 ): Promise<WarehouseProject> => {
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Old inbox rows may predate the internal-project classification guard.
+  // Never convert these into a packing plan while the equipment contract is dormant.
+  const sourceProjectId = inboxItem.source_project_id ?? (inboxItem.source_type === 'project' ? inboxItem.source_id : null);
+  if (sourceProjectId) {
+    const { data: sourceProject, error: sourceError } = await supabase.from('projects')
+      .select('*').eq('id', sourceProjectId).eq('organization_id', inboxItem.organization_id).single();
+    if (sourceError) throw sourceError;
+    if (!sourceProject || isInternalProject(sourceProject)) {
+      throw new Error('Internt projekt saknar aktiverat materialflöde. Lageruppgifter hanteras via Lager.');
+    }
+  }
 
   const sourceBookingId = await resolveInboxBookingId(inboxItem);
 
@@ -752,13 +766,7 @@ export interface InternalLagerProject {
 }
 
 export const fetchInternalWarehouseProject = async (): Promise<InternalLagerProject | null> => {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('id, organization_id, name, is_internal')
-    .eq('is_internal', true)
-    .maybeSingle();
-  if (error) throw error;
-  return (data || null) as InternalLagerProject | null;
+  return fetchInternalWarehouseIdentity();
 };
 
 export interface CreateInternalTaskInput {

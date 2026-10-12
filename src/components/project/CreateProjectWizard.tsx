@@ -1,3 +1,7 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { createInternalProjectWithRetry, readInternalCreateAttempt, type InternalCreateAttempt } from '@/services/internalProjectCreation';
+import { optionalNonNegative } from '@/lib/projects/projectKind';
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DndProvider } from "react-dnd";
@@ -41,6 +45,15 @@ interface StaffMember {
 }
 
 export default function CreateProjectWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreateProjectWizardProps) {
+  const { user } = useAuth();
+  const { organizationId } = useOrganizationId();
+  const identity = user?.id && organizationId ? { actorId: user.id, organizationId } : null;
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [pendingCreate, setPendingCreate] = useState<InternalCreateAttempt | null>(null);
+  const [internal, setInternal] = useState(false);
+  const [budgetHours, setBudgetHours] = useState('');
+  const [budgetCost, setBudgetCost] = useState('');
+  const [goal, setGoal] = useState('');
   const [name, setName] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
@@ -122,6 +135,12 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
+      let pending: InternalCreateAttempt | null;
+      try { pending = identity ? readInternalCreateAttempt(identity) : null; setRecoveryError(null); }
+      catch { setRecoveryError('Sparat skapande kunde inte läsas. Kontrollera det tidigare försöket innan du skapar ett nytt projekt.'); return; }
+      setPendingCreate(pending);
+      if (pending) { setInternal(true); return; }
+      setInternal(false); setBudgetHours(''); setBudgetCost(''); setGoal('');
       setNewTaskTitle("");
       setSelectedLeaderId("");
       setClient("");
@@ -144,7 +163,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         initializeChecklist(null);
       }
     }
-  }, [open, preselectedBookingId, initializeChecklist]);
+  }, [open, preselectedBookingId, initializeChecklist, user?.id, organizationId]);
 
   // Handle preselected booking when bookings data is loaded
   useEffect(() => {
@@ -237,8 +256,23 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   // Create project mutation
   const createMutation = useMutation({
     mutationFn: async () => {
-      const bookingId = selectedBookingId && selectedBookingId !== "none" ? selectedBookingId : null;
+      if (recoveryError) throw new Error(recoveryError);
+      if (pendingCreate) {
+        if (!identity) throw new Error('Logga in i rätt organisation för att kontrollera skapandet.');
+        const project = await createInternalProjectWithRetry(identity, pendingCreate.request, setPendingCreate);
+        try {
+          const syncResult = await syncStandaloneProjectToCalendar(String(project.id), project as any);
+          if (!syncResult.success || syncResult.eventsCreated === 0) {
+            toast.warning('Projektet är skapat, men kalenderhändelser saknas. Kontrollera kalendern.', { duration: 15000 });
+          }
+        }
+        catch { toast.warning('Projektet är skapat, men kalendern behöver kontrolleras.'); }
+        return project;
+      }
+      const bookingId = !internal && selectedBookingId && selectedBookingId !== "none" ? selectedBookingId : null;
       
+      if (internal && (!selectedLeaderId || selectedLeaderId === 'none')) throw new Error('Välj ansvarig för internprojektet.');
+      if (internal && (!rigdaydate || !rigdowndate || rigdowndate < rigdaydate)) throw new Error('Ange start och slutdatum i rätt ordning.');
       // Duplicate guard
       if (bookingId) {
         const { data: existingProjects } = await supabase
@@ -281,6 +315,11 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         project_leader: selectedLeaderId && selectedLeaderId !== "none" ? (staffMembers.find(s => s.id === selectedLeaderId)?.name || selectedLeaderId) : null
       };
 
+      if (internal) Object.assign(projectData, {
+        project_kind: 'internal_project', is_internal: false, customer_pickup: false,
+        budget_hours: optionalNonNegative(budgetHours), budget_cost_minor: optionalNonNegative(budgetCost, 100),
+        budget_currency: 'SEK', internal_goal: goal.trim() || null,
+      });
       // Add standalone fields if no booking
       if (!bookingId) {
         if (client.trim()) projectData.client = client.trim();
@@ -299,11 +338,20 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       }
 
       // Create project
-      const { data: project, error: projectError } = await supabase
-        .from('projects')
-        .insert(projectData as any)
-        .select()
-        .single();
+      const initialTasks = checklistItems.map(item => ({
+        title: item.title,
+        deadline: item.deadline ? format(item.deadline, 'yyyy-MM-dd') : null,
+        is_info_only: item.isInfoOnly,
+      }));
+      if (internal && !identity) throw new Error('Organisationen kunde inte verifieras.');
+      const { data: project, error: projectError } = internal
+        ? { data: await createInternalProjectWithRetry(identity!, {
+              name: projectData.name, project_leader: projectData.project_leader,
+              rigdaydate, rigdowndate, budget_hours: projectData.budget_hours,
+              budget_cost_minor: projectData.budget_cost_minor, internal_goal: projectData.internal_goal,
+              tasks: initialTasks,
+            }, setPendingCreate), error: null }
+        : await supabase.from('projects').insert(projectData as any).select().single();
 
       if (projectError) throw projectError;
 
@@ -333,14 +381,14 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       const tasks = checklistItems.map((item, index) => ({
         project_id: project.id,
         title: item.title,
-        deadline: item.deadline ? item.deadline.toISOString().split('T')[0] : null,
+        deadline: item.deadline ? format(item.deadline, 'yyyy-MM-dd') : null,
         sort_order: index,
         is_info_only: item.isInfoOnly,
         completed: false
       }));
 
       // Insert tasks only if user added any (no auto-default tasks)
-      if (tasks.length > 0) {
+      if (!internal && tasks.length > 0) {
         const { error: tasksError } = await supabase
           .from('project_tasks')
           .insert(tasks);
@@ -396,6 +444,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       return project;
     },
     onSuccess: () => {
+      setPendingCreate(null);
       toast.success('Projekt skapat');
       onSuccess();
     },
@@ -408,7 +457,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!pendingCreate && !name.trim()) {
       toast.error('Ange ett projektnamn');
       return;
     }
@@ -426,14 +475,23 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
+          {recoveryError && <p role="alert">{recoveryError}</p>}
+          {pendingCreate && <p role="status" className="rounded border p-3">Skapandet av ”{String(pendingCreate.request.name)}” saknar bekräftat kvitto. Kontrollera samma förfrågan innan du skapar ett nytt projekt.</p>}
+          <fieldset disabled={!!recoveryError || !!pendingCreate || createMutation.isPending} className="space-y-6">
           {/* Project Information */}
           <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
             <h3 className="font-medium">Projektinformation</h3>
+            {!preselectedBookingId && <label className="flex items-center gap-2"><input type="checkbox" checked={internal} onChange={e => { setInternal(e.target.checked); setSelectedBookingId('none'); }} />Internt projekt</label>}
+            {internal && <div className="space-y-3">
+              <Label>Mål<Input value={goal} onChange={e => setGoal(e.target.value)} /></Label>
+              <div className="grid grid-cols-2 gap-3"><Label>Budget timmar<Input type="number" min="0" step="0.25" value={budgetHours} onChange={e => setBudgetHours(e.target.value)} /></Label><Label>Budget SEK<Input type="number" min="0" step="0.01" value={budgetCost} onChange={e => setBudgetCost(e.target.value)} /></Label></div>
+              <div className="grid grid-cols-2 gap-3"><Label>Startdatum<Input type="date" required value={rigdaydate} onChange={e => setRigdaydate(e.target.value)} /></Label><Label>Slutdatum<Input type="date" required value={rigdowndate} onChange={e => setRigdowndate(e.target.value)} /></Label></div>
+            </div>}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="booking">Koppla till bokning</Label>
-                <Select value={selectedBookingId} onValueChange={handleBookingChange}>
+                <Select disabled={internal} value={selectedBookingId} onValueChange={handleBookingChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Välj en bokning..." />
                   </SelectTrigger>
@@ -476,7 +534,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none rounded-md border border-dashed border-pink-300 bg-pink-50/40 px-3 py-2 hover:bg-pink-50">
+            {!internal && <label className="flex items-center gap-2 text-sm cursor-pointer select-none rounded-md border border-dashed border-pink-300 bg-pink-50/40 px-3 py-2 hover:bg-pink-50">
               <input
                 type="checkbox"
                 checked={customerPickup}
@@ -485,11 +543,11 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
               />
               <span className="font-medium">Kund hämtar själv på lagret</span>
               <span className="text-xs text-muted-foreground">— rig/rivning visas rosa/lila i kalendern</span>
-            </label>
+            </label>}
           </div>
 
           {/* Standalone project fields - only shown when no booking selected */}
-          {isStandalone && (
+          {isStandalone && !internal && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
               <h3 className="font-medium">Kund & Kontakt</h3>
               
@@ -661,12 +719,13 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
             </div>
           </div>
 
+          </fieldset>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Avbryt
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Skapar...' : 'Skapa projekt'}
+            <Button type="submit" formNoValidate={!!pendingCreate} disabled={!!recoveryError || createMutation.isPending}>
+              {createMutation.isPending ? 'Kontrollerar...' : pendingCreate ? 'Kontrollera tidigare skapande' : 'Skapa projekt'}
             </Button>
           </DialogFooter>
         </form>

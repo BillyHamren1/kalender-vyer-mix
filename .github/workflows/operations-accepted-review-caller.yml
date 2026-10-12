@@ -1,0 +1,62 @@
+name: Accepted project review caller
+on:
+  pull_request:
+    paths:
+      - 'scripts/internal-projects/*review-caller*'
+      - 'scripts/internal-projects/accepted-personnel-*.sql'
+      - 'src/hooks/useAcceptedProjectPersonnelReview.ts'
+      - 'src/components/project/AcceptedProjectPersonnelReview.tsx'
+      - 'src/components/project/__tests__/AcceptedProjectPersonnelReview.test.tsx'
+      - 'src/pages/project/ProjectEconomyPage.tsx'
+      - '.github/workflows/operations-accepted-review-caller.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: accepted_personnel_cost_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d accepted_personnel_cost_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: git rev-parse HEAD
+      - run: npm install --prefix "$RUNNER_TEMP/review-caller" --no-save --package-lock=false @electric-sql/pglite@0.5.9 typescript@5.6.3 pg@8.16.3
+      - run: ln -s "$RUNNER_TEMP/review-caller/node_modules" node_modules
+      - run: node scripts/internal-projects/personnel-review-caller.test.mjs
+      - name: PostgreSQL 17 actual review concurrency
+        env:
+          INTERNAL_PROJECTS_TEST_DSN: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/accepted_personnel_cost_ci
+        run: node scripts/internal-projects/personnel-review-caller.test.mjs
+  ui:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run src/components/project/__tests__/AcceptedProjectPersonnelReview.test.tsx
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm run build
