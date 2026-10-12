@@ -64,3 +64,100 @@ describe('dedicated dormant Operations source issuer',()=>{
   }
  });
 });
+
+import {createPersonnelPublishHandler,type PersonnelPublishConfig} from '../project-personnel-cost-publish/handler.ts';
+const ingestSecret='fixture-ingest-server-only-secret-long-enough';
+const handlerConfig=(fetchImpl:typeof fetch):PersonnelPublishConfig=>({...cfg,internalSecret:ingestSecret,finance:{enabled:false,endpoint:'',keyId:'',secret:''},fetchImpl,
+ accepted:{enabled:true,issuerId:cfg.issuerId,enrollmentEpoch:cfg.enrollmentEpoch,destinationOrganizationId:cfg.destinationOrganizationId,issuerSecret:cfg.issuerSecret,
+ transport:{enabled:false,issuerId:cfg.issuerId,enrollmentEpoch:cfg.enrollmentEpoch,endpoint:'https://finance.invalid/functions/v1/operations-personnel-accepted-receive',secret:'fixture-delivery-key-different-from-source-secret'}}});
+const acceptedMode={mode:'accepted',issuer_id:cfg.issuerId,enrollment_epoch:cfg.enrollmentEpoch,destination_organization_id:cfg.destinationOrganizationId};
+const requestFor=(input:{organizationId:string;workerId:string;submissionId:string},extra={})=>new Request('https://ops.invalid/publish',{method:'POST',headers:{authorization:'Bearer '+ingestSecret},body:JSON.stringify({operation:'ingest',organization_id:input.organizationId,worker_id:input.workerId,submission_id:input.submissionId,...extra})});
+const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
+describe('default-off accepted caller connection',()=>{
+ it('performs no network when disabled, unauthenticated or request tries to choose issuer',async()=>{
+  const s=await setup(),handler=createPersonnelPublishHandler(handlerConfig(s.fetcher));
+  expect((await createPersonnelPublishHandler({...handlerConfig(s.fetcher),enabled:false})(requestFor(s.input))).status).toBe(503);
+  const noAuth=requestFor(s.input);noAuth.headers.delete('authorization');expect((await handler(noAuth)).status).toBe(401);
+  expect((await handler(requestFor(s.input,{issuer_id:cfg.issuerId}))).status).toBe(400);expect(s.calls).toEqual([]);
+ });
+ it('never reads Time or invokes legacy publisher for blocked, disabled or mismatched accepted mode',async()=>{
+  for(const mode of [{mode:'blocked'},acceptedMode,{...acceptedMode,enrollment_epoch:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}]){
+   const s=await setup(),calls:string[]=[];const fetcher:typeof fetch=async(u)=>{calls.push(String(u));expect(String(u)).toContain('/get_operations_personnel_publish_mode_v1');return reply(mode);};
+   const config=handlerConfig(fetcher);if(mode===acceptedMode)config.accepted!.enabled=false;
+   expect((await createPersonnelPublishHandler(config)(requestFor(s.input))).status).toBe(503);expect(calls).toHaveLength(1);expect(s.calls).toEqual([]);
+  }
+ });
+ it('reuses one verified Time read across exactly three signed SQLSTATE40001 CAS attempts',async()=>{
+  const s=await setup(),commands:any[]=[];
+  const fetcher:typeof fetch=async(u,init)=>{const path=new URL(String(u)).pathname;
+   if(path.endsWith('/get_operations_personnel_publish_mode_v1'))return reply(acceptedMode);
+   if(path.endsWith('/issue_operations_personnel_accepted_v1')){const r=JSON.parse(String(init?.body));commands.push(r);return reply({code:'40001',message:'issuer_publication_not_accepted'},409);}
+   return s.fetcher(u,init);
+  };
+  expect((await createPersonnelPublishHandler(handlerConfig(fetcher))(requestFor(s.input))).status).toBe(409);
+  expect(commands).toHaveLength(3);expect(new Set(commands.map(c=>c.p_nonce)).size).toBe(3);
+  for(const r of commands){expect(r.p_signature).toBe(createHmac('sha256',cfg.issuerSecret).update(['operations-personnel-source-attestation.v1',r.p_timestamp,r.p_nonce,r.p_body].join('\n')).digest('hex'));expect(JSON.parse(r.p_body).raw_time_snapshot).toEqual(s.response.snapshot);}
+  expect(s.calls.filter(p=>p.includes('time-project-economy-read'))).toHaveLength(1);
+  expect(s.calls.filter(p=>p.endsWith('/operations_personnel_cost_streams'))).toHaveLength(3);
+ });
+ it('does not retry authorization failures or turn an absent new-day enrollment into shadow',async()=>{
+  for(const missingDay of [false,true]){
+   const s=await setup();let issues=0,modeCalls=0;
+   const fetcher:typeof fetch=async(u,init)=>{const path=new URL(String(u)).pathname;
+    if(path.endsWith('/get_operations_personnel_publish_mode_v1')){modeCalls++;return reply(missingDay&&modeCalls===2?{mode:'blocked',reason:'accepted_stream_bootstrap_required'}:acceptedMode);}
+    if(path.endsWith('/issue_operations_personnel_accepted_v1')){issues++;return reply({code:'42501'},403);}
+    return s.fetcher(u,init);
+   };
+   expect((await createPersonnelPublishHandler(handlerConfig(fetcher))(requestFor(s.input))).status).toBe(503);expect(issues).toBe(missingDay?0:1);
+  }
+ });
+ it('ambiguous committed response is resolved by issued immutable ancestry without another publication',async()=>{
+  const s=await setup();let committed:any=null,issues=0;
+  const fetcher:typeof fetch=async(u,init)=>{const p=new URL(String(u)).pathname;
+   if(p.endsWith('/get_operations_personnel_publish_mode_v1'))return reply(acceptedMode);
+   if(p.endsWith('/issue_operations_personnel_accepted_v1')){issues++;committed=JSON.parse(JSON.parse(String(init?.body)).p_body);throw new Error('lost committed response');}
+   if(committed){if(p.endsWith('/operations_personnel_cost_streams'))return reply([{current_revision:1}]);if(p.endsWith('/operations_personnel_cost_publications'))return reply([{cost_snapshot:committed.snapshot,raw_time_snapshot:committed.raw_time_snapshot}]);if(p.endsWith('/operations_personnel_cost_outbox'))return reply([{source_evidence:committed.source_evidence}]);if(p.endsWith('/get_operations_personnel_issued_ancestor_v1'))return reply(true);}
+   return s.fetcher(u,init);
+  };
+  const handler=createPersonnelPublishHandler(handlerConfig(fetcher));expect((await handler(requestFor(s.input))).status).toBe(503);
+  const retry=await handler(requestFor(s.input));expect(retry.status).toBe(200);expect((await retry.json()).status).toBe('unchanged');expect(issues).toBe(1);
+ });
+});
+
+describe('accepted caller installation and key isolation',()=>{
+ it('rejects a source or delivery key reused from database credentials before any network',async()=>{
+  for(const target of ['issuer','delivery'])for(const otherKey of ['databaseServiceKey','shadowSecret']){
+   const s=await setup(),config=handlerConfig(s.fetcher);config.databaseServiceKey='fixture-database-service-key-long-enough';config.finance.secret='fixture-legacy-shadow-transport-secret-long';
+   const reused=otherKey==='databaseServiceKey'?config.databaseServiceKey:config.finance.secret;
+   if(target==='issuer')config.accepted!.issuerSecret=reused;else{config.accepted!.transport.enabled=true;config.accepted!.transport.secret=reused;}
+   expect((await createPersonnelPublishHandler(config)(requestFor(s.input))).status).toBe(503);expect(s.calls).toEqual([]);
+  }
+ });
+ it('requires installed mode RPC even for legacy; missing permission is never fallback',async()=>{
+  const s=await setup();let published=0;
+  const fetcher:typeof fetch=async(u,init)=>{const p=new URL(String(u)).pathname;
+   if(p.endsWith('/get_operations_personnel_publish_mode_v1'))return reply({mode:'legacy'});
+   if(p.endsWith('/publish_operations_personnel_cost_ingress_v1')){published++;return reply({status:'accepted',source_revision:1});}
+   return s.fetcher(u,init);
+  };
+  const config=handlerConfig(fetcher);config.accepted!.enabled=false;
+  expect((await createPersonnelPublishHandler(config)(requestFor(s.input))).status).toBe(200);expect(published).toBe(1);
+  const denied:typeof fetch=async(u)=>{expect(String(u)).toContain('/get_operations_personnel_publish_mode_v1');return reply({code:'42501'},403);};
+  expect((await createPersonnelPublishHandler({...config,fetchImpl:denied})(requestFor(s.input))).status).toBe(503);expect(published).toBe(1);
+ });
+});
+
+describe('accepted dispatcher caller',()=>{
+ it('leases only configured issuer/epoch, verifies signed ACK, and finishes delivery without applying money',async()=>{
+  const s=await setup(),calls:string[]=[],config=handlerConfig(s.fetcher);config.accepted!.transport.enabled=true;
+  const a=config.accepted!,raw='{"isolated":"accepted-transport-caller"}',claim={id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',organization_id:ctx.organization_id,source_time_stream_id:'fixture-stream',source_revision:1,raw_body:raw,body_sha256:await rawBodySha256(raw),destination_organization_id:cfg.destinationOrganizationId,issuer_id:cfg.issuerId,enrollment_epoch:cfg.enrollmentEpoch,endpoint_url:a.transport.endpoint,lease_owner:'',lease_token:'cccccccc-cccc-4ccc-8ccc-cccccccccccc'};
+  config.fetchImpl=async(u,init)=>{const path=new URL(String(u)).pathname;calls.push(path);const body=JSON.parse(String(init?.body));
+   if(path.endsWith('/claim_operations_personnel_accepted_v1')){expect(body).toEqual({p_issuer:cfg.issuerId,p_epoch:cfg.enrollmentEpoch,p_owner:expect.any(String),p_limit:1,p_lease_seconds:60});claim.lease_owner=body.p_owner;return reply([claim]);}
+   if(path.endsWith('/operations-personnel-accepted-receive')){expect(new Headers(init?.headers).get('x-eventflow-issuer-id')).toBe(cfg.issuerId);const raw_ack=JSON.stringify({schema:'operations-personnel-accepted-receipt.v1',outcome:'received',issuer_id:claim.issuer_id,enrollment_epoch:claim.enrollment_epoch,source_organization_id:claim.organization_id,destination_organization_id:claim.destination_organization_id,source_stream_id:claim.source_time_stream_id,source_revision:1,outbox_id:claim.id,envelope_sha256:claim.body_sha256,receipt_id:'ffffffff-ffff-4fff-8fff-ffffffffffff',financially_applied:false});return reply({raw_ack,signature:createHmac('sha256',a.transport.secret).update('operations-personnel-accepted-ack.v1\n'+raw_ack).digest('hex')});}
+   if(path.endsWith('/finish_operations_personnel_accepted_v1')){expect(body.p_outcome).toBe('delivered');expect(JSON.parse(body.p_raw_ack).financially_applied).toBe(false);return reply({status:'delivered',financially_applied:false});}
+   throw new Error('unexpected operation '+path);
+  };
+  const response=await createPersonnelPublishHandler(config)(new Request('https://ops.invalid/publish',{method:'POST',headers:{authorization:'Bearer '+ingestSecret},body:JSON.stringify({operation:'dispatch',limit:1})}));
+  expect(response.status).toBe(200);expect((await response.json()).financially_applied).toBe(false);expect(calls).toEqual(['/rest/v1/rpc/claim_operations_personnel_accepted_v1','/functions/v1/operations-personnel-accepted-receive','/rest/v1/rpc/finish_operations_personnel_accepted_v1']);
+ });
+});
