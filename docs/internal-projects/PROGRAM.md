@@ -1,6 +1,14 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
+## Verified recovery progress — 2026-10-12 19:06 UTC
+
+Operations PR55 is now 0520f931bf596de5070fd7b28471f7ec4f78f37c, tree a85aebd61ef1c7484f5375f13d5d524a0e3700ae. Exact-head workflows38294656352 and38294656343 SUCCESS. Independently read native PostgreSQL17.11 logs:33 provenance cases,33PGlite and41unit tests PASS; separate actual concurrency and full application checks PASS. The correction changed one JSONB fixture binding only.
+Time PR40 is now5a7757fef59ea7df3f41feb7d60085e52e96dbf6, tree1d7ca1aa435472dbee9b054ac9534ac99006ef9c. Four reviewed source blobs match remotely;11Catering tests,focusedlint and generator byte parity PASS. CI38295129805 and reader38295129945 in progress; browser remains unproven. Local Chromium download failed; do not describe local browser as passed.
+Finance dormant whole-stream candidate is under independent correction: cross-actor replay and changed project classification were reproduced. No new Finance publication. Existing current4a5f3128 all six workflows remain green; accepted source port still absent.
+Warehouse exact-owner SQL reproduced default pending reservation not reducing stock. Three sequential PGlite checks pass with actual availability SQL: pending leaves available stock; confirmed reserves without Booking; another demand rejects without row. Reservation-only local candidate must use server-owned confirmed status, actual owner functions and atomic source-proof/receipt; no WMS source publication. PR7 test availability alone was not sufficient evidence.
+Root local checkpoints a638a62a2 and25e4471f9; recreated worktrees are genuine Operations plus exact remote file snapshots for private repos. Never push synthetic ancestry. Active agents: operations_recovery source acceptance analysis; time_recovery CI; finance_recovery dormant adapter; warehouse_recovery dormant reservation; recovery_review independent Finance. Root lease remains until19:56UTC.
+
 ## Active recovery lease — 2026-10-12 18:56 UTC
 
 Owner /root; expires 2026-10-12 19:56 UTC. Scope: Operations PR55 and Time PR40 CI recovery, checkpoint reconciliation. Atomic branch compare-and-swap establishes this lease. Only root publishes reviewed changes; independent agents prepare isolated candidates.
