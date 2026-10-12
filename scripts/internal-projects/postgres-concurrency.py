@@ -161,5 +161,113 @@ with session() as conn:
 assert scalar('SELECT budget_cost_minor FROM projects WHERE id=%s', (pid,)) == 500000
 print('PASS synthetic cross-tenant actor cannot mutate project or read receipts')
 
-admin.close()
 print('PASS 9 real PostgreSQL concurrency/fault scenarios; synthetic schema/auth, NOT hosted integration or authenticated UI')
+
+# Separate actual queue migration: original nine checks above do not imply this.
+queue_migrations = list((ROOT / 'supabase/migrations').glob('*_internal_project_metadata_delivery.sql'))
+assert len(queue_migrations) == 1
+admin.execute(queue_migrations[0].read_text())
+print('APPLIED', queue_migrations[0].name)
+CLAIM = 'SELECT claim_operations_project_metadata_delivery()'
+FINISH = 'SELECT finish_operations_project_metadata_delivery(%s,%s::jsonb,NULL)'
+
+
+def worker():
+    conn = psycopg.connect(DSN, autocommit=True)
+    conn.execute("SET statement_timeout='12s'")
+    conn.execute('SET ROLE service_role')
+    return conn
+
+
+def claim(conn):
+    return conn.execute(CLAIM).fetchone()[0]
+
+
+def acknowledgement(item):
+    return json.dumps({**json.loads(item['body']),
+                      'schema': 'finance-operations-project-metadata-ack.v1',
+                      'destination': item['destination']})
+
+
+def blocked_by(left, right, future):
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if scalar('SELECT %s = ANY(pg_blocking_pids(%s))', (left.info.backend_pid, right.info.backend_pid)):
+            return
+        if future.done():
+            future.result()
+            raise AssertionError('Expected concurrent queue lock wait was absent')
+        time.sleep(0.02)  # Poll observed server state, never assume overlap from elapsed time.
+    raise AssertionError('Queue contender did not block on transaction')
+
+
+queue_project = uuid4()
+with session() as conn:
+    conn.execute(CREATE, (queue_project, json.dumps(REQUEST)))
+    conn.execute(update, (300000, queue_project))
+admin.execute('INSERT INTO operations_project_metadata_destinations VALUES(%s,%s,1,true)', (queue_project, ORG))
+
+with worker() as first_worker, worker() as second_worker, concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    first_worker.execute('BEGIN')
+    first_claim = claim(first_worker)
+    assert json.loads(first_claim['body'])['revision'] == 1
+    pending = pool.submit(claim, second_worker)
+    try:
+        # Concurrent initial queue population must wait for uncommitted unique rows.
+        blocked_by(first_worker, second_worker, pending)
+    finally:
+        first_worker.execute('COMMIT')
+    assert pending.result(timeout=15) is None
+assert scalar('SELECT attempts FROM operations_project_metadata_delivery WHERE source_project_id=%s AND revision=1', (queue_project,)) == 1
+print('PASS queue initial claim versus claim: observed overlap yields one active lease')
+
+# Expire a lease without a time-based sleep: retry must preserve exact immutable body.
+admin.execute("UPDATE operations_project_metadata_delivery SET lease_until=clock_timestamp()-interval '1 second' WHERE source_project_id=%s AND revision=1", (queue_project,))
+with worker() as reclaimer, worker() as stale_worker, concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    reclaimer.execute('BEGIN')
+    reclaimed = claim(reclaimer)
+    assert reclaimed['lease_token'] != first_claim['lease_token']
+    assert reclaimed['body'] == first_claim['body']
+    # Old acknowledgement cannot finalize even while replacement transaction is open.
+    pending = pool.submit(lambda: stale_worker.execute(FINISH, (first_claim['lease_token'], acknowledgement(first_claim))).fetchone()[0])
+    try:
+        assert pending.result(timeout=5) is False
+        assert claim(stale_worker) is None  # SKIP LOCKED while new lease transaction remains open.
+    finally:
+        reclaimer.execute('COMMIT')
+assert scalar('SELECT delivered_at IS NULL FROM operations_project_metadata_delivery WHERE source_project_id=%s AND revision=1', (queue_project,))
+print('PASS queue expired-lease reclaim blocks stale acknowledgement and competing claim')
+
+with worker() as finisher, worker() as duplicate, concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    finisher.execute('BEGIN')
+    args = (reclaimed['lease_token'], acknowledgement(reclaimed))
+    assert finisher.execute(FINISH, args).fetchone()[0] is True
+    pending = pool.submit(lambda: duplicate.execute(FINISH, args).fetchone()[0])
+    try:
+        blocked_by(finisher, duplicate, pending)
+    finally:
+        finisher.execute('COMMIT')
+    assert pending.result(timeout=15) is False
+print('PASS queue concurrent acknowledgement commits once; waiter cannot acknowledge twice')
+
+with worker() as aborting, worker() as successor:
+    aborting.execute('BEGIN')
+    aborted_claim = claim(aborting)
+    assert json.loads(aborted_claim['body'])['revision'] == 2
+    try:
+        assert claim(successor) is None  # First transaction holds second revision row.
+        assert scalar('SELECT attempts FROM operations_project_metadata_delivery WHERE source_project_id=%s AND revision=2', (queue_project,)) == 0
+    finally:
+        aborting.execute('ROLLBACK')
+    recovered = claim(successor)
+    assert json.loads(recovered['body'])['revision'] == 2
+    assert recovered['body'] == aborted_claim['body']
+    assert recovered['lease_token'] != aborted_claim['lease_token']
+    assert successor.execute(FINISH, (aborted_claim['lease_token'], acknowledgement(aborted_claim))).fetchone()[0] is False
+    assert successor.execute(FINISH, (recovered['lease_token'], acknowledgement(recovered))).fetchone()[0] is True
+    assert claim(successor) is None
+assert scalar('SELECT attempts FROM operations_project_metadata_delivery WHERE source_project_id=%s AND revision=2', (queue_project,)) == 1
+assert scalar('SELECT count(*) FROM operations_project_metadata_delivery WHERE source_project_id=%s AND delivered_at IS NOT NULL', (queue_project,)) == 2
+print('PASS queue ordered revision two survives claim rollback with exactly one committed attempt')
+admin.close()
+print('PASS 4 additional native PostgreSQL queue scenarios; synthetic enrollment/auth, no live HTTP or hosted integration')
