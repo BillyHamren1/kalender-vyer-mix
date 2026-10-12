@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {readFileSync,readdirSync} from 'node:fs';
+const {PGlite}=await import(process.env.PGLITE_MODULE||'@electric-sql/pglite');
+const db=new PGlite();
+await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE TABLE operations_project_metadata_outbox(source_project_id uuid,source_organization_id uuid,revision bigint,schema_version text,operation text,metadata jsonb,fingerprint text,captured_at timestamptz default now(),PRIMARY KEY(source_project_id,revision));`);
+await db.exec(readFileSync('supabase/migrations/'+readdirSync('supabase/migrations').find(f=>f.endsWith('_internal_project_metadata_delivery.sql')),'utf8'));
+const project='11111111-1111-4111-8111-111111111111',org='22222222-2222-4222-8222-222222222222';
+await db.query(`INSERT INTO operations_project_metadata_outbox SELECT $1,$2,n,'operations-project-metadata.v1','upsert','{"declared_project_kind":"internal_project","booking_id":null}',repeat('a',64),now() FROM generate_series(1,2)n`,[project,org]);
+let tests=0;const check=async(n,f)=>{await f();tests++;console.log('PASS',n)};
+const claim=async()=>{await db.exec('SET ROLE service_role');return (await db.query('SELECT claim_operations_project_metadata_delivery() c')).rows[0].c};
+const finish=async(c,a,f=null)=>(await db.query('SELECT finish_operations_project_metadata_delivery($1,$2,$3) ok',[c.lease_token,a,f])).rows[0].ok;
+const ack=c=>({...JSON.parse(c.body),schema:'finance-operations-project-metadata-ack.v1',destination:c.destination});
+let first,second;
+await check('no queue/backfill activation on migration',async()=>assert.equal((await db.query('SELECT * FROM operations_project_metadata_delivery')).rows.length,0));
+await check('no enrollment means no claim even when worker calls',async()=>assert.equal(await claim(),null));
+await db.exec('RESET ROLE');await assert.rejects(db.query('INSERT INTO operations_project_metadata_destinations VALUES ($1,$2,1,true)',[project,project]),/exact explicit/);await db.query('INSERT INTO operations_project_metadata_destinations VALUES ($1,$2,1,true)',[project,org]);
+await check('application roles cannot claim read or acknowledge',async()=>{for(const role of ['anon','authenticated']){await db.exec('SET ROLE '+role);for(const q of ['SELECT claim_operations_project_metadata_delivery()','SELECT * FROM operations_project_metadata_delivery',`SELECT finish_operations_project_metadata_delivery(gen_random_uuid(),null,null)`])await assert.rejects(db.exec(q),/permission denied/);} });
+await check('claim immutable receipt; second worker sees no same project',async()=>{first=await claim();assert.equal(JSON.parse(first.body).revision,1);assert.equal(await claim(),null);});
+await check('service cannot directly mutate delivery state',async()=>{for(const q of ['DELETE FROM operations_project_metadata_delivery','UPDATE operations_project_metadata_delivery SET delivered_at=now()'])await assert.rejects(db.exec(q),/permission denied/);});
+await check('ack rejects mismatched tenant revision hash destination and null',async()=>{for(const a of [null,{...ack(first),source_organization_id:project},{...ack(first),revision:2},{...ack(first),fingerprint:'b'.repeat(64)},{...ack(first),destination:'other'}])await assert.rejects(finish(first,a),/Mismatched/);});
+await check('expired lease is reclaimed; stale worker cannot ack',async()=>{await db.exec('RESET ROLE;UPDATE operations_project_metadata_delivery SET lease_until=now()-interval \'1 second\'');second=await claim();assert.notEqual(first.lease_token,second.lease_token);assert.equal(first.body,second.body);assert.equal(await finish(first,ack(first)),false);});
+await check('failed transport backs off and preserves immutable receipt',async()=>{assert.equal(await finish(second,null,'transport_failure'),true);assert.equal(await claim(),null);await db.exec('RESET ROLE;UPDATE operations_project_metadata_delivery SET next_attempt_at=now()-interval \'1 second\'');second=await claim();assert.equal(second.body,first.body);});
+await check('ack completes exactly once and unlocks ordered next revision',async()=>{assert.equal(await finish(second,ack(second)),true);assert.equal(await finish(second,ack(second)),false);const next=await claim();assert.equal(JSON.parse(next.body).revision,2);assert.equal(await finish(next,ack(next)),true);assert.equal(await claim(),null);});
+await check('explicit floor preserves legacy history without silently delivering it',async()=>{
+ await db.exec('RESET ROLE');const other='33333333-3333-4333-8333-333333333333';
+ await db.query(`INSERT INTO operations_project_metadata_outbox SELECT $1,$2,n,'operations-project-metadata.v1','upsert',CASE WHEN n=1 THEN '{"declared_project_kind":null}'::jsonb ELSE '{"declared_project_kind":"internal_project","booking_id":null}'::jsonb END,repeat('b',64),now() FROM generate_series(1,3)n`,[other,org]);
+ await assert.rejects(db.query('INSERT INTO operations_project_metadata_destinations VALUES ($1,$2,1,true)',[other,org]),/exact explicit/);
+ await db.query('INSERT INTO operations_project_metadata_destinations VALUES ($1,$2,2,true)',[other,org]);
+ await assert.rejects(db.query('UPDATE operations_project_metadata_destinations SET first_revision=3 WHERE source_project_id=$1',[other]),/immutable/);
+ const c=await claim();assert.equal(JSON.parse(c.body).revision,2);assert.equal(JSON.parse(c.body).source_project_id,other);
+ assert.equal(await finish(c,null,'remote_rejected'),true);
+ await db.exec("RESET ROLE;UPDATE operations_project_metadata_delivery SET next_attempt_at=now()-interval '1 day'");
+ assert.equal(await claim(),null); // rejected earliest is quarantined and blocks successor
+ await db.exec('RESET ROLE');assert.equal((await db.query('SELECT * FROM operations_project_metadata_delivery WHERE source_project_id=$1 AND revision=1',[other])).rows.length,0);
+ assert.equal((await db.query('SELECT * FROM operations_project_metadata_outbox WHERE source_project_id=$1',[other])).rows.length,3);
+});
+console.log(`${tests} delivery DB scenarios PASS (PGlite synthetic; not concurrent hosted PostgreSQL)`);await db.close();

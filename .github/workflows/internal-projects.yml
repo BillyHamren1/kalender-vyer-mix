@@ -59,6 +59,9 @@ jobs:
           node scripts/internal-projects/database.test.mjs
           node scripts/internal-projects/atomic-create.test.mjs
           node scripts/internal-projects/project-metadata-outbox.test.mjs
+          node scripts/internal-projects/project-metadata-delivery.test.mjs
+      - name: Signed metadata transport boundary (mock HTTP)
+        run: node --experimental-strip-types scripts/internal-projects/project-metadata-dispatcher.test.mjs
   postgres-concurrency:
     runs-on: ubuntu-latest
     timeout-minutes: 10
