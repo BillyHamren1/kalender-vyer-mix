@@ -2,7 +2,15 @@
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
 
-## Current continuation — 2026-10-12 21:28 UTC
+## Published review/read continuation — 2026-10-12 21:32 UTC
+
+Operations PR55 head5a3337439021c9dae0d9d785e085c28cae7744a9 tree38f105b6ebbdc6ae1b811a8141b067d3af12a4d2 publishes reviewed10-file project review API/UI plus24 durable documentation/evidence paths. All10 source blobs equal approved48a0850f. New workflow38310828551/nativejob115015871220 SUCCESS:61 PGlite +65 actual PostgreSQL17.11, including physical command replay/issuer disable races. Exact app/UI CI still pending. Genuine parentdc0d has all7 workflows green.
+
+Finance PR56 head28fec04df85137d710c50275b713586389d900d1 treeae551a9dfc2dc0789ec193beb49b6e7140c7235f publishes11 reviewed files:8cost evidence c7d90 (format-only successor to independently approveda243),2actual route host05d8 and narrow receiptCI01a38. All8author blobs exact. Twenty actual-schema PGlite and9React passed independently; nine exact-head workflows now running, native read20 still pending. Genuine parent820 all8green. Recorded personnel subset never unlocks totals/close; unknown roster/domain remains explicit.
+
+warehouse_recovery owns isolated next composition exercising new actual Operations review API plus Finance recorded read through firstday/correction/withdrawal, no product edits. operations_recovery and finance_recovery own published exact-head CI. Root publication only. No activation, production actions, migration, deploy, secure-login retry or WMS sourcepublication.
+
+## Prior continuation — 2026-10-12 21:28 UTC
 
 Draft publication only; no merge, deployment, hosted migration or WMS/Scanner publication. Root remains coordinator.
 
