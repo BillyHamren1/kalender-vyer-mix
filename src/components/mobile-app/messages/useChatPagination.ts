@@ -42,12 +42,15 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
     error: null,
     hasMore: true,
   });
+  const cursorRef = useRef<string | null>(null);
   const inflight = useRef(false);
   const generation = useRef(0);
 
   useEffect(() => {
     generation.current += 1;
     const myGen = generation.current;
+    cursorRef.current = null;
+    inflight.current = false;
     let cancelled = false;
 
     setState({
@@ -62,6 +65,7 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
       try {
         const res = await fetcher({ limit: PAGE_SIZE });
         if (cancelled || generation.current !== myGen) return;
+        cursorRef.current = res.next_cursor;
         setState((s) => ({
           ...s,
           messages: mergeAsc(s.messages, res.messages),
@@ -86,7 +90,7 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
     if (inflight.current) return;
     const current = messagesRef.current;
     if (current.length === 0) return;
-    const oldest = current[0]?.created_at;
+    const oldest = cursorRef.current;
     if (!oldest) return;
 
     setState((s) => {
@@ -98,6 +102,7 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
     try {
       const res = await fetcher({ before: oldest, limit: PAGE_SIZE });
       if (generation.current !== myGen) return;
+      cursorRef.current = res.next_cursor;
       setState((s) => ({
         ...s,
         messages: mergeAsc(res.messages, s.messages),
@@ -109,7 +114,7 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
       if (generation.current !== myGen) return;
       setState((s) => ({ ...s, loadingOlder: false, error: e?.message || tr('chat.couldNotLoadOlder') }));
     } finally {
-      inflight.current = false;
+      if (generation.current === myGen) inflight.current = false;
     }
   }, [fetcher]);
 
@@ -122,11 +127,13 @@ export const useChatPagination = ({ key, seed, fetcher }: Options) => {
 
   const reload = useCallback(async () => {
     generation.current += 1;
+    inflight.current = false;
     const myGen = generation.current;
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const res = await fetcher({ limit: PAGE_SIZE });
       if (generation.current !== myGen) return;
+      cursorRef.current = res.next_cursor;
       setState({ messages: res.messages, loading: false, loadingOlder: false, error: null, hasMore: res.has_more });
     } catch (e: any) {
       if (generation.current !== myGen) return;
@@ -155,3 +162,4 @@ function mergeAsc(a: ChatMessage[], b: ChatMessage[]): ChatMessage[] {
   out.sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime());
   return out;
 }
+

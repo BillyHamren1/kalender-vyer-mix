@@ -12,6 +12,7 @@
 // mobile-app-api, and mobile-app-api still handles `login` as a fallback
 // so existing clients keep working during rollout.
 
+import { createMobileMessageToken } from '../_shared/mobile-message-token.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import {
   createScannerSignedToken,
@@ -37,12 +38,9 @@ const corsHeaders = {
 // validate cleanly there.
 const TOKEN_EXPIRY_HOURS = 24 * 30
 
-function generateToken(staffId: string, sessionId?: string): string {
+async function generateToken(staffId: string, sessionId: string): Promise<string> {
   const timestamp = Date.now()
-  const expiresAt = timestamp + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000
-  const payload: Record<string, unknown> = { staffId, timestamp, expiresAt }
-  if (sessionId) payload.sessionId = sessionId
-  return btoa(JSON.stringify(payload))
+  return await createMobileMessageToken({ staffId, sessionId, timestamp, expiresAt: timestamp + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000 }, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '')
 }
 
 // Same Base64 scheme used by mobile-app-api.
@@ -204,6 +202,8 @@ async function handleLogin(
     }
   }
 
+  const token = await generateToken(account.staff_id, sessionId)
+
   // Single-device-per-staff: rotera active_mobile_session_id först när en
   // efterfrågad Scanner-credential faktiskt har signerats. En konfigurations-
   // eller kryptofail får aldrig logga ut en fungerande enhet.
@@ -219,9 +219,8 @@ async function handleLogin(
     return json({ error: 'Login failed (session)' }, 500, responseHeaders)
   }
 
-  const token = generateToken(account.staff_id, sessionId)
   console.log(
-    `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`,
+    `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner})`,
   )
   // `token` behålls oförändrad för Planning-mobilen. Endast den fristående
   // Scannern använder den separata, kortlivade och signerade credentialen.
@@ -319,3 +318,4 @@ Deno.serve(async (req) => {
     return json({ error: 'Internal server error' }, 500, responseHeaders)
   }
 })
+
