@@ -113,6 +113,11 @@ const fail: (code: string) => never = (code) => {
 const text = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0 &&
   value === value.trim();
+// Booking owns opaque TEXT IDs. This is a cost-transport byte cap, not a UUID
+// or Booking schema limit. Never trim or normalize an authoritative identity.
+const bookingIdentity = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && !value.includes('\0') &&
+  new TextEncoder().encode(value).length <= 256;
 const int = (value: unknown, minimum = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum;
 const date = (value: string) =>
@@ -276,7 +281,7 @@ export async function calculatePersonnelCostSnapshot(
       allocation.organization_id !== ctx.organization_id ||
       !uuid(allocation.source_project_id) ||
       (allocation.source_booking_id !== null &&
-        !uuid(allocation.source_booking_id)) ||
+        !bookingIdentity(allocation.source_booking_id)) ||
       !currency(allocation.currency)
     ) fail('invalid_allocation');
     targetKey(allocation.target);
