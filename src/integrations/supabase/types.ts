@@ -11399,6 +11399,10 @@ export type Database = {
         Args: { _new: string; _old: string }
         Returns: boolean
       }
+      is_direct_message_actor: {
+        Args: { _id: string; _org: string }
+        Returns: boolean
+      }
       is_noise_booking_change: {
         Args: { _changed_fields: Json; _new: Json; _previous: Json }
         Returns: boolean
