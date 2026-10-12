@@ -32,3 +32,16 @@ Operations existing PR #48 and Finance #55 own broader project-economy work. Do 
 
 ## Continuation protocol
 Each worker uses its canonical branch/checkpoint, checks current heads and active ownership before mutation, acquires expiring per-track lease in its checkpoint using compare-and-swap Git update. Never overwrite an active writer. During active parent session continue useful batches, not sleep between runs. Scheduled run resumes expired/inactive work only; dependency blockers allow read-only independent checks. Only parent coordinates release/migration after combined verification. Pause track when accepted; if every remaining safe action requires external access, report precise blocker and pause rather than empty repeated notifications. Do not revive unrelated automations.
+
+## Saved recurring continuations
+Confirmed enabled 2026-10-12, every hour, Europe/Stockholm:
+- Operations: 6accd51d42c88191b2bd73cb3c0cc609
+- Time: 6accd52009748191b34e56b1505c8c35
+- Finance: 6accd52295608191bced6bbe4d9fb7e0
+- Warehouse: 6accd524e11081918b387be83bd7585b
+- Booking/Catering: 6accd5274f688191b5795440665178f1
+- Independent verification/integration: 6accd529cc388191bc7e5470b80bee0c
+No unrelated automation changed. All six initial agents running at latest status check.
+Verifier owns codex/internal-projects-verification-20261012 docs/internal-projects/VERIFICATION.md.
+Booking/Catering audit owns codex/internal-projects-booking-catering-20261012 docs/internal-projects/BOOKING-CATERING.md in Operations repository; separate app branches only when needed.
+Authenticated browser initially empty. Verified e-flow.se login wall; secure login handoff in progress, code work continues.
