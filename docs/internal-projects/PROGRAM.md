@@ -1,7 +1,26 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
-## Latest verified continuation — 2026-10-12 19:42 UTC
+## Latest verified continuation — 2026-10-12 19:52 UTC
+
+Supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized. No merge, deployment, hosted migration or WMS/Scanner source publication. Root control lease expires 20:26 UTC, PROGRAM commit fb970ce1ff66c447d958c52781ed3fb4e6446870.
+
+- Operations PR55 exact `ac13685f485fe714bc7279ac4bad0c4e509e6d09`, tree `4464a6f3b118c03df29662554b04dcb712cd90f3`: all three workflows green. Accepted review descendant 38299434044 proves 49 PGlite + 51 PostgreSQL 17.11 checks including two physical role-revocation overlaps. Existing accepted transport has 57 PGlite/60 native checks including three overlaps; full application 84 tests, types and build31.34s PASS. Private default-off wrappers retain canonical writers/outbox.
+- Finance PR56 exact `603b8ad035b1fdf54b748e9b58555afd0a022ab0`, tree `b02fbf80e56bd829497eb520836d06606f84d6fa`, genuine parent034bc255. Eleven reviewed files published; synthetic local b5c2c1f history not pushed. Native job114981069581/run38300224097 PASS: 31 receipt/writer scenarios plus seven physically instrumented overlaps (38 total); root independently read raw logs. Original atomic33, accepted31 PGlite and Edge9 also PASS. Broader main/browser CI still pending. Source/destination pins, current issuer/metadata, actor membership/ACL fences, immutable receipts, signed ACK and canonical writer are dormant/unwired.
+- Time PR40 `adae19549703d3b12b1730c15a32a49afbe40df5`: both workflows wholly green, 1882 unit tests and browser100mock+31live-shell fixtures. These are CI fixtures, not hosted signed-in acceptance.
+- Catering PR30 remains4c2353c8299fceb419aa8f1a9feb69ab2c550812, prior verified CI green.
+
+Mixed-day gate reproduced independently at recovery-mixed-cost34b23a6: actual Operations engine preserves customer4h/internal3h/activity1h, 480minutes and240000minor; Finance internal-only metadata rejects customer identity and therefore the complete stream. Zero partial receipts or money. Operations and Finance now own a typed customer_cost_identity extension with explicit prospective enrollment, real direct Booking TEXT identity and null customer budget fields. Operations attests its own project classification and tenant-checked project/Booking relationship, not a Booking-origin signature. Finance binds to an explicitly enrolled existing customer project. Customer budget/status/revenue/invoice behavior remains unchanged. Large/multi-booking/legacy-null identities remain explicit unsupported gates, never fabricated bookings.
+
+Independent composition evidence recovery-cost-chain8a952cf67c897cf7011ddd95990631e406718dfa:45 issuer regressions+11 actual-code transport cases using two PGlite databases and in-memory HTTP. Not hosted; no money events. Evidence histories are synthetic and must not be pushed.
+
+New cross-channel finding: missing signed metadata currently becomes P0001→HTTP422→blocked source delivery, so valid cost-before-metadata is stranded. The next batch must distinguish dependency-not-ready retry from conflicting/malformed identity; a captured required metadata revision is needed before claiming causal identity alignment. Operations/Finance/reviewer/independent composition owner are coordinating. No instantaneous cross-channel revocation guarantee.
+
+Remaining gates: typed mixed-day full-stream cost application/withdrawal, causal metadata readiness, safe caller/coverage activation, WMS/Scanner ownership and full equipment lifecycle, coordinated hosted migration/rollback, actual signed-in published UI. Never automatically restart secure login. Module loops stay paused; restart only concrete work. Overall not complete.
+
+
+
+## Prior continuation — 2026-10-12 19:42 UTC
 
 This section supersedes older recovery heads below. Root remains active with isolated delegated owners; do not start competing work.
 
