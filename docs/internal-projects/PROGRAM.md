@@ -2,7 +2,17 @@
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
 
-## Published review/read continuation — 2026-10-12 21:32 UTC
+## Current continuation — 2026-10-12 21:40 UTC
+
+Supersedes pending CI below. Operations PR55 5a3337439021c9dae0d9d785e085c28cae7744a9 ALL8 workflows SUCCESS:61 PGlite+65 native PG17.11,17 UI/fulltypes/build29.15s; main84 tests/types/build32.46s. Finance28fec04 all9 workflows were green but Fortnox-only filtered tsc hid37 new UI diagnostics. Root independently read raw errors; baselinec348 had none. All37 fixed without tsconfig relaxation; reviewed8-file delta published Finance PR56 c8281bf1a9ffa4d230086437dda2a031caee7c1a tree23d54ba9d399fbd291aa00dcf0a36d76f4d6d559. NEW unconditional FULL app TS workflow38311840640/job115019170512 SUCCESS: locked TS5.9.3, unchanged config, unrestricted tsc/pipefail/no errors. Other current workflows pending terminal.
+
+Independent actual review/read first-day chain frozen38e3f45 root rerun PASS:53 owner+4 source+7 integration groups, public Operations review/replay produces descendant2, correction3/withdrawal4; actual Finance public read distinguishes pending from applied. Canonical240000→240000→180000→0 once, customer row/eight invoice tables unchanged.62 source SHA/Git blobs verified genuine Ops5a333/Finance28fec/Timeadae. Author/root log identical299c47ed57a4ca254315516d3100c929a3877026bc8dae48cc25a47038df61c3. Durable21-file archive local integrationf63dc920a; fixture evidence not hosted auth.
+
+Root staging/rollback inventory is in review, no executable grants/migrations. Safe concrete next source gap: Finance accepted receiver currently shared-only; finance_metadata implements isolated default-off Edge adapter plus default-revoked public four-raw-field SQL facade to existing private receiver; recovery_review reviews. No other ledger/calculation/financial approval/enrollment. finance_recovery verifiesc828 exact-head CI. Complete batches not restarted empty. Root alone publishes.
+
+Latest fresh PR reads: all four draft/open/mergeable and genuine bases unchanged; Timeadae/Catering7b29 unchanged. Remaining roster/domain coverage/internal close, WMS owner/authority metadata denial, hosted migration authorization/rollback and real signed-in published UI stay open. No automatic secure login, merge, deploy, hosted migration, WMS publication or real financial action.
+
+## Prior published review/read continuation — 2026-10-12 21:32 UTC
 
 Operations PR55 head5a3337439021c9dae0d9d785e085c28cae7744a9 tree38f105b6ebbdc6ae1b811a8141b067d3af12a4d2 publishes reviewed10-file project review API/UI plus24 durable documentation/evidence paths. All10 source blobs equal approved48a0850f. New workflow38310828551/nativejob115015871220 SUCCESS:61 PGlite +65 actual PostgreSQL17.11, including physical command replay/issuer disable races. Exact app/UI CI still pending. Genuine parentdc0d has all7 workflows green.
 
