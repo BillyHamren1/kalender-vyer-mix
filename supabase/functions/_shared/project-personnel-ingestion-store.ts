@@ -55,6 +55,9 @@ export function createOperationsPersonnelStore(databaseUrl: string, serviceKey: 
         organization_id:'eq.'+org,worker_id:'eq.'+worker,effective_from:'lte.'+date,or:'(effective_to.is.null,effective_to.gt.'+date+')',limit:'1001'});
       if(rows.length>1000)throw new Error('too_many_rate_histories');return rows;
     },
+    issuedAncestor(org:string,stream:string,revision:number,issuer:string,epoch:string):Promise<boolean>{
+      return rpc('get_operations_personnel_issued_ancestor_v1',{p_org:org,p_stream:stream,p_revision:revision,p_issuer:issuer,p_epoch:epoch});
+    },
     publish(snapshot:PersonnelCostSnapshot,raw:TimePersonnelRead['snapshot'],evidence:PersonnelSourceEvidence,expected:number,key:string){
       return rpc('publish_operations_personnel_cost_ingress_v1',{p_snapshot:snapshot,p_raw_time_snapshot:raw,p_source_evidence:evidence,p_expected_revision:expected,p_idempotency_key:key});
     },
