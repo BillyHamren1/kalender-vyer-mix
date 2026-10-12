@@ -66,7 +66,7 @@ export async function proveReviewIssuance({db,read,as,org,admin,project,stream,s
     await as('service_role',()=>db.query(`insert into operations_personnel_cost_outbox(organization_id,source_time_stream_id,source_revision,raw_body,body_sha256,source_evidence,destination_organization_id,key_id,endpoint_url)
       select organization_id,source_time_stream_id,$3,$4,encode(sha256(convert_to($4,'UTF8')),'hex'),jsonb_set(source_evidence,'{submission_state}',to_jsonb($5::text)),destination_organization_id,key_id,endpoint_url from operations_personnel_cost_outbox where organization_id=$1 and source_time_stream_id=$2 and source_revision=4`,[org,stream,revision,JSON.stringify(fake),state]));
     const fakeProof={...genuineProof,review_event_id:reviewEvent,review_sequence:reviewSeq,applied_status:'confirmed'};
-    await as('service_role',()=>db.query("select operations_economy_private.record_project_publication_proofs_v1($1,$2,4,'time_ingress',null,null,null,$3)",[fake,[fakeProof],'fake-proof-link-'+revision]));
+    await as('service_role',()=>db.query("select operations_economy_private.record_project_publication_proofs_v1($1,$2,4,'time_ingress',null,null,null,$3)",[fake,JSON.stringify([fakeProof]),'fake-proof-link-'+revision]));
     await assert.rejects(as('service_role',()=>db.query('select operations_economy_private.assert_issued_publication_reviews_v1($1,$2,$3)',[org,stream,revision])),/legacy_publication_review_not_issued/);
   }
   pass('forged confirmed proofs cannot relabel issued rejection or voided/correction-requested source');
