@@ -51,7 +51,7 @@ export function createOperationsPersonnelStore(databaseUrl: string, serviceKey: 
     },
     async rates(org:string,worker:string,date:string):Promise<HistoricalPersonnelRate[]>{
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('invalid_work_date');
-      const rows=await request('operations_personnel_rate_history',{select:'organization_id,worker_id,category,currency,rate_revision,hourly_rate_minor,effective_from,effective_to',
+      const rows=await request('operations_personnel_accepted_rate_history_v1',{select:'organization_id,worker_id,category,currency,rate_revision,hourly_rate_minor,effective_from,effective_to',
         organization_id:'eq.'+org,worker_id:'eq.'+worker,effective_from:'lte.'+date,or:'(effective_to.is.null,effective_to.gt.'+date+')',limit:'1001'});
       if(rows.length>1000)throw new Error('too_many_rate_histories');return rows;
     },
