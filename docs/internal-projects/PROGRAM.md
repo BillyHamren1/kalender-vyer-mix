@@ -1,7 +1,24 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
-## Latest verified continuation — 2026-10-12 20:43 UTC
+
+## Current continuation — 2026-10-12 20:59 UTC
+
+This section supersedes earlier caller/command gaps. Draft publication remains authorized in Operations, Time, Finance and Catering only; no hosted migration, deployment, remote merge, financial action or WMS/Scanner publication.
+
+- Operations PR55 `a443566f6803f4474ef7560078bca5bd64b340a7`, tree `60e76e2a948a207bd754c00cbe64598878b0e931`, genuine parent `3254d85e`: 13 reviewed caller files exactly match frozen local `22a98b673`. Two independent approvals, 65 PGlite and 76 TypeScript tests PASS. Dedicated PostgreSQL 17 caller workflow `38307414559`, job `115004707291`, SUCCESS: 65 PGlite + 70 PostgreSQL 17.11 + 76 TypeScript tests and targeted types PASS. Root independently read raw native logs, including four physical ownership/claim overlaps. Five of six workflows green; full application workflow `38307414515` still running. Current binding is locked before leasing, locked earlier streams do not consume the requested lease count, immutable Time organization/auth identity is protected across legacy aliases and OLD/NEW DML, and signing keys must differ from legacy shadow credentials. Existing canonical writers retain their OIDs behind revoked private implementations. Default-off, no grants or activation. Even legacy handler installation requires the persisted mode RPC first.
+- Finance PR56 `c3484475ab130f4ce9c2ec867e230b690c3b5935`, tree `8e0a6293ca2f05f753f01cef0b1e894c64d3bedd`, genuine parent `9442108d`: all seven workflows SUCCESS. Four published blobs match reviewed synthetic local `2d0cc541`; no synthetic ancestry published. Native job `115002018581` in `38306588660` passes 32 checks, including seven physically observed concurrent transaction cases. Existing native suites 25/33/38 also pass. The private explicit actor/period/reason command uses the canonical monetary writer with exact write permits; generic writer, supplier alias and direct DML paths cannot independently post accepted-owned lines. Exact harmless replay survives later period closure/tombstone but rechecks current authority. Missing rates do not post zero. No UI, public grant, coverage or close activation is implied.
+- Time `adae19549703d3b12b1730c15a32a49afbe40df5` and Catering `7b29b6d3dc412881d5ead4ce08d57edae78c0785` retain the terminal evidence recorded below. Browser fixtures are not hosted authentication.
+- WMS direct metadata discovery was denied for the config-verified project. No alternative connector bypass was attempted. Canonical base DDL/grants and referenced owner definitions remain unavailable; local checkpoint `531e631a` records the exact permission gate. Selected owner tests do not prove authorization or full source closure.
+- Coverage design `recovery-personnel-coverage/2ab0a666` pins actual source: worker projection is rolling -14/+60 days, affected-worker fanout slices to 40, and Time evidence proves individual submitted days only. None establishes the complete project obligation roster or absence of offline work. Received and financially applied coverage must remain separate. No-report is unknown, not zero; personnel evidence alone cannot close equipment/material/supplier gaps.
+
+Active concrete work: time_recovery owns a separate prospective first-day bootstrap follow-up after caller freeze; operations_recovery verifies published caller/native CI; finance_metadata implements default-off public-schema receipt facades and explicit review UI; recovery_review independently reviews it; finance_recovery designs honest partial-cost/unknown-coverage read integration. Root owns publication and integration. WMS product work is blocked, with no empty restart.
+
+Remaining gates: caller native terminal CI; atomic fresh-day setup; Operations review API/UI; Finance receipt API/UI; authoritative project coverage and internal close policy; unsupported customer identity forms; full WMS/Scanner owner/authority chain; separately authorized hosted migration/rollback and genuine signed-in published UI. No automatic secure-login retry. All accepted functionality remains unactivated.
+
+
+
+## Prior verified continuation — 2026-10-12 20:43 UTC
 
 This section supersedes older status below. Root remains the publication coordinator. Draft source publication in Operations, Time, Finance and Catering is authorized; no merge, deploy, hosted migration or WMS/Scanner source publication.
 
@@ -70,9 +87,9 @@ Root integration local073e0388c contains genuine source5a0601b plus local eviden
 Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
 Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
 
-## Active recovery lease — renewed 2026-10-12 20:43 UTC
+## Active recovery lease — renewed 2026-10-12 20:59 UTC
 
-Owner /root; expires 2026-10-12 21:20 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
+Owner /root; expires 2026-10-12 21:35 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
