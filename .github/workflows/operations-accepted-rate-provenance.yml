@@ -7,6 +7,17 @@ on:
       - 'scripts/internal-projects/accepted-rate-*.mjs'
       - 'scripts/project-economy/operations-project-review-bootstrap.sql'
       - '.github/workflows/operations-accepted-rate-provenance.yml'
+  # Conflicted canonical PRs do not emit pull_request runs. This isolated check
+  # also runs on reviewed source updates to that one branch; never deploys.
+  push:
+    branches:
+      - 'codex/project-economy-personnel-cost'
+    paths:
+      - 'supabase/functions/_shared/project-personnel-*.ts'
+      - 'supabase/migrations/*operations_personnel*.sql'
+      - 'scripts/internal-projects/accepted-rate-*.mjs'
+      - 'scripts/project-economy/operations-project-review-bootstrap.sql'
+      - '.github/workflows/operations-accepted-rate-provenance.yml'
   workflow_dispatch:
 permissions:
   contents: read
