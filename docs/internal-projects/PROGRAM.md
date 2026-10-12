@@ -1,22 +1,23 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
-## Verified recovery progress — 2026-10-12 19:06 UTC
+## Verified recovery progress — 2026-10-12 19:24 UTC
 
-Operations PR55 is now 0520f931bf596de5070fd7b28471f7ec4f78f37c, tree a85aebd61ef1c7484f5375f13d5d524a0e3700ae. Exact-head workflows38294656352 and38294656343 SUCCESS. Independently read native PostgreSQL17.11 logs:33 provenance cases,33PGlite and41unit tests PASS; separate actual concurrency and full application checks PASS. The correction changed one JSONB fixture binding only.
-Time PR40 is now5a7757fef59ea7df3f41feb7d60085e52e96dbf6, tree1d7ca1aa435472dbee9b054ac9534ac99006ef9c. Four reviewed source blobs match remotely;11Catering tests,focusedlint and generator byte parity PASS. CI38295129805 and reader38295129945 in progress; browser remains unproven. Local Chromium download failed; do not describe local browser as passed.
-Finance dormant whole-stream candidate is under independent correction: cross-actor replay and changed project classification were reproduced. No new Finance publication. Existing current4a5f3128 all six workflows remain green; accepted source port still absent.
-Warehouse exact-owner SQL reproduced default pending reservation not reducing stock. Three sequential PGlite checks pass with actual availability SQL: pending leaves available stock; confirmed reserves without Booking; another demand rejects without row. Reservation-only local candidate must use server-owned confirmed status, actual owner functions and atomic source-proof/receipt; no WMS source publication. PR7 test availability alone was not sufficient evidence.
-Root local checkpoints a638a62a2 and25e4471f9; recreated worktrees are genuine Operations plus exact remote file snapshots for private repos. Never push synthetic ancestry. Active agents: operations_recovery source acceptance analysis; time_recovery CI; finance_recovery dormant adapter; warehouse_recovery dormant reservation; recovery_review independent Finance. Root lease remains until19:56UTC.
+This section supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized; no merge, deployment, hosted migration or WMS/Scanner source publication.
 
-## Active recovery lease — 2026-10-12 18:56 UTC
+- Operations PR55 head5a0601b6fb2e5aa0cce564ec5a72b77c3c34bb5e, tree107945fa4fe278f6c5dd84d06b3ae06895f264b5: workflows38296675873/38296675876 SUCCESS. 62unit +45PGlite +45actualPostgreSQL17.11 sequential source-provenance/issuer checks, full app/types/build and existing metadata concurrency PASS. Private default-off issuer attests Operations authenticated TLS Time read; it is NOT a Time-signed response. Same-version shadow ancestry, cross-epoch reuse and marker rollback guarded. No enrollment/caller/grants/activation.
+- Finance PR56 head034bc2552cb46987f2c7c45304478d3aacee72b5, tree46333a327f45340f1278423f22bd7e59c4c75d08: all seven workflows SUCCESS. Candidate38295993865 has33PGlite+33actualPostgreSQL17.11 sequential PASS. Main1259tests/types/build/lint0errors9existingwarnings; browser20PASS. Whole-stream withdrawal candidate uses existing canonical monetary writer; exact and stale replay revalidate actor/current ownership/classification/history. Private unwired source views remain absent. No posting or close activation.
+- Time PR40 headadae19549703d3b12b1730c15a32a49afbe40df5, treef5dca7b99c785bf062fb8565721ce4f5e07174e2. Reader38296930948 all three jobs PASS; verify1882tests/178files+build and native PASS in38296930727; database/browser pending. Final admin hard-navigation test correctly expects Systeminloggning at /admin/expenses before Router, with zero review/export reads. Independent actual AuthProvider/LoginPage probe1PASS. No local browser execution claim.
+- Catering PR30 unchanged4c2353c8299fceb419aa8f1a9feb69ab2c550812 CI PASS.
+- Warehouse local-only dormant reservation candidate30PGlite PASS +3actual-owner-SQL checks: pending does not reserve stock, confirmed does. Uses existing owner functions, confirmed server-owned status, protected replacement, receipt rollback, no Booking. Source authority intentionally absent/failclosed. No WMS/Scanner source publication or endpoint; full equipment lifecycle/auth remains open.
 
-Owner /root; expires 2026-10-12 19:56 UTC. Scope: Operations PR55 and Time PR40 CI recovery, checkpoint reconciliation. Atomic branch compare-and-swap establishes this lease. Only root publishes reviewed changes; independent agents prepare isolated candidates.
-Previous local worktrees are absent in the current runtime. Published sources remain available; do not claim unpublished handoffs survived.
-Current Operations PR55 26da19b9699e52875a95a03d79d4d06a30b2a769: main verification38280207566 PASS; accepted-rate native38280207481 FAIL.
-Current Time PR40 2b8f95dea6cf089ce5418976d966841b7fabe5a2: database/native PASS, verify/browser FAIL in38280076346.
-Finance PR56 4a5f3128a34f7f6f12c0719b62aee59b276f6e0d previously verified all six workflows PASS; canonical accepted-cost adapter remains incomplete.
-Agents operations_recovery and time_recovery own separate diagnostic/candidate scopes. No merge, deploy, hosted migration, secure-login retry or live financial action authorized.
+Root integration local073e0388c contains genuine source5a0601b plus local evidence docs. Private repo snapshots/synthetic evidence history must never be pushed. Current owners: operations_recovery accepted transport/enrollmentfloor/mode isolation; finance_recovery accepted immutable source port; recovery_review independent contract/code review; time_recovery terminal CI. Warehouse concrete batch complete; no empty restart.
+Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
+Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
+
+## Active recovery lease — 2026-10-12 19:24 UTC
+
+Owner /root; expires 2026-10-12 19:56 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
