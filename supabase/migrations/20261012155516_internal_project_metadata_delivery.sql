@@ -55,6 +55,16 @@ BEGIN
     SELECT src.source_project_id, src.revision FROM public.operations_project_metadata_outbox src
       JOIN public.operations_project_metadata_destinations e ON e.source_project_id=src.source_project_id
         AND e.source_organization_id=src.source_organization_id AND e.enabled AND src.revision>=e.first_revision
+    -- Do not attempt a conflicting INSERT for committed queue rows: another
+    -- worker may be renewing that row's lease. Such an INSERT waits on its
+    -- UPDATE before execution can reach the nonblocking SKIP LOCKED claim.
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.operations_project_metadata_delivery existing
+      WHERE existing.source_project_id=src.source_project_id
+        AND existing.revision=src.revision
+        AND existing.destination='finance-project-metadata-v1'
+    )
+    -- Retain uniqueness protection when two workers discover a new receipt.
     ON CONFLICT DO NOTHING;
   SELECT q.* INTO d FROM public.operations_project_metadata_delivery q
     WHERE EXISTS (SELECT 1 FROM public.operations_project_metadata_destinations e
