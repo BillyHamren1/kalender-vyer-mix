@@ -1,0 +1,26 @@
+name: Internal messages contract and privacy
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/internal-messages.ts'
+      - 'supabase/functions/mobile-app-api/**'
+      - 'supabase/migrations/*private_direct_message*'
+      - 'tests/internal-messages*'
+      - '.github/workflows/internal-messages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  messaging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --experimental-strip-types --test tests/internal-messages.test.mjs
+      - name: Install isolated SQL test runtime
+        run: npm install --prefix "$RUNNER_TEMP/message-sql" --no-save --package-lock=false @electric-sql/pglite@0.3.14
+      - name: Participant and tenant policies against isolated PostgreSQL
+        run: PGLITE_MODULE="$RUNNER_TEMP/message-sql/node_modules/@electric-sql/pglite/dist/index.js" node tests/internal-messages-rls.mjs

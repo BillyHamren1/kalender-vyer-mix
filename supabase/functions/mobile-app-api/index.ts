@@ -5,6 +5,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 // import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
 // import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
 
+import { MESSAGE_SCHEMA, MESSAGE_ACTIONS, authorizeInternalMessages, safeMessageId, validRequestId, parseMessageCursor, messagePage, sameMessageRequest } from '../_shared/internal-messages.ts'
+
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
@@ -431,7 +433,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const body = await req.json()
+    const rawBody = await req.text()
+    const body = JSON.parse(rawBody)
     const { action, token, data, ...legacyFields } = body
 
     // Normalize: support both nested { data: {...} } and flat { email, password, ... } payloads
@@ -449,7 +452,13 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
     let staffId: string | undefined
     let staffOrg: { organization_id: string | null; user_id: string | null } | null = null
 
-    if (token) {
+    if (body.schema === MESSAGE_SCHEMA || req.headers.has('x-internal-messages-signature')) {
+      const verified = await authorizeInternalMessages({ body, rawBody, headers: req.headers, method: req.method,
+        secret: Deno.env.get('BRAIN_INTERNAL_MESSAGES_SIGNING_SECRET') || '', supabase })
+      if ('error' in verified) return new Response(JSON.stringify({ error: verified.error }), { status: verified.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      staffId = verified.staffId
+      staffOrg = { organization_id: verified.organizationId, user_id: verified.userId }
+    } else if (token) {
       const tokenResult = verifyToken(token)
       if (!tokenResult.valid) {
         return new Response(
@@ -463,13 +472,14 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       // - Om kolumnen är NULL: legacy token / aldrig loggat in efter rollout → accepteras.
       // - Om kolumnen är satt och tokenens sessionId matchar → OK.
       // - Annars: en nyare login finns på annan enhet → 401 token_revoked.
-      const { data: sessRow } = await supabase
+      const { data: sessRow, error: sessionError } = await supabase
         .from('staff_members')
         .select('active_mobile_session_id')
         .eq('id', staffId)
         .maybeSingle()
       const activeSid = sessRow?.active_mobile_session_id as string | null | undefined
-      if (activeSid && tokenResult.sessionId !== activeSid) {
+      const messagingAction = MESSAGE_ACTIONS.includes(action) || ['get_direct_messages', 'get_dm_messages', 'get_inbox_all', 'get_messaging_activity', 'unarchive_dm'].includes(action)
+      if (sessionError || (messagingAction && (!activeSid || !tokenResult.sessionId)) || (activeSid && tokenResult.sessionId !== activeSid)) {
         console.warn(`[mobile-app-api] 🚫 token_revoked staff=${staffId} tokenSid=${tokenResult.sessionId ?? 'none'} activeSid=${activeSid}`)
         return new Response(
           JSON.stringify({
@@ -628,7 +638,7 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       case 'get_recent_broadcasts':
         return await handleGetRecentBroadcasts(supabase, organizationId)
       case 'get_messaging_activity':
-        return await handleGetMessagingActivity(supabase, organizationId, data)
+        return await handleGetMessagingActivity(supabase, organizationId, staffId, staffOrg?.user_id || null, data)
       case 'send_broadcast':
         return await handleSendBroadcast(supabase, staffId, data, organizationId)
       case 'upload_chat_attachment':
@@ -5132,72 +5142,46 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
  * Same semantics as handleGetJobMessages: latest first from DB,
  * returned ASC; `before` paginates older.
  */
+async function resolveDMPartner(supabase: any, partnerId: string, organizationId: string): Promise<string[]> {
+  if (!safeMessageId(partnerId)) return []
+  const { data: rows, error } = await supabase.from('staff_members').select('id, user_id')
+    .eq('organization_id', organizationId).or(`id.eq.${partnerId},user_id.eq.${/^[0-9a-f-]{36}$/i.test(partnerId) ? partnerId : '00000000-0000-0000-0000-000000000000'}`).limit(2)
+  if (error) throw new Error('partner_lookup_failed')
+  if (rows?.length > 1) return []
+  if (rows?.length === 1) return [...new Set([rows[0].id, rows[0].user_id].filter(safeMessageId))] as string[]
+  if (!/^[0-9a-f-]{36}$/i.test(partnerId)) return []
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('user_id').eq('user_id', partnerId).eq('organization_id', organizationId).maybeSingle()
+  if (profileError) throw new Error('partner_lookup_failed')
+  return profile ? [partnerId] : []
+}
+
 async function handleGetDMThread(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
+  const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   const { partner_id, before, limit } = data || {}
-  if (!partner_id) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'partner_id is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  const pageSize = Math.min(Math.max(parseInt(String(limit ?? 30), 10) || 30, 1), 100)
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
-
-  // sender ∈ ids ∧ recipient = partner   OR   sender = partner ∧ recipient ∈ ids
-  const idCsv = ids.join(',')
-  const orFilter =
-    `and(sender_id.in.(${idCsv}),recipient_id.eq.${partner_id}),` +
-    `and(sender_id.eq.${partner_id},recipient_id.in.(${idCsv}))`
-
-  const fetchSize = pageSize + 10
-
-  let q = supabase
-    .from('direct_messages')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .or(orFilter)
-    .order('created_at', { ascending: false })
-    .limit(fetchSize)
-
-  if (before && typeof before === 'string') {
-    q = q.lt('created_at', before)
-  }
-
+  if (!safeMessageId(partner_id)) return reply(400, { error: 'invalid_partner' })
+  const partners = await resolveDMPartner(supabase, partner_id, organizationId)
+  if (!partners.length) return reply(403, { error: 'partner_not_available' })
+  const ids = [...new Set([staffId, userId].filter(safeMessageId))]
+  if (!ids.length) return reply(403, { error: 'actor_not_available' })
+  let cursor
+  try { cursor = parseMessageCursor(before) } catch { return reply(400, { error: 'invalid_cursor' }) }
+  const size = Math.min(Math.max(Number.parseInt(String(limit ?? 30), 10) || 30, 1), 100)
+  let q = supabase.from('direct_messages').select('*').eq('organization_id', organizationId)
+    .or(`and(sender_id.in.(${ids.join(',')}),recipient_id.in.(${partners.join(',')})),and(sender_id.in.(${partners.join(',')}),recipient_id.in.(${ids.join(',')}))`)
+    .not('is_archived_by', 'ov', `{${ids.join(',')}}`)
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(size + 1)
+  if (cursor) q = cursor.id ? q.or(`created_at.lt.${cursor.at},and(created_at.eq.${cursor.at},id.lt.${cursor.id})`) : q.lt('created_at', cursor.at)
   const { data: rows, error } = await q
-
-  if (error) {
-    console.error('Get DM thread error:', error)
-    return new Response(
-      JSON.stringify({ success: false, error: 'Failed to fetch DM thread' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // Filter per-user archive
-  const visible = (rows || []).filter((m: any) => {
-    const arr = Array.isArray(m.is_archived_by) ? m.is_archived_by : []
-    return !ids.some(id => arr.includes(id))
-  })
-
-  const trimmed = visible.slice(0, pageSize)
-  const messages = trimmed.slice().reverse()
-
-  const has_more = (rows?.length || 0) >= fetchSize
-  const next_cursor = messages.length > 0 ? messages[0].created_at : null
-
-  return new Response(
-    JSON.stringify({ messages, has_more, next_cursor }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  if (error) return reply(503, { error: 'thread_read_failed' })
+  return reply(200, { ...messagePage(rows || [], size), my_ids: ids, partner_ids: partners })
 }
 
 async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { recipient_id, content, file_url, file_name, file_type, booking_id } = data
+  const { recipient_id, content, file_url, file_name, file_type, booking_id, request_id } = data || {}
+  if (request_id !== undefined && !validRequestId(request_id)) return new Response(JSON.stringify({ error: "invalid_request_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } })
 
-  const trimmed = (content || '').trim()
-  if (!recipient_id || (!trimmed && !file_url)) {
+  const trimmed = typeof content === 'string' ? content.trim() : ''
+  if (trimmed.length > 12000 || !safeMessageId(recipient_id) || (!trimmed && !file_url)) {
     return new Response(
       JSON.stringify({ error: 'recipient_id and content or attachment are required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -5212,7 +5196,8 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
     .eq('organization_id', organizationId)
     .single()
 
-  const senderName = staffMember?.name || 'Okänd'
+  const senderProfile = staffMember ? null : await supabase.from('profiles').select('full_name').eq('user_id', userId || staffId).eq('organization_id', organizationId).maybeSingle()
+  const senderName = staffMember?.name || senderProfile?.data?.full_name || 'Kollega'
 
   // Resolve recipient name AND validate cross-org isolation in one pass.
   // The recipient_id may be either staff_members.id OR profiles.user_id (planners).
@@ -5221,6 +5206,7 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
     .from('staff_members')
     .select('name')
     .eq('id', recipient_id)
+    .eq('is_active', true)
     .eq('organization_id', organizationId)
     .maybeSingle()
 
@@ -5246,31 +5232,26 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
     )
   }
 
-  const { data: message, error } = await supabase
-    .from('direct_messages')
-    .insert({
-      sender_id: staffId,
-      sender_name: senderName,
-      sender_type: 'staff',
-      recipient_id,
-      recipient_name: recipientName,
-      content: trimmed || (file_name ? `📎 ${file_name}` : '📎 Bifogad fil'),
-      file_url: file_url || null,
-      file_name: file_name || null,
-      file_type: file_type || null,
-      booking_id: booking_id || null,
-      organization_id: organizationId,
-      delivered_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-
+  const messageInput = {
+    ...(request_id ? { id: request_id } : {}),
+    sender_id: staffId, sender_name: senderName, sender_type: staffMember ? 'staff' : 'planner',
+    recipient_id, recipient_name: recipientName,
+    content: trimmed || (file_name ? `📎 ${file_name}` : '📎 Bifogad fil'),
+    file_url: file_url || null, file_name: file_name || null, file_type: file_type || null,
+    booking_id: booking_id || null, organization_id: organizationId,
+    delivered_at: new Date().toISOString(),
+  }
+  const { data: message, error } = await supabase.from('direct_messages').insert(messageInput).select().single()
   if (error) {
-    console.error('Send DM error:', error)
-    return new Response(
-      JSON.stringify({ error: 'Failed to send direct message' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    if (request_id && error.code === '23505') {
+      const existing = await supabase.from('direct_messages').select('*').eq('id', request_id)
+        .eq('sender_id', staffId).eq('organization_id', organizationId).maybeSingle()
+      if (!existing.error && existing.data && sameMessageRequest(existing.data, messageInput)) {
+        return new Response(JSON.stringify({ success: true, replayed: true, message: existing.data }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: 'message_request_conflict' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    return new Response(JSON.stringify({ error: 'Failed to send direct message' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
   // ── Trigger push notification to recipient ──
@@ -5356,45 +5337,25 @@ async function handleSendDirectMessage(supabase: any, staffId: string, data: any
 }
 
 async function handleMarkDMRead(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
-  const { sender_id } = data
-
-  if (!sender_id) {
-    return new Response(
-      JSON.stringify({ error: 'sender_id is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const ids = [...new Set([staffId, userId].filter(safeMessageId))]
+  const partners = await resolveDMPartner(supabase, data?.sender_id, organizationId)
+  if (!partners.length || !ids.length) return reply(403, { error: 'partner_not_available' })
+  let last = supabase.from('direct_messages').select('id, created_at').eq('organization_id', organizationId)
+    .in('recipient_id', ids).in('sender_id', partners).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1)
+  if (data?.through_id) {
+    if (!safeMessageId(data.through_id)) return reply(400, { error: 'invalid_read_boundary' })
+    last = last.eq('id', data.through_id)
   }
-
-  // Mark read for both identities (staffId and userId)
-  const ids = [staffId]
-  if (userId && userId !== staffId) ids.push(userId)
-
-  const nowIso = new Date().toISOString()
-  const markPromises = ids.map(myId =>
-    supabase
-      .from('direct_messages')
-      .update({ is_read: true, read_at: nowIso })
-      .eq('recipient_id', myId)
-      .eq('sender_id', sender_id)
-      .eq('organization_id', organizationId)
-      .is('read_at', null)
-  )
-
-  const results = await Promise.all(markPromises)
-  const firstError = results.find(r => r.error)?.error
-
-  if (firstError) {
-    console.error('Mark DM read error:', firstError)
-    return new Response(
-      JSON.stringify({ error: 'Failed to mark messages as read' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  return new Response(
-    JSON.stringify({ success: true }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  const boundary = await last.maybeSingle()
+  if (boundary.error) return reply(503, { error: 'read_boundary_unavailable' })
+  if (!boundary.data) return reply(200, { success: true, updated: 0 })
+  const { id, created_at: at } = boundary.data
+  const updated = await supabase.from('direct_messages').update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('organization_id', organizationId).in('recipient_id', ids).in('sender_id', partners).is('read_at', null)
+    .or(`created_at.lt.${at},and(created_at.eq.${at},id.lte.${id})`)
+  if (updated.error) return reply(503, { error: 'mark_read_failed' })
+  return reply(200, { success: true })
 }
 
 // ============= Broadcast Handlers =============
@@ -5462,12 +5423,14 @@ async function handleGetBroadcasts(supabase: any, staffId: string, organizationI
  * no frontend service should query these messaging tables directly.
  *
  * Auth: any authenticated caller in the org (web JWT or staff token). The
- * data exposed here is the same the dashboard already showed; access control
- * matches the rest of the messaging stack (org-scoped reads).
+ * direct-message data is restricted to the caller as sender or recipient.
+ * Organization-wide activity must not expose private conversation contents.
  */
 async function handleGetMessagingActivity(
   supabase: any,
   organizationId: string,
+  staffId: string,
+  userId: string | null,
   data?: { since_hours?: number; limit_per_kind?: number },
 ) {
   const sinceHours = Math.min(Math.max(data?.since_hours ?? 24, 1), 24 * 7)
@@ -5479,6 +5442,7 @@ async function handleGetMessagingActivity(
       .from('direct_messages')
       .select('id, sender_name, recipient_name, content, created_at, sender_type, file_name, file_type')
       .eq('organization_id', organizationId)
+      .or([...new Set([staffId, userId].filter(safeMessageId))].map(id => `sender_id.eq.${id},recipient_id.eq.${id}`).join(','))
       .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -8659,6 +8623,7 @@ async function handleGetContacts(supabase: any, staffId: string, organizationId:
     const { data: roleRows, error: roleErr } = await supabase
       .from('user_roles')
       .select('user_id, role')
+      .eq('organization_id', organizationId)
       .in('user_id', Array.from(userIdSet))
     if (roleErr) {
       console.warn('Get contacts roles error (non-fatal):', roleErr.message)
@@ -10258,6 +10223,18 @@ async function handleGetDMInboxGrouped(
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  const directory = await supabase.from('staff_members').select('id, user_id').eq('organization_id', organizationId)
+  if (directory.error) return new Response(JSON.stringify({ error: 'identity_lookup_failed' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const aliases = new Map<string, string>()
+  const duplicated = new Set<string>()
+  for (const row of directory.data || []) {
+    aliases.set(row.id, row.id)
+    if (row.user_id) {
+      if (aliases.has(row.user_id)) duplicated.add(row.user_id)
+      else aliases.set(row.user_id, row.id)
+    }
+  }
+  for (const id of duplicated) aliases.delete(id)
   type Group = {
     recipientId: string
     recipientName: string
@@ -10273,7 +10250,8 @@ async function handleGetDMInboxGrouped(
     if (myIds.some((id) => arch.includes(id))) continue
 
     const isMe = myIdSet.has(m.sender_id)
-    const partnerId = isMe ? m.recipient_id : m.sender_id
+    const rawPartnerId = isMe ? m.recipient_id : m.sender_id
+    const partnerId = aliases.get(rawPartnerId) || rawPartnerId
     const partnerName = isMe ? m.recipient_name : m.sender_name
     if (myIdSet.has(partnerId)) continue
 
@@ -10296,7 +10274,7 @@ async function handleGetDMInboxGrouped(
     (a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime(),
   )
 
-  return new Response(JSON.stringify({ conversations }),
+  return new Response(JSON.stringify({ conversations, truncated: (data?.length || 0) >= 200 }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
@@ -13542,3 +13520,4 @@ async function handleGetOpsOverview(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { ArrowLeft, Phone, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { mobileApi } from '@/services/mobileApiService';
@@ -20,19 +20,29 @@ interface Props {
 
 interface PendingMessage extends ChatMessage {
   _status?: 'sending' | 'failed';
-  _payload?: { content: string; file_url?: string; file_name?: string; file_type?: string };
+  _payload?: { request_id?: string; content: string; file_url?: string; file_name?: string; file_type?: string };
 }
 
 /** iMessage-style 1:1 DM view with cursor pagination + realtime + retry. */
 export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, onMessagesChanged }: Props) => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
-  const myIdsRef = useRef<Set<string>>(new Set([staff?.id || '']));
+  const [myIds, setMyIds] = useState<Set<string>>(new Set([staff?.id || '']));
+  const [partnerIds, setPartnerIds] = useState<Set<string>>(new Set([partnerId]));
+  const scopeRef = useRef('');
+  const scopeKey = `${staff?.organization_id}:${staff?.id}:${partnerId}`;
+  scopeRef.current = scopeKey;
 
   const fetcher = useCallback(
-    (opts: { before?: string; limit: number }) =>
-      mobileApi.getDMThread(partnerId, opts) as Promise<{ messages: ChatMessage[]; has_more: boolean; next_cursor: string | null }>,
-    [partnerId],
+    async (opts: { before?: string; limit: number }) => {
+      const result = await mobileApi.getDMThread(partnerId, opts);
+      if (scopeRef.current === scopeKey) {
+        setMyIds(new Set(result.my_ids || [staff?.id || '']));
+        setPartnerIds(new Set(result.partner_ids || [partnerId]));
+      }
+      return result as { messages: ChatMessage[]; has_more: boolean; next_cursor: string | null };
+    },
+    [partnerId, scopeKey, staff?.id],
   );
 
   const {
@@ -44,7 +54,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
     loadOlder,
     reload,
     setMessages,
-  } = useChatPagination({ key: partnerId, seed: initialMessages, fetcher });
+  } = useChatPagination({ key: scopeKey, seed: initialMessages, fetcher });
 
   // Notify parent when local messages change (used by inbox cache)
   useEffect(() => {
@@ -54,11 +64,11 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
   // Mark partner messages as read on open and whenever a NEW partner message arrives.
   // We trigger only on changes to the count of messages from the partner — sending
   // our own messages should never round-trip a mark_read.
-  const partnerMsgCount = messages.filter((m) => m.sender_id === partnerId).length;
+  const partnerMsgCount = messages.filter((m) => partnerIds.has(m.sender_id)).length;
   useEffect(() => {
     if (partnerMsgCount === 0) return;
-    mobileApi.markDMRead(partnerId).catch(() => { /* ignore */ });
-  }, [partnerId, partnerMsgCount]);
+    mobileApi.markDMRead(partnerId, messages.filter(m => partnerIds.has(m.sender_id)).at(-1)?.id).catch(() => { /* ignore */ });
+  }, [partnerId, partnerMsgCount, partnerIds]);
 
   // Realtime: append/update only — never trigger a full refetch.
   useEffect(() => {
@@ -71,8 +81,8 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
         { event: 'INSERT', schema: 'public', table: 'direct_messages' },
         (payload) => {
           const m = payload.new as ChatMessage;
-          const fromPartner = m.sender_id === partnerId && (m as any).recipient_id === myId;
-          const fromMe = m.sender_id === myId && (m as any).recipient_id === partnerId;
+          const fromPartner = partnerIds.has(m.sender_id) && myIds.has((m as any).recipient_id);
+          const fromMe = myIds.has(m.sender_id) && partnerIds.has((m as any).recipient_id);
           if (!fromPartner && !fromMe) return;
           setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
         }
@@ -93,35 +103,38 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [partnerId, staff?.id, setMessages]);
+  }, [partnerId, staff?.id, myIds, partnerIds, setMessages]);
 
   const performSend = useCallback(async (
     optimisticId: string,
-    payload: { content: string; file_url?: string; file_name?: string; file_type?: string },
+    payload: { request_id?: string; content: string; file_url?: string; file_name?: string; file_type?: string },
   ) => {
     try {
       const res = await mobileApi.sendDirectMessage({ recipient_id: partnerId, ...payload });
+      if (scopeRef.current !== scopeKey) return;
       const real = (res as any)?.message as ChatMessage | undefined;
       setMessages((prev) => {
         if (real && prev.some((m) => m.id === real.id)) {
           return prev.filter((m) => m.id !== optimisticId);
         }
-        if (!real) return prev.filter((m) => m.id !== optimisticId);
+        if (!real) return prev.map(m => m.id === optimisticId ? { ...m, _status: 'failed', _payload: payload } : m);
         return prev.map((m) => (m.id === optimisticId ? { ...real } : m));
       });
     } catch (err: any) {
+      if (scopeRef.current !== scopeKey) return;
       console.error('[DM] send failed', err);
       toast.error(t('msg.couldNotSend'));
       setMessages((prev) =>
         prev.map((m) => m.id === optimisticId ? { ...(m as PendingMessage), _status: 'failed', _payload: payload } : m)
       );
     }
-  }, [partnerId, setMessages]);
+  }, [partnerId, scopeKey, setMessages]);
 
-  const handleSend = async (data: { content: string; file_url?: string; file_name?: string; file_type?: string }) => {
+  const handleSend = async (data: { request_id?: string; content: string; file_url?: string; file_name?: string; file_type?: string }) => {
     const text = data.content?.trim() || '';
     if (!text && !data.file_url) return;
     const payload = {
+      request_id: crypto.randomUUID(),
       content: text || (data.file_name ? `📎 ${data.file_name}` : '📎'),
       file_url: data.file_url,
       file_name: data.file_name,
@@ -203,7 +216,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
       ) : (
         <MessageList
           messages={messages}
-          myIds={myIdsRef.current}
+          myIds={myIds}
           hasMore={hasMore}
           loadingOlder={loadingOlder}
           onLoadOlder={loadOlder}
@@ -235,3 +248,4 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
 };
 
 export default DmChatView;
+
