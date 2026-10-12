@@ -1,0 +1,203 @@
+{
+  "repository": "BillyHamren1/kalender-vyer-mix",
+  "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9",
+  "source": "Exact published Git object; blob identities, not deployed database proof",
+  "files": [
+    {
+      "path": "scripts/internal-projects/accepted-personnel-bootstrap.sql",
+      "git_blob_sha": "549cd4dab717d8bbcc2df5f549f1e3b62d09593d"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-caller.sql",
+      "git_blob_sha": "948c26b5ef711f2f503a0c4cdf2cc9766b90f7f8"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-issuer.sql",
+      "git_blob_sha": "1525183ee9569ef620cc2cc3b92ceed6c8ff07f0"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-metadata-v2.sql",
+      "git_blob_sha": "9d09a78de95820c8124b86caf0a7b98407a1c237"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-review-caller.sql",
+      "git_blob_sha": "1d765402a0e790140a2e57850564e1f42186b194"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-review-metadata-v2.sql",
+      "git_blob_sha": "30184e2052c2d1a9d6c5f3f0b9ca34d45399d5c3"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-review.sql",
+      "git_blob_sha": "1a723c30d34d41d1fb749d86073625b4e2f4124f"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-personnel-transport.sql",
+      "git_blob_sha": "e11f9b6ebc2e75b8f600780cc64b56397307ea40"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-rate-provenance.test.mjs",
+      "git_blob_sha": "c8a58cf9439fa985e08fbc41744900e372c3f03c"
+    },
+    {
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "git_blob_sha": "4e137fa78e6b11cbed50cb02c3fe4ffde4b01979"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-accepted-transport-fixture.mjs",
+      "git_blob_sha": "a8eccaa96abba32a7e8084b220450e0216bbf3c6"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-bootstrap-fixture.mjs",
+      "git_blob_sha": "bae6872469cdcbebd274bb33a8cbf6d2c9770eef"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-classification-bootstrap.sql",
+      "git_blob_sha": "609b2763b7e318dddbcef20657a8f4b8b7c62555"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-issuer-fixture.mjs",
+      "git_blob_sha": "f6622b7fbc901fd6c4cb99391ca72ef6453b258c"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-issuer.test.mjs",
+      "git_blob_sha": "5caf0d22fc0ff68d032e46d0345ac12f049ce725"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-metadata-v2-fixture.mjs",
+      "git_blob_sha": "1395704c6f6a8f47173b8436aa5da09a0140c3e0"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-review-caller.test.mjs",
+      "git_blob_sha": "f14908c58c80b2b4f43889417a3cd77657c8ca42"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-review-issuance.mjs",
+      "git_blob_sha": "bedf66b4b9f873424a2fb9a910132f8b62469de3"
+    },
+    {
+      "path": "scripts/internal-projects/personnel-text-booking.sql",
+      "git_blob_sha": "0e5c643958d49cbcd6e3f4531cd9e6e02d36c0c1"
+    },
+    {
+      "path": "scripts/internal-projects/postgres-fixture.sql",
+      "git_blob_sha": "d7e159fb4c4e953d45944cccd6df44df8c5ed992"
+    },
+    {
+      "path": "src/components/project/AcceptedProjectPersonnelReview.tsx",
+      "git_blob_sha": "7ca7a4aac2c2577c865fdb7c6ccaa0370881441a"
+    },
+    {
+      "path": "src/components/project/__tests__/AcceptedProjectPersonnelReview.test.tsx",
+      "git_blob_sha": "763884c91f6857de9e83f5e0f79ea1fb8412b9e2"
+    },
+    {
+      "path": "src/hooks/useAcceptedProjectPersonnelReview.ts",
+      "git_blob_sha": "6f0cca2ca4f02dac762fa5fbcd989bc44bbc5490"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-accepted-transport.test.ts",
+      "git_blob_sha": "94ef33e55ea4578623b0e87a8d50cb79cd68d8a5"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-accepted-transport.ts",
+      "git_blob_sha": "4317a3e0f8f60d0f4ca36014590a71f66937c251"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-cost.test.ts",
+      "git_blob_sha": "309c159fcce3512f7b39d4024c9460480daa0c53"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "git_blob_sha": "3d3c6f98e24adee4add32897521a94eabbfac354"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion-store.ts",
+      "git_blob_sha": "22327755f8b33f84b225fb59655d98485cb67333"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion-transport.ts",
+      "git_blob_sha": "f90c1796f837ad29248a00e33ef3437e202312bb"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion.test.ts",
+      "git_blob_sha": "21157e20f58fea78bae094e4ecbc25a834d07e7d"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-ingestion.ts",
+      "git_blob_sha": "799986274dd4925f8937d69bd084987bf9c90882"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-source-issuer.test.ts",
+      "git_blob_sha": "b361c011531c24f827548213153897b32ce75472"
+    },
+    {
+      "path": "supabase/functions/_shared/project-personnel-source-issuer.ts",
+      "git_blob_sha": "cddbc7a7d6f2cb5807cf5badf00d63a7cff96e50"
+    },
+    {
+      "path": "supabase/functions/dispatch-project-metadata/handler.ts",
+      "git_blob_sha": "843693bd3eb873902c0063187caa7bdc25880e67"
+    },
+    {
+      "path": "supabase/functions/dispatch-project-metadata/index.ts",
+      "git_blob_sha": "2d61c37026c003c82730925a0d7f04fa555b3a5e"
+    },
+    {
+      "path": "supabase/functions/project-personnel-cost-publish/handler.ts",
+      "git_blob_sha": "7395347c86473b141f73cb0808f4bb95198d0af2"
+    },
+    {
+      "path": "supabase/functions/project-personnel-cost-publish/index.ts",
+      "git_blob_sha": "42f5f3b73495cb3a6dea2a84c23938280d11cf04"
+    },
+    {
+      "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+      "git_blob_sha": "a94d6f6e78639307aa55525c7babac36c90c4e50"
+    },
+    {
+      "path": "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+      "git_blob_sha": "27d46a55880f19986e0cfaab090a64acf755e2cc"
+    },
+    {
+      "path": "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+      "git_blob_sha": "1828ff4b8390c0932f24e9b08de3c78a75021282"
+    },
+    {
+      "path": "supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql",
+      "git_blob_sha": "a63bdf8196990aea7f452558a405707200603b8f"
+    },
+    {
+      "path": "supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql",
+      "git_blob_sha": "3b3939bc2507e6f35614f7905f96d6a747a58b1b"
+    },
+    {
+      "path": "supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql",
+      "git_blob_sha": "77dac02304158f3fb37c133c2252e46f1cfc51f3"
+    },
+    {
+      "path": "supabase/migrations/20261012124216_internal_project_classification.sql",
+      "git_blob_sha": "9a1988128f0ffccb796b0d8c926b1385867b2275"
+    },
+    {
+      "path": "supabase/migrations/20261012130533_atomic_internal_project_creation.sql",
+      "git_blob_sha": "8deba0ae0f0f8681032b21706fbe84f4638b1e08"
+    },
+    {
+      "path": "supabase/migrations/20261012150947_internal_project_metadata_outbox.sql",
+      "git_blob_sha": "e2e4f743b226aca80646bdec4fdfa5662a25d457"
+    },
+    {
+      "path": "supabase/migrations/20261012155516_internal_project_metadata_delivery.sql",
+      "git_blob_sha": "b357386a38ad924a29b522a3bb238a53883b6c52"
+    },
+    {
+      "path": "supabase/migrations/20261012162100_operations_personnel_accepted_rate_provenance.sql",
+      "git_blob_sha": "5e3d84bacd73e2e44083d9930155e4b272e023af"
+    },
+    {
+      "path": "supabase/migrations/20261012165000_operations_personnel_review_issuance.sql",
+      "git_blob_sha": "ca258269aa035b0e059e436d6f0d9cf9aec9f7de"
+    }
+  ]
+}

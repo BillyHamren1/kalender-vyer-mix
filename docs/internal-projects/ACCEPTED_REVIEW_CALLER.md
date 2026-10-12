@@ -1,4 +1,4 @@
-# Accepted review API/UI — local draft
+# Accepted review API/UI — reviewed draft with exact-head CI
 
 Base genuine Operations `a443566f6803f4474ef7560078bca5bd64b340a7`; isolated `recovery-review-caller`, owner `/root/operations_recovery`, lease `/tmp/eventflow-review-caller.lease`. Root alone publishes after independent review. No grants, activation, merge, migration or live writes.
 
@@ -15,3 +15,13 @@ The test driver composes the existing owner fixtures without removing assertions
 Local composed SQL **61 PASS** includes genuine mixed accepted source, project-restricted reads, complete empty withdrawal, atomic marker-fault rollback, exact request/replay and current authority. Rendered UI **17 PASS**; full app types PASS with explicit 4 GB heap on predecessor `1a660ddc` after default-heap exhaustion (final shared-storage guard requires exact-head CI types); application build PASS (2m6s). The final small approval-readiness field is covered by the final targeted rerun. Native expected **65** (61 sequential + original causal overlap + three new physical API races), not executed locally. Dedicated CI must prove it after independent review and root draft publication. No publication approval is implied by author tests.
 
 Remaining activation gates include staged mode/read/action grants, explicit enrollment and real source/bootstrap orchestration, coordinated hosted migration/rollback and signed-in published UI. No secure-login dialog is automatically reopened.
+
+## Published exact-head verification — 2026-10-12 21:32 UTC
+
+Root published the reviewed ten-file delta on genuine Operations PR55 head `5a3337439021c9dae0d9d785e085c28cae7744a9`, tree `38f105b6ebbdc6ae1b811a8141b067d3af12a4d2`. Independent GitHub object reads confirmed 10/10 blobs equal reviewed local `48a0850f4dd15f51c756e1ad078b5f5b5b1c5664`. All eight workflows completed successfully on this exact head.
+
+- [Review caller run 38310828551](https://github.com/BillyHamren1/kalender-vyer-mix/actions/runs/38310828551): raw SQL job `115015871220` confirms 61 PGlite + 65 PostgreSQL **17.11** checks, including same-command commit/replay, disable-before-retry, and active-review rollback/disable physical blocking. Raw UI job `115015871417` confirms 17 rendered tests, full app TypeScript and build **29.15s** PASS.
+- [Main exact-head run 38310828466](https://github.com/BillyHamren1/kalender-vyer-mix/actions/runs/38310828466): raw application job `115015871276` confirms 84 tests, full app TypeScript, build **32.46s**, metadata 12, delivery DB 10 and mock-HTTP transport 8 scenarios PASS. PostgreSQL concurrency job `115015871033` also completed successfully.
+- Other terminal-success runs: rate provenance `38310828776`, caller isolation `38310828577`, first-day bootstrap `38310828623`, review descendants `38310829681`, customer/causal metadata `38310828590`, Booking TEXT compatibility `38310828492`.
+
+No source correction was required by CI. These are disposable CI database and rendered-fixture checks; they are not hosted authentication or production acceptance. New read/action RPC grants and UI activation remain off. Root retains publication and release ownership.

@@ -1,0 +1,7 @@
+# Independent review, 2026-10-12 21:35 UTC
+
+Root cloned frozen harness38e3f45c3a3bfc69cf1972e41ef7ccec285e7dfa into an isolated directory and reran the full actual-code composition, exit0. All62 dependency SHA256 and Git blob hashes match; Operations/text bytes match genuine5a333 Git objects, Finance19 dependencies match fresh genuine28fec recursive tree and Time3 match the genuine adae tree. No source drift before/after.
+
+Author and independent logs are byte-identical, SHA256299c47ed57a4ca254315516d3100c929a3877026bc8dae48cc25a47038df61c3. Owner53 +source4 +integration7 assertion groups pass. Public project review creates accepted descendant2; exact replay keeps one outbox; correction/withdrawal use3/4. Public Finance read distinguishes pending receipt from financial application, retains prior recorded subtotal during pending corrections and reports canonical240000→240000→180000→0 once. Exact command replay and denied generic posting do not add money. Customer row and eight invoice tables unchanged. Unknown project census/domain coverage and blocked close remain explicit.
+
+Actual code in two disposable PGlite databases and in-memory HTTP, with synthetic role/JWT/enrollment grants and Time read RPC. This is not native cross-system concurrency or hosted authenticated UI. Separate Finance typecheck diagnostics were discovered after this SQL/transport test and remain a distinct correction gate; no type-safety claim is inferred here.

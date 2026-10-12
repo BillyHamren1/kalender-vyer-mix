@@ -1,0 +1,67 @@
+PASS unaudited and exact accepted-shaped pre-migration forged events stay unverified
+PASS pre-migration forged command retry cannot acquire issuance reference
+PASS issuance references cannot be forged by any exposed role
+PASS unapproved cost basis rejected
+PASS project role cannot issue accepted rate
+PASS foreign admin cannot enroll worker
+PASS actual authenticated admin event accepted and exact retry stable
+PASS real legacy v1 admin issuance remains unverified without approved basis
+PASS untrusted roles cannot forge audit events
+PASS actual service resolver queries only accepted provenance view
+PASS SQL ingress rejects missing event
+PASS SQL ingress rejects wrong currency
+PASS SQL ingress rejects wrong rate amount
+PASS SQL ingress rejects wrong rate identity
+PASS SQL ingress rejects out-of-interval date
+PASS foreign tenant cannot consume another tenant accepted rate
+PASS audited 120min at300SEK accepted as600SEK by canonical ingress
+PASS actual current classification accepts internal cost with NULL booking and creates no artificial booking
+PASS actual classification billing guard still blocks internal project invoicing
+PASS review/grant inherited service writes revoked; exposed roles cannot forge issuance references
+PASS pre-migration forged grant grants no authority and forged review is not current
+PASS old forged confirmed publication and canonical ingress retry cannot promote historical review
+PASS old exact grant/review command retries never acquire prospective markers
+PASS authenticated grant and delegated review issue atomically; exact retries stable
+PASS project A issued review cannot confirm project B
+PASS issued project review derives and publishes canonical confirmation with durable retry
+PASS issued review cannot promote shadow economics; frozen rate/category/currency/minutes/amount basis independently checked
+PASS forged confirmed proofs cannot relabel issued rejection or voided/correction-requested source
+PASS current grant revocation denies new review but preserves already issued immutable evidence
+PASS issuer absent by default
+PASS issuer disabled and absent explicit stream both fail
+PASS generic service cannot read keys or invoke dormant issuer port
+PASS issuer signature binds exact body, expiry and enrollment epoch
+PASS floor and current source authority checked before issuance
+PASS fresh signed same-version shadow review cannot establish accepted ancestry
+PASS fresh issuer atomically references canonical publication and exact retry keeps frozen envelope
+PASS changed destination authority denies even an exact issued retry
+PASS nonce cannot authorize changed command
+PASS issuer revocation denies duplicate command before receipt
+PASS signed old shadow retry cannot mint accepted marker
+PASS marker failure rolls back publication, outbox, head and nonce; identical retry succeeds
+PASS real pre-extension v1 customer source cannot replay or mint reviewed v1 descendant after causal guard
+PASS v2 issuer mode pinned per new epoch; no downgrade
+PASS missing enabled prospective metadata source blocks issuance atomically
+PASS actual issuer freezes exact source metadata revision and fingerprint inside signed-delivery v2 body
+PASS later metadata revision cannot rewrite already issued envelope or duplicate retry
+PASS actual approved review descendant preserves frozen references despite newer budget metadata
+PASS complete project membership includes rejected lines, deduplicates identity, empty withdrawal emits no invented refs
+FIRST DAY PASS actual owner bootstrap creates only empty head/floor0, no source publication or accepted marker
+MIXED SOURCE PASS first { amount: 240000, lines: 3, revision: 1 }
+MIXED SOURCE PASS review { amount: 240000, lines: 3, revision: 2 }
+MIXED SOURCE PASS correction { amount: 180000, lines: 2, revision: 3 }
+MIXED SOURCE PASS empty { amount: 0, lines: 0, revision: 4 }
+FIRST DAY PASS actual caller dispatch branch retries missing causal metadata with zero money
+FIRST DAY PASS actual caller dispatch lost committed response preserves one receipt and zero money
+FIRST DAY PASS actual caller ingest/dispatch and explicit Finance command 0 { total: 240000 }
+FIRST DAY PASS actual caller ingest/dispatch and explicit Finance command 1 { total: 240000 }
+FIRST DAY PASS actual caller ingest/dispatch and explicit Finance command 2 { total: 180000 }
+FIRST DAY PASS actual caller ingest/dispatch and explicit Finance command 3 { total: 0 }
+PASS terminal source deletion denies new positive metadata proof; empty withdrawal remains representable
+PASS existing idempotency key cannot bypass accepted provenance guard
+PASS later admin revocation cannot invalidate issued immutable accepted economics
+PASS revoked admin cannot issue new rates
+PASS inconsistent audit command fields do not establish provenance
+53 accepted-rate checks PASS (isolated fixture; no hosted activation)
+PASS actual mixed source and Finance callback completed
+PASS full mixed actual-source composition (isolated synthetic databases, no hosted authentication)
