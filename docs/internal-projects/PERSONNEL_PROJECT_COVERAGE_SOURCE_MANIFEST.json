@@ -1,0 +1,72 @@
+[
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "supabase/functions/time-planning-proxy/workerProjection.ts",
+    "blob": "2fd4480cfbe4b680358406fc92167812bd5ca0c4",
+    "sha256": "b3b4ba05f12ccc708210974327e7ac73e0a0ff07371c9b8df929fcc7b907de4c"
+  },
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "supabase/functions/time-planning-proxy/workerAssignmentPush.ts",
+    "blob": "7603af1a15d82e3e43cda8758486d60fde4deadb",
+    "sha256": "c1d5e5b4d6c4c377740defc136d1ce42775c3a112dcf2e587584d76470276541"
+  },
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "supabase/functions/_shared/project-personnel-ingestion-store.ts",
+    "blob": "61ffd50ff62800bce5bdb38c22a3ec9dc890286b",
+    "sha256": "cc1d3b14e2fcca40fc4bf14cb4ab15a9ca19fd9c756a6581eff2ab059add3654"
+  },
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "supabase/functions/_shared/project-personnel-cost.ts",
+    "blob": "3d3c6f98e24adee4add32897521a94eabbfac354",
+    "sha256": "75df72f9c738cc36b1c606cacadf76b65b1de183bf13102d341735f50adb57dd"
+  },
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "scripts/internal-projects/accepted-personnel-metadata-v2.sql",
+    "blob": "9d09a78de95820c8124b86caf0a7b98407a1c237",
+    "sha256": "ce6ca8bbce59d4dd380b4ecda6b050cc0de872fa88962c4c606eb1ab067862a0"
+  },
+  {
+    "repository": "BillyHamren1/kalender-vyer-mix",
+    "local_source_commit": "22a98b673a449106c5a426cf226a2dc5beaf0043",
+    "path": "scripts/internal-projects/accepted-personnel-caller.sql",
+    "blob": "948c26b5ef711f2f503a0c4cdf2cc9766b90f7f8",
+    "sha256": "aa70374081414448eacdbfcaee4708a27c1ff77241f3e70d8acc3865e1f6a223"
+  },
+  {
+    "repository": "BillyHamren1/eventflow-time",
+    "head": "adae19549703d3b12b1730c15a32a49afbe40df5",
+    "path": "supabase/functions/_shared/project-economy-read-handler.ts",
+    "blob": "9d7fb4cc4a32642b861f23f499139c00b94927f2",
+    "sha256": "8d77e6ef73e85c4e8714a7f6590a1e7ceebf53a85ee87f3156a5f526d834bddc"
+  },
+  {
+    "repository": "BillyHamren1/eventflow-time",
+    "head": "adae19549703d3b12b1730c15a32a49afbe40df5",
+    "path": "supabase/functions/_shared/submission.ts",
+    "blob": "39109f2f85da4bd10d72aa2041c02c938bfd2ce6",
+    "sha256": "d7d6ee7703690761b9b50d55502afd6dff8a14dfb2ad7c2c2532e6dd11eba728"
+  },
+  {
+    "repository": "BillyHamren1/eventflow-time",
+    "head": "adae19549703d3b12b1730c15a32a49afbe40df5",
+    "path": "supabase/migrations/20261012140353_planning_worker_assignment_ordered_ingress_v2.sql",
+    "blob": "615d58eaed912f9048be2810fcb9b6fdd3388fef",
+    "sha256": "6c398c4357caeca8469ee4c093a5bad20ae1e2655e9bae80057f2bacd1ab1433"
+  },
+  {
+    "repository": "BillyHamren1/eventflow-time",
+    "head": "adae19549703d3b12b1730c15a32a49afbe40df5",
+    "path": "src/reporting/submission-outbox.ts",
+    "blob": "a8bfd2f4d0d8ccf99faab98340f50d9e954d4bab",
+    "sha256": "0dbf97ebba79525852600fefb0581b1371f4cf88cb490387a435e0d9ab5fe2d6"
+  }
+]

@@ -1,3 +1,4 @@
+import { AcceptedProjectPersonnelReview } from '@/components/project/AcceptedProjectPersonnelReview';
 import { isInternalProject } from '@/lib/projects/projectKind';
 import { InternalProjectFollowup } from '@/components/project/InternalProjectFollowup';
 import { useState } from "react";
@@ -109,6 +110,7 @@ const ProjectEconomyPage = () => {
         </TabsContent>
 
         <TabsContent value="staff">
+          <AcceptedProjectPersonnelReview key={project.id} projectId={project.id} />
           <ProjectStaffTab
             projectId={projectId || ""}
             bookingId={project.booking_id}
