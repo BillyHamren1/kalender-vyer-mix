@@ -267,7 +267,7 @@ export function parseArticleLocationsResponse(
         schema: ARTICLE_LOCATIONS_RESPONSE_SCHEMA,
         organizationId: expected.organizationId,
         itemTypeId: expected.itemTypeId,
-        instanceId,
+        instanceId: expected.instanceId,
         article: { name: str(value.article.name, 'article.name'), sku: strOrNull(value.article.sku, 'article.sku') },
         status, placements, maps, serverTimestamp: ts,
       },
