@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { commercialCloseDecision } from './commercial-close-boundary.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   fetchEconomyBatch,
@@ -94,12 +95,45 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body = await req.json();
-    const { type, method = 'GET', ...params } = body;
+    const { type: requestedType, method: requestedMethod = 'GET', ...params } = body;
+    const type = typeof requestedType === 'string' ? requestedType.trim().toLowerCase() : '';
+    const method = typeof requestedMethod === 'string' ? requestedMethod.trim().toUpperCase() : '';
 
     if (!type) {
       return new Response(JSON.stringify({ error: 'Missing "type" parameter' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Commercial close/reopen must never act on the permanent Lager booking.
+    // Read through the authenticated client, not service-role or caller org fields.
+    if (type === 'close_project' || type === 'reopen_project') {
+      if (method !== 'POST') return new Response(JSON.stringify({ error: 'commercial_action_requires_post' }), {
+        status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+      const { data: profile, error: profileError } = await supabase.from('profiles')
+        .select('organization_id').eq('user_id', userData.user.id).maybeSingle();
+      if (profileError) throw profileError;
+      const orgId = profile?.organization_id;
+      let booking = null;
+      if (orgId && typeof params.booking_id === 'string' && params.booking_id.length > 0 && params.booking_id.length <= 200) {
+        const result = await supabase.from('bookings')
+          .select('id, organization_id, is_internal, internal_type')
+          .eq('id', params.booking_id).eq('organization_id', orgId).maybeSingle();
+        if (result.error) throw result.error;
+        booking = result.data;
+      }
+      const decision = commercialCloseDecision(params.booking_id, orgId, booking);
+      if (!decision.allowed) return new Response(JSON.stringify({ error: decision.code }), {
+        status: decision.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+      const { data: internalProjects, error: projectReadError } = await supabase.from('projects')
+        .select('id').eq('booking_id', params.booking_id).eq('organization_id', orgId)
+        .or('is_internal.eq.true,project_kind.in.(internal_project,internal_activity)').limit(1);
+      if (projectReadError) throw projectReadError;
+      if (internalProjects?.length) return new Response(JSON.stringify({ error: 'internal_project_commercial_action_forbidden' }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 

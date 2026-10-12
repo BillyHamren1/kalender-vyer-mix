@@ -145,7 +145,18 @@ export async function buildWorkerProjection(input: {
   if (calendarError) return readFailed('Planning-kalendern kunde inte läsas.');
   const calendar = (calendarRows ?? []).filter((row: Json) => pairs.has(`${row.source_date}:${row.resource_id}`));
 
-  const bookingIds = [...new Set(calendar.map((row: Json) => text(row.booking_id)).filter(Boolean))] as string[];
+  // Standalone calendar references use project-<uuid>, never a fake booking row.
+  const standaloneIds = [...new Set(calendar.map((row: Json) => text(row.booking_id))
+    .filter((id): id is string => !!id && /^project-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    .map(id => id.slice('project-'.length)))];
+  const { data: standaloneProjects, error: standaloneError } = standaloneIds.length
+    ? await admin.from('projects').select(PROJECT_COLUMNS).eq('organization_id', organizationId)
+      .in('id', standaloneIds).is('booking_id', null).is('deleted_at', null)
+      .eq('project_kind', 'internal_project').in('status', ['planning','in_progress','delivered'])
+    : { data: [], error: null };
+  if (standaloneError) return readFailed('Internprojekten kunde inte läsas.');
+  const standaloneById = new Map<string, Json>((standaloneProjects ?? []).map((row: Json) => [String(row.id), row]));
+  const bookingIds = [...new Set(calendar.map((row: Json) => text(row.booking_id)).filter(id => !!id && !id.startsWith('project-')))] as string[];
   const { data: bookings, error: bookingError } = bookingIds.length
     ? await admin.from('bookings').select(BOOKING_COLUMNS).eq('organization_id', organizationId).in('id', bookingIds)
     : { data: [], error: null };
@@ -169,12 +180,17 @@ export async function buildWorkerProjection(input: {
     const endsAt = text(event.end_time);
     const bookingId = text(event.booking_id);
     if (!startsAt || !endsAt || !bookingId || Date.parse(startsAt) >= Date.parse(endsAt)) continue;
+    const standalone = standaloneById.get(bookingId.startsWith('project-') ? bookingId.slice(8) : '');
+    if (standalone) {
+      shapes.push({ event, booking: {}, project: standalone, staff, startsAt, endsAt });
+      continue;
+    }
     const booking = bookingById.get(bookingId);
     if (!booking || String(booking.status).toUpperCase() !== 'CONFIRMED') continue;
     shapes.push({ event, booking, project: projectByBooking.get(bookingId) ?? null, staff, startsAt, endsAt });
   }
 
-  const candidates: WorkOrderCandidate[] = shapes.map((shape) => ({
+  const candidates: WorkOrderCandidate[] = shapes.filter(shape => !!text(shape.booking.id)).map((shape) => ({
     sourceAssignmentId: String(shape.event.id),
     workDate: String(shape.event.source_date),
     booking: shape.booking as unknown as WorkOrderBookingSource,

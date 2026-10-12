@@ -47,7 +47,7 @@ const JobsListPanel = ({ completedOnly = false, externalSearch, externalStatusFi
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteJob,
+    mutationFn: (id: string) => deleteJob(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });

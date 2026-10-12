@@ -1,3 +1,5 @@
+import { isInternalProject } from '@/lib/projects/projectKind';
+import { InternalProjectFollowup } from '@/components/project/InternalProjectFollowup';
 import { useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,7 +30,7 @@ const ProjectEconomyPage = () => {
   const handleReopenProject = async () => {
     setIsReopening(true);
     try {
-      if (project.booking_id) {
+      if (project.booking_id && !isInternalProject(project)) {
         const { reopenBookingsInInvoicing } = await import('@/services/bookingCloseSyncService');
         const result = await reopenBookingsInInvoicing([project.booking_id]);
         if (result.failedIds.length > 0) {
@@ -99,11 +101,11 @@ const ProjectEconomyPage = () => {
         </div>
 
         <TabsContent value="economy">
-          <ProjectEconomyTab
+          {isInternalProject(project) ? <InternalProjectFollowup key={project.id} project={project} /> : <ProjectEconomyTab
             projectId={projectId || ""}
             projectName={project.name}
             bookingId={project.booking_id}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="staff">

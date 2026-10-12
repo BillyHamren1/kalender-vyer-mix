@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useMemo, useEffect } from 'react';
+import { fetchInternalWarehouseIdentity } from '@/services/internalWarehouseIdentityService';
+import { toast } from 'sonner';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { addDays, format, startOfWeek, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
 import { useInternalLagerEnabled } from './useInternalLagerEnabled';
 
 /**
  * Genererar virtuella heldagsevent (07:00–16:00) för det interna Lagerprojektet
- * (`projects.is_internal = true`) för varje dag i synligt intervall.
+ * (kopplat till `bookings.internal_type = warehouse`) för varje dag i synligt intervall.
  *
  * Visas ENDAST för organisationer med `organizations.internal_lager_enabled = true`.
  * Övriga organisationer får inga Lager-block alls, även om de har en gammal
@@ -22,24 +23,19 @@ export function useInternalLagerCalendarEvents(
 ) {
   const { lagerEnabled } = useInternalLagerEnabled();
 
-  const { data: lagerProjects = [] } = useQuery({
+  const { data: lagerProjects = [], error } = useQuery({
     queryKey: ['internal-lager-projects-with-booking'],
     enabled: lagerEnabled,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, is_internal, booking_id, bookings:bookings!projects_booking_id_fkey(id, booking_number)')
-        .eq('is_internal', true);
-      if (error) throw error;
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        bookingId: p.booking_id || p.bookings?.id || null,
-        bookingNumber: p.bookings?.booking_number || null,
-      }));
+      const project = await fetchInternalWarehouseIdentity();
+      return project ? [project] : [];
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (error) toast.error('Lagerprojektet kunde inte visas. Kontrollera lagerkopplingen och uppdatera kalendern.', { id: 'internal-lager-read-error' });
+  }, [error]);
 
   const internalLagerEvents = useMemo<CalendarEvent[]>(() => {
     if (!lagerEnabled) return [];
@@ -67,7 +63,7 @@ export function useInternalLagerCalendarEvents(
       dayCount = 7;
     }
 
-    const project = lagerProjects[0]; // Använd första interna projektet
+    const project = lagerProjects[0]; // Identiteten har verifierats som entydigt Lager.
     const projectName = project.name || 'Lager';
 
     const events: CalendarEvent[] = [];
@@ -100,5 +96,5 @@ export function useInternalLagerCalendarEvents(
     return events;
   }, [lagerEnabled, lagerProjects, currentDate, view]);
 
-  return { internalLagerEvents };
+  return { internalLagerEvents, error };
 }

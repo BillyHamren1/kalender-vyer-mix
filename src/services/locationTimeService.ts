@@ -37,6 +37,45 @@ export async function fetchLocationTimeEntries(filters?: {
   return (data || []) as unknown as LocationTimeEntry[];
 }
 
+/** Complete period read for reporting; the activity list above intentionally stays bounded. */
+export async function fetchLocationTimeEntriesForPeriod(filters: {
+  location_id: string;
+  date_from: string;
+  date_to: string;
+}): Promise<LocationTimeEntry[]> {
+  if (!filters.location_id || !/^\d{4}-\d{2}-\d{2}$/.test(filters.date_from)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(filters.date_to) || filters.date_from > filters.date_to) {
+    throw new Error('Välj en giltig period för tidsöversikten.');
+  }
+  const entries: LocationTimeEntry[] = [];
+  let expectedCount: number | null = null;
+  for (;;) {
+    const { data, error, count } = await supabase
+      .from('location_time_entries')
+      .select('*', { count: 'exact' })
+      .eq('location_id', filters.location_id)
+      .gte('entry_date', filters.date_from)
+      .lte('entry_date', filters.date_to)
+      .order('entered_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(entries.length, entries.length + 499);
+    if (error) throw error;
+    if (count === null || (expectedCount !== null && expectedCount !== count)) {
+      throw new Error('Tidsunderlaget ändrades under hämtningen. Uppdatera översikten.');
+    }
+    expectedCount = count;
+    if (!data?.length && entries.length < count) {
+      throw new Error('Hela tidsunderlaget kunde inte hämtas. Uppdatera översikten.');
+    }
+    entries.push(...((data ?? []) as LocationTimeEntry[]));
+    if (entries.length >= count) break;
+  }
+  if (new Set(entries.map(entry => entry.id)).size !== entries.length) {
+    throw new Error('Tidsunderlaget ändrades under hämtningen. Uppdatera översikten.');
+  }
+  return entries;
+}
+
 /**
  * ADMIN-ONLY helper. Close all open location_time_entries for a staff member
  * that started before the given cutoff time.

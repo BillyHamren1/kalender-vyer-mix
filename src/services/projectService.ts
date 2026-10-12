@@ -1,3 +1,4 @@
+import { isInternalProject } from '@/lib/projects/projectKind';
 import { supabase } from "@/integrations/supabase/client";
 import { Project, ProjectTask, ProjectComment, ProjectFile, ProjectStatus, ProjectWithBooking } from "@/types/project";
 import { recordJobCompletion } from "@/services/jobCompletionAnalyticsService";
@@ -111,14 +112,16 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
   // First get the project to check for booking_id
   const { data: project, error: fetchError } = await supabase
     .from('projects')
-    .select('booking_id')
+    .select('*')
     .eq('id', id)
     .single();
 
   if (fetchError) throw fetchError;
 
-  // If completing and has a booking, sync to Booking system FIRST
-  if (status === 'completed' && project?.booking_id) {
+  const internal = project ? isInternalProject(project) : false;
+
+  // Only customer completion may signal commercial invoicing.
+  if (status === 'completed' && project?.booking_id && !internal) {
     console.log('[ProjectService] Project completing, syncing booking:', project.booking_id);
     const { syncBookingsForInvoicing } = await import('@/services/bookingCloseSyncService');
     const result = await syncBookingsForInvoicing([project.booking_id]);
@@ -135,7 +138,7 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
   if (error) throw error;
 
   // Record analytics (fire and forget)
-  if (status === 'completed' && project?.booking_id) {
+  if (status === 'completed' && project?.booking_id && !internal) {
     recordJobCompletion(project.booking_id).catch(err => {
       console.error('[ProjectService] Failed to record job completion:', err);
     });

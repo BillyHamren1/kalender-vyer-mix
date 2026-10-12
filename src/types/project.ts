@@ -1,3 +1,5 @@
+export type ProjectKind = 'customer' | 'internal_project' | 'internal_activity';
+
 export type ProjectStatus = 'planning' | 'in_progress' | 'delivered' | 'completed' | 'cancelled';
 
 export interface Project {
@@ -26,6 +28,14 @@ export interface Project {
   rigdown_start_time: string | null;
   rigdown_end_time: string | null;
   is_internal: boolean;
+  project_kind?: ProjectKind | null;
+  budget_hours?: number | null;
+  budget_cost_minor?: number | null;
+  budget_currency?: string | null;
+  remaining_hours?: number | null;
+  remaining_cost_minor?: number | null;
+  internal_goal?: string | null;
+  followup_note?: string | null;
   location_id: string | null;
   created_at: string;
   updated_at: string;
