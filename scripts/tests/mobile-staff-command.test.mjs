@@ -53,3 +53,21 @@ test('canonical trigger includes date-matching large project bookings without a 
  assert.deepEqual(result.affectedBookingIds,['booking-a','large-booking']);
  assert.deepEqual((await db.query("SELECT booking_id,team_id FROM booking_staff_assignments ORDER BY booking_id")).rows,[{booking_id:'booking-a',team_id:'team-1'},{booking_id:'large-booking',team_id:'team-1'}]);
 });
+
+test('options and command agree for null source_date across Stockholm midnight',async()=>{
+ const manual='66666666-6666-4666-8666-666666666666';
+ await db.query("INSERT INTO bookings VALUES('manual-booking',$1)",[org]);
+ await db.query("INSERT INTO calendar_events VALUES($1,$2,'manual-team',NULL,'2026-10-11T22:30:00Z','manual-booking')",[manual,org]);
+ const read=()=>db.query('SELECT planning_mobile_staff_context_v1($1,$2,$3) AS context',[actor,org,manual]);
+ const context=(await read()).rows[0].context;
+ assert.equal(context.date,'2026-10-12');
+ assert.deepEqual(context.affectedBookingIds,['large-booking','manual-booking']);
+ const receipt=(await db.query('SELECT planning_mobile_staff_command_v1($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS receipt',[actor,org,manual,'staff-a','assign',crypto.randomUUID(),null,context.teamId,context.date,context.affectedBookingIds])).rows[0].receipt;
+ assert.equal(receipt.persisted,true);
+ assert.equal((await db.query("SELECT count(*)::int AS n FROM booking_staff_assignments WHERE booking_id='manual-booking' AND assignment_date='2026-10-12'")).rows[0].n,1);
+ await db.query("UPDATE calendar_events SET source_date='2026-10-13' WHERE id=$1",[manual]);
+ const explicit=(await read()).rows[0].context;
+ assert.equal(explicit.date,'2026-10-13');assert.deepEqual(explicit.affectedBookingIds,['manual-booking']);
+ await assert.rejects(db.query('SELECT planning_mobile_staff_context_v1($1,$2,$3)',[actor,'99999999-9999-4999-8999-999999999999',manual]),/actor_not_authorized/);
+ assert.equal((await db.query("SELECT has_function_privilege('authenticated','planning_mobile_staff_context_v1(uuid,uuid,uuid)','EXECUTE') AS allowed")).rows[0].allowed,false);
+});

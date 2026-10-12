@@ -105,3 +105,39 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.planning_mobile_staff_command_v1(uuid,uuid,uuid,text,text,uuid,uuid,text,date,text[]) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.planning_mobile_staff_command_v1(uuid,uuid,uuid,text,text,uuid,uuid,text,date,text[]) TO service_role;
+
+
+-- Canonical read context shares the trigger's date/booking semantics, including
+-- manually created calendar events without source_date. No calendar data migration.
+CREATE OR REPLACE FUNCTION public.planning_mobile_staff_context_v1(
+  p_actor_user_id uuid,p_organization_id uuid,p_event_id uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path=public,pg_temp AS $$
+DECLARE v_event record; v_date date; v_booking_ids text[];
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM profiles WHERE user_id=p_actor_user_id AND organization_id=p_organization_id)
+     OR NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id=p_actor_user_id AND organization_id=p_organization_id AND role IN ('admin','projekt')) THEN
+    RAISE EXCEPTION 'actor_not_authorized' USING ERRCODE='42501';
+  END IF;
+  SELECT resource_id,source_date,start_time INTO v_event FROM calendar_events
+    WHERE id=p_event_id AND organization_id=p_organization_id;
+  IF NOT FOUND OR v_event.resource_id IS NULL OR v_event.resource_id IN ('activity','project','location','project_team') THEN
+    RAISE EXCEPTION 'calendar_team_not_found' USING ERRCODE='22023';
+  END IF;
+  v_date:=coalesce(v_event.source_date,(v_event.start_time AT TIME ZONE 'Europe/Stockholm')::date);
+  IF v_date IS NULL THEN RAISE EXCEPTION 'calendar_date_missing' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(array_agg(DISTINCT booking_id ORDER BY booking_id),ARRAY[]::text[]) INTO v_booking_ids FROM (
+    SELECT ce.booking_id FROM calendar_events ce JOIN bookings b ON b.id=ce.booking_id AND b.organization_id=p_organization_id
+      WHERE ce.organization_id=p_organization_id AND ce.resource_id=v_event.resource_id
+        AND coalesce(ce.source_date,(ce.start_time AT TIME ZONE 'Europe/Stockholm')::date)=v_date
+    UNION
+    SELECT lpb.booking_id FROM large_project_bookings lpb JOIN large_projects lp ON lp.id=lpb.large_project_id
+      JOIN bookings b ON b.id=lpb.booking_id AND b.organization_id=p_organization_id
+      WHERE lpb.organization_id=p_organization_id AND lp.organization_id=p_organization_id AND lp.deleted_at IS NULL
+        AND (v_date::text=ANY(coalesce(lp.start_date,ARRAY[]::text[])) OR v_date::text=ANY(coalesce(lp.event_date,ARRAY[]::text[])) OR v_date::text=ANY(coalesce(lp.end_date,ARRAY[]::text[])))
+  ) targets;
+  IF cardinality(v_booking_ids)>500 THEN RAISE EXCEPTION 'options_incomplete' USING ERRCODE='54000'; END IF;
+  RETURN jsonb_build_object('teamId',v_event.resource_id,'date',v_date,'affectedBookingIds',v_booking_ids);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.planning_mobile_staff_context_v1(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.planning_mobile_staff_context_v1(uuid,uuid,uuid) TO service_role;

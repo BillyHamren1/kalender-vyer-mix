@@ -102,27 +102,19 @@ export async function handleRequest(request: Request): Promise<Response> {
             return json(503, { error: 'not_persisted' });
         return json(200, { schema: 'planning-mobile-staff-receipt.v1', receipt: result.data });
     }
-    const event = await admin.from('calendar_events').select('id,resource_id,source_date').eq('organization_id', org).eq('id', body.calendarEventId).maybeSingle();
-    if (event.error)
-        return json(503, { error: 'calendar_unavailable' });
-    if (!event.data?.resource_id || !event.data.source_date || ['activity', 'project', 'location', 'project_team'].includes(event.data.resource_id))
-        return json(404, { error: 'calendar_team_not_found' });
-    const teamId = event.data.resource_id, date = event.data.source_date;
-    const [staff, memberships, events] = await Promise.all([
+    // Resolve dates and affected bookings inside PostgreSQL with exactly the
+    // canonical trigger's coalesce(source_date, Stockholm start_time date).
+    const context = await admin.rpc('planning_mobile_staff_context_v1', {
+        p_actor_user_id: actor, p_organization_id: org, p_event_id: body.calendarEventId,
+    });
+    if (context.error) return json(context.error.code === '42501' ? 403 : context.error.code === '22023' ? 404 : 503, {error:'calendar_unavailable'});
+    const {teamId, date, affectedBookingIds} = context.data ?? {};
+    if(typeof teamId !== 'string' || typeof date !== 'string' || !Array.isArray(affectedBookingIds) || affectedBookingIds.length > 500 || affectedBookingIds.some(id => typeof id !== 'string')) return json(503,{error:'options_incomplete'});
+    const [staff, memberships] = await Promise.all([
         admin.from('staff_members').select('id,name', { count: 'exact' }).eq('organization_id', org).eq('is_active', true).order('id').range(0, 199),
         admin.from('staff_assignments').select('id,staff_id', { count: 'exact' }).eq('organization_id', org).eq('team_id', teamId).eq('assignment_date', date).order('id').range(0, 199),
-        admin.from('calendar_events').select('id,booking_id', { count: 'exact' }).eq('organization_id', org).eq('resource_id', teamId).eq('source_date', date).order('id').range(0, 199),
     ]);
-    if ([staff, memberships, events].some(r => r.error || r.count === null || r.count !== (r.data ?? []).length))
-        return json(503, { error: 'options_incomplete' });
-    const largeProjects = await admin.from('large_projects').select('id', { count: 'exact' }).eq('organization_id', org).is('deleted_at', null).or(`start_date.cs.{${date}},event_date.cs.{${date}},end_date.cs.{${date}}`).order('id').range(0, 199);
-    if (largeProjects.error || largeProjects.count === null || largeProjects.count !== (largeProjects.data ?? []).length)
-        return json(503, { error: 'options_incomplete' });
-    const largeIds = (largeProjects.data ?? []).map(row => row.id);
-    const largeBookings = largeIds.length ? await admin.from('large_project_bookings').select('booking_id', { count: 'exact' }).eq('organization_id', org).in('large_project_id', largeIds).order('booking_id').range(0, 199) : { data: [], count: 0, error: null };
-    if (largeBookings.error || largeBookings.count === null || largeBookings.count !== (largeBookings.data ?? []).length)
-        return json(503, { error: 'options_incomplete' });
-    const affectedBookingIds = [...new Set([...(events.data ?? []), ...(largeBookings.data ?? [])].map(row => row.booking_id).filter(Boolean))];
+    if ([staff, memberships].some(r => r.error || r.count === null || r.count !== (r.data ?? []).length)) return json(503, {error:'options_incomplete'});
     const bookings = affectedBookingIds.length ? await admin.from('bookings').select('id,title,booking_number', { count: 'exact' }).eq('organization_id', org).in('id', affectedBookingIds).order('id').range(0, 499) : { data: [], count: 0, error: null };
     if (bookings.error || bookings.count !== affectedBookingIds.length || (bookings.data ?? []).length !== affectedBookingIds.length)
         return json(503, { error: 'options_incomplete' });
