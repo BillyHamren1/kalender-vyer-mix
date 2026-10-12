@@ -1,6 +1,19 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
+## Latest continuation — 2026-10-12 16:21 UTC
+
+This section supersedes historical status below. User Ja authorized reviewed draft source publication; no merge/deploy/hosted migration.
+
+- Operations PR55 head aa42f5b92d776f887478b5ef06a0c41190f54173, tree19075cc48603387f1c94ffde3cef356ef9592d36. Signed default-off metadata queue/sender integrated. Fresh native run38276158723 job114902021576 PASS:9 original +4 actual PostgreSQL17 concurrency/fault cases. This found and fixed real INSERT-conflict blocking before SKIP LOCKED. App still running. Strict harness retained.
+- Finance PR56 head0f113935a2b5099170068b2ad8a692e0f9f3c4a8: default-off signed metadata receiver, explicit tenant/project enrollment, DB signature/fingerprint validation and exact signed ACK. Native38275448941 PASS37SQL+3real-concurrency+7Edge; browser38275449403 PASS20/20. Domain1259PASS, invoice/supplier PASS. Main lint6380errors/9warnings exactly prior baseline, build skipped. Main/browser tested associated merge184e13053bd943524d8c1121139470eed1259b31, not direct head.
+- Time PR40 current4aa2ce458013b9fee228840ea3bea8f1d5923e04: eight unchanged Chromium cases pass with reviewed fixture-only Date/locale correction; fresh CI38276328240 pending. Previous4197dd52 VERIFY/native/database PASS, browser pending at publication.
+- Catering PR30 unchanged4c2353c8299fceb419aa8f1a9feb69ab2c550812, CI38271411742 PASS.
+- Combined actual-code metadata producer→queue→sender→FinanceEdge→DB→signedACK passed12 isolated PGlite/in-memoryHTTP checks, including lost-response/retry and zero cost events. Not hosted/authenticated acceptance.
+- Local root integration fd25dbaf8, docs/internal-projects/INTEGRATION.md; all sources remain present. Module loops paused, supervisor continues concrete work. Active owners: Time CI publish_time; Operations CI operations_ci; accepted-rate provenance guard publish_catering (isolated PR48-based worktree); Finance canonical port independent review finance_metadata; Time scoped-read compatibility review metadata_dispatcher. No duplicate source owners.
+- Read COST_CHAIN_NEXT.md: reuse TimePR38 96162d7f and OperationsPR48 5f0c934a six-migration closure. Existing unaudited rate rows cannot become accepted by label; resolver and SQL ingress provenance guard implementation now in progress. Finance metadata does not satisfy cost receipt/coverage/close gates.
+- Open: accepted cost chain + canonical Finance coverage, booking-free WMS/Scanner, residual CI, hosted migration/rollback and real signed-in published UI. Do not auto-retry interrupted login dialog. No cost/rate/enrollment invented, no financial actions.
+
 ## Scope and authority
 Operations owns project identity, budgets, project allocation review and labor cost calculations. Time owns time evidence. Finance consumes Operations costs and owns financial reconciliation. WMS owns reservations/returns. Booking owns commercial orders. No customer communication, payments, financial approvals or destructive real-data tests.
 Use drive-long-build-sessions and advance-eventflow-project-economy skills. Read actual repo instructions/current PRs.
