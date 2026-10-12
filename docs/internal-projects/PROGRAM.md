@@ -2,7 +2,26 @@
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
 
-## Current continuation — 2026-10-12 21:40 UTC
+## Latest verified checkpoint — 2026-10-12 21:54 UTC
+
+Source batches complete; program acceptance is NOT complete. All remaining safe progress requires the concrete external inputs below. Supervisor and module continuations are paused rather than restarted empty.
+
+- Operations PR55 final documentation head adbe05625ea054d011dac8ee777fdbb54a3a5791, tree0f7f0146cc9b6eab7ce50e73d0f5500f07c5950e: all8 exact-head workflows SUCCESS, including38313056796 and38313056821. Product/CI bytes unchanged from independently reviewed5a333743; final25-path delta is docs/evidence only. Local integration1cccc794328e31f19a06945c52875bb1ba537653 has identical full tree. Review native65/PGlite61, UI17 and fullapp84/types/build PASS; durable archives retain raw source pins and logs.
+- Finance PR56 c88dfdb038f477476ccb50b6d16669910f6f7243, treedf9e707c520b60057d2dd28207a38f34f54b2558: all11 workflows SUCCESS. Endpoint38312490873/job115021289041 strict Deno2.5.4 +actual index +33PGlite +40PostgreSQL17.11 checks including7 physical overlaps PASS, independently read by root. Default-off v2 Edge index delegates exact raw four-field default-revoked public SQL facade to canonical evidence receiver; no monetary posting. Unconditional fullappTypeScript now passes after37 new errors hidden by old Fortnox-only filter were fixed without tsconfig relaxation.1259 domain tests/lint/build and browser/financial suites green. All reviewed new blobs verified.
+- Time PR40 adae19549703d3b12b1730c15a32a49afbe40df5 and Catering PR30 7b29b6d3dc412881d5ead4ce08d57edae78c0785 unchanged, prior CI green. Four PRs remain draft/open with unchanged genuine bases; no remote merge/deployment.
+- Actual endpoint full composition independently reproduced from fed34ce5d440966717c365f80e17844cf4017ecc:65 dependencies SHA/Git blobs match genuine source; author/root logs identical806ae8af222f5bbce0411756ff65cf87e90659284655f3ada0799a2d6408577e. Actual public project review/Finance Edge index/public SQL ingress/signed ACK/explicit money command/public evidence read:240000→240000→180000→0 once; customer row/eight invoice tables unchanged. Missing future metadata, raw tamper/stale signatures and lost committed response are tested. Two PGlite databases/in-memory HTTP and synthetic role/enrollment/Time RPC ports; NOT hosted auth/PostgREST or published signed-in UI. Evidence archived in Operations docs/internal-projects/evidence/20261012-accepted-endpoint.
+- Staging/rollback draft and49 Operations/34 Finance source pins are published. Time migration/Edge anchors recorded. This is a reviewed dependency inventory, not an executable installation package or authorization to grant/deploy.
+
+Concrete reopen gates:
+1. Authorized read-only actual schema/ACL/migration inventory and named staging target, followed by separately authorized coordinated migration/grants/deployment/rollback rehearsal. Fixture-only donor loads do not prove hosted install closure.
+2. Authoritative project obligation roster, late/offline/no-work policy and full cost-domain coverage/internal close contract. Received streams alone cannot prove complete project cost; partial read never unlocks total/close.
+3. Complete WMS/Scanner owner definitions/source authority/lifecycle plus WMS/Scanner source publication authorization. Prior direct WMS metadata permission denial stands; no alternate connector bypass.
+4. Usable authenticated published UI session and isolated runtime test fixture authorization. Never restart the interrupted secure-login dialog automatically. Hosted signed-in acceptance remains NOT EXECUTED.
+Unsupported multi/large/legacy-null customer identity cases remain fail-closed until their owner contract is supplied; no fabricated Booking identity.
+
+No source grant/enrollment, activation, hosted migration, deployment, invoice, payment, attest or production-data test was performed. All6 concrete agent batches completed and root independently reconciled evidence. Resume only for a resolved external gate or a concrete new authorized source change; do not create additional automations or empty agent loops.
+
+## Prior continuation — 2026-10-12 21:40 UTC
 
 Supersedes pending CI below. Operations PR55 5a3337439021c9dae0d9d785e085c28cae7744a9 ALL8 workflows SUCCESS:61 PGlite+65 native PG17.11,17 UI/fulltypes/build29.15s; main84 tests/types/build32.46s. Finance28fec04 all9 workflows were green but Fortnox-only filtered tsc hid37 new UI diagnostics. Root independently read raw errors; baselinec348 had none. All37 fixed without tsconfig relaxation; reviewed8-file delta published Finance PR56 c8281bf1a9ffa4d230086437dda2a031caee7c1a tree23d54ba9d399fbd291aa00dcf0a36d76f4d6d559. NEW unconditional FULL app TS workflow38311840640/job115019170512 SUCCESS: locked TS5.9.3, unchanged config, unrestricted tsc/pipefail/no errors. Other current workflows pending terminal.
 
@@ -118,9 +137,9 @@ Root integration local073e0388c contains genuine source5a0601b plus local eviden
 Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
 Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
 
-## Active recovery lease — renewed 2026-10-12 21:28 UTC
+## Released recovery lease — 2026-10-12 21:54 UTC
 
-Owner /root; expires 2026-10-12 22:05 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
+Owner /root released after source/CI/checkpoint reconciliation; no active writer. Previous expiry was 2026-10-12 22:05 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
