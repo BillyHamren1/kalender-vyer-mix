@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { calculateCateringPersonnelEvidence, reviseCateringProjectReview } from './catering-project-evidence.ts';
+const id = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const entry = {id:id(1),organization_id:id(2),person_id:id(3),workplace_id:id(4),started_at:'2026-10-12T08:00:00Z',ended_at:'2026-10-12T10:00:00Z',break_minutes:0,status:'pending',approved_by:null,approved_at:null,version:1,source:'manual'};
+const binding = {catering_organization_id:id(2),catering_person_id:id(3),organization_id:id(5),worker_id:id(6),project_id:id(7),obligation_id:id(8),mapping_revision:'synthetic-v1',work_date:'2026-10-12',time_zone:'Europe/Stockholm',currency:'SEK',publication_revision:1,project_review_status:'preliminary'};
+const rate = {organization_id:id(5),worker_id:id(6),category:'work',currency:'SEK',rate_revision:'synthetic-rate-v1',hourly_rate_minor:30000,effective_from:'2026-01-01',effective_to:null};
+test('canonical internal project without booking receives 120 minutes / 600 SEK', async()=>{const result=await calculateCateringPersonnelEvidence(entry,null,binding,[rate]);assert.equal(result.project_id,id(7));assert.equal(result.minutes,120);assert.equal(result.amount_minor,60000);assert.equal('booking_id' in result,false);});
+test('correction uses same project and source identity, 90 minutes / 450 SEK',async()=>{const result=await calculateCateringPersonnelEvidence({...entry,ended_at:'2026-10-12T09:30:00Z',version:2},null,{...binding,publication_revision:2},[rate]);assert.equal(result.source_time_entry_id,id(1));assert.equal(result.project_id,id(7));assert.equal(result.amount_minor,45000);});
+test('same workplace does not replace explicit project',async()=>{const result=await calculateCateringPersonnelEvidence(entry,null,{...binding,project_id:id(9)},[rate]);assert.equal(result.project_id,id(9));});
+test('missing rate is unknown not zero',async()=>{const result=await calculateCateringPersonnelEvidence(entry,null,binding,[]);assert.equal(result.amount_minor,null);assert.equal(result.coverage,'missing_rate');assert.equal(result.minutes,120);});
+test('foreign source tenant fails',async()=>{await assert.rejects(()=>calculateCateringPersonnelEvidence({...entry,organization_id:id(10)},null,binding,[rate]),/native_source_identity_mismatch/);});
+test('approval retains calculated amount and rejects stale revision',async()=>{const saved=await calculateCateringPersonnelEvidence(entry,null,binding,[rate]);assert.equal(reviseCateringProjectReview(saved,2,'confirmed').amount_minor,60000);assert.throws(()=>reviseCateringProjectReview(saved,1,'confirmed'),/stale_publication_revision/);});
