@@ -121,6 +121,7 @@ begin
   envelope:=jsonb_build_object('schema','operations-personnel-accepted-envelope.v1','issuer_id',i.issuer_id,'enrollment_epoch',i.enrollment_epoch,
    'source_organization_id',org,'destination_organization_id',i.destination_organization_id,'source_stream_id',stream,'source_revision',o.source_revision,
    'outbox_id',o.id,'occurred_at',issued,'membership','full_stream','source_snapshot_sha256',o.body_sha256,'snapshot',o.raw_body::jsonb)::text;
+  if octet_length(envelope)>524288 then raise exception 'accepted_envelope_too_large' using errcode='22023';end if;
   insert into operations_economy_private.personnel_accepted_issuances_v1 values(o.id,i.issuer_id,i.enrollment_epoch,digest,issued,envelope,encode(sha256(convert_to(envelope,'UTF8')),'hex')) returning * into m;
  end if;
  return jsonb_build_object('schema','operations-personnel-issued-receipt.v1','status',result->>'status','outbox_id',o.id,'source_revision',o.source_revision,'fingerprint',m.fingerprint,'occurred_at',m.occurred_at);

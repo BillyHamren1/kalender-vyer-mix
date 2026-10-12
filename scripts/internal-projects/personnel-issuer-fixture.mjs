@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHmac,randomUUID} from 'node:crypto';
-export async function provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,evidence,pass,fixture,engine,ctx}){
+export async function provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,evidence,pass,fixture,engine,ctx,afterIssuer}){
  await db.exec(read('scripts/internal-projects/accepted-personnel-issuer.sql'));
  const issuer='dddddddd-dddd-4ddd-8ddd-dddddddddddd',epoch='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',secret='disposable-issuer-key-not-a-production-secret',stream=snapshot.source_time_stream_id;
  const binding=(await db.query('select to_jsonb(b) b from operations_personnel_source_bindings b where organization_id=$1 and worker_id=$2',[org,worker])).rows[0].b;
@@ -70,4 +70,5 @@ export async function provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,e
  await db.exec('drop trigger issuer_fixture_fault on operations_economy_private.personnel_accepted_issuances_v1');
  assert.equal((await issue(faultAttempt)).rows[0].r.status,'accepted');
  pass('marker failure rolls back publication, outbox, head and nonce; identical retry succeeds');
+ if(afterIssuer)await afterIssuer({db,read,as,org,worker,stream,issuer,epoch,epoch2,route,command,next,head,lastAcceptedRevision:next.snapshot.source_revision,makeIssuerRequest:request,pass});
 }

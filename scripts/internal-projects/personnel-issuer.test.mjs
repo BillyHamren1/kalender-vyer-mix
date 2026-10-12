@@ -9,5 +9,6 @@ code=code.replace("createRequire(import.meta.url)",`createRequire(${JSON.stringi
  .replace('const db=await openTestDatabase();',`const db=process.env.INTERNAL_PROJECTS_TEST_DSN?await openTestDatabase():new (require('@electric-sql/pglite').PGlite)({extensions:{pgcrypto:require('@electric-sql/pglite/contrib/pgcrypto').pgcrypto}});`);
 const hook="const tamperedRetry=structuredClone(snapshot);";
 if(!code.includes(hook))throw new Error('fixture hook moved');
-code=code.replace(hook,`const {provePersonnelIssuer}=await import(${JSON.stringify(new URL('./personnel-issuer-fixture.mjs',base).href)});await provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,evidence,pass,fixture,engine,ctx});\n${hook}`);
+const afterIssuer=new URL('./personnel-accepted-transport-fixture.mjs',base).href;
+code=code.replace(hook,`const {provePersonnelIssuer}=await import(${JSON.stringify(new URL('./personnel-issuer-fixture.mjs',base).href)});await provePersonnelIssuer({db,read,as,org,worker,raw,snapshot,evidence,pass,fixture,engine,ctx,afterIssuer:process.env.PERSONNEL_ACCEPTED_TRANSPORT_TEST? (await import(${JSON.stringify(afterIssuer)})).proveAcceptedPersonnelTransport:undefined});\n${hook}`);
 await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));

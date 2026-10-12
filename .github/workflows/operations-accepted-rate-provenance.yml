@@ -5,7 +5,7 @@ on:
       - 'supabase/functions/_shared/project-personnel-*.ts'
       - 'supabase/migrations/*operations_personnel*.sql'
       - 'scripts/internal-projects/accepted-rate-*.mjs'
-      - 'scripts/internal-projects/accepted-personnel-issuer.sql'
+      - 'scripts/internal-projects/accepted-personnel-*.sql'
       - 'scripts/internal-projects/personnel-*'
       - 'supabase/functions/project-personnel-cost-publish/**'
       - 'supabase/migrations/20261012124216_internal_project_classification.sql'
@@ -20,7 +20,7 @@ on:
       - 'supabase/functions/_shared/project-personnel-*.ts'
       - 'supabase/migrations/*operations_personnel*.sql'
       - 'scripts/internal-projects/accepted-rate-*.mjs'
-      - 'scripts/internal-projects/accepted-personnel-issuer.sql'
+      - 'scripts/internal-projects/accepted-personnel-*.sql'
       - 'scripts/internal-projects/personnel-*'
       - 'supabase/functions/project-personnel-cost-publish/**'
       - 'supabase/migrations/20261012124216_internal_project_classification.sql'
@@ -64,13 +64,15 @@ jobs:
       - name: Canonical personnel engine and disabled handler tests
         run: '"$RUNNER_TEMP/accepted-rate-test/node_modules/.bin/vitest" run --config scripts/internal-projects/personnel-vitest.config.mjs'
       - name: Canonical publisher transitive types
-        run: '"$RUNNER_TEMP/accepted-rate-test/node_modules/.bin/tsc" --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --lib ES2022,DOM supabase/functions/project-personnel-cost-publish/handler.ts supabase/functions/_shared/project-personnel-source-issuer.ts'
+        run: '"$RUNNER_TEMP/accepted-rate-test/node_modules/.bin/tsc" --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --lib ES2022,DOM supabase/functions/project-personnel-cost-publish/handler.ts supabase/functions/_shared/project-personnel-source-issuer.ts supabase/functions/_shared/project-personnel-accepted-transport.ts'
       - name: Same accepted-rate oracle in PGlite
         env:
+          PERSONNEL_ACCEPTED_TRANSPORT_TEST: '1'
           NODE_PATH: ${{ runner.temp }}/accepted-rate-test/node_modules
         run: node scripts/internal-projects/personnel-issuer.test.mjs
       - name: Actual engine to resolver to canonical ingress in PostgreSQL
         env:
+          PERSONNEL_ACCEPTED_TRANSPORT_TEST: '1'
           NODE_PATH: ${{ runner.temp }}/accepted-rate-test/node_modules
           INTERNAL_PROJECTS_TEST_DSN: postgresql://postgres:disposable-ci-only@127.0.0.1:5432/accepted_personnel_cost_ci
         run: node scripts/internal-projects/personnel-issuer.test.mjs

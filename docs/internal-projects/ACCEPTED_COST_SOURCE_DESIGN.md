@@ -52,3 +52,9 @@ Validation: **45 PGlite checks PASS**, retaining all 33 prior rate/review assert
 The existing isolated CI workflow now runs this strict superset on PGlite and PostgreSQL 17 separately. Native results on a newly published exact head remain pending until publication. All keys/enrollment rows exist only as disposable test fixtures.
 
 Still deliberately absent: a callable issuer mutation port, hosted migration, real key provisioning and atomic enrollment operation, accepted-versus-shadow claim isolation, signed accepted dispatcher/ACK, project-review accepted descendants, Finance receiver wiring and real authenticated hosted acceptance. Private issuer invocation is owner-only in the disposable fixture. No deployable path can call it; do not grant a caller or enable this draft until those coupled gates are implemented and reviewed.
+
+## Published exact-head evidence
+
+Root published the reviewed nine-file delta as genuine-parent PR55 head `5a0601b6fb2e5aa0cce564ec5a72b77c3c34bb5e`, tree `107945fa4fe278f6c5dd84d06b3ae06895f264b5`. A fresh normal Git fetch verified all nine remote blobs equal the independently reviewed local candidate.
+
+Workflow `38296675873`, job `114969301524`, completed successfully: **62 Vitest**, transitive types, **45 PGlite** and **45 actual PostgreSQL 17.11** checks. Raw logs confirm signed same-version shadow ancestry denial, issuer revocation, old-shadow replay denial, and marker-fault rollback with identical retry. These are isolated sequential source-issuer tests, not issuer concurrency or hosted acceptance. Separate existing concurrency job `114969302182` in run `38296675876` also succeeded; application job `114969301871` also completed SUCCESS, including regressions, full application types, build, migration fixtures and mock HTTP transport. Both workflows are fully green on this exact head.
