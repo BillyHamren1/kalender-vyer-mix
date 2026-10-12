@@ -1,6 +1,15 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
+## Active recovery lease — 2026-10-12 18:56 UTC
+
+Owner /root; expires 2026-10-12 19:56 UTC. Scope: Operations PR55 and Time PR40 CI recovery, checkpoint reconciliation. Atomic branch compare-and-swap establishes this lease. Only root publishes reviewed changes; independent agents prepare isolated candidates.
+Previous local worktrees are absent in the current runtime. Published sources remain available; do not claim unpublished handoffs survived.
+Current Operations PR55 26da19b9699e52875a95a03d79d4d06a30b2a769: main verification38280207566 PASS; accepted-rate native38280207481 FAIL.
+Current Time PR40 2b8f95dea6cf089ce5418976d966841b7fabe5a2: database/native PASS, verify/browser FAIL in38280076346.
+Finance PR56 4a5f3128a34f7f6f12c0719b62aee59b276f6e0d previously verified all six workflows PASS; canonical accepted-cost adapter remains incomplete.
+Agents operations_recovery and time_recovery own separate diagnostic/candidate scopes. No merge, deploy, hosted migration, secure-login retry or live financial action authorized.
+
 ## Latest continuation — 2026-10-12 16:21 UTC
 
 This section supersedes historical status below. User Ja authorized reviewed draft source publication; no merge/deploy/hosted migration.
