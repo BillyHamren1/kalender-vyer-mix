@@ -1,6 +1,20 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
+## Latest verified continuation — 2026-10-12 19:42 UTC
+
+This section supersedes older recovery heads below. Root remains active with isolated delegated owners; do not start competing work.
+
+- Operations PR55 now4ce826322dc703da64f7439abc739481487cac09, treee49a983e11759900036f766dbf291f368354ce33. Both workflows38298680265 and38298680239 completely GREEN. Exact-head native job114975944648 proves68unit,57PGlite,60PostgreSQL17.11 including3 physically observed overlap tests: enrollment/publication, competing SKIP LOCKED claims and route revocation/ACK. Root independently read raw logs. Accepted transport is private/unwired/default-off, shares canonical outbox, isolates shadow claims/finish, denies generic service direct accepted-state writes, uses separate signing keys and signed evidence-only ACK. No activation.
+- Time PR40 adae19549703d3b12b1730c15a32a49afbe40df5 now entirely GREEN in full38296930727 and reader38296930948. 1882unit/178files +build, native/database; browser100mock+31live-shell fixtures PASS. Root read browserrawlogs artifact11769310516. Exact merge2648e2b85403165a50118f40b74108f1825cb77e tree equalshead. This is NOT hosted logged-in UI.
+- Finance PR56 remains034bc2552cb46987f2c7c45304478d3aacee72b5/all7CIgreen. New accepted source receipt/actor adapter is local under review. It carries captured destination identities, signedmetadata provenance, withdrawal after tombstone but no new positive cost after deletion, key separation and bounded/transient receive behavior. Current local27receipt/port-to-writer PGlite checks; finalreview/native concurrency still pending.
+- Independent real-code cost composition passes45issuer regressions+11chain cases using actual Operations issuer/claim/TS sender and Finance Edge/SQL/ACK plus sourcefinish. Isolated two-PGlite +in-memoryHTTP, zero money events, not hosted/financial application proof. Evidence-only localcommit8a952cf67c897cf7011ddd95990631e406718dfa in recovery-cost-chain; never push its ancestry.
+- time_recovery now owns separate accepted project-review descendant candidate in recovery-review-descendant. Root found concurrent membership revocation gap beyond explicit-grant lock; candidate505bc259 adds auth.users/profile/user_roles/project row fences and two actual PostgreSQL overlap oracles. Independent49PGlite PASS; native execution still pending publication. No sourcepush by agent.
+- operations_recovery transport batch done, checkpointf2d8dc375. finance_recovery owns receipt+adapter, recovery_review independent review, warehouse_recovery now investigates mixed customer/internal day compatibility. Full-stream Finance internal-only metadata may block mixed day receipts; reproduce before any solution. Do not silently drop customer lines or invent another financial ledger.
+- Root integration local5f4a52656 contains4ce826 plus local checkpoints. Time correction creates new correction-prefixed block IDs, so immutable old line bindings can withdraw and new ones can be enrolled without remapping an old identity.
+
+All accepted mutations remain unactivated; draft publication only. Remaining: final Finance/native and review-descendant proof, safe default-off caller/integration closure, mixed day handling, booking-free WMS/Scanner ownership, authorized hosted migration/rollback and genuine signed-in UI. WMS/Scanner source publication remains unauthorized. Do not repeat secure-login automatically, create new loops, push synthetic ancestry or call program complete.
+
 ## Verified recovery progress — 2026-10-12 19:24 UTC
 
 This section supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized; no merge, deployment, hosted migration or WMS/Scanner source publication.
@@ -15,9 +29,9 @@ Root integration local073e0388c contains genuine source5a0601b plus local eviden
 Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
 Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
 
-## Active recovery lease — 2026-10-12 19:24 UTC
+## Active recovery lease — renewed 2026-10-12 19:42 UTC
 
-Owner /root; expires 2026-10-12 19:56 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
+Owner /root; expires 2026-10-12 20:26 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
