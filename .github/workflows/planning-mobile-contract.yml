@@ -1,0 +1,25 @@
+name: Planning mobile contracts
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Signed read and command handlers
+        run: node --test scripts/tests/planning-mobile-read.test.mjs scripts/tests/planning-mobile-staff.test.mjs
+      - name: Install isolated SQL test engine
+        run: npm install --prefix /tmp/planning-mobile-sql --no-save --ignore-scripts @electric-sql/pglite@0.5.8
+      - name: Actual SQL migration and canonical trigger fixture
+        env:
+          PGLITE_MODULE_PATH: /tmp/planning-mobile-sql/node_modules/@electric-sql/pglite/dist/index.js
+        run: node --test scripts/tests/mobile-staff-command.test.mjs

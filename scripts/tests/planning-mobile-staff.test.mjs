@@ -1,0 +1,23 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {stripTypeScriptTypes} from 'node:module';
+const dataUrl=s=>`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(s)).toString('base64')}`;
+const contractUrl=dataUrl(await readFile(new URL('../../supabase/functions/_shared/planning-brain-read-contract.ts',import.meta.url),'utf8'));
+const contract=await import(contractUrl);
+const source=(await readFile(new URL('../../supabase/functions/planning-mobile-staff/index.ts',import.meta.url),'utf8')).replace("import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';",'const createClient=()=>globalThis.__staffClient;').replace("'../_shared/planning-brain-read-contract.ts'",JSON.stringify(contractUrl));
+const {handleRequest}=await import(dataUrl(source));
+const actor='11111111-1111-4111-8111-111111111111',org='22222222-2222-4222-8222-222222222222',event='33333333-3333-4333-8333-333333333333';
+async function run({action='options',role='projekt',write=true,conflict=false,replay=false}={}){
+ const calls=[];
+ globalThis.Deno={env:{get:key=>({PLANNING_BRAIN_READ_SIGNING_SECRET:'test-only',SUPABASE_URL:'https://test.invalid',SUPABASE_SERVICE_ROLE_KEY:'test-only',PLANNING_MOBILE_STAFF_WRITE:write?'true':'false'})[key]}};
+ globalThis.__staffClient={async rpc(name,args){calls.push({name,args});if(name==='consume_planning_brain_read_nonce')return{data:!replay,error:null};return conflict?{data:null,error:{code:'40001'}}:{data:{persisted:true},error:null};},from(table){let single=false;const filters=[];return {select(){return this},eq(k,v){filters.push([k,v]);return this},in(){return this},is(){return this},or(){return this},order(){return this},range(){return this},maybeSingle(){single=true;return this},then(resolve){calls.push({table,filters});const rows={bookings:[{id:"booking-a",title:"Fest",booking_number:"B-1"}],large_projects:[],large_project_bookings:[],organizations:{id:org},profiles:{organization_id:org},user_roles:[{role,organization_id:org}],staff_members:[{id:'staff-a',name:'Anna'}],staff_assignments:[],calendar_events:single?{id:event,resource_id:'team-1',source_date:'2026-10-12'}:[{id:event,booking_id:'booking-a'}]};const data=rows[table];return Promise.resolve({data,error:null,count:Array.isArray(data)?data.length:1}).then(resolve);}}}};
+ const raw=JSON.stringify({schema:'planning-mobile-staff-request.v1',actorUserId:actor,organizationId:org,action,calendarEventId:event,...(action==='command'?{staffId:'staff-a',operation:'assign',idempotencyKey:'44444444-4444-4444-8444-444444444444',expectedMembershipId:null,expectedTeamId:'team-1',expectedDate:'2026-10-12',expectedAffectedBookingIds:['booking-a']}:{})});
+ const timestamp=String(Date.now()),nonce='nonce_for_staff_123456';const signature=await contract.signPlanningBrainRequest('test-only',timestamp,nonce,raw);
+ const response=await handleRequest(new Request('https://test.invalid',{method:'POST',headers:{'x-planning-timestamp':timestamp,'x-planning-nonce':nonce,'x-planning-signature':signature},body:raw}));return {status:response.status,body:await response.json(),calls};
+}
+test('options bind team/day to calendar and show all affected booking refs',async()=>{const r=await run();assert.equal(r.status,200);assert.equal(r.body.teamId,'team-1');assert.deepEqual(r.body.affectedBookingIds,['booking-a']);assert.equal(r.body.staff[0].membershipId,null);for(const c of r.calls.filter(c=>c.table))assert.ok(c.filters.some(([k,v])=>k==='organization_id'&&v===org)||['profiles','organizations'].includes(c.table));});
+test('read-only warehouse role cannot issue staffing commands',async()=>{const r=await run({action:'command',role:'lager'});assert.equal(r.status,403);assert.ok(!r.calls.some(c=>c.name==='planning_mobile_staff_command_v1'));});
+test('disabled writes never execute command',async()=>{const r=await run({action:'command',write:false});assert.equal(r.status,503);assert.ok(!r.calls.some(c=>c.name==='planning_mobile_staff_command_v1'));});
+test('command forwards bound actor and expected snapshot to atomic owner',async()=>{const r=await run({action:'command'});assert.equal(r.status,200);const c=r.calls.find(c=>c.name==='planning_mobile_staff_command_v1');assert.equal(c.args.p_actor_user_id,actor);assert.equal(c.args.p_organization_id,org);assert.equal(c.args.p_expected_team_id,'team-1');});
+test('conflict and nonce replay never report success',async()=>{assert.equal((await run({action:'command',conflict:true})).status,409);const r=await run({action:'command',replay:true});assert.equal(r.status,401);assert.ok(!r.calls.some(c=>c.name==='planning_mobile_staff_command_v1'));});
