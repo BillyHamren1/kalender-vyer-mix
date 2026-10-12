@@ -1,5 +1,36 @@
 # Internal projects integration checkpoint
 
+## Current continuation — 2026-10-12 20:31 UTC
+
+This checkpoint supersedes older blockers below. Reviewed draft publication in Operations, Finance, Time and Catering is authorized; no merge, deployment, hosted migration or WMS/Scanner source publication. All four currently published product heads have green CI. These remain dormant draft implementations, not a completed release.
+
+| Track | Exact published head | Terminal evidence |
+| --- | --- | --- |
+| Operations PR55 | `e28414f44068716a798831a9c0acb36bb20d7d61` | All five workflows SUCCESS: customer/causal `38303243451`, full application `38303243403`, TEXT `38303243488`, review `38303243370`, provenance `38303243275`. Customer 9 PGlite + 11 PostgreSQL 17.11; causal issuer/review 53 PGlite + 54 native, including physical Booking/project lock ordering and metadata/issuance overlap. |
+| Finance PR56 | `9442108d98678a0d403e30049c37de5aa4f3a716` | All seven workflows SUCCESS: cost `38303093039`, metadata `38303093321`, customer `38303093002`, supplier `38303092984`, Fortnox `38303093074`, main `38303093087`, browser `38303092967`. Native customer 25, accepted 38 including seven physical overlaps, original atomic 33 PASS. |
+| Time PR40 | `adae19549703d3b12b1730c15a32a49afbe40df5` | `38296930727` and `38296930948` SUCCESS: 1,882 unit tests, native/database checks and 100 mock + 31 live-shell browser fixtures. Not hosted authentication. |
+| Catering PR30 | `7b29b6d3dc412881d5ead4ce08d57edae78c0785` | `38304233542` SUCCESS: 8 staffing + 28 parser + 31 SQL boundary checks; types/build and 495 tests PASS, two skipped. Tested merge `72f70a59` and PR head have identical tree `f42a0efcfd432b6193daeff06b590969f6f95f10`, verified from actual commit objects. |
+
+Operations tree is `994825ff934de6ddb49aebf527974b5e67845a81`; root integration `b86972a5e272ef57ba00221cd066c3d03d57225f` has an empty full-tree diff against that published head. Finance tree is `3fc0a22de5f0b5bfd22a7667e7c3dc46c0116a19`; actual CI merge checkout `e31b3b44b1c3a691e5d84eb12b92f33373129727` has that same complete tree. Main job `114990517333` records 1,259 tests across 144 files, types/build PASS and zero lint errors/nine existing warnings. Remote blob parity was checked for all 12 Operations customer/v2 files and all 10 Finance counterpart files. The final Operations change is only a cross-driver exact int8 test assertion; product SQL is unchanged from reviewed `fb9ff0b`.
+
+### Mixed customer/internal/activity chain is now proved in isolated composition
+
+[The durable evidence archive](evidence/20261012-mixed-v2/README.md) contains the nine original runtime harness files, corrected **50-file** dependency manifest, original and independently repeated logs, source blob mapping and an offline preparation helper. Private Finance/WMS product SQL is not copied into Operations. All 50 dependency hashes were independently checked; the 17 Finance blobs and separate real invoice DDL were freshly matched to genuine Finance `9442108d`, and the 33 Operations/TEXT blobs to genuine Git objects. Historical owner-suite calculator and TEXT-capable mixed calculator are intentionally separately pinned.
+
+The actual producer/outbox/claim/sender → Finance Edge/SQL → signed ACK → finish chain passes **53 owner + 3 source + 6 full-chain checks** in two disposable PGlite databases with in-memory HTTP. A fresh prospective stream carries customer 4h + internal project 3h + internal activity 1h without filtering: explicit actor application totals **240000 → 180000 → 0 minor units** across correction and full withdrawal. Exact replay adds no money events. Cost arriving before required metadata returns retryable 503 with zero receipts/events, then succeeds after the exact signed metadata arrives. Lost-response retry retains one immutable receipt. The entire customer project row and eight genuine invoice tables remain unchanged. Non-UUID Unicode Booking TEXT is preserved exactly.
+
+Evidence commit `7b84f5a` corrects the earlier 49-file manifest omission; the missing executed review-v2 dependency was reproduced as a real failure and pinned before independent rerun. Manifest SHA256 `137b56a656bfe61e05bb8dc18d414e87075d0063ae5e0dc55db7bba8539f894e`; both logs SHA256 `585b8d55804dbbf7799f0e2d4cd723b664e672e0aa1885828eb9fa59a999d2d8`. This is actual-code composition using synthetic tenants/auth/enrollment, not hosted or signed-in acceptance.
+
+Customer metadata uses explicit default-off `customer_cost_identity` enrollment, actual direct Booking TEXT identity and null budget fields. Operations attests its own classification and tenant-checked project/Booking relation, not a Booking-origin signature. Customer budget, status, revenue and billing remain untouched. Large/multi-booking and legacy-null relations remain explicitly unsupported. Accepted v2 freezes exact complete causal metadata references; v1 remains internal-only. Review descendants retain frozen references. No instantaneous post-capture cross-channel revocation claim is made.
+
+### Current open gates
+
+- **Callable accepted producer/dispatcher and writer coverage:** the existing caller still publishes shadow. Accepted private ports remain unwired/ungranted. The archived caller inventory requires persisted accepted ownership to fence every legacy RPC and direct canonical DML (including OLD and NEW identities), fresh-day enrollment and scoped claim selection before connection. A future first-day bootstrap must atomically create the empty canonical stream and prospective enrollment floor without seeding a shadow publication; this is remaining safe code work. Root approved default-off design work, not activation. Delivery ACK remains receipt evidence; explicit actor financial application stays separate.
+- **WMS/Scanner authority:** archived test-only 14 owner-chain checks prove selected reserve/pack/checkout/return/replay/fault behavior, while reproducing service-role owner-RPC bypass, actor-changing replay and fabricated committed receipt without stock effect. The verified source authority port is still absent; observed fixture grants are not deployed-privilege evidence. No equipment cost coverage or booking-free authorized end-to-end chain is claimed.
+- **Release and acceptance:** coordinated hosted migration/rollback, key/enrollment configuration, real service orchestration, equipment lifecycle and real signed-in published UI remain open. Do not automatically restart the interrupted secure-login dialog. No merge, deployment, live invoice/payment or hosted business write occurred.
+
+Historical checkpoints follow for audit; their superseded publication restrictions, missing mixed-day implementation and in-progress CI are not current status.
+
 ## Current continuation — 2026-10-12 19:52 UTC
 
 Supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized. No merge, deployment, hosted migration or WMS/Scanner source publication. Root control lease expires 20:26 UTC, PROGRAM commit fb970ce1ff66c447d958c52781ed3fb4e6446870.

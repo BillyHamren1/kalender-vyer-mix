@@ -1,0 +1,15 @@
+OWNER CHAIN PASS real reservation authority port stays absent; no mock grant or verified flag
+OWNER CHAIN PASS actual owner reservation holds exactly2of3, with no fabricated source receipt
+OWNER CHAIN PASS actual availability rejects competing demand; no fixture stock function
+OWNER CHAIN PASS actual checkout denies incomplete packing with no check_out movement
+OWNER CHAIN PASS current-main quantity underflow fix cannot unpack identified allocations as manual units
+OWNER CHAIN PASS RETURN is not UNPACK: packed available instance cannot return before checkout
+OWNER CHAIN PASS BYPASS reproduced: direct service checkout/replay has no source grant and ignores changed actor with same supplied fingerprint
+OWNER CHAIN PASS all checked out instances remain counted once in actual stock availability
+OWNER CHAIN PASS existing owner lifecycle guard freezes unpack after checkout
+OWNER CHAIN PASS wrong reservation cannot release another allocation
+OWNER CHAIN PASS owner receipt failure rolls back return allocation/status/movement/reservation and operation
+OWNER CHAIN PASS partial return preserves other allocation and conservative reservation hold, retry once
+OWNER CHAIN PASS full return completes reservation, releases exact demand and creates2return movements once
+OWNER CHAIN PASS BYPASS reproduced: service claim+commit helper can mint committed receipt without stock effect
+{"suite":"actual-wms-owner-chain","checks":14,"sourceAuthority":false,"hosted":false}

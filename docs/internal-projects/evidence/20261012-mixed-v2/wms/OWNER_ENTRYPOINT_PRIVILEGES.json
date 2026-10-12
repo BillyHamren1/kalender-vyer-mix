@@ -1,0 +1,55 @@
+{
+  "scope": "isolated selected owner SQL, not hosted grants",
+  "privileges": [
+    {
+      "proname": "replace_reservation_lines_atomic",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "reserve_inventory_atomic",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_checkout_instance_v2",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_instance_mutate_v2",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_operation_claim",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_operation_commit",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_operation_fail",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_quantity_mutate_v2",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_return_instance_v2",
+      "security_definer": true,
+      "service_execute": true
+    },
+    {
+      "proname": "scanner_return_quantity_v2",
+      "security_definer": true,
+      "service_execute": true
+    }
+  ]
+}
