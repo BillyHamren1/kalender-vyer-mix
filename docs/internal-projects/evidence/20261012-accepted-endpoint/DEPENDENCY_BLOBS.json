@@ -1,0 +1,531 @@
+{
+  "files": [
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001220652_operations_personnel_cost_evidence.sql",
+      "sha256": "c7914baf52b2a01fb3d42db0cb98f45e5b1312840f055b84e3fb7601f7cde235",
+      "git_blob": "a94d6f6e78639307aa55525c7babac36c90c4e50",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001225724_operations_personnel_cost_outbox.sql",
+      "sha256": "c42c2f61af9e778c0183122802b166400b9def97d7635d23b09b718e5335326b",
+      "git_blob": "27d46a55880f19986e0cfaab090a64acf755e2cc",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001232438_operations_personnel_project_reviews.sql",
+      "sha256": "1bd6d8f2f2e7a7ec1bc5e7772df5df7f777e5855a4a5ccec9ed971d9c26f7362",
+      "git_blob": "1828ff4b8390c0932f24e9b08de3c78a75021282",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001234356_operations_personnel_project_review_publications.sql",
+      "sha256": "df71478a68af6f98934c86b547ea05411181a7ef6a0bd2a1212477e9a09e462a",
+      "git_blob": "a63bdf8196990aea7f452558a405707200603b8f",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261001235803_operations_personnel_canonical_ingress.sql",
+      "sha256": "8ef092dc2fd3c858db74f4d0c8701c40d9fafcf11f7b741d979d580dd77c5761",
+      "git_blob": "3b3939bc2507e6f35614f7905f96d6a747a58b1b",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261002003928_operations_personnel_historical_rate_admin.sql",
+      "sha256": "2c9fec3b79df2d7a509363de84f7f2655f90a9745f057a94029005f13b271868",
+      "git_blob": "77dac02304158f3fb37c133c2252e46f1cfc51f3",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012124216_internal_project_classification.sql",
+      "sha256": "22e9794a247d7fc8472c23d1a3160572bff82a4e70c161b740b94d9adaaa6a30",
+      "git_blob": "9a1988128f0ffccb796b0d8c926b1385867b2275",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012130533_atomic_internal_project_creation.sql",
+      "sha256": "1626a5dfe1df8f4b0694d2fd34f8226498dfd74e28b6c2a4e82cdf8fd0433a79",
+      "git_blob": "8deba0ae0f0f8681032b21706fbe84f4638b1e08",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012150947_internal_project_metadata_outbox.sql",
+      "sha256": "31dede4f10e4f35d693db3cfeef37c89b7255a4b5492fd07c862b11cf74fcd79",
+      "git_blob": "e2e4f743b226aca80646bdec4fdfa5662a25d457",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012155516_internal_project_metadata_delivery.sql",
+      "sha256": "8590de1fc2ceb7cb0e9d2175fde2dddabdbfd03bcd586c05e086d82ec06047d5",
+      "git_blob": "b357386a38ad924a29b522a3bb238a53883b6c52",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012162100_operations_personnel_accepted_rate_provenance.sql",
+      "sha256": "ff3c45a9d1f36504fef9014ddf5aa7d3591345b247e05b118f7c3f06b4935d6a",
+      "git_blob": "5e3d84bacd73e2e44083d9930155e4b272e023af",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/migrations/20261012165000_operations_personnel_review_issuance.sql",
+      "sha256": "1169f13905e15efaf02fb05bb6868006e6b234436dd559d2a799b6dcf44c5b17",
+      "git_blob": "ca258269aa035b0e059e436d6f0d9cf9aec9f7de",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-rate-provenance.test.mjs",
+      "sha256": "b9efef00868d8ee378c83f27fd4df0093d13529db0d22ecb335ed271c3e9412b",
+      "git_blob": "c8a58cf9439fa985e08fbc41744900e372c3f03c",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-rate-test-db.mjs",
+      "sha256": "e2e31ff8716bd707292081bb6b4de3c6e6d750ee842a17e42c57ec1f7af046c5",
+      "git_blob": "0bbbed9cb4a1a620d5beb23481d4c338c80262d2",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-issuer.test.mjs",
+      "sha256": "6dc2dee9e59105b85f6bbb3b1af134bb78df7fce17c6dbc2e30c9ec06acccf12",
+      "git_blob": "5caf0d22fc0ff68d032e46d0345ac12f049ce725",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-issuer-fixture.mjs",
+      "sha256": "890736b077fa02249642e03057e9916b38729bb0337d8b0f1772a42cca18bf98",
+      "git_blob": "f6622b7fbc901fd6c4cb99391ca72ef6453b258c",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-review-issuance.mjs",
+      "sha256": "18c9b71a1c48dc8c5c5d037a4f706a34ba0d95e1edb1b08d0ace73af8498363b",
+      "git_blob": "bedf66b4b9f873424a2fb9a910132f8b62469de3",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-metadata-v2-fixture.mjs",
+      "sha256": "bd3b745fdd6826022ddab9f5e3bef2e7f47b13b024bdf99472da7e43838996a6",
+      "git_blob": "1395704c6f6a8f47173b8436aa5da09a0140c3e0",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/personnel-classification-bootstrap.sql",
+      "sha256": "ee03df3a17bd3420357e4348af3bf35664d67c377f985ef4862a9241ceaa4b14",
+      "git_blob": "609b2763b7e318dddbcef20657a8f4b8b7c62555",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-review-caller.sql",
+      "sha256": "b0ba871dfdb4a77c458bb3809417dda23ab175c5035eed537b80791254d292cc",
+      "git_blob": "1d765402a0e790140a2e57850564e1f42186b194",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-caller.sql",
+      "sha256": "aa70374081414448eacdbfcaee4708a27c1ff77241f3e70d8acc3865e1f6a223",
+      "git_blob": "948c26b5ef711f2f503a0c4cdf2cc9766b90f7f8",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-issuer.sql",
+      "sha256": "f85ce5bb334a23690709b1db1b944a7bee22dce3a9242a6c3843f3c06e1d4737",
+      "git_blob": "1525183ee9569ef620cc2cc3b92ceed6c8ff07f0",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-transport.sql",
+      "sha256": "4f7bece03191f2957c1054ae51dc927fc2b0ef91ed84185c868871c8daca852e",
+      "git_blob": "e11f9b6ebc2e75b8f600780cc64b56397307ea40",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-metadata-v2.sql",
+      "sha256": "ce6ca8bbce59d4dd380b4ecda6b050cc0de872fa88962c4c606eb1ab067862a0",
+      "git_blob": "9d09a78de95820c8124b86caf0a7b98407a1c237",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-review-metadata-v2.sql",
+      "sha256": "72b90c1af75f4a6d4c8e38e067b86a5333ccbe6c3a62cf661a42f1206777686c",
+      "git_blob": "30184e2052c2d1a9d6c5f3f0b9ca34d45399d5c3",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "sha256": "d80dacd97eee819110b1424ce0030a69732c5667df2825fd34946374fc8b24ef",
+      "git_blob": "4e137fa78e6b11cbed50cb02c3fe4ffde4b01979",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/project-economy/operations-project-review-bootstrap.sql",
+      "sha256": "43ab575c85e91ef1aababcca8149856cf4118893ccf95e17117b9a0c93e836c6",
+      "git_blob": "b28da1ae48ef768868701d77a1de576bd55a3f3f",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-source-issuer.ts",
+      "sha256": "4d7ce9dd70f1d74c921fed5a0dbd76bac893c0588553752efafc5d061707f914",
+      "git_blob": "cddbc7a7d6f2cb5807cf5badf00d63a7cff96e50",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion.ts",
+      "sha256": "4dfb9225855f6d287395f8995709ba8a5bf7a7af917f44c16e319488608d874d",
+      "git_blob": "799986274dd4925f8937d69bd084987bf9c90882",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/timeServiceProof.ts",
+      "sha256": "8d6a6725ca730b3ce8bd259f44b1cc990c9890117902297e871aa4ff55d8b25f",
+      "git_blob": "68d0e1411e3c5a9213874e8f8d8a7fc336d84700",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "sha256": "75df72f9c738cc36b1c606cacadf76b65b1de183bf13102d341735f50adb57dd",
+      "git_blob": "3d3c6f98e24adee4add32897521a94eabbfac354",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-cost.test.ts",
+      "sha256": "e74f24d9808563088f01716d2f2178e66e20aae9cd88854e5475c85a7a4b3911",
+      "git_blob": "309c159fcce3512f7b39d4024c9460480daa0c53",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion-store.ts",
+      "sha256": "405ac5e867a9ce1ed38713d80081ed0b93d45c2116a8ea6cdb6a51db6f6ff08e",
+      "git_blob": "22327755f8b33f84b225fb59655d98485cb67333",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-ingestion-transport.ts",
+      "sha256": "1fc8d37857d36cd509f596a3763066f2b09e41619d5a51a6ac87fec3ba72a730",
+      "git_blob": "f90c1796f837ad29248a00e33ef3437e202312bb",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/_shared/project-personnel-accepted-transport.ts",
+      "sha256": "2349058a4cc16cd714566c463f669b8b9d79125a7fc81420a3e6fdedfcdfaa6e",
+      "git_blob": "4317a3e0f8f60d0f4ca36014590a71f66937c251",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/project-personnel-cost-publish/handler.ts",
+      "sha256": "31ab2dd00cab6da333c6b8349c4497957980c1674cd7e519f80346c13284a1b8",
+      "git_blob": "7395347c86473b141f73cb0808f4bb95198d0af2",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/project-economy-read-handler.ts",
+      "sha256": "8d77e6ef73e85c4e8714a7f6590a1e7ceebf53a85ee87f3156a5f526d834bddc",
+      "git_blob": "9d7fb4cc4a32642b861f23f499139c00b94927f2",
+      "repository": "BillyHamren1/eventflow-time",
+      "commit": "adae19549703d3b12b1730c15a32a49afbe40df5"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/project-economy-service-proof.ts",
+      "sha256": "e2097a48d6b80f2097b55b1aa780f8918a2a8002cf814c56f5ae671b6091a5bb",
+      "git_blob": "dea1c67c7b2cd8cca731370215b51388a0d27f81",
+      "repository": "BillyHamren1/eventflow-time",
+      "commit": "adae19549703d3b12b1730c15a32a49afbe40df5"
+    },
+    {
+      "root": "time",
+      "path": "supabase/functions/_shared/canonical.ts",
+      "sha256": "8a74c3c297e12152a3788fb927165fba13967c69d7bd177ac9c1917096bff7fe",
+      "git_blob": "c0593f56f5d4e40827d46faa42abc8846c8ce0d9",
+      "repository": "BillyHamren1/eventflow-time",
+      "commit": "adae19549703d3b12b1730c15a32a49afbe40df5"
+    },
+    {
+      "root": "operations",
+      "path": "supabase/functions/dispatch-project-metadata/handler.ts",
+      "sha256": "13e199bbccb2a7a1e4c26d0544a076475bfc4137a212a6b19987f6351a444187",
+      "git_blob": "843693bd3eb873902c0063187caa7bdc25880e67",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826104657_finance_core_v1.sql",
+      "sha256": "708b7e6a497355d8006d675f7f4ce768ba322713d5cc7cafb12c9d11df491c86",
+      "git_blob": "a99fcfee1f5112412f85cb9dd3ea47c467b8c9c9",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826105013_finance_security_v1.sql",
+      "sha256": "7da1e227ad90da137d3c7b34e8b291ce4166e238fa7d4fa1e0dfdb15fbb6e0b2",
+      "git_blob": "8f983aba0da8e694e4a92cdb0fbc4aca451633c3",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826110915_finance_project_commands_v1.sql",
+      "sha256": "d3a7d9c91da2e17bc71d7afe03cd9378e116facb6e0093148929a3ce75192332",
+      "git_blob": "9d432ecc4aef503b35a34b74b23953a8160fbb36",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826111041_finance_actual_fact_attestation_v1.sql",
+      "sha256": "f5a94b7b9150159c0eef6a1d72f65f9c27bd9c12dad7afcaa80cdd5ab6103db2",
+      "git_blob": "91215124f31f5aab45291837bafa986049d53a6e",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260826211500_finance_cost_event_forecast_floor_v1.sql",
+      "sha256": "0329753a967f72179314e0c1e53efc59c35e2dee8ba7874404d8c28b044c4d30",
+      "git_blob": "18c79d213e6900a97747698942f14b409e63847e",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20260911290000_finance_period_and_financial_close_v1.sql",
+      "sha256": "4cea52aebf3a0bb1c775b960e082b1944ff489cd4a2978c77949505cb58a2bcb",
+      "git_blob": "28d274a6bfc0638019bc625fd28a87dafbf6542b",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20261012155253_finance_operations_metadata_receiver_v1.sql",
+      "sha256": "9281f6452689c298ce04cd5a3aed09571cd6ef6a916026f2db84c4cc73e92313",
+      "git_blob": "106f19995563b3e4848b0cd5ed7fdf5b7122195f",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/migrations/20261012162053_finance_command_replay_actor_binding_v1.sql",
+      "sha256": "ee2d8f2e7f4718def5742e37c367996e926f69987623ffd485cd2f823756531a",
+      "git_blob": "2e5aeb8220b7577effe935303cc1cf1695d5d818",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-project-cost-read.sql",
+      "sha256": "c6a2691d6b5c4ef9613eed669950de250ad4abe14cceb668d6b843a5026590f0",
+      "git_blob": "20b0b234e9646424b6c787a68b6f9585b0c1b1e3",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-command.sql",
+      "sha256": "b844dc20f012d92e46907593570867788b5b271838b3baa5b2b966a8f3aed187",
+      "git_blob": "1e8e9aa504ea5c05cd957fd79f6929984c2c34c3",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-receipt.sql",
+      "sha256": "ed4fab4d88ae856a00d13c538de14ac26e7b5275c49494563082eeffe42b81d4",
+      "git_blob": "74a6accffb48fff6335b7d33dcaae82f66952409",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/atomic-cost-receiver.sql",
+      "sha256": "2e12c67595aa5a3f3940085393e62e1f49abcf289c5f873934ed762eb03210f0",
+      "git_blob": "784bbcd29490f541adbfc371b4ba4fe707865915",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/customer-identity-metadata.sql",
+      "sha256": "db0c16ee029a767cca964b20f6198d18669ce78cded7580c3e661d464d237992",
+      "git_blob": "d65245ab7f6da60fa9b4ac459b56278b7db996bc",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/customer-cost-booking-text.sql",
+      "sha256": "c2fa80fb6e55f462ebe44899640842901b1aa7fcae52dc979cf749e9c96bb6df",
+      "git_blob": "353a729884f957a9198d3a76da58887522edef7b",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001220213_operations_personnel_cost_shadow_v1.sql",
+      "sha256": "93c436bed1946d61c2f4f3dad1a8c509fa94595c8eff5791c917cd8dc5548a29",
+      "git_blob": "d2b3bba76c1026a533902e561d4bb4066c59a1f0",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "scripts/internal-projects/accepted-cost-sources/20261001230603_operations_personnel_bound_read_v1.sql",
+      "sha256": "b07e655a59fa462033097d995e6db74fac637b8fb71a929969d1326479cc31bd",
+      "git_blob": "0cb7a2b77459ceb7fd71548a888f6764bd38a3a5",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "finance",
+      "path": "supabase/functions/_shared/operations-accepted-cost-receive.ts",
+      "sha256": "111bb3b168dacc52cf8b8dc185655cdeba01fd3679e544a7f2370ba84f00046e",
+      "git_blob": "b5e02bb0704966bf5a57df156afb5650ddae337b",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "financeMetadata",
+      "path": "supabase/functions/_shared/operations-project-metadata-contract.ts",
+      "sha256": "31ec8a5d06c250bb99b19a3dd02ec3216913f63e810e796b1a90c635ba549147",
+      "git_blob": "a7ac0db540d4bcb037086cc5cf8393b39a3d1ab8",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "financeMetadata",
+      "path": "supabase/functions/operations-project-metadata/index.ts",
+      "sha256": "a6aea6deda93e001183a5757328ea01ee6d9323292ccb0dc40ff0969de65ff36",
+      "git_blob": "3caa3d867cb6301db10b9b4b7d5c075c1939442b",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "text",
+      "path": "supabase/functions/_shared/project-personnel-cost.ts",
+      "sha256": "75df72f9c738cc36b1c606cacadf76b65b1de183bf13102d341735f50adb57dd",
+      "git_blob": "3d3c6f98e24adee4add32897521a94eabbfac354",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "text",
+      "path": "scripts/internal-projects/personnel-text-booking.sql",
+      "sha256": "a195d2de5253b6baa868bdbcdc7f86d8f903af28816b74f2abb7c656a5004fef",
+      "git_blob": "0e5c643958d49cbcd6e3f4531cd9e6e02d36c0c1",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "operations",
+      "path": "scripts/internal-projects/accepted-personnel-bootstrap.sql",
+      "sha256": "f6a3136941b4a5b86dc2211c1ca659895b6510947453e0e1dd40005dabecba09",
+      "git_blob": "549cd4dab717d8bbcc2df5f549f1e3b62d09593d",
+      "repository": "BillyHamren1/kalender-vyer-mix",
+      "commit": "5a3337439021c9dae0d9d785e085c28cae7744a9"
+    },
+    {
+      "root": "financeEndpoint",
+      "path": "scripts/internal-projects/accepted-cost-ingress.sql",
+      "sha256": "4c57506357618639fa26c5f790b1c74d717b8daeda192d40c1088665b2250099",
+      "git_blob": "4606eee0cfd8f304261d8c89bce4272bd6706045",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "financeEndpoint",
+      "path": "supabase/functions/operations-personnel-accepted-receive/index.ts",
+      "sha256": "c7e6e8a10b40ec9aac82c5a970567a2f15e2aad48e5909b7e241b4faf1c33cbf",
+      "git_blob": "e6dd6698d2d1a2fcf8b9f9ceec96e361c6a786e2",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    },
+    {
+      "root": "financeEndpoint",
+      "path": "supabase/functions/_shared/operations-accepted-cost-receive.ts",
+      "sha256": "111bb3b168dacc52cf8b8dc185655cdeba01fd3679e544a7f2370ba84f00046e",
+      "git_blob": "b5e02bb0704966bf5a57df156afb5650ddae337b",
+      "repository": "BillyHamren1/eventflow-finance",
+      "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243"
+    }
+  ],
+  "invoice_dependency": {
+    "repository": "BillyHamren1/eventflow-finance",
+    "commit": "c3484475ab130f4ce9c2ec867e230b690c3b5935",
+    "path": "supabase/migrations/20260831113700_finance_customer_billing_shadow_v1.sql",
+    "git_blob": "457a7fcbb90bd0c940154404f5e2a6f6c237f8f8",
+    "sha256": "d426224e3dbbc580aa255c3da7530222a38a266c5549a715a536fb4a32994bc0"
+  }
+}

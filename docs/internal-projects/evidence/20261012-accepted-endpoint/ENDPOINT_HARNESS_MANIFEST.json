@@ -1,0 +1,54 @@
+[
+  {
+    "path": "acceptance-runtime.mjs",
+    "sha256": "dacc99ee110837cd50fe65a910ce0bc8dfbf29a3482bc6b5f56af98471121653"
+  },
+  {
+    "path": "caller-oracle.mjs",
+    "sha256": "9f9d048b9a517377220b0c427f7be14c4b9e755cee109f5014c6b78cf8501a37"
+  },
+  {
+    "path": "endpoint-oracle.mjs",
+    "sha256": "16ea2080706e939455cd445796c942339724f9166b8f0d00e3a05f9270dab991"
+  },
+  {
+    "path": "first-day-flow.mjs",
+    "sha256": "4fd5834490a3925cda351e769f9142f08614133333c0da721cd27f3e308df220"
+  },
+  {
+    "path": "invoice-oracle.mjs",
+    "sha256": "acfbb3d9066c5f8db1e796161c2187fd7b3c98ac8d7bb1fc3153d401e25cea88"
+  },
+  {
+    "path": "metadata-oracle.mjs",
+    "sha256": "d772324adffa391e9fd44bee9d51d8ffaa5dd0255247f1be1b3df8bc341d00d2"
+  },
+  {
+    "path": "mixed-finance-oracle.mjs",
+    "sha256": "ff5b8db0989651ed470b82d3d551323f81268c3b565c27249647c21bcf7cb913"
+  },
+  {
+    "path": "owner-fixture-bridge.mjs",
+    "sha256": "331573a6a35b42472b4dd4ec3d5020b680a4fdde94a09967754750086e6873de"
+  },
+  {
+    "path": "source-mixed-fixture.mjs",
+    "sha256": "1b8f5a956fb4e3c39ba9c02017a3830d80094a2e9f80e6eabee8f6aa5f957bb8"
+  },
+  {
+    "path": "source-oracle-runtime.mjs",
+    "sha256": "1a857eca6f5d09a1e9197a99da30ed66cd18401677bf1ae691bfe499d2d700c9"
+  },
+  {
+    "path": "source-pins.mjs",
+    "sha256": "bb3b6c657a37d44e575d9aaf60fd01decd6e1ce67a4b59dddc239a29c07e8aad"
+  },
+  {
+    "path": "writer-oracle.mjs",
+    "sha256": "6afb4cd820ecd0a4aaaf5cb6ff75c3c36def218f6368e01aac1e1583e39f8ae7"
+  },
+  {
+    "path": "invoice-sources/20260831113700_finance_customer_billing_shadow_v1.sql",
+    "sha256": "d426224e3dbbc580aa255c3da7530222a38a266c5549a715a536fb4a32994bc0"
+  }
+]

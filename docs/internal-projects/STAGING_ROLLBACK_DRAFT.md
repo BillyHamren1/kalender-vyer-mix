@@ -2,6 +2,14 @@
 
 This is a reviewable release inventory, **not an executable installation plan or deployment authorization**. No SQL, role grant, enrollment, key, flag, hosted write or release was performed. Parent coordinates all later installation. Do not execute fixture bootstrap code against a real database.
 
+## Latest source closure — 2026-10-12 21:50 UTC
+
+Finance is now published at `c88dfdb038f477476ccb50b6d16669910f6f7243`, tree `df9e707c520b60057d2dd28207a38f34f54b2558`. Updated Finance manifest pins34 paths. The default-off Edge index and default-revoked public four-field ingress are implemented, independently reviewed and source-tested; earlier wording describing this source work as underway is superseded. Native workflow38312490873/job115021289041 PASS: strict actual Deno2.5.4 check, actual index tests,33 PGlite and40 PostgreSQL17.11 checks including seven instrumented overlaps. All11 current Finance workflows are SUCCESS, including unconditional full-app TypeScript. No gateway config, hosted role grant, enrollment or activation was performed.
+
+The exact index/public SQL facade also passes the independently repeated full composition archived under evidence/20261012-accepted-endpoint. Its fixture grant/remote-client adapter is not hosted PostgREST or authenticated published UI. F7 source wrapper work is closed; real gateway/invocation/role exposure and intended database schema remain required installation inputs. The idempotent deployment migration package cannot be inferred from partial fixture loads.
+
+Remaining external gates: authorized real schema/ACL/migration inventory and staged migration/deployment/rollback execution; authoritative roster/late-work and full domain coverage policy; WMS/Scanner owner definitions and source authority plus publication authorization; usable signed-in published UI session. Do not automatically reopen interrupted secure login or work around denied WMS metadata access.
+
 ## Exact source boundary
 
 | App | Reviewed publication | Source pins |

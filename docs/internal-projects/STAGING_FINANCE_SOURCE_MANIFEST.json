@@ -1,7 +1,7 @@
 {
   "repository": "BillyHamren1/eventflow-finance",
-  "commit": "28fec04df85137d710c50275b713586389d900d1",
-  "tree": "ae551a9dfc2dc0789ec193beb49b6e7140c7235f",
+  "commit": "c88dfdb038f477476ccb50b6d16669910f6f7243",
+  "tree": "df9e707c520b60057d2dd28207a38f34f54b2558",
   "source": "GitHub exact recursive tree; complete, not truncated; blob SHA-1 identities, not deployed database proof",
   "files": [
     {
@@ -62,19 +62,19 @@
     },
     {
       "path": "src/components/finance/OperationsReceiptReviewPanel.tsx",
-      "git_blob_sha": "057212d0e2085d8ee97da0fcef189930d91c1b09"
+      "git_blob_sha": "2fa939f2aa84521439e362bdcfa3722abae9bfce"
     },
     {
       "path": "src/lib/operationsProjectCostEvidence.ts",
-      "git_blob_sha": "5398a531150d9df51e071333b9e6635cf1368b19"
+      "git_blob_sha": "a24037a7e2019dc3fd800c90e603d05153aab485"
     },
     {
       "path": "src/lib/operationsReceiptReview.ts",
-      "git_blob_sha": "8995d595bf51eda2963aa4ecb58f5a39587760bd"
+      "git_blob_sha": "9123787379d2f3c330b6bd98433b51ea4baa8c98"
     },
     {
       "path": "src/routes/projekt.$projectId.tsx",
-      "git_blob_sha": "0a14251c5ac5e6e36c6a7041fc9830bb34edab8d"
+      "git_blob_sha": "b0c8eb649545aaf9cc068a6b38e95ff0b5d2f82a"
     },
     {
       "path": "supabase/functions/_shared/operations-accepted-cost-receive.ts",
@@ -131,6 +131,14 @@
     {
       "path": "supabase/migrations/20261012162053_finance_command_replay_actor_binding_v1.sql",
       "git_blob_sha": "2e5aeb8220b7577effe935303cc1cf1695d5d818"
+    },
+    {
+      "path": "scripts/internal-projects/accepted-cost-ingress.sql",
+      "git_blob_sha": "4606eee0cfd8f304261d8c89bce4272bd6706045"
+    },
+    {
+      "path": "supabase/functions/operations-personnel-accepted-receive/index.ts",
+      "git_blob_sha": "e6dd6698d2d1a2fcf8b9f9ceec96e361c6a786e2"
     }
   ]
 }
