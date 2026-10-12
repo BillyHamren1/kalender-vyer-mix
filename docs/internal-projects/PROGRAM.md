@@ -1,7 +1,25 @@
 # Internal projects program
 User authorized 2026-10-12: implement reviewed internal-project plan per module with long-session workers, recurring continuation, thorough tests including authenticated use. No claim of done without deployed-version and logged-in E2E evidence.
 
-## Latest verified continuation — 2026-10-12 19:52 UTC
+## Latest verified continuation — 2026-10-12 20:20 UTC
+
+This section supersedes older status below. Root remains the publication coordinator. Draft source publication in Operations, Time, Finance and Catering is authorized; no merge, deploy, hosted migration or WMS/Scanner source publication.
+
+- Operations PR55 `e28414f44068716a798831a9c0acb36bb20d7d61`, tree `994825ff934de6ddb49aebf527974b5e67845a81`: native customer 11 (two physical Booking/project races), causal 54 (issuer versus metadata mutation), TEXT 48, review and provenance workflows PASS. Main app CI still finishing. The one-line bigint-driver assertion correction preserves exact value. Previous `d5931811` all four workflows green, including 84 app tests/types/build and 68 engine tests.
+- Finance PR56 `9442108d98678a0d403e30049c37de5aa4f3a716`, tree `3fc0a22de5f0b5bfd22a7667e7c3dc46c0116a19`: all ten blobs match reviewed local `da15feea`. Native customer 25, accepted 38 including seven physical overlaps, and original atomic 33 PASS in run38303093039. Six workflows green; browser still finishing. Previous603b8ad all seven green.
+- Catering PR30 `f8d393f7ce0b050911a5a7a3f3fe4679797d391e`, tree `23611fa16abc732c275d6ef9023a968c2b40ee56`: five reviewed blobs, CI38303275319 green. New receiver defense denies explicit legacy internal markers in parser and DB. Independent28 parser+31 SQL PASS. Those boundary scripts were not in prior CI; author adds them to the existing workflow with existing pinned PGlite0.3.14, removing an unnecessary pgcrypto bootstrap. No production leakage claim.
+- Time PR40 unchanged `adae19549703d3b12b1730c15a32a49afbe40df5`, all CI green, 1882 unit and100+31 browser fixture tests. Not hosted auth.
+- Full mixed-day composition independently PASS: 53 owner regressions +3 real source +6 chain checks, actual metadata AND cost claim/sender/Edge/SQL/ACK/finish, canonical240000→180000→0, exact replay, future-metadata503 and lost-response retry, customer row and eight genuine invoice tables unchanged. Evidence `recovery-mixed-cost/7b84f5a`, corrected50-file manifest SHA137b56a656bfe61e05bb8dc18d414e87075d0063ae5e0dc55db7bba8539f894e. Independent report SHA070b1a7df04d2e83a716f14e16c6fa4f4509efe1f93bf13c383d704cf2abcb72. Log SHA585b8d55804dbbf7799f0e2d4cd723b664e672e0aa1885828eb9fa59a999d2d8 reproduced exactly. Two isolated PGlite databases/in-memory HTTP, not native cross-system or hosted acceptance. Do not publish redundant Finance dependency SQL in Operations.
+- Accepted-envelope.v2 pins exact unique sorted project_metadata_refs objects {source_project_id, revision, fingerprint}; immutable prospective issuer mode prevents downgrade. Operations attests its own classified project/direct Booking relationship, not a Booking-origin signature. Missing future enrolled receipt retries; stale history gaps/conflicts deny. Customer proof is identity-only, budgets null. Closed-customer tombstone cannot reopen or alter money. Soft-delete/revival and legacy v1 customer descendant bypasses fixed. Exact opaque Booking TEXT preserved with explicit cost-transport256 UTF8-byte bound, not an owner schema limit.
+- Fresh Booking main `5d06093824fe4af37e9b8c80cb4bfbf907831f84`: actual producer needs a real same-tenant Booking row; no proven Operations internal→Booking→Catering path. No Booking code change or artificial row.
+- WMS/Scanner heads unchanged. Warehouse read-only plan6319349 pins12 actual owner SQL files. Existing local reservation reused; next test-only owner composition covers tracked-instance pack/checkout/return and identifies legacy service-RPC bypasses. Source grant, owner return-order/session, quantity closure and Scanner conformance remain open.
+- Root freshly inspected https://e-flow.se/auth in the cloud browser: visible login form, no authenticated session proved. No credential request or automatic secure-login retry.
+
+Current owners: operations_recovery native/terminal CI; finance_recovery native/terminal CI; finance_metadata narrow Catering CI inclusion; recovery_review independent reviews; time_recovery bounded existing accepted caller/dispatcher design (read-only until root scope decision); warehouse_recovery WMS owner test composition only. No competing edits or empty restarts. Root alone publishes genuine-parent deltas. All accepted functionality remains unactivated.
+
+Remaining gates: accepted caller/API/coverage and close-read wiring, unsupported large/multi/legacy-null customer identities, WMS/Scanner full owner and authority chain, coordinated authorized hosted migration/rollback and actual signed-in published UI. Continue concrete safe work; do not call the program complete.
+
+## Prior verified continuation — 2026-10-12 19:52 UTC
 
 Supersedes historical status below. Draft source publication in Operations, Time, Finance and Catering is authorized. No merge, deployment, hosted migration or WMS/Scanner source publication. Root control lease expires 20:26 UTC, PROGRAM commit fb970ce1ff66c447d958c52781ed3fb4e6446870.
 
@@ -48,9 +66,9 @@ Root integration local073e0388c contains genuine source5a0601b plus local eviden
 Next safe work: agree dedicated accepted delivery/ACK signature domains and exact bytes; preserve canonical outbox/snapshot storage and isolate legacy shadow transport. Prospective enrollment must lock canonical stream head; no historical shadow promotion. Evidence receipt is not financial approval. Native overlapping delivery/receipt tests still needed after implementation.
 Global gates remain: accepted end-to-end cost chain/coverage, WMS/Scanner owner chain, coordinated hosted migration/rollback and actual signed-in published UI. Never retry interrupted secure-login automatically. Module loops paused, supervisor continues concrete safe work.
 
-## Active recovery lease — renewed 2026-10-12 19:42 UTC
+## Active recovery lease — renewed 2026-10-12 20:20 UTC
 
-Owner /root; expires 2026-10-12 20:26 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
+Owner /root; expires 2026-10-12 21:05 UTC. Scope: reviewed Operations PR55, Time PR40 and Finance PR56 source/CI recovery, dormant accepted transport/receipt candidates and checkpoint reconciliation. Atomic control-branch compare-and-swap establishes this lease. Root alone publishes reviewed genuine-parent source; delegates work in isolated scoped directories. No merge, deploy, hosted migration, WMS/Scanner publication or live financial actions.
 
 ## Latest continuation — 2026-10-12 16:21 UTC
 
