@@ -2,6 +2,7 @@
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { parseCalendarDate } from '@/lib/calendarDate';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -126,7 +127,8 @@ export const useEventNavigation = () => {
     }
 
     try {
-      setLastViewedDate(info.event.start);
+      const eventDate = parseCalendarDate(info.event.start);
+      if (eventDate) setLastViewedDate(eventDate);
       setLastPath(window.location.pathname);
 
       if (forceBookingDetail) {
@@ -161,7 +163,8 @@ export const useEventNavigation = () => {
     }
 
     try {
-      setLastViewedDate(info.event.start);
+      const eventDate = parseCalendarDate(info.event.start);
+      if (eventDate) setLastViewedDate(eventDate);
       setLastPath(window.location.pathname);
 
       const openedProject = await navigateToProjectFromBooking(bookingId, largeProjectId);
