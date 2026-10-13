@@ -267,8 +267,9 @@ describe('replay primitive (security-only nonce store)', () => {
   it('scopes every read by organization_id and makes no provider/model call', () => {
     const selects = ROUTE_SRC.split('.select(').length - 1;
     const orgFilters = (ROUTE_SRC.match(/\.eq\('organization_id', org\)/g) ?? []).length;
-    expect(selects).toBeGreaterThanOrEqual(4);
-    expect(orgFilters).toBe(4);
+    expect(selects).toBeGreaterThanOrEqual(3);
+    // organizations + projects + calendar_events + assignments; actor roles are org-scoped in _shared/hub-actor.ts.
+    expect(orgFilters).toBe(3);
     expect(ROUTE_SRC).not.toMatch(/openai|anthropic|ai\.gateway|lovable-api-key/i);
   });
 });
