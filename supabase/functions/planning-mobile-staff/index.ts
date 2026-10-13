@@ -84,7 +84,8 @@ export async function handleRequest(request: Request): Promise<Response> {
             return json(result.error.code === '40001' ? 409 : result.error.code === '42501' ? 403 : 400, { error: result.error.code === '40001' ? 'conflict' : 'command_rejected' });
         if (result.data?.persisted !== true)
             return json(503, { error: 'not_persisted' });
-        return json(200, { schema: 'planning-mobile-staff-receipt.v1', receipt: result.data });
+        // Echo the requested HUB subject, never the internal local principal.
+        return json(200, { schema: 'planning-mobile-staff-receipt.v1', receipt: { ...result.data, actorUserId: actor, organizationId: org } });
     }
     // Resolve dates and affected bookings inside PostgreSQL with exactly the
     // canonical trigger's coalesce(source_date, Stockholm start_time date).
