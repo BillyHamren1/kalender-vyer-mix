@@ -71,6 +71,11 @@ export function countMutation(counters: SyncCounters, key: keyof SyncCounters, a
   counters[key] = (counters[key] ?? 0) + amount;
 }
 
+export interface DestructiveLimitOptions {
+  /** true ENDAST när Booking levererat komplett produktlista (completeness === 'complete'). */
+  sourceComplete?: boolean;
+}
+
 export interface CircuitBreakerResult {
   allowed: boolean;
   reason?: string;
@@ -86,10 +91,17 @@ export function checkDestructiveLimit(
   counters: SyncCounters,
   kind: DestructiveKind,
   planned = 1,
+  opts: DestructiveLimitOptions = {},
 ): CircuitBreakerResult {
   const count = Number.isFinite(planned) ? Math.trunc(planned) : NaN;
   if (!Number.isFinite(count) || count < 0) {
     return { allowed: false, reason: `${SAFETY_CIRCUIT_BREAKER}:invalid_planned_count` };
+  }
+  // Booking (Sales) är facit: när Booking levererat en KOMPLETT och bekräftad
+  // produktlista är borttagningen av produkter/packlisterader avsiktlig och
+  // får aldrig begränsas av antal. Spärren gäller endast okänd/ofullständig källa.
+  if (kind === 'product_deletes' && opts.sourceComplete === true) {
+    return { allowed: true };
   }
   const limit = SAFETY_LIMITS[kind];
   const next = (counters[kind] ?? 0) + count;
@@ -167,8 +179,9 @@ export function enforceDestructiveLimit(
   kind: DestructiveKind,
   planned = 1,
   log?: { booking_id?: string | null; organization_id?: string | null },
+  opts: DestructiveLimitOptions = {},
 ): void {
-  const res = checkDestructiveLimit(counters, kind, planned);
+  const res = checkDestructiveLimit(counters, kind, planned, opts);
   if (!res.allowed) {
     counters.blocked_by_circuit_breaker += 1;
     console.error(
@@ -186,7 +199,12 @@ export function enforceDestructiveLimit(
     );
     throw new SafetyCircuitBreakerError(res);
   }
-  recordDestructive(counters, kind, planned);
+  if (kind === 'product_deletes' && opts.sourceComplete === true) {
+    // Räknas för audit men belastar inte total_deletes-budgeten.
+    counters.product_deletes = (counters.product_deletes ?? 0) + planned;
+  } else {
+    recordDestructive(counters, kind, planned);
+  }
   if (kind !== 'status_changes') declarePlannedDeleteRows(counters, kind, planned);
 }
 
@@ -229,12 +247,14 @@ export async function guardedDeleteByIds(
     counters: SyncCounters;
     filters?: DeleteFilters;
     ctx?: { booking_id?: string | null; organization_id?: string | null };
+    /** true ENDAST när Booking levererat komplett produktlista. */
+    sourceComplete?: boolean;
   },
 ): Promise<GuardedDeleteResult> {
   const ids = Array.from(new Set((opts.ids || []).filter(Boolean)));
   if (ids.length === 0) return { deleted: 0, error: null };
   // Circuit breaker FÖRE mutation — baserad på verkliga rader.
-  enforceDestructiveLimit(opts.counters, opts.kind, ids.length, opts.ctx);
+  enforceDestructiveLimit(opts.counters, opts.kind, ids.length, opts.ctx, { sourceComplete: opts.sourceComplete === true });
   let q = client.from(opts.table).delete();
   for (const [col, val] of Object.entries(opts.filters ?? {})) {
     if (val === null || val === undefined) continue;
