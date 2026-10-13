@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchBookingAttachments } from '@/services/projectService';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Phone, Mail, User, Package, Paperclip, FileText, AlertTriangle, Truck, Clock, PackageOpen, Hammer, ExternalLink } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -56,16 +57,11 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
     );
   }, [products]);
 
-  const { data: attachments } = useQuery({
-    queryKey: ['placement-info-attachments', bookingId],
+  // Bilagor läses LIVE från Booking (source of truth), aldrig från den lokala kopian.
+  const { data: attachments, isError: attachmentsError } = useQuery({
+    queryKey: ['booking-attachments', bookingId],
     enabled: !!bookingId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('booking_attachments')
-        .select('id, file_name, url')
-        .eq('booking_id', bookingId);
-      return (data || []) as Array<{ id: string; file_name: string | null; url: string }>;
-    },
+    queryFn: () => fetchBookingAttachments(bookingId),
   });
 
   if (!booking) return null;
@@ -257,6 +253,13 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
             ))}
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {attachmentsError && (
+        <div className="flex items-center gap-1 text-[11px] text-destructive">
+          <AlertTriangle className="h-3 w-3" />
+          Kunde inte hämta bilagor från Booking
+        </div>
       )}
 
       {(attachments && attachments.length > 0) && (

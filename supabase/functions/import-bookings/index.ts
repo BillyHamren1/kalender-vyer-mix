@@ -371,6 +371,66 @@ const normalizeDateTimeForBookingField = (
  * This prevents duplicates that occurred when the three functions ran sequentially
  * and each fetched existing attachments independently before the others had committed.
  */
+/**
+ * Bilagor är additiva och ofarliga. Om produkt-/packlistesteget stoppas av
+ * säkerhetsspärren ska Bookings bilagor (t.ex. PDF från Sales) ändå komma in.
+ * Körs endast för en redan befintlig, tenant-verifierad bokning. Raderar aldrig.
+ */
+async function syncAttachmentsAfterBlockedSync(
+  supabase: any,
+  externalBooking: any,
+  results: any,
+  orgId: string,
+): Promise<void> {
+  const bookingId = externalBooking?.id;
+  if (!bookingId || !orgId) return;
+  const { data: owned, error: ownedErr } = await supabase
+    .from('bookings').select('id').eq('id', bookingId).eq('organization_id', orgId).maybeSingle();
+  if (ownedErr || !owned) return;
+
+  const { data: existing, error: existingErr } = await supabase
+    .from('booking_attachments').select('url, file_name').eq('booking_id', bookingId);
+  if (existingErr) return;
+  const strip = (u: string) => u.split('?')[0];
+  const seenUrls = new Set<string>((existing || []).map((a: any) => strip(a.url || '')));
+  const seenNames = new Set<string>((existing || []).map((a: any) => a.file_name || ''));
+
+  for (const attachment of Array.isArray(externalBooking.attachments) ? externalBooking.attachments : []) {
+    try {
+      let attUrl: string | null = attachment.public_url || attachment.url || attachment.file_url || null;
+      const attFileName = attachment.file_name || attachment.name || 'Unknown File';
+      if (seenNames.has(attFileName) || (attUrl && seenUrls.has(strip(attUrl)))) continue;
+      if (!attUrl && attachment.content_base64) {
+        const ext = attFileName.includes('.') ? attFileName.split('.').pop()!.toLowerCase() : 'bin';
+        const safeFileName = attFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const mimeMap: Record<string, string> = {
+          pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+        };
+        attUrl = await uploadBase64ToStorage(supabase, attachment.content_base64, `${bookingId}/attachments/${safeFileName}`, mimeMap[ext] || 'application/octet-stream');
+      }
+      if (!attUrl) continue;
+      const { error } = await supabase.from('booking_attachments').upsert(
+        { booking_id: bookingId, url: attUrl, file_name: attFileName, file_type: attachment.file_type || attachment.type || 'unknown', source: 'import', organization_id: orgId },
+        { onConflict: 'booking_id,file_name', ignoreDuplicates: true },
+      );
+      if (!error) {
+        seenUrls.add(strip(attUrl)); seenNames.add(attFileName);
+        results.attachments_imported++;
+        console.log(`[Attachments] Saved "${attFileName}" for booking ${bookingId} despite blocked product sync`);
+      }
+    } catch (e) {
+      console.error(`[Attachments] fallback failed for booking ${bookingId}:`, e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  await syncAllAttachments(
+    supabase, bookingId,
+    externalBooking.products || [], externalBooking.files_metadata || [], externalBooking.tent_images || [],
+    results, orgId,
+  );
+}
+
 async function syncAllAttachments(
   supabase: any,
   bookingId: string,
@@ -2164,6 +2224,7 @@ const reconnectPackingListItems = async (
       kind: 'product_deletes',
       counters: countersOf(supabase),
       filters: { packing_id: verifiedPackingId },
+      sourceComplete: completeness === 'complete',
     });
     if (reconnectDel.error) {
       console.error(`[Packing Reconnect] Error deleting orphaned items:`, reconnectDel.error);
@@ -2539,6 +2600,7 @@ const syncPackingListAfterExpansion = async (
         kind: 'product_deletes',
         counters: countersOf(supabase),
         filters: { packing_id: packingId },
+        sourceComplete: deleteAllowed,
       });
       if (orphanDel.error) {
         console.error(`[Packing Sync] Error deleting orphaned packing items:`, orphanDel.error);
@@ -4987,6 +5049,7 @@ serve(async (req) => {
                   counters: countersOf(supabase),
                   filters: { booking_id: bookingData.id, organization_id: organizationId },
                   ctx: { booking_id: bookingData.id, organization_id: organizationId },
+                  sourceComplete: productDeleteAllowed,
                 });
                 if (generatedDel.error) {
                   console.error(`[Merge] Error deleting generated dependents for booking ${bookingData.id}:`, generatedDel.error);
@@ -5018,6 +5081,7 @@ serve(async (req) => {
                 counters: countersOf(supabase),
                 filters: { booking_id: bookingData.id, organization_id: organizationId },
                 ctx: { booking_id: bookingData.id, organization_id: organizationId },
+                sourceComplete: productDeleteAllowed,
               });
               if (mergeDel.error) {
                 console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDel.error);
@@ -5312,6 +5376,13 @@ serve(async (req) => {
         console.error(`Error processing booking ${externalBooking.id}:`, error)
         results.errors.push({ booking_id: externalBooking.id, error: errMsg })
         results.failed++
+        if (error instanceof SafetyCircuitBreakerError && !isDryRun) {
+          try {
+            await syncAttachmentsAfterBlockedSync(supabase, externalBooking, results, organizationId);
+          } catch (attErr) {
+            console.error(`[Attachments] fallback error for ${externalBooking.id}:`, attErr instanceof Error ? attErr.message : String(attErr));
+          }
+        }
       }
     }
 
