@@ -20,8 +20,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const secret = 'test-only-signing-secret';
 globalThis.Deno = { env: { get: key => ({ PLANNING_BRAIN_READ_SIGNING_SECRET: secret, SUPABASE_URL: 'https://test.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-only' })[key] } };
 
-async function run(staffIds) {
-    const profileFilters = [];
+async function run(staffIds, { staffError = false } = {}) {
+    const profileFilters = [], orgFilters = {};
     globalThis.__legacyClient = () => ({
         rpc: async (fn) => fn === 'resolve_hub_actor_v1'
             ? { data: { status: 'ok', mode: 'linked', localUserId: local }, error: null }
@@ -38,13 +38,15 @@ async function run(staffIds) {
             };
             const counts = { projects: 0, calendar_events: 0, booking_staff_assignments: assignments.length };
             const q = {
-                select() { return q; }, eq() { return q; }, is() { return q; }, or() { return q; }, gte() { return q; }, lte() { return q; }, order() { return q; }, range() { return q; },
+                select() { return q; }, eq(k, v) { if (k === 'organization_id') (orgFilters[table] ??= []).push(v); return q; }, is() { return q; }, or() { return q; }, gte() { return q; }, lte() { return q; }, order() { return q; }, range() { return q; },
                 in(_k, v) { inValues = v; if (table === 'profiles') profileFilters.push(v); return q; },
                 maybeSingle() { single = true; return q; },
                 then(resolve) {
                     // Emulate Postgres: uuid column rejects non-uuid literals.
                     if (table === 'profiles' && inValues?.some(v => !UUID.test(v)))
                         return Promise.resolve({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' } }).then(resolve);
+                    if (table === 'staff_members' && staffError)
+                        return Promise.resolve({ data: null, error: { code: '57014', message: 'statement timeout' } }).then(resolve);
                     const d = data[table];
                     return Promise.resolve({ data: single ? d : d, error: null, count: counts[table] ?? null }).then(resolve);
                 },
@@ -56,7 +58,7 @@ async function run(staffIds) {
     const timestamp = String(Date.now()), nonce = 'test_nonce_legacy_123456';
     const signature = await contract.signPlanningBrainRequest(secret, timestamp, nonce, raw);
     const response = await handleRequest(new Request('https://test.invalid', { method: 'POST', headers: { 'x-planning-timestamp': timestamp, 'x-planning-nonce': nonce, 'x-planning-signature': signature }, body: raw }));
-    return { response, body: await response.json(), profileFilters };
+    return { response, body: await response.json(), profileFilters, orgFilters };
 }
 
 test('mixed legacy text + uuid staff ids read successfully with names from both sources', async () => {
@@ -73,4 +75,17 @@ test('only legacy staff ids skip the profiles lookup entirely', async () => {
     const r = await run([legacyStaff]);
     assert.equal(r.response.status, 200, JSON.stringify(r.body));
     assert.equal(r.profileFilters.length, 0);
+});
+
+test('staff name lookups stay scoped to the requested organization only', async () => {
+    const r = await run([legacyStaff, uuidStaff]);
+    assert.deepEqual(r.orgFilters.staff_members, [org]);
+    assert.deepEqual(r.orgFilters.profiles, [org]);
+});
+
+test('a real staff lookup failure still fails closed (not hidden as unknown staff)', async () => {
+    const r = await run([legacyStaff, uuidStaff], { staffError: true });
+    assert.equal(r.response.status, 503);
+    assert.equal(r.body.error, 'staff_read_failed');
+    assert.equal(r.body.teamAssignments, undefined);
 });
