@@ -95,7 +95,7 @@ const ProjectViewPage = () => {
   const booking = project.booking;
   // Same per-field date rule as the project header and the mobile app.
   const phaseDates = resolveProjectPhaseDates(project as any, booking as any);
-  const displayBooking = booking || (project.client ? {
+  const displayBooking = booking ? { ...booking, rigdaydate: phaseDates.rigdaydate, eventdate: phaseDates.eventdate, rigdowndate: phaseDates.rigdowndate } : (project.client ? {
     id: project.id,
     client: project.client,
     eventdate: project.eventdate,
