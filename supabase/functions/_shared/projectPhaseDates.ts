@@ -67,3 +67,32 @@ export function projectStatusTabs(
   if (lifecycle === 'cancelled') tabs.push('cancelled');
   return tabs;
 }
+
+// ---------------------------------------------------------------------------
+// Unified project kinds — the same three kinds Operations' project list shows
+// (UnifiedProjectList): small = jobs, medium = projects, large = large_projects.
+// IDs come from different tables, so identity is always (projectKind, projectId).
+// ---------------------------------------------------------------------------
+export type ProjectKind = 'small' | 'medium' | 'large';
+
+const first = (v: unknown): string | null => (Array.isArray(v) && typeof v[0] === 'string' && v[0]) ? v[0] : null;
+
+/** Small project (jobs row): status 'planned' is shown as 'planning'; dates are the linked booking's. */
+export function smallProjectView(job: { status?: string | null }, booking: PhaseDateInput | null | undefined) {
+  const status = job.status === 'planned' ? 'planning' : (job.status ?? null);
+  const dates = resolveProjectPhaseDates(null, booking);
+  return { status, dates, listEventDate: dates.eventdate };
+}
+
+/** Large project: own date arrays only. listEventDate is exactly what the Operations list uses for tabs. */
+export function largeProjectView(lp: { status?: string | null; start_date?: unknown; event_date?: unknown; end_date?: unknown }) {
+  const rig = first(lp.start_date), ev = first(lp.event_date), derig = first(lp.end_date);
+  return {
+    status: lp.status ?? null,
+    dates: {
+      rigdaydate: rig, eventdate: ev, rigdowndate: derig,
+      sources: { rig: rig ? 'project' : null, event: ev ? 'project' : null, derig: derig ? 'project' : null },
+    } as ResolvedPhaseDates,
+    listEventDate: derig ?? rig,
+  };
+}

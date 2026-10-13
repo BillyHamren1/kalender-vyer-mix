@@ -36,3 +36,20 @@ describe('Operations status classification', () => {
     expect(projectStatusTabs('cancelled', null, '2026-10-13')).toEqual(['all', 'cancelled']);
   });
 });
+
+import { smallProjectView, largeProjectView } from '../../../../supabase/functions/_shared/projectPhaseDates';
+describe('small/large kinds (same mapping as Operations list)', () => {
+  it('small: planned -> planning, dates only from booking', () => {
+    const v = smallProjectView({ status: 'planned' }, { rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: null });
+    expect(v.status).toBe('planning');
+    expect([v.dates.rigdaydate, v.dates.eventdate, v.dates.rigdowndate]).toEqual(['2026-10-13', '2026-10-14', null]);
+    expect(v.listEventDate).toBe('2026-10-14');
+    expect(smallProjectView({ status: 'planned' }, null).dates.eventdate).toBeNull();
+  });
+  it('large: own arrays only, list tab date = end ?? start', () => {
+    const v = largeProjectView({ status: 'planning', start_date: ['2026-10-02'], event_date: null, end_date: ['2026-10-04'] });
+    expect([v.dates.rigdaydate, v.dates.eventdate, v.dates.rigdowndate]).toEqual(['2026-10-02', null, '2026-10-04']);
+    expect(v.listEventDate).toBe('2026-10-04');
+    expect(largeProjectView({ status: 'planning' }).listEventDate).toBeNull();
+  });
+});
