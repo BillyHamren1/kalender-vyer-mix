@@ -8,10 +8,10 @@ import {
   PLANNING_BRAIN_ACTOR_ROLES,
   PLANNING_BRAIN_NONCE_TTL_SECONDS,
   buildPlanningBrainProjection,
-  decidePlanningBrainActor,
   parsePlanningBrainReadRequest,
   verifyPlanningBrainSignature,
 } from '../_shared/planning-brain-read-contract.ts'
+import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -61,22 +61,11 @@ export async function handleRequest(request: Request): Promise<Response> {
   if (!orgResult.data) return json(404, { error: 'organization_not_found' })
 
   // Actor authority from Planning-owned auth source. No PII is read or returned.
-  const actor = parsed.value.actorUserId
-  const [profileResult, rolesResult] = await Promise.all([
-    admin.from('profiles').select('organization_id').eq('user_id', actor).maybeSingle(),
-    admin.from('user_roles')
-      .select('role, organization_id')
-      .eq('user_id', actor)
-      .eq('organization_id', org)
-      .in('role', PLANNING_BRAIN_ACTOR_ROLES as unknown as string[]),
-  ])
-  if (profileResult.error || rolesResult.error) return json(503, { error: 'actor_lookup_failed' })
-  const actorDecision = decidePlanningBrainActor({
-    organizationId: org,
-    profileOrganizationId: (profileResult.data as { organization_id?: string | null } | null)?.organization_id ?? null,
-    roleRows: rolesResult.data ?? [],
-  })
-  if (!actorDecision.ok) return json(403, { error: actorDecision.error })
+  // Request principal = canonical HUB subject; owner resolves trusted local principal for roles.
+  const actor = parsed.value.actorUserId;
+  const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: PLANNING_BRAIN_ACTOR_ROLES });
+  if (!actorAuth.ok) { logActorDenial('planning-brain-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
+
 
   const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
     admin.from('projects')
