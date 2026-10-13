@@ -9,7 +9,8 @@ const hubActorUrl = dataUrl(await readFile(new URL('../../supabase/functions/_sh
 const source = (await readFile(new URL('../../supabase/functions/planning-mobile-read/index.ts', import.meta.url), 'utf8'))
     .replace("import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'", 'const createClient = (...args) => globalThis.__mobileReadClient(...args)')
     .replace("'../_shared/planning-brain-read-contract.ts'", JSON.stringify(contractUrl))
-    .replace("'../_shared/hub-actor.ts'", JSON.stringify(hubActorUrl));
+    .replace("'../_shared/hub-actor.ts'", JSON.stringify(hubActorUrl))
+    .replace("'../_shared/projectPhaseDates.ts'", JSON.stringify(dataUrl(await readFile(new URL('../../supabase/functions/_shared/projectPhaseDates.ts', import.meta.url), 'utf8'))));
 const { handleRequest } = await import(dataUrl(source));
 const org = '22222222-2222-4222-8222-222222222222', actor = '11111111-1111-4111-8111-111111111111';
 const staffId = '44444444-4444-4444-8444-444444444444', projectId = '33333333-3333-4333-8333-333333333333';
