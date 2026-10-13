@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 24
       - name: Signed read and command handlers
-        run: node --test scripts/tests/planning-mobile-read.test.mjs scripts/tests/planning-mobile-staff.test.mjs
+        run: node --test scripts/tests/planning-mobile-read.test.mjs scripts/tests/planning-mobile-read-booking-dates.test.mjs scripts/tests/planning-mobile-staff.test.mjs
       - name: Install isolated SQL test engine
         run: npm install --prefix /tmp/planning-mobile-sql --no-save --ignore-scripts @electric-sql/pglite@0.5.8
       - name: Actual SQL migration and canonical trigger fixture

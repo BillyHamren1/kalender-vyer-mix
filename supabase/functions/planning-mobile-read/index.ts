@@ -100,6 +100,18 @@ export async function handleRequest(request: Request): Promise<Response> {
         if (files.count === null || files.count !== (files.data ?? []).length)
             return json(503, { error: 'project_detail_too_large' });
         const p = project.data;
+        // Booking dates single source: when the project has no own phase date, read the linked
+        // booking's canonical rigdaydate/eventdate/rigdowndate (same org). Present project dates win.
+        let bookingDates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null } | null = null;
+        if (p.booking_id && (!p.rigdaydate || !p.eventdate || !p.rigdowndate)) {
+            const bk = await admin.from('bookings').select('rigdaydate, eventdate, rigdowndate')
+                .eq('organization_id', org).eq('id', p.booking_id).maybeSingle();
+            if (bk.error) return json(503, { error: 'booking_dates_read_failed' });
+            bookingDates = bk.data ?? null;
+        }
+        const pick = (own: string | null, k: 'rigdaydate' | 'eventdate' | 'rigdowndate') =>
+            own ? { v: own, s: 'project' } : bookingDates?.[k] ? { v: bookingDates[k], s: 'booking' } : { v: null, s: null };
+        const rigD = pick(p.rigdaydate, 'rigdaydate'), evD = pick(p.eventdate, 'eventdate'), drD = pick(p.rigdowndate, 'rigdowndate');
         const targets = [`project_id.eq.${p.id}`];
         if (p.booking_id) targets.push(`booking_id.eq.${p.booking_id}`);
         const costs = await admin.from('project_staff_time_cost_lines')
@@ -113,7 +125,7 @@ export async function handleRequest(request: Request): Promise<Response> {
             schema: 'planning-mobile-detail.v1',
             canonicalIdentity: { actorUserId: actor, organizationId: org },
             projectId: p.id, title: p.name, bookingRef: p.booking_id,
-            project: {projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:p.rigdaydate,eventDate:p.eventdate,derigDate:p.rigdowndate},
+            project: {projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:rigD.v,eventDate:evD.v,derigDate:drD.v,dateSources:{rig:rigD.s,event:evD.s,derig:drD.s}},
             contactName: p.contact_name, contactPhone: p.contact_phone, contactEmail: p.contact_email,
             address: p.deliveryaddress, city: p.delivery_city, postalCode: p.delivery_postal_code,
             notes: p.internalnotes, generatedAt: new Date().toISOString(),
