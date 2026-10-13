@@ -6,10 +6,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-});
+const json = (status: number, body: unknown) => {
+    // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
+    const b = body as { error?: unknown; schema?: unknown };
+    console.log(`[planning-mobile-read] outcome ${JSON.stringify({ status, error: b?.error ?? null, schema: status === 200 ? b?.schema ?? null : null })}`);
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    });
+};
 export async function handleRequest(request: Request): Promise<Response> {
     if (request.method !== 'POST')
         return json(405, { error: 'method_not_allowed' });
