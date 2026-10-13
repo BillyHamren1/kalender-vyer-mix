@@ -3275,10 +3275,9 @@ serve(async (req) => {
 
 
       if (decision.allowed && decision.action === 'cancellation') {
-        // STEG 3L: normal sync (single/batch/incremental/historical) utför
-        // ALDRIG destruktiv cancellation — inte ens när feature-flaggan är på.
-        // Här loggas endast en kandidat. Enda destruktiva vägen är den
-        // separata, explicit bekräftade reconcile/cancellation-vägen.
+        // Normal sync records the verified commercial cancellation through a
+        // non-destructive, revision-fenced notice. Cleanup remains explicit;
+        // packing/returns and operational history are preserved.
         // STEG 4K: KLASS A (canonical decision read). Ett DB-fel får ALDRIG
         // tolkas som "bokningen finns inte lokalt" → already_current.
         // Endast en LYCKAD read som ger null betyder "saknas lokalt".
