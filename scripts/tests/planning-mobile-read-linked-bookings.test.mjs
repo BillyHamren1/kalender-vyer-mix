@@ -36,6 +36,19 @@ const db = {
     { id: 'a0000000-0000-4000-8000-000000000005', name: 'Other', organization_id: OTHER, booking_id: B_OTHERORG, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
     { id: 'a0000000-0000-4000-8000-000000000006', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
   ],
+  jobs: [
+    { id: 'b0000000-0000-4000-8000-000000000001', name: 'Litet', organization_id: ORG, booking_id: B_EVENT, status: 'planned', deleted_at: null },
+    { id: 'b0000000-0000-4000-8000-000000000002', name: 'Annan org', organization_id: OTHER, booking_id: B_OTHERORG, status: 'planned', deleted_at: null },
+  ],
+  large_projects: [
+    // Same id as medium project 0001: identity must be (projectKind, projectId).
+    { id: 'a0000000-0000-4000-8000-000000000001', name: 'Stort', organization_id: ORG, status: 'completed', start_date: ['2026-10-02'], event_date: null, end_date: ['2026-10-04'], deleted_at: null },
+    { id: 'c0000000-0000-4000-8000-000000000002', name: 'Raderat stort', organization_id: ORG, status: 'planning', start_date: null, event_date: null, end_date: null, deleted_at: '2026-10-01T00:00:00Z' },
+  ],
+  bookings: [
+    { id: B_EVENT, organization_id: ORG, client: 'Perfect Event', booking_number: '2609-61', rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: '2026-10-15' },
+    { id: B_OTHERORG, organization_id: OTHER, client: 'X', booking_number: '1', rigdaydate: '2026-10-01', eventdate: '2026-10-01', rigdowndate: '2026-10-01' },
+  ],
   staff_members: [], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
 const inRange = (d, a, b) => d != null && d >= a && d <= b;
@@ -84,4 +97,18 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   assert.equal(out.rigDate, '2025-01-01'); assert.equal(out.dateSources.rig, 'project');
   assert.ok(out.statusTabs.includes('closing') === false); // no event date -> not in 'Under slutförande'
   assert.deepEqual(body.canonicalIdentity, { organizationId: ORG, actorUserId: HUB });
+  // All kinds, unique by kind+id, no cross-org / deleted rows.
+  const keys = body.projectEntries.map(e => e.entryKey).sort();
+  assert.deepEqual(keys, ['large:a0000000-0000-4000-8000-000000000001', 'medium:a0000000-0000-4000-8000-000000000001', 'medium:a0000000-0000-4000-8000-000000000002', 'medium:a0000000-0000-4000-8000-000000000003', 'medium:a0000000-0000-4000-8000-000000000004', 'small:b0000000-0000-4000-8000-000000000001']);
+  assert.deepEqual(body.projectEntriesTotals, { small: 1, medium: 4, large: 1 });
+  const small = body.projectEntries.find(e => e.projectKind === 'small');
+  assert.equal(small.title, 'Perfect Event #2609-61'); assert.equal(small.status, 'planning');
+  assert.deepEqual([small.rigDate, small.eventDate, small.derigDate], ['2026-10-13', '2026-10-14', '2026-10-15']);
+  assert.equal(small.dateSources.event, 'booking'); assert.equal(small.detailSupported, false);
+  const large = body.projectEntries.find(e => e.projectKind === 'large');
+  assert.deepEqual([large.rigDate, large.eventDate, large.derigDate], ['2026-10-02', null, '2026-10-04']);
+  assert.equal(large.lifecycle, 'completed'); assert.deepEqual(large.statusTabs, ['all', 'completed']); assert.equal(large.bookingRef, null);
+  assert.ok(body.projectEntries.filter(e => e.projectKind === 'medium').every(e => e.detailSupported === true));
+  // Legacy `projects` array keeps medium-only semantics.
+  assert.equal(body.projects.length, 4);
 });
