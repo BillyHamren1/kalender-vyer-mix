@@ -92,14 +92,12 @@ export async function handleRequest(request: Request): Promise<Response> {
             return json(503, { error: 'project_read_failed' });
         if (!project.data)
             return json(404, { error: 'project_not_found' });
-        const [files, comments] = await Promise.all([
-            admin.from('project_files').select('id, file_name, file_type, url', { count: 'exact' }).eq('organization_id', org).eq('project_id', projectId).order('id').range(0, 199),
-            admin.from('project_comments').select('id, author_name, content, created_at', { count: 'exact' }).eq('organization_id', org).eq('project_id', projectId).order('created_at', { ascending: false }).order('id').range(0, 199),
-        ]);
-        if (files.error || comments.error)
+        // project_comments was removed (one bulletin board = projects.internalnotes, returned as notes).
+        const files = await admin.from('project_files').select('id, file_name, file_type, url', { count: 'exact' }).eq('organization_id', org).eq('project_id', projectId).order('id').range(0, 199);
+        if (files.error)
             return json(503, { error: 'project_detail_failed' });
-        // A bounded detail must never silently hide attachments or conversation.
-        if ([files, comments].some(result => result.count === null || result.count !== (result.data ?? []).length))
+        // A bounded detail must never silently hide attachments.
+        if (files.count === null || files.count !== (files.data ?? []).length)
             return json(503, { error: 'project_detail_too_large' });
         const p = project.data;
         const targets = [`project_id.eq.${p.id}`];
@@ -126,7 +124,7 @@ export async function handleRequest(request: Request): Promise<Response> {
                 rows: costsComplete ? (costs.data ?? []).map(row => ({ id: row.id, staffName: row.staff_name, date: row.date, minutes: row.minutes, cost: row.cost, submissionStatus: row.submission_status })) : [],
             },
             files: (files.data ?? []).map(row => ({ id: row.id, name: row.file_name, type: row.file_type, url: row.url })),
-            comments: (comments.data ?? []).map(row => ({ id: row.id, authorName: row.author_name, content: row.content, createdAt: row.created_at })),
+            comments: [],
         });
     }
     // Projects are also in the window when their booking has calendar events or staff
