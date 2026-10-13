@@ -89,7 +89,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (body.action === 'command') {
         if (Deno.env.get('PLANNING_MOBILE_STAFF_WRITE') !== 'true')
             return json(503, { error: 'write_disabled' });
-        if (!uuid(body.idempotencyKey) || typeof body.staffId !== 'string' || !body.staffId.trim() || body.staffId.length > 128 || !['assign', 'remove'].includes(body.operation) || !(body.expectedMembershipId === null || uuid(body.expectedMembershipId)) || typeof body.expectedTeamId !== 'string' || typeof body.expectedDate !== 'string' || !Array.isArray(body.expectedAffectedBookingIds) || body.expectedAffectedBookingIds.length > 500 || body.expectedAffectedBookingIds.some(id => typeof id !== 'string' || id.length > 128))
+        if (!uuid(body.idempotencyKey) || typeof body.staffId !== 'string' || !body.staffId.trim() || body.staffId.length > 128 || !['assign', 'remove'].includes(body.operation) || !(body.expectedMembershipId === null || uuid(body.expectedMembershipId)) || typeof body.expectedTeamId !== 'string' || typeof body.expectedDate !== 'string' || !Array.isArray(body.expectedAffectedBookingIds) || body.expectedAffectedBookingIds.length > 500 || body.expectedAffectedBookingIds.some((id: unknown) => typeof id !== 'string' || id.length > 128))
             return json(400, { error: 'invalid_request' });
         const result = await admin.rpc('planning_mobile_staff_command_v1', {
             p_actor_user_id: actor, p_organization_id: org, p_event_id: body.calendarEventId,
