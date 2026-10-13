@@ -1,3 +1,4 @@
+import { useDesktopArticleMapScope } from '@/hooks/useArticleMapScope';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +18,11 @@ import {
   History,
   PackageX,
   Undo2,
+  MapPin,
 } from 'lucide-react';
+import { ArticleLocationDialog, type ArticleLocationTarget } from '@/components/warehouse-map/ArticleLocationDialog';
+import { fetchArticleLocationsDesktop } from '@/services/articleLocationsService';
+import { resolveCanonicalItemTypeId } from '@/services/desktopPackingService';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -91,6 +96,7 @@ interface PackingItem {
   packability_revision?: number;
   source_booking_id?: string | null;
   wms_line_id?: string | null;
+  wms_item_type_id?: string | null;
   wms_sku?: string | null;
   notes?: string | null;
   manual_name?: string | null;
@@ -106,6 +112,7 @@ interface PackingItem {
     parent_package_id: string | null;
     is_package_component: boolean | null;
     booking_id?: string;
+    inventory_item_type_id?: string | null;
   } | null;
 }
 
@@ -147,6 +154,8 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
+  const [mapTarget, setMapTarget] = useState<ArticleLocationTarget | null>(null);
+  const mapScope = useDesktopArticleMapScope();
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const itemOrderRef = useRef<Record<string, number>>({});
@@ -523,6 +532,18 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           >
             {displayName}
           </span>
+          {(() => {
+            const itemTypeId = resolveCanonicalItemTypeId(item as any);
+            return itemTypeId ? (
+              <button type="button" onClick={() => setMapTarget({ name: cleanName, itemTypeId, instanceId: null })}
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline mr-2"
+                aria-label={`Visa lagerplats för ${cleanName}`}>
+                <MapPin className="h-3 w-3" /> Lagerplats
+              </button>
+            ) : (
+              <span className="text-[11px] text-muted-foreground mr-2" title="Raden saknar WMS-artikelkoppling">Ingen platskoppling</span>
+            );
+          })()}
           {(item.wms_sku || item.booking_products?.sku) && (
             <span className="text-[11px] text-muted-foreground font-mono">
               [{item.wms_sku || item.booking_products?.sku}]
@@ -582,7 +603,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             ) : (
               <Package className="h-4 w-4 mr-2" />
             )}
-            {isExcluded ? 'Markera som packningsbar' : 'Markera som ej packningsbar'}
+            {isExcluded ? 'Ta tillbaka i packningen' : 'Stryk från packningen'}
           </ContextMenuItem>
           {!isExcluded && touched && (
             <p className="px-2 py-1 text-xs text-muted-foreground">
@@ -773,7 +794,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                       </div>
                     )}
                     <div className="divide-y divide-border/30 max-h-[60vh] overflow-y-auto">
-                      {buildPackingHierarchy<PackingItem>(groupProductItems).map((entry) => entry.kind === 'standalone' ? (
+                      {buildPackingHierarchy<PackingItem>(
+                        groupProductItems.filter((i) => i.is_packable !== false),
+                      ).map((entry) => entry.kind === 'standalone' ? (
                         renderItem(entry.item)
                       ) : (
                         <div key={entry.group.key} className="divide-y divide-border/30">
@@ -798,6 +821,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                           )}
                         </div>
                       ))}
+                      {groupProductItems.some((i) => i.is_packable === false) && (
+                        <div data-testid="non-packable-section" className="divide-y divide-border/30">
+                          <div className="px-4 py-1.5 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase">
+                            Ska inte packas
+                          </div>
+                          {groupProductItems.filter((i) => i.is_packable === false).map(renderItem)}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -895,6 +926,15 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         onOpenChange={setShowPrintDialog}
         meta={printMeta}
         rows={printRows}
+      />
+      <ArticleLocationDialog
+        open={!!mapTarget}
+        onOpenChange={(o) => { if (!o) setMapTarget(null); }}
+        target={mapTarget}
+        fetcher={fetchArticleLocationsDesktop}
+        organizationId={mapScope.organizationId}
+        sessionKey={mapScope.sessionKey}
+        scopeLoading={mapScope.scopeLoading}
       />
 
     </div>

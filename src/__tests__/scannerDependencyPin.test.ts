@@ -32,7 +32,7 @@ describe("Scanner Edge Function dependency pin", () => {
   );
 
   it("pins the reviewed test runner and rejects the unused legacy asset tool", () => {
-    expect(packageManifest.dependencies?.vitest).toBe("3.2.7");
+    expect(packageManifest.dependencies?.vitest).toBe("4.1.11");
     expect(packageManifest.devDependencies?.["@capacitor/assets"]).toBeUndefined();
   });
 

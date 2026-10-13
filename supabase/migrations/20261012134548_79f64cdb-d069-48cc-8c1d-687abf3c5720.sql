@@ -1,0 +1,1 @@
+revoke execute on function public.is_direct_message_actor(text, uuid) from anon;

@@ -285,6 +285,10 @@ export interface ScheduledShift {
 }
 
 // Token management
+/** Fired on login/logout so scoped UI (e.g. warehouse map) can drop prior-session data. */
+export const MOBILE_AUTH_CHANGED_EVENT = 'mobile-auth-changed';
+function emitAuthChanged() { try { window.dispatchEvent(new Event(MOBILE_AUTH_CHANGED_EVENT)); } catch { /* non-browser */ } }
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -298,11 +302,13 @@ export function getStoredStaff(): MobileStaff | null {
 export function setAuth(token: string, staff: MobileStaff) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+  emitAuthChanged();
 }
 
 export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(STAFF_KEY);
+  emitAuthChanged();
 }
 
 // ── Retry policy (additive, ultra-safe) ───────────────────────────────────
@@ -640,11 +646,11 @@ export const mobileApi = {
   getDirectMessages: () =>
     callApi<{ conversations: any[] }>('get_direct_messages'),
 
-  sendDirectMessage: (data: { recipient_id: string; content: string; file_url?: string; file_name?: string; file_type?: string; booking_id?: string }) =>
+  sendDirectMessage: (data: { request_id?: string; recipient_id: string; content: string; file_url?: string; file_name?: string; file_type?: string; booking_id?: string }) =>
     callApi<{ success: boolean; message: any }>('send_direct_message', data),
 
-  markDMRead: (senderId: string) =>
-    callApi<{ success: boolean }>('mark_dm_read', { sender_id: senderId }),
+  markDMRead: (senderId: string, throughId?: string) =>
+    callApi<{ success: boolean }>('mark_dm_read', { sender_id: senderId, through_id: throughId }),
 
   archiveDM: (partnerId: string) =>
     callApi<{ success: boolean; archived_count: number }>('archive_dm', { partner_id: partnerId }),
@@ -664,7 +670,7 @@ export const mobileApi = {
 
   // DM thread (paginated). Distinct from get_direct_messages, which is the inbox aggregator.
   getDMThread: (partnerId: string, opts?: { before?: string; limit?: number }) =>
-    callApi<{ messages: any[]; has_more: boolean; next_cursor: string | null }>(
+    callApi<{ messages: any[]; has_more: boolean; next_cursor: string | null; my_ids?: string[]; partner_ids?: string[] }>(
       'get_dm_thread',
       { partner_id: partnerId, before: opts?.before, limit: opts?.limit },
     ),
@@ -1518,3 +1524,4 @@ export interface WorkdayFlag {
   created_at: string;
   updated_at: string;
 }
+

@@ -14,7 +14,7 @@ describe("jobChatService", () => {
 
   beforeEach(async () => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
     localStorage.clear();
     const mod = await import("../mobileApiService");
     mod.setAuth("token", {

@@ -213,3 +213,14 @@ verify_jwt = false
 
 [functions.planning-brain-read]
 verify_jwt = false
+
+[functions.warehouse-article-locations]
+verify_jwt = true
+
+
+# Cross-project mobile reads verify signed actor/org and replay in the handler.
+[functions.planning-mobile-read]
+verify_jwt = false
+
+[functions.planning-mobile-staff]
+verify_jwt = false

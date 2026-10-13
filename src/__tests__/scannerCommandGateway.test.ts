@@ -67,9 +67,79 @@ describe("Scanner MVP command gateway", () => {
     [{ ...command, reservationId: "packing-local" }, "invalid_canonical_id"],
     [{ ...command, reservationLineId: "line-name" }, "invalid_canonical_id"],
     [{ ...command, itemTypeId: "product-name" }, "invalid_canonical_id"],
-    [{ ...command, command: "PACK_QUANTITY" }, "invalid_command"],
+    [{ ...command, command: "PACK_QUANTITY" }, "invalid_quantity"],
     [{ ...command, organizationId: ID.org }, "unexpected_field"],
   ])("rejects non-canonical or client-owned input %#", (input, error) => {
     expect(parseScannerMvpCommand(input)).toEqual({ ok: false, error });
+  });
+
+  it("preserves exact row identity and amount without a fabricated scan code", () => {
+    const { scanValue: _scanValue, ...base } = command;
+    const parsed = parseScannerMvpCommand({ ...base, command: "PACK_QUANTITY", quantity: 12 });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const owner = buildBundleScannerCommand({ command: parsed.value, organizationId: ID.org,
+      staffId: ID.staff, staffName: "Lager Ett", bookingNumber: "B-1001" });
+    expect(owner).toMatchObject({ command: "PACK_QUANTITY", quantity: 12,
+      reservationLineId: ID.line, itemTypeId: ID.type, itemInstanceId: null, scanValue: null });
+  });
+
+  it.each([0, -1, 1.5, 1001, "2", null, undefined, Infinity])("rejects invalid manual quantity %s", (quantity) => {
+    expect(parseScannerMvpCommand({ ...command, command: "PACK_QUANTITY", scanValue: null,
+      quantity })).toEqual({ ok: false, error: "invalid_quantity" });
+  });
+
+  it("accepts the current app's instance undo reason and retains it for owner audit", () => {
+    const parsed = parseScannerMvpCommand({ ...command, command: "UNPACK_INSTANCE", reason: "Fel artikel" });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(buildBundleScannerCommand({ command: parsed.value, organizationId: ID.org,
+      staffId: ID.staff, staffName: "Lager Ett", bookingNumber: "B-1001" })).toMatchObject({
+      command: "UNPACK_INSTANCE", reason: "Fel artikel", scanValue: command.scanValue, quantity: 1 });
+  });
+
+  it("accepts legacy instance undo without a reason", () => {
+    expect(parseScannerMvpCommand({ ...command, command: "UNPACK_INSTANCE" }).ok).toBe(true);
+  });
+
+  it.each([
+    [{ command: "UNPACK_QUANTITY", scanValue: null, quantity: 2 }, "unpack_reason_required"],
+    [{ command: "UNPACK_QUANTITY", scanValue: null, quantity: 2, reason: "ok" }, "invalid_reason"],
+    [{ command: "UNPACK_INSTANCE", reason: "  Fel artikel " }, "invalid_reason"],
+    [{ command: "PACK_QUANTITY", scanValue: null, quantity: 2, reason: "Orsak" }, "invalid_reason"],
+    [{ command: "PACK_QUANTITY", quantity: 2 }, "quantity_scan_value_forbidden"],
+    [{ quantity: 2 }, "invalid_quantity"],
+  ])("rejects mixed scan/manual or malformed audit input %#", (changes, error) => {
+    expect(parseScannerMvpCommand({ ...command, ...changes })).toEqual({ ok: false, error });
+  });
+
+  it("accepts explicit manual undo amount and reason", () => {
+    const parsed = parseScannerMvpCommand({ ...command, command: "UNPACK_QUANTITY",
+      scanValue: null, quantity: 4, reason: "Fyra togs bort" });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value).toMatchObject({ quantity: 4, reason: "Fyra togs bort", scanValue: null });
+  });
+});
+
+
+describe("manual order row identity", () => {
+  it.each(["PACK_QUANTITY", "UNPACK_QUANTITY"])("forwards explicit null unchanged for %s", (name) => {
+    const parsed = parseScannerMvpCommand({ ...command, command: name, itemTypeId: null,
+      scanValue: null, quantity: 2, ...(name === "UNPACK_QUANTITY" ? { reason: "Fel antal" } : {}) });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(buildBundleScannerCommand({ command: parsed.value, organizationId: ID.org,
+      staffId: ID.staff, staffName: "Lager Ett", bookingNumber: "B-1001" })).toMatchObject({
+      itemTypeId: null, itemInstanceId: null, reservationLineId: ID.line,
+      quantity: 2, performedBy: ID.staff, organizationId: ID.org,
+    });
+  });
+  it.each([undefined, "", "manual", "not-a-uuid"])("rejects missing or malformed type %s", (itemTypeId) => {
+    expect(parseScannerMvpCommand({ ...command, command: "PACK_QUANTITY", itemTypeId,
+      scanValue: null, quantity: 2 })).toEqual({ ok: false, error: "invalid_canonical_id" });
+  });
+  it.each(["PACK_INSTANCE", "UNPACK_INSTANCE"])("requires type identity for %s", (name) => {
+    expect(parseScannerMvpCommand({ ...command, command: name, itemTypeId: null }))
+      .toEqual({ ok: false, error: "invalid_canonical_id" });
   });
 });

@@ -45,6 +45,7 @@ const REFETCH_INTERVAL = 60_000; // Backup polling — realtime handles immediat
 export function useMobileInbox() {
   const { staff } = useMobileAuth();
   const queryClient = useQueryClient();
+  const inboxKey = ['mobile-inbox-all', staff?.organization_id, staff?.id];
 
   // Realtime: only react to *new* messages (INSERT). Read-receipt / archive UPDATEs
   // are handled by optimistic helpers below — no need to refetch the whole inbox.
@@ -56,12 +57,12 @@ export function useMobileInbox() {
       { table: 'broadcast_messages', events: ['INSERT'] },
       { table: 'job_messages', events: ['INSERT'] },
     ],
-    queryKeys: [['mobile-inbox-all']],
+    queryKeys: [inboxKey],
     debounceMs: 250,
   });
 
   const inboxQuery = useQuery({
-    queryKey: ['mobile-inbox-all'],
+    queryKey: inboxKey,
     queryFn: async (): Promise<InboxAllData> => {
       const res = await mobileApi.getInboxAll();
       const conversations: DMConversation[] = res.conversations || [];
@@ -94,7 +95,7 @@ export function useMobileInbox() {
 
   // Optimistic: mark DM conversation as read
   const markDMReadOptimistic = (partnerId: string) => {
-    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+    queryClient.setQueryData<InboxAllData>(inboxKey, (old) => {
       if (!old) return old;
       return {
         ...old,
@@ -107,7 +108,7 @@ export function useMobileInbox() {
 
   // Optimistic: append a sent DM message
   const appendDMMessage = (partnerId: string, message: any) => {
-    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+    queryClient.setQueryData<InboxAllData>(inboxKey, (old) => {
       if (!old) return old;
       return {
         ...old,
@@ -120,7 +121,7 @@ export function useMobileInbox() {
 
   // Optimistic: mark broadcast as read
   const markBroadcastReadOptimistic = (broadcastId: string) => {
-    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+    queryClient.setQueryData<InboxAllData>(inboxKey, (old) => {
       if (!old) return old;
       return {
         ...old,
@@ -133,7 +134,7 @@ export function useMobileInbox() {
 
   // Optimistic: mark job conversation as read
   const markJobReadOptimistic = (bookingId: string) => {
-    queryClient.setQueryData<InboxAllData>(['mobile-inbox-all'], (old) => {
+    queryClient.setQueryData<InboxAllData>(inboxKey, (old) => {
       if (!old) return old;
       return {
         ...old,
@@ -149,6 +150,7 @@ export function useMobileInbox() {
     broadcasts: data?.broadcasts || [],
     jobConversations: data?.jobs || [],
     isLoading: inboxQuery.isLoading,
+    error: inboxQuery.error,
     refetchAll,
     markDMReadOptimistic,
     appendDMMessage,
@@ -156,3 +158,4 @@ export function useMobileInbox() {
     markJobReadOptimistic,
   };
 }
+

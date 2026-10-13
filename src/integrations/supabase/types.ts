@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "12.2.3"
   }
   public: {
     Tables: {
@@ -11399,6 +11399,10 @@ export type Database = {
         Args: { _new: string; _old: string }
         Returns: boolean
       }
+      is_direct_message_actor: {
+        Args: { _id: string; _org: string }
+        Returns: boolean
+      }
       is_noise_booking_change: {
         Args: { _changed_fields: Json; _new: Json; _previous: Json }
         Returns: boolean
@@ -11441,6 +11445,29 @@ export type Database = {
           _mode: string
           _organization_id: string
           _packing_id: string
+        }
+        Returns: Json
+      }
+      planning_mobile_staff_command_v1: {
+        Args: {
+          p_actor_user_id: string
+          p_event_id: string
+          p_expected_booking_ids: string[]
+          p_expected_date: string
+          p_expected_membership_id: string
+          p_expected_team_id: string
+          p_idempotency_key: string
+          p_operation: string
+          p_organization_id: string
+          p_staff_id: string
+        }
+        Returns: Json
+      }
+      planning_mobile_staff_context_v1: {
+        Args: {
+          p_actor_user_id: string
+          p_event_id: string
+          p_organization_id: string
         }
         Returns: Json
       }

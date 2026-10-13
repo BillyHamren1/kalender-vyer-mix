@@ -76,7 +76,10 @@ describe("Scanner v2 CORS boundary", () => {
     const allowlist = api.split("const SCANNER_CONTRACT_READ_ACTIONS = new Set([")[1].split("])")[0];
     expect(allowlist.match(/'[^']+'/g)).toEqual([
       "'list_active_packings'", "'get_packing_items'", "'resolve_epc'", "'identify_product'",
+      "'get_article_locations'",
     ]);
+    const mapLookup = api.split("case 'get_article_locations':")[1].split("case 'identify_product':")[0];
+    expect(mapLookup).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
     const lookup = api.split("case 'identify_product':")[1].split("case 'add_unknown_product':")[0];
     expect(lookup).toContain("method: 'GET'");
     expect(lookup).toContain("'x-organization-id': ORG_ID");
