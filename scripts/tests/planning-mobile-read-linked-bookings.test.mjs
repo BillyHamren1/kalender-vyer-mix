@@ -35,7 +35,7 @@ const db = {
     { id: 'p-other', name: 'Other', organization_id: OTHER, booking_id: B_OTHERORG, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
     { id: 'p-del', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
   ],
-  staff_members: [], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG }],
+  staff_members: [], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
 const inRange = (d, a, b) => d != null && d >= a && d <= b;
 // Minimal PostgREST emulation of the exact filters used (eq/gte/lte/is/not/or).
