@@ -1,4 +1,7 @@
 import { verifyPlanningBrainSignature } from './planning-brain-read-contract.ts'
+import { authorizeHubActor, logActorDenial } from './hub-actor.ts'
+/** Every existing app_role counts as org membership for Messages (no new grants). */
+export const MESSAGE_MEMBER_ROLES = ['admin', 'forsaljning', 'projekt', 'lager'] as const
 /** Shared DM identity, cursor and retry rules. No authentication is inferred from input. */
 export const MESSAGE_SCHEMA = 'eventflow.internal-messages.v1'
 export const MESSAGE_ACTIONS = ['get_contacts', 'get_dm_inbox_grouped', 'get_dm_thread', 'get_unread_dm_count', 'send_direct_message', 'mark_dm_read', 'archive_dm'] as const
@@ -47,13 +50,18 @@ export async function authorizeInternalMessages(input: {
   })
   if (nonce.error) return deny(503, 'nonce_store_unavailable')
   if (nonce.data !== true) return deny(401, 'nonce_replayed')
-  const [profile, membership, staffRows] = await Promise.all([
-    supabase.from('profiles').select('organization_id').eq('user_id', body.actorUserId).eq('organization_id', body.organizationId).maybeSingle(),
-    supabase.from('user_roles').select('role').eq('user_id', body.actorUserId).eq('organization_id', body.organizationId).limit(1),
-    supabase.from('staff_members').select('id, is_active').eq('user_id', body.actorUserId).eq('organization_id', body.organizationId).limit(2),
-  ])
-  if (profile.error || membership.error || staffRows.error) return deny(503, 'actor_lookup_failed')
-  if (!profile.data || !membership.data?.length || !Array.isArray(staffRows.data) || staffRows.data.length > 1 || staffRows.data.some((s: { is_active: boolean }) => !s.is_active)) return deny(403, 'actor_not_authorized')
+  // Request principal = canonical HUB subject. Local principal only via protected
+  // resolve_hub_actor_v1; membership = any existing per-org role (unchanged semantics),
+  // never last-used profiles.organization_id or user-editable metadata.
+  const actor = await authorizeHubActor(supabase, { hubSubject: body.actorUserId, organizationId: body.organizationId, roles: MESSAGE_MEMBER_ROLES })
+  if (!actor.ok) { logActorDenial('internal-messages', actor.reason, body.organizationId); return deny(actor.status, actor.error) }
+  const localUserId = actor.localUserId
+  const staffRows = await supabase.from('staff_members').select('id, is_active').eq('user_id', localUserId).eq('organization_id', body.organizationId).limit(2)
+  if (staffRows.error) return deny(503, 'actor_lookup_failed')
+  if (!Array.isArray(staffRows.data) || staffRows.data.length > 1 || staffRows.data.some((s: { is_active: boolean }) => !s.is_active)) {
+    logActorDenial('internal-messages', staffRows.data?.length > 1 ? 'staff_ambiguous' : 'staff_inactive', body.organizationId)
+    return deny(403, 'actor_not_authorized')
+  }
   if (action === 'send_direct_message' && (!validRequestId(data?.request_id) || Object.keys(data || {}).some(k => !['recipient_id', 'content', 'request_id'].includes(k)))) return deny(400, 'invalid_send_request')
-  return { staffId: staffRows.data[0]?.id || body.actorUserId, organizationId: body.organizationId, userId: body.actorUserId }
+  return { staffId: staffRows.data[0]?.id || localUserId, organizationId: body.organizationId, userId: localUserId }
 }
