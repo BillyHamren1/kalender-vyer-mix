@@ -28,7 +28,7 @@ async function run(staffIds) {
             : { data: true, error: null },
         from(table) {
             let inValues = null, single = false;
-            const assignments = staffIds.map((s, i) => ({ id: `a${i}`, organization_id: org, booking_id: null, staff_id: s, team_id: 'team-1', role: null, assignment_date: '2026-10-12' }));
+            const assignments = staffIds.map((s, i) => ({ id: `aaaaaaaa-aaaa-4aaa-8aaa-00000000000${i}`, organization_id: org, booking_id: null, staff_id: s, team_id: 'team-1', role: null, assignment_date: '2026-10-12' }));
             const data = {
                 organizations: { id: org },
                 user_roles: [{ role: 'projekt', organization_id: org }],
