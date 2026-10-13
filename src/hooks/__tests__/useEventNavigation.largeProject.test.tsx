@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import React, { createContext } from 'react';
 
+const { dateMock } = vi.hoisted(() => ({ dateMock: vi.fn() }));
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock }));
 vi.mock('sonner', () => ({ toast: { warning: vi.fn(), error: vi.fn() } }));
 vi.mock('@/App', () => ({
-  CalendarContext: createContext({ setLastViewedDate: () => {}, setLastPath: () => {} }),
+  CalendarContext: createContext({ setLastViewedDate: dateMock, setLastPath: () => {} }),
 }));
 
 // Tabelldriven supabase-mock: rows per tabell, loggar alla writes.
@@ -91,4 +92,36 @@ describe('personalkalenderns samlade projektpost – handleProjectEventClick', (
     expect(navigateMock).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
   });
+});
+
+
+describe('project navigation date safety', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rows = { large_projects: [{ id: 'lp1', deleted_at: null }] };
+  });
+
+  it.each(['handleEventClick', 'handleProjectEventClick'] as const)(
+    '%s converts serialized event dates before saving calendar context', async (handler) => {
+      const { result } = renderHook(() => useEventNavigation());
+      const click = info({ bookingId: 'b1', largeProjectId: 'lp1' });
+      click.event.start = '2026-10-13T12:00:00Z' as any;
+      await result.current[handler](click);
+      expect(dateMock).toHaveBeenCalledWith(new Date('2026-10-13T12:00:00Z'));
+      expect(navigateMock).toHaveBeenCalledWith('/large-project/lp1');
+    },
+  );
+
+  it.each([null, undefined, '', 'invalid', new Date(NaN), {}])(
+    'keeps the previous calendar date for invalid input %s', async (start) => {
+      const { result } = renderHook(() => useEventNavigation());
+      for (const handler of ['handleEventClick', 'handleProjectEventClick'] as const) {
+        const click = info({ bookingId: 'b1', largeProjectId: 'lp1' });
+        click.event.start = start as any;
+        await result.current[handler](click);
+      }
+      expect(dateMock).not.toHaveBeenCalled();
+      expect(navigateMock).toHaveBeenCalledTimes(2);
+    },
+  );
 });

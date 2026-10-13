@@ -8,6 +8,7 @@ import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
+import { parseCalendarDate } from '@/lib/calendarDate';
 import { uniqueChannelName } from '@/lib/realtime/channelName';
 
 export interface UseRealTimeCalendarEventsOptions {
@@ -35,7 +36,7 @@ export const useRealTimeCalendarEvents = (
   options?: UseRealTimeCalendarEventsOptions,
 ) => {
   const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
-  const initialAnchor = options?.anchorDate ?? lastViewedDate ?? new Date();
+  const initialAnchor = parseCalendarDate(options?.anchorDate) ?? parseCalendarDate(lastViewedDate) ?? new Date();
   const initialCached = windowEventsCache.get(windowKey(initialAnchor));
   const [events, setEvents] = useState<CalendarEvent[]>(initialCached ?? []);
   const [isLoading, setIsLoading] = useState(!initialCached);
@@ -49,7 +50,7 @@ export const useRealTimeCalendarEvents = (
   // visade datum → annars idag. INGET sessionStorage-ankare (det gjorde att
   // två användare i samma vy hämtade olika datumfönster).
   const [currentDate, setCurrentDate] = useState<Date>(
-    () => options?.anchorDate ?? lastViewedDate ?? new Date(),
+    () => parseCalendarDate(options?.anchorDate) ?? parseCalendarDate(lastViewedDate) ?? new Date(),
   );
 
   // Vilket datumfönster som just nu är laddat. Används för att avgöra om
@@ -59,7 +60,7 @@ export const useRealTimeCalendarEvents = (
   currentDateRef.current = currentDate;
 
   // Vyns ankare styr alltid: byter användaren vecka följer hämtningen med.
-  const anchorMs = options?.anchorDate ? options.anchorDate.getTime() : null;
+  const anchorMs = parseCalendarDate(options?.anchorDate)?.getTime() ?? null;
   useEffect(() => {
     if (anchorMs == null) return;
     setCurrentDate(prev => (prev.getTime() === anchorMs ? prev : new Date(anchorMs)));
@@ -365,8 +366,8 @@ export const useRealTimeCalendarEvents = (
   // Handle date changes
 
   const handleDatesSet = useCallback((dateInfo: any) => {
-    const newDate = dateInfo?.start instanceof Date ? dateInfo.start : new Date(dateInfo?.start);
-    if (Number.isNaN(newDate.getTime())) return;
+    const newDate = parseCalendarDate(dateInfo?.start);
+    if (!newDate) return;
 
     const daysDifference = Math.abs(
       (newDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
