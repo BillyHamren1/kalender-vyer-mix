@@ -49,8 +49,9 @@ test('detail reads project, attachments and comments only within actor organizat
     assert.equal(r.response.status, 200);
     assert.equal(r.body.schema, 'planning-mobile-detail.v1');
     assert.equal(r.body.files[0].name, 'PM.pdf');
-    assert.equal(r.body.comments[0].content, 'Rigg 08:00');
-    for (const c of r.calls.filter(c => ['project_files', 'project_comments'].includes(c.table))) {
+    assert.deepEqual(r.body.comments, []);
+    assert.ok(!r.calls.some(c => c.table === 'project_comments'), 'removed table must never be queried');
+    for (const c of r.calls.filter(c => c.table === 'project_files')) {
         assert.ok(c.filters.some(([key, value]) => key === 'organization_id' && value === org));
         assert.ok(c.filters.some(([key, value]) => key === 'project_id' && value === projectId));
     }
