@@ -22,4 +22,4 @@ jobs:
       - name: Actual SQL migration and canonical trigger fixture
         env:
           PGLITE_MODULE_PATH: /tmp/planning-mobile-sql/node_modules/@electric-sql/pglite/dist/index.js
-        run: node --test scripts/tests/mobile-staff-command.test.mjs
+        run: node --test scripts/tests/mobile-staff-command.test.mjs scripts/tests/hub-actor-resolver.test.mjs
