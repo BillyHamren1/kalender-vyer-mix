@@ -87,7 +87,7 @@ test('explicit project dates win over booking dates', async () => {
   assert.deepEqual([p.rigDate, p.eventDate, p.derigDate], ['2026-10-05', '2026-10-06', '2026-10-07']);
   assert.deepEqual(p.dateSources, { rig: 'project', event: 'project', derig: 'project' });
 });
-test('booking in another org is never used; missing stays truthful null', async () => {
+test('no canonical booking date in org: stays truthful null', async () => {
   const p = (await detail('a0000000-0000-4000-8000-000000000002')).body.project;
   assert.deepEqual([p.rigDate, p.eventDate, p.derigDate], [null, null, null]);
 });
