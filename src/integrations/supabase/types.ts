@@ -2569,6 +2569,30 @@ export type Database = {
         }
         Relationships: []
       }
+      hub_identity_links: {
+        Row: {
+          authorized_reason: string
+          created_at: string
+          hub_user_id: string
+          link_source: string
+          local_user_id: string
+        }
+        Insert: {
+          authorized_reason: string
+          created_at?: string
+          hub_user_id: string
+          link_source: string
+          local_user_id: string
+        }
+        Update: {
+          authorized_reason?: string
+          created_at?: string
+          hub_user_id?: string
+          link_source?: string
+          local_user_id?: string
+        }
+        Relationships: []
+      }
       job_completion_analytics: {
         Row: {
           booking_id: string
@@ -11484,6 +11508,7 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_hub_actor_v1: { Args: { _hub_user_id: string }; Returns: Json }
       set_packing_list_item_packability: {
         Args: {
           _actor_id: string
