@@ -173,6 +173,11 @@ export function useSsoListener() {
   // Keep delivery ownership separately so that this lifecycle cannot revive
   // an older attempt after a newer parent token or listener disposal.
   const deliveryGenerationRef = useRef(0);
+  const queuedDeliveryRef = useRef<{
+    token: SsoToken;
+    attempt: OperationsSupportSsoAttempt;
+    generation: number;
+  } | null>(null);
 
   // Determine target view based on current route (use window.location to avoid Router dependency)
   const getTargetView = useCallback((): 'planning' | 'warehouse' => {
@@ -186,7 +191,17 @@ export function useSsoListener() {
     ssoToken: SsoToken,
     supportAttempt: OperationsSupportSsoAttempt | null = null,
     deliveryGeneration: number = deliveryGenerationRef.current,
-  ) => {
+  ): Promise<void> => {
+    // Keep only the newest trusted replacement while the SDK is mutating the
+    // session. HUB has a bounded fallback, not a periodic retry loop.
+    if (isProcessingRef.current) {
+      if (supportAttempt
+        && isOperationsSupportSsoAttemptCurrent(supportAttempt)
+        && sessionStorage.getItem(SSO_PROCESSING_KEY) !== supportAttempt.trustKey) {
+        queuedDeliveryRef.current = { token: ssoToken, attempt: supportAttempt, generation: deliveryGeneration };
+      }
+      return;
+    }
     const requestedOrgId = ssoToken.payload?.organization_id ?? null;
     const targetView = supportAttempt?.audience ?? getTargetView();
     // Fingerprinten MÅSTE innehålla organisationen. Annars kan HUB skicka
@@ -319,6 +334,7 @@ export function useSsoListener() {
       let error: unknown = null;
 
       for (let attempt = 1; attempt <= SSO_VERIFY_MAX_ATTEMPTS; attempt++) {
+        if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) return;
         const result = await supabase.functions.invoke<SsoResult>('verify-sso-token', {
           body: {
             ...ssoToken,
@@ -327,6 +343,8 @@ export function useSsoListener() {
         });
         data = result.data;
         error = result.error;
+
+        if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) return;
 
         if (!error && data?.success) break;
 
@@ -352,7 +370,7 @@ export function useSsoListener() {
       // the local session or produce an ACK.
       if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
         console.warn('[SSO] Ignoring stale verification result before session mutation');
-        notifySsoSettled(false);
+        if (!queuedDeliveryRef.current) notifySsoSettled(false);
         return;
       }
 
@@ -364,19 +382,12 @@ export function useSsoListener() {
         refresh_token: data.refresh_token!,
       });
 
-      if (sessionError) {
-        console.error('[SSO] Session set failed:', sessionError);
-        sendSsoResponse(false, { status: 500, code: 'SESSION_SET_FAILED', message: sessionError.message });
-        notifySsoSettled(false);
-        return;
-      }
-
-      const clearRejectedSsoState = () => {
+      const clearRejectedSsoState = (preserveQueuedAttempt = false) => {
         sessionStorage.removeItem('isSsoUser');
         sessionStorage.removeItem('skipRoleCheck');
         lastProcessedRef.current = null;
         sessionStorage.removeItem(SSO_PROCESSED_KEY);
-        clearOperationsSupportContextSession();
+        if (!preserveQueuedAttempt) clearOperationsSupportContextSession();
         // Cache eviction must be synchronous with rejection. Auth sign-out can
         // be delayed by storage/network hooks and must not leave a stale tenant
         // available to the rest of the application in the meantime.
@@ -388,10 +399,30 @@ export function useSsoListener() {
       // is awaiting. Remove the stale session and never ACK the old attempt.
       if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) {
         console.warn('[SSO] Verification attempt became stale while setting session');
-        clearRejectedSsoState();
+        const queued = queuedDeliveryRef.current;
+        const mayResume = queued && isOperationsSupportSsoAttemptCurrent(queued.attempt)
+          ? prepareOperationsSupportTenantSignOut(queued.attempt)
+          : null;
+        clearRejectedSsoState(!!mayResume);
         try { await supabase.auth.signOut(); } catch (e) {
           console.warn('[SSO] Failed to clear stale session', e);
         }
+        // Only our one internal SIGNED_OUT may preserve the queued delivery.
+        // Logout, malformed replacement, disposal or a newer token revokes it.
+        if (mayResume?.() && queued && queued.generation === deliveryGenerationRef.current) {
+          const attempt = beginOperationsSupportSsoAttempt({
+            ...queued.attempt,
+            source: queued.attempt.parentWindow,
+          });
+          queuedDeliveryRef.current = attempt ? { ...queued, attempt } : null;
+        }
+        if (!queuedDeliveryRef.current) notifySsoSettled(false);
+        return;
+      }
+
+      if (sessionError) {
+        console.error('[SSO] Session set failed:', sessionError);
+        sendSsoResponse(false, { status: 500, code: 'SESSION_SET_FAILED', message: sessionError.message });
         notifySsoSettled(false);
         return;
       }
@@ -453,12 +484,19 @@ export function useSsoListener() {
       notifySsoSettled(true);
 
     } catch (err) {
+      if (supportAttempt && !isOperationsSupportSsoAttemptCurrent(supportAttempt)) return;
       console.error('[SSO] Exception during verification:', err);
       sendSsoResponse(false, { status: 500, code: 'NETWORK_ERROR', message: String(err) });
       notifySsoSettled(false);
     } finally {
       isProcessingRef.current = false;
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
+      const queued = queuedDeliveryRef.current;
+      queuedDeliveryRef.current = null;
+      if (queued && queued.generation === deliveryGenerationRef.current
+        && isOperationsSupportSsoAttemptCurrent(queued.attempt)) {
+        void verifySsoToken(queued.token, queued.attempt, queued.generation);
+      }
     }
   }, [getTargetView]);
 
@@ -569,6 +607,7 @@ export function useSsoListener() {
     
     return () => {
       deliveryGenerationRef.current += 1;
+      queuedDeliveryRef.current = null;
       window.removeEventListener('message', handleMessage);
       clearOperationsSupportContextSession();
     };
@@ -592,3 +631,4 @@ export function useAppPreferences() {
 export function isSsoUser(): boolean {
   return sessionStorage.getItem('isSsoUser') === 'true';
 }
+

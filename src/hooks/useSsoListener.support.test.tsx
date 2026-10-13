@@ -612,13 +612,14 @@ it('ignores sibling delivery while the current parent tenant switch is signing o
   hook.unmount();
 });
 
-it('drops a stale in-flight attempt before setSession, ACK and support activation', async () => {
+it('drops a stale in-flight attempt and automatically establishes the newest parent token', async () => {
   const parent = { postMessage: vi.fn() } as unknown as Window;
   Object.defineProperty(window, 'parent', { configurable: true, value: parent });
   let resolveVerification: ((value: unknown) => void) | null = null;
   mocks.invoke.mockImplementation(() => new Promise((resolve) => { resolveVerification = resolve; }));
   const first = ssoToken(ORG_A, 'first-parent-token-signature-with-enough-entropy');
   const replacement = ssoToken(ORG_A, 'replacement-parent-token-signature-with-enough-entropy');
+  mocks.setSession.mockResolvedValue(establishedSession());
   const hook = renderHook(() => useSsoListener());
 
   sendSsoToken(parent, first);
@@ -645,7 +646,7 @@ it('drops a stale in-flight attempt before setSession, ACK and support activatio
     await Promise.resolve();
   });
 
-  await waitFor(() => expect(sessionStorage.getItem('sso_currently_processing')).toBeNull());
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
   expect(mocks.setSession).not.toHaveBeenCalled();
   expectNoAck(parent);
   vi.mocked(parent.postMessage).mockClear();
@@ -653,6 +654,12 @@ it('drops a stale in-flight attempt before setSession, ACK and support activatio
   requestContext(parent);
   expect(parent.postMessage).not.toHaveBeenCalled();
 
+  await act(async () => { resolveVerification?.(successfulEdgeResult()); });
+  await waitFor(() => expect(mocks.setSession).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(parent.postMessage).toHaveBeenCalledWith({ type: 'SSO_ACK', success: true }, HUB_ORIGIN));
+  expect(mocks.setSession.mock.calls[0][0].access_token).toBe('access-token');
+  requestContext(parent);
+  expect(parent.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'HUB_SUPPORT_CONTEXT' }), HUB_ORIGIN);
   uninstall();
   hook.unmount();
 });
@@ -690,6 +697,11 @@ it('revokes a session that becomes stale while setSession is pending and clears 
   requestContext(parent);
   expect(parent.postMessage).not.toHaveBeenCalled();
 
+  await waitFor(() => expect(mocks.setSession).toHaveBeenCalledTimes(2));
+  await act(async () => { resolveSession?.(establishedSession()); });
+  await waitFor(() => expect(parent.postMessage).toHaveBeenCalledWith({ type: 'SSO_ACK', success: true }, HUB_ORIGIN));
+  requestContext(parent);
+  expect(parent.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'HUB_SUPPORT_CONTEXT' }), HUB_ORIGIN);
   uninstall();
   hook.unmount();
 });
@@ -732,3 +744,47 @@ it.each([
     hook.unmount();
   },
 );
+
+
+
+it('keeps only the latest tenant replacement and ignores a stale edge failure', async () => {
+  const parent = { postMessage: vi.fn() } as unknown as Window;
+  Object.defineProperty(window, 'parent', { configurable: true, value: parent });
+  let resolveOld: ((value: unknown) => void) | undefined;
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+  mocks.invoke.mockResolvedValue(successfulEdgeResult({ organizationId: ORG_B }));
+  mocks.setSession.mockResolvedValue(establishedSession({ organizationId: ORG_B }));
+  const hook = renderHook(() => useSsoListener());
+  sendSsoToken(parent, ssoToken(ORG_A, 'first-latest-tenant-signature-entropy'));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(1));
+  sendSsoToken(parent, ssoToken(ORG_A, 'middle-latest-tenant-signature-entropy'));
+  const latest = ssoToken(ORG_B, 'latest-tenant-replacement-signature-entropy');
+  sendSsoToken(parent, latest);
+  await act(async () => { resolveOld?.({ data: null, error: { context: { status: 401 } } }); });
+  await waitFor(() => expect(parent.postMessage).toHaveBeenCalledWith({ type: 'SSO_ACK', success: true }, HUB_ORIGIN));
+  expect(mocks.invoke).toHaveBeenCalledTimes(2);
+  expect(mocks.invoke.mock.calls[1][1].body.signature).toBe(latest.signature);
+  expect(mocks.activeOrganizationId).toBe(ORG_B);
+  expect(vi.mocked(parent.postMessage).mock.calls.some(([message]) => message.type === 'SSO_ERROR')).toBe(false);
+  hook.unmount();
+});
+
+it.each(['logout', 'malformed token', 'unmount'])('does not replay a queued delivery after %s', async reason => {
+  const parent = { postMessage: vi.fn() } as unknown as Window;
+  Object.defineProperty(window, 'parent', { configurable: true, value: parent });
+  let resolveOld: ((value: unknown) => void) | undefined;
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+  const hook = renderHook(() => useSsoListener());
+  sendSsoToken(parent, ssoToken(ORG_A, 'first-cancel-queued-signature-entropy'));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(1));
+  sendSsoToken(parent, ssoToken(ORG_A, 'latest-cancel-queued-signature-entropy'));
+  if (reason === 'logout') clearOperationsSupportContextSession();
+  else if (reason === 'unmount') hook.unmount();
+  else sendSsoToken(parent, { signature: '' } as ReturnType<typeof ssoToken>);
+  vi.mocked(parent.postMessage).mockClear();
+  await act(async () => { resolveOld?.(successfulEdgeResult()); });
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  expect(mocks.setSession).not.toHaveBeenCalled();
+  expect(parent.postMessage).not.toHaveBeenCalled();
+  if (reason !== 'unmount') hook.unmount();
+});
