@@ -4,7 +4,8 @@
  * service-role exposure to any client, no cross-tenant reads.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
-import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, decidePlanningBrainActor, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
+import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
+import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
@@ -67,26 +68,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (!orgResult.data)
         return json(404, { error: 'organization_not_found' });
     // Actor authority is verified before reading any project or staff labels.
+    // Request principal = canonical HUB subject; owner resolves trusted local principal for roles.
     const actor = parsed.value.actorUserId;
-    const [profileResult, rolesResult] = await Promise.all([
-        admin.from('profiles').select('organization_id').eq('user_id', actor).maybeSingle(),
-        admin.from('user_roles')
-            .select('role, organization_id')
-            .eq('user_id', actor)
-            .eq('organization_id', org)
-            .in('role', PLANNING_BRAIN_ACTOR_ROLES as unknown as string[]),
-    ]);
-    if (profileResult.error || rolesResult.error)
-        return json(503, { error: 'actor_lookup_failed' });
-    const actorDecision = decidePlanningBrainActor({
-        organizationId: org,
-        profileOrganizationId: (profileResult.data as {
-            organization_id?: string | null;
-        } | null)?.organization_id ?? null,
-        roleRows: rolesResult.data ?? [],
-    });
-    if (!actorDecision.ok)
-        return json(403, { error: actorDecision.error });
+    const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: PLANNING_BRAIN_ACTOR_ROLES });
+    if (!actorAuth.ok) { logActorDenial('planning-mobile-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
+
     if (bookingId) {
         const matches = await admin.from('projects').select('id, name', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);

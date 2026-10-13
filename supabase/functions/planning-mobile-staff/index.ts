@@ -4,7 +4,8 @@
  * service-role exposure to any client, no cross-tenant reads.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
-import { PLANNING_BRAIN_NONCE_TTL_SECONDS, decidePlanningBrainActor, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
+import { PLANNING_BRAIN_NONCE_TTL_SECONDS, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
+import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
@@ -64,26 +65,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (!orgResult.data)
         return json(404, { error: 'organization_not_found' });
     // Actor authority is verified before reading any project or staff labels.
+    // Request principal = canonical HUB subject; owner resolves trusted local principal for roles.
     const actor = parsed.value.actorUserId;
-    const [profileResult, rolesResult] = await Promise.all([
-        admin.from('profiles').select('organization_id').eq('user_id', actor).maybeSingle(),
-        admin.from('user_roles')
-            .select('role, organization_id')
-            .eq('user_id', actor)
-            .eq('organization_id', org)
-            .in('role', ['admin', 'projekt']),
-    ]);
-    if (profileResult.error || rolesResult.error)
-        return json(503, { error: 'actor_lookup_failed' });
-    const actorDecision = decidePlanningBrainActor({
-        organizationId: org,
-        profileOrganizationId: (profileResult.data as {
-            organization_id?: string | null;
-        } | null)?.organization_id ?? null,
-        roleRows: rolesResult.data ?? [],
-    });
-    if (!actorDecision.ok)
-        return json(403, { error: actorDecision.error });
+    const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: ['admin', 'projekt'] });
+    if (!actorAuth.ok) { logActorDenial('planning-mobile-staff', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
+    const localActor = actorAuth.localUserId;
     if (!(rolesResult.data ?? []).some(row => row.role === 'admin' || row.role === 'projekt'))
         return json(403, { error: 'actor_not_authorized' });
     if (body.action === 'command') {
@@ -92,7 +78,7 @@ export async function handleRequest(request: Request): Promise<Response> {
         if (!uuid(body.idempotencyKey) || typeof body.staffId !== 'string' || !body.staffId.trim() || body.staffId.length > 128 || !['assign', 'remove'].includes(body.operation) || !(body.expectedMembershipId === null || uuid(body.expectedMembershipId)) || typeof body.expectedTeamId !== 'string' || typeof body.expectedDate !== 'string' || !Array.isArray(body.expectedAffectedBookingIds) || body.expectedAffectedBookingIds.length > 500 || body.expectedAffectedBookingIds.some((id: unknown) => typeof id !== 'string' || id.length > 128))
             return json(400, { error: 'invalid_request' });
         const result = await admin.rpc('planning_mobile_staff_command_v1', {
-            p_actor_user_id: actor, p_organization_id: org, p_event_id: body.calendarEventId,
+            p_actor_user_id: localActor, p_organization_id: org, p_event_id: body.calendarEventId,
             p_staff_id: body.staffId, p_operation: body.operation, p_idempotency_key: body.idempotencyKey,
             p_expected_membership_id: body.expectedMembershipId, p_expected_team_id: body.expectedTeamId, p_expected_date: body.expectedDate, p_expected_booking_ids: body.expectedAffectedBookingIds,
         });
@@ -105,7 +91,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     // Resolve dates and affected bookings inside PostgreSQL with exactly the
     // canonical trigger's coalesce(source_date, Stockholm start_time date).
     const context = await admin.rpc('planning_mobile_staff_context_v1', {
-        p_actor_user_id: actor, p_organization_id: org, p_event_id: body.calendarEventId,
+        p_actor_user_id: localActor, p_organization_id: org, p_event_id: body.calendarEventId,
     });
     if (context.error) return json(context.error.code === '42501' ? 403 : context.error.code === '22023' ? 404 : 503, {error:'calendar_unavailable'});
     const {teamId, date, affectedBookingIds} = context.data ?? {};
