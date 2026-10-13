@@ -36,7 +36,7 @@ const db = {
     { id: 'a0000000-0000-4000-8000-000000000005', name: 'Other', organization_id: OTHER, booking_id: B_OTHERORG, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
     { id: 'a0000000-0000-4000-8000-000000000006', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
   ],
-  staff_members: [], project_files: [], project_staff_time_cost_lines: [],
+  staff_members: [], project_files: [], project_staff_time_cost_lines: [], jobs: [], large_projects: [],
   bookings: [{ id: B_EVENT, organization_id: ORG, rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: '2026-10-15' }, { id: B_ASSIGN, organization_id: OTHER, rigdaydate: '2026-10-20', eventdate: '2026-10-21', rigdowndate: '2026-10-22' }], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
 const inRange = (d, a, b) => d != null && d >= a && d <= b;

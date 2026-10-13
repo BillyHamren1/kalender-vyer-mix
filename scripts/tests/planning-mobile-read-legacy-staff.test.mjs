@@ -33,7 +33,7 @@ async function run(staffIds, { staffError = false } = {}) {
             const data = {
                 organizations: { id: org },
                 user_roles: [{ role: 'projekt', organization_id: org }],
-                projects: [], calendar_events: [], booking_staff_assignments: assignments,
+                projects: [], jobs: [], large_projects: [], calendar_events: [], booking_staff_assignments: assignments,
                 staff_members: [{ id: legacyStaff, name: 'Äldre personal' }],
                 profiles: [{ user_id: uuidStaff, full_name: 'Ny personal' }],
             };
