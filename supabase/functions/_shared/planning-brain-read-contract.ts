@@ -170,7 +170,7 @@ export function decidePlanningBrainActor(input: {
 }): PlanningBrainActorDecision {
   const org = input.organizationId
   if (!uuid(org)) return { ok: false, error: 'actor_not_authorized' }
-  if (uuid(input.profileOrganizationId) !== org) return { ok: false, error: 'actor_not_authorized' }
+  // profileOrganizationId is the last-used tenant, not membership; per-org roles decide.
   const allowed = (input.roleRows ?? []).some((row) =>
     uuid(row?.organization_id) === org &&
     typeof row?.role === 'string' &&
