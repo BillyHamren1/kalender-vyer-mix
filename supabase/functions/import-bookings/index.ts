@@ -5376,7 +5376,7 @@ serve(async (req) => {
         console.error(`Error processing booking ${externalBooking.id}:`, error)
         results.errors.push({ booking_id: externalBooking.id, error: errMsg })
         results.failed++
-        if (error instanceof SafetyCircuitBreakerError && !dryRun) {
+        if (error instanceof SafetyCircuitBreakerError && !isDryRun) {
           try {
             await syncAttachmentsAfterBlockedSync(supabase, externalBooking, results, organizationId);
           } catch (attErr) {
