@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/vite-env.d.ts",
+    "src/lib/sso/hubOrigins.ts",
+    "src/lib/sso/supportContextProducer.ts",
+    "src/lib/sso/supportContextProducer.test.ts",
+    "src/hooks/useSsoListener.ts",
+    "src/hooks/useSsoListener.support.test.tsx",
+    "src/hooks/useOperationsSupportContext.ts",
+    "src/hooks/useOperationsSupportContext.test.tsx",
+    "src/hooks/useProjectDetail.tsx",
+    "src/hooks/useLargeProjectDetail.tsx",
+    "src/contexts/AuthContext.tsx",
+    "src/components/support/OperationsSupportContextMount.tsx",
+    "src/pages/project/ProjectLayout.tsx",
+    "src/pages/project/LargeProjectLayout.tsx",
+    "src/pages/project/SimpleProjectWorkspacePage.tsx",
+    "src/pages/WarehouseProjectDetail.tsx",
+    "src/__tests__/support-context-integration.static.test.ts"
+  ]
+}

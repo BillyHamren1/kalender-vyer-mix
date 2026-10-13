@@ -1,0 +1,59 @@
+name: Operations support context gate
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/sso/supportContextProducer.ts"
+      - "src/lib/sso/supportContextProducer.test.ts"
+      - "src/lib/sso/hubOrigins.ts"
+      - "src/hooks/useSsoListener.ts"
+      - "src/hooks/useSsoListener.support.test.tsx"
+      - "src/hooks/useOperationsSupportContext.ts"
+      - "src/hooks/useOperationsSupportContext.test.tsx"
+      - "src/hooks/useProjectDetail.tsx"
+      - "src/hooks/useLargeProjectDetail.tsx"
+      - "src/contexts/AuthContext.tsx"
+      - "src/components/support/OperationsSupportContextMount.tsx"
+      - "src/pages/project/ProjectLayout.tsx"
+      - "src/pages/project/LargeProjectLayout.tsx"
+      - "src/pages/project/SimpleProjectWorkspacePage.tsx"
+      - "src/pages/WarehouseProjectDetail.tsx"
+      - "src/__tests__/support-context-integration.static.test.ts"
+      - "src/App.tsx"
+      - "supabase/functions/verify-sso-token/index.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.app.json"
+      - "tsconfig.support-context.json"
+      - "vitest.config.ts"
+      - ".github/workflows/operations-support-context-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operations-support-context-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test support context
+        run: npm run test:support-context
+      - name: Typecheck Operations
+        run: npm run typecheck:support-context
+      - name: Build Operations
+        run: npm run build

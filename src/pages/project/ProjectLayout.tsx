@@ -21,6 +21,7 @@ import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/serv
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useOperationsSupportContext } from "@/hooks/useOperationsSupportContext";
 
 const navItems = [
   { key: "overview", label: "Översikt", icon: LayoutDashboard, path: "" },
@@ -41,7 +42,17 @@ const ProjectLayout = () => {
   const subtitleInputRef = useRef<HTMLInputElement>(null);
 
   const detail = useProjectDetail(projectId || "");
-  const { project, isLoading } = detail;
+  const { project, isLoading, isPending, isFetching, isError } = detail;
+  useOperationsSupportContext({
+    kind: 'project',
+    entityId: project?.id,
+    entityOrganizationId: (project as { organization_id?: string } | null | undefined)?.organization_id,
+    routeId: projectId,
+    isPending,
+    isFetching,
+    isError,
+    hasEntity: !!project,
+  });
 
   const handleConvert = async (targetType: ProjectType) => {
     if (!project?.booking_id) {
