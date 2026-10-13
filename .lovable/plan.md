@@ -1,25 +1,18 @@
-# Readiness: EventFlow mobil Operations (PR56) — läsande kontroll
+# PDF från Sales syns inte i projektet (2609-19)
 
-## Resultat (verifierat 2026-10-13, inget ändrat)
+## Orsak (bekräftad)
+1. **Synken för 2609-19 stoppas av en säkerhetsspärr.** Sedan 12:42 UTC avbryts varje uppdatering av bokningen. Den skulle ta bort 31 packlisterader men spärren tillåter max 25 (`safety_circuit_breaker:product_deletes`). Bokningen fick 10 produkter borttagna i Booking. Eftersom körningen avbryts innan bilagorna hämtas kommer den nya PDF:en aldrig in. Den lokala kopian har bara 9 bilder/jpg från 8 sept och ingen PDF.
+2. **Projektets sidhuvud läser bilagor från den lokala kopian** (`BookingInfoHeader` → `booking_attachments`) i stället för direkt från Booking. Det bryter mot regeln att projektvyer ska läsa live från Booking, så allt som synken missar syns inte där.
 
-- Projekt: Lovable `d42a96b9`, HEAD `ef794699…` ("Gömd mobiltoken-mockning"). Supabase `pihrhltinhewhoxefjxv`.
-- Branch `codex/brain-operations-mobile-read` / commit `4fca53ee…`: **inte åtkomlig**. Commit-objektet finns inte i projektets repo och ingen `codex/*`-gren är synkad hit. Branchfilerna kunde därför inte läsas.
-- `supabase/functions/planning-mobile-read` och `planning-mobile-staff`: **saknas** i projektkoden och i `config.toml`.
-- Driftsatta funktioner: OPTIONS mot båda ger **404** → inte driftsatta.
-- Migration `20261012205117_mobile_staff_command.sql`: **saknas** i repo.
-- RPC `planning_mobile_staff_context_v1` / `planning_mobile_staff_command_v1`: **finns inte** i `public` (pg_proc-sökning tom) → migrationen ej applicerad.
-- Inga signeringssecrets lästes.
+## Åtgärd
+1. Byt sidhuvudets bilagelista till samma live-läsning som filfliken (`fetchBookingAttachments` via `booking-source-read`). Då syns Bookings aktuella bilagor oavsett synkstatus. Om Booking inte svarar visas ett tydligt fel och inte gamla filer.
+2. Säkerhetsspärren för 2609-19: jag höjer inte gränsen och tar inte bort några rader på egen hand. Efter att du godkänt kör jag en en-gångs-synk av just den här bokningen med spärren tillfälligt upphävd, så att de 31 inaktuella packlisteraderna (från de 10 borttagna produkterna) försvinner och bilagorna hämtas. Innan dess visar jag listan över raderna som tas bort.
+3. Flytta hämtningen av bilagor så att den körs även när produktsteget stoppas av spärren. Bilagor är ofarliga att uppdatera.
 
-## Förberedd ownerdeploylista (körs först efter att PR56 är mergad/synkad och uttryckligt godkännande)
+## Test
+- Vitest: sidhuvudet använder live-läsningen; bilagesteget körs även när produktsteget kastar circuit breaker.
+- Preview: öppna projektet för 2609-19 och kontrollera att PDF:en syns både i sidhuvudet och i filfliken.
 
-1. Bekräfta att projektets HEAD innehåller `4fca53ee…` (merge-SHA rapporteras).
-2. Läs och granska de tre filerna; bekräfta att staffing-kommandot skriver `staff_assignments` (team/dag) och kör `recompute_booking_staff_for_day_v2` med organisation — inga direkta BSA-skrivningar.
-3. Applicera migrationen `20261012205117_mobile_staff_command.sql` oförändrad; verifiera att RPC:erna finns, SECURITY-läge, grants (ingen anon execute).
-4. Lägg till `[functions.planning-mobile-read]` / `[functions.planning-mobile-staff]` i config enligt PR:ns värden (om de saknas där).
-5. Deploya endast `planning-mobile-read` och `planning-mobile-staff`.
-6. Syntetisk verifiering: OPTIONS 204, osignerat/otillåtet anrop nekas (401/403). Ingen riktig data, impersonation eller flagändring.
-
-Befintliga gröna läs/staffing/SQL-tester i PR:n byggs inte om.
-
-## Blockerare
-PR56 måste mergas till `main` (eller grenen synkas till Lovable) innan något av ovanstående kan göras härifrån.
+## Tekniskt
+- `src/components/project/BookingInfoHeader.tsx`: ersätt den direkta tabellfrågan med `useQuery(['booking-attachments', id], fetchBookingAttachments)`.
+- `supabase/functions/import-bookings/index.ts`: kör attachment-upsert före `syncPackingListAfterExpansion` eller i en egen try-block. Kräver deploy av `import-bookings`.
