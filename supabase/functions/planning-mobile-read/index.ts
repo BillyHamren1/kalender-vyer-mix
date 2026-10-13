@@ -15,6 +15,33 @@ const json = (status: number, body: unknown) => {
         headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });
 };
+
+type PhaseDates = { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null };
+const PHASES = ['rigdaydate', 'eventdate', 'rigdowndate'] as const;
+const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Booking dates single source: per field, project's own date wins, else linked same-org booking date, else null.
+async function loadBookingDates(admin: any, org: string, rows: Array<PhaseDates & { booking_id?: string | null }>): Promise<Map<string, PhaseDates> | null> {
+    const ids = [...new Set(rows.filter(r => r.booking_id && UUID_ID.test(r.booking_id) && PHASES.some(k => !r[k])).map(r => r.booking_id as string))];
+    const map = new Map<string, PhaseDates>();
+    if (!ids.length) return map;
+    const res = await admin.from('bookings').select('id, rigdaydate, eventdate, rigdowndate').eq('organization_id', org).in('id', ids);
+    if (res.error) return null;
+    for (const b of res.data ?? []) map.set(b.id, b);
+    return map;
+}
+function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>(row: T, map: Map<string, PhaseDates>) {
+    const b = row.booking_id ? map.get(row.booking_id) : undefined;
+    const out: any = { ...row }, src: Record<string, string | null> = {};
+    const label = { rigdaydate: 'rig', eventdate: 'event', rigdowndate: 'derig' } as const;
+    for (const k of PHASES) {
+        if (row[k]) { src[label[k]] = 'project'; }
+        else if (b?.[k]) { out[k] = b[k]; src[label[k]] = 'booking'; }
+        else { out[k] = null; src[label[k]] = null; }
+    }
+    out.dateSources = src;
+    return out as T & { dateSources: { rig: string | null; event: string | null; derig: string | null } };
+}
+
 export async function handleRequest(request: Request): Promise<Response> {
     if (request.method !== 'POST')
         return json(405, { error: 'method_not_allowed' });
@@ -79,10 +106,12 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (!actorAuth.ok) { logActorDenial('planning-mobile-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
 
     if (bookingId) {
-        const matches = await admin.from('projects').select('id, name', { count: 'exact' })
+        const matches = await admin.from('projects').select('id, name, booking_id, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);
         if (matches.error || matches.count === null || matches.count !== (matches.data ?? []).length) return json(503, { error: 'project_lookup_incomplete' });
-        return json(200, {schema: 'planning-mobile-booking-projects.v1', canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(row => ({projectId: row.id, title: row.name}))});
+        const resolverDates = await loadBookingDates(admin, org, matches.data ?? []);
+        if (!resolverDates) return json(503, { error: 'booking_dates_read_failed' });
+        return json(200, {schema: 'planning-mobile-booking-projects.v1', canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: row.name, rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
     }
     if (projectId) {
         const project = await admin.from('projects')
@@ -176,11 +205,15 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (projectsResult.error || eventsResult.error || assignmentsResult.error) {
         return json(503, { error: 'planning_read_failed' });
     }
+    const listDates = await loadBookingDates(admin, org, projectsResult.data ?? []);
+    if (!listDates) return json(503, { error: 'booking_dates_read_failed' });
+    const listProjects = (projectsResult.data ?? []).map(row => withBookingDates(row, listDates));
+    const dateSourcesById = new Map(listProjects.map(row => [row.id, row.dateSources]));
     const projection = buildPlanningBrainProjection({
         request: parsed.value,
         generatedAt: new Date().toISOString(),
         rows: {
-            projects: projectsResult.data ?? [],
+            projects: listProjects,
             calendarEvents: eventsResult.data ?? [],
             assignments: assignmentsResult.data ?? [],
         },
@@ -217,7 +250,7 @@ export async function handleRequest(request: Request): Promise<Response> {
         ...projection,
         schema: 'planning-mobile-read.v1',
         canonicalIdentity: { organizationId: org, actorUserId: actor },
-        projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null })),
+        projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null, dateSources: dateSourcesById.get(row.projectId) ?? { rig: null, event: null, derig: null } })),
         teamAssignments: projection.teamAssignments.map(row => ({ ...row, staffName: row.staffRef ? names.get(row.staffRef) ?? null : null })),
         page: { offset, limit: 200, hasMore, nextOffset: hasMore ? offset + 200 : null, totals },
     });

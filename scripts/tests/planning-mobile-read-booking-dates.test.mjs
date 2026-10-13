@@ -36,7 +36,7 @@ const db = {
     { id: 'a0000000-0000-4000-8000-000000000006', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
   ],
   staff_members: [], project_files: [], project_staff_time_cost_lines: [],
-  bookings: [{ id: B_EVENT, organization_id: ORG, rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: '2026-10-15' }, { id: B_OTHERORG, organization_id: ORG, rigdaydate: '2026-10-20', eventdate: null, rigdowndate: null }], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
+  bookings: [{ id: B_EVENT, organization_id: ORG, rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: '2026-10-15' }, { id: B_ASSIGN, organization_id: OTHER, rigdaydate: '2026-10-20', eventdate: '2026-10-21', rigdowndate: '2026-10-22' }], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
 const inRange = (d, a, b) => d != null && d >= a && d <= b;
 // Minimal PostgREST emulation of the exact filters used (eq/gte/lte/is/not/or).
@@ -51,7 +51,7 @@ globalThis.__linkClient = () => ({
   from(table) {
     const preds = []; let single = false;
     const q = {
-      select() { return q; }, order() { return q; }, range() { return q; }, in() { return q; },
+      select() { return q; }, order() { return q; }, range() { return q; }, in(k, v) { preds.push(r => v.includes(r[k])); return q; },
       eq(k, v) { preds.push(r => r[k] === v); return q; },
       gte(k, v) { preds.push(r => r[k] >= v); return q; }, lte(k, v) { preds.push(r => r[k] <= v); return q; },
       is(k, v) { preds.push(r => r[k] === v); return q; }, not(k) { preds.push(r => r[k] != null); return q; },
@@ -68,8 +68,8 @@ globalThis.__linkClient = () => ({
 });
 
 let n = 0;
-async function detail(projectId) {
-  const raw = JSON.stringify({ schema: 'planning-mobile-read-request.v1', actorUserId: HUB, organizationId: ORG, from: FROM, to: TO, projectId });
+async function detail(projectId, extra) {
+  const raw = JSON.stringify({ schema: 'planning-mobile-read-request.v1', actorUserId: HUB, organizationId: ORG, from: FROM, to: TO, ...(extra ?? { projectId }) });
   const ts = String(Date.now()), nonce = 'test_nonce_detail_dates_' + (n++);
   const sig = await contract.signPlanningBrainRequest(secret, ts, nonce, raw);
   const r = await handleRequest(new Request('https://t.invalid', { method: 'POST', headers: { 'x-planning-timestamp': ts, 'x-planning-nonce': nonce, 'x-planning-signature': sig }, body: raw }));
@@ -87,7 +87,28 @@ test('explicit project dates win over booking dates', async () => {
   assert.deepEqual([p.rigDate, p.eventDate, p.derigDate], ['2026-10-05', '2026-10-06', '2026-10-07']);
   assert.deepEqual(p.dateSources, { rig: 'project', event: 'project', derig: 'project' });
 });
-test('no canonical booking date in org: stays truthful null', async () => {
+test('booking of another org is never used: stays truthful null', async () => {
   const p = (await detail('a0000000-0000-4000-8000-000000000002')).body.project;
   assert.deepEqual([p.rigDate, p.eventDate, p.derigDate], [null, null, null]);
+});
+
+test('list rows project per field with booking fallback, override and cross-org guard', async () => {
+  const r = await detail(null, {});
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const by = Object.fromEntries(r.body.projects.map(p => [p.projectId, p]));
+  const ev = by['a0000000-0000-4000-8000-000000000001'];
+  assert.deepEqual([ev.rigDate, ev.eventDate, ev.derigDate], ['2026-10-13', '2026-10-14', '2026-10-15']);
+  assert.deepEqual(ev.dateSources, { rig: 'booking', event: 'booking', derig: 'booking' });
+  const dated = by['a0000000-0000-4000-8000-000000000003'];
+  assert.deepEqual([dated.rigDate, dated.derigDate], ['2026-10-05', '2026-10-07']);
+  assert.equal(dated.dateSources.rig, 'project');
+  const cross = by['a0000000-0000-4000-8000-000000000002'];
+  assert.deepEqual([cross.rigDate, cross.eventDate, cross.derigDate], [null, null, null]);
+  assert.deepEqual(cross.dateSources, { rig: null, event: null, derig: null });
+});
+test('booking resolver rows carry canonical booking dates', async () => {
+  const r = await detail(null, { bookingId: B_EVENT });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const p = r.body.projects.find(x => x.projectId === 'a0000000-0000-4000-8000-000000000001');
+  assert.deepEqual([p.rigDate, p.eventDate, p.derigDate, p.dateSources.event], ['2026-10-13', '2026-10-14', '2026-10-15', 'booking']);
 });
