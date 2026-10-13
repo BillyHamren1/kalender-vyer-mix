@@ -124,7 +124,7 @@ export async function handleRequest(request: Request): Promise<Response> {
                 rows: costsComplete ? (costs.data ?? []).map(row => ({ id: row.id, staffName: row.staff_name, date: row.date, minutes: row.minutes, cost: row.cost, submissionStatus: row.submission_status })) : [],
             },
             files: (files.data ?? []).map(row => ({ id: row.id, name: row.file_name, type: row.file_type, url: row.url })),
-            comments: (comments.data ?? []).map(row => ({ id: row.id, authorName: row.author_name, content: row.content, createdAt: row.created_at })),
+            comments: [],
         });
     }
     // Projects are also in the window when their booking has calendar events or staff
