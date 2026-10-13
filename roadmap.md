@@ -53,3 +53,6 @@
 - [ ] EXTERN GATE (Time): lägg till `expenses.list/decide/receiptUrl` i `time-planning-adapter` med server-härledd `workspaceRef`, worker/displayName i snapshot, `isTestFixture`-flagga; därefter hostad resa mot riktig staging-fixture
 - [ ] Deploy `time-planning-proxy` (kräver explicit go – ej gjort i detta paket)
 - [ ] Gap: Time-snapshoten saknar `sourceAssignmentId` → exakt calendar_event kan inte bindas, bara bokning/projekt; moms finns inte i Times kontrakt (visas ej)
+
+## Booking-synk
+- [x] Komplett produktlista från Sales slår igenom utan antalsspärr; bilagor (PDF) kommer in även om synken stoppas; 2609-19 synkad.
