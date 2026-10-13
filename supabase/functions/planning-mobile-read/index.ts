@@ -160,9 +160,13 @@ export async function handleRequest(request: Request): Promise<Response> {
         },
     });
     const staffIds = [...new Set((assignmentsResult.data ?? []).map(row => row.staff_id).filter(Boolean))];
+    // profiles.user_id is uuid; legacy staff ids (e.g. 'staff_…') are text and must not reach that filter.
+    const profileIds = staffIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
     const [staff, profiles] = staffIds.length ? await Promise.all([
         admin.from('staff_members').select('id, name').eq('organization_id', org).in('id', staffIds),
-        admin.from('profiles').select('user_id, full_name').eq('organization_id', org).in('user_id', staffIds),
+        profileIds.length
+            ? admin.from('profiles').select('user_id, full_name').eq('organization_id', org).in('user_id', profileIds)
+            : Promise.resolve({ data: [], error: null }),
     ]) : [{ data: [], error: null }, { data: [], error: null }];
     if (staff.error || profiles.error)
         return json(503, { error: 'staff_read_failed' });
