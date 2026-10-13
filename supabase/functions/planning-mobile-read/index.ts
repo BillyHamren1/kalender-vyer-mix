@@ -4,11 +4,17 @@
  * service-role exposure to any client, no cross-tenant reads.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
-import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, decidePlanningBrainActor, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-});
+import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
+import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
+const json = (status: number, body: unknown) => {
+    // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
+    const b = body as { error?: unknown; schema?: unknown };
+    console.log(`[planning-mobile-read] outcome ${JSON.stringify({ status, error: b?.error ?? null, schema: status === 200 ? b?.schema ?? null : null })}`);
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    });
+};
 export async function handleRequest(request: Request): Promise<Response> {
     if (request.method !== 'POST')
         return json(405, { error: 'method_not_allowed' });
@@ -67,26 +73,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (!orgResult.data)
         return json(404, { error: 'organization_not_found' });
     // Actor authority is verified before reading any project or staff labels.
+    // Request principal = canonical HUB subject; owner resolves trusted local principal for roles.
     const actor = parsed.value.actorUserId;
-    const [profileResult, rolesResult] = await Promise.all([
-        admin.from('profiles').select('organization_id').eq('user_id', actor).maybeSingle(),
-        admin.from('user_roles')
-            .select('role, organization_id')
-            .eq('user_id', actor)
-            .eq('organization_id', org)
-            .in('role', PLANNING_BRAIN_ACTOR_ROLES as unknown as string[]),
-    ]);
-    if (profileResult.error || rolesResult.error)
-        return json(503, { error: 'actor_lookup_failed' });
-    const actorDecision = decidePlanningBrainActor({
-        organizationId: org,
-        profileOrganizationId: (profileResult.data as {
-            organization_id?: string | null;
-        } | null)?.organization_id ?? null,
-        roleRows: rolesResult.data ?? [],
-    });
-    if (!actorDecision.ok)
-        return json(403, { error: actorDecision.error });
+    const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: PLANNING_BRAIN_ACTOR_ROLES });
+    if (!actorAuth.ok) { logActorDenial('planning-mobile-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
+
     if (bookingId) {
         const matches = await admin.from('projects').select('id, name', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);
@@ -169,13 +160,9 @@ export async function handleRequest(request: Request): Promise<Response> {
         },
     });
     const staffIds = [...new Set((assignmentsResult.data ?? []).map(row => row.staff_id).filter(Boolean))];
-    // profiles.user_id is uuid; legacy staff ids (e.g. 'staff_…') are text and must not reach that filter.
-    const profileIds = staffIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
     const [staff, profiles] = staffIds.length ? await Promise.all([
         admin.from('staff_members').select('id, name').eq('organization_id', org).in('id', staffIds),
-        profileIds.length
-            ? admin.from('profiles').select('user_id, full_name').eq('organization_id', org).in('user_id', profileIds)
-            : Promise.resolve({ data: [], error: null }),
+        admin.from('profiles').select('user_id, full_name').eq('organization_id', org).in('user_id', staffIds),
     ]) : [{ data: [], error: null }, { data: [], error: null }];
     if (staff.error || profiles.error)
         return json(503, { error: 'staff_read_failed' });

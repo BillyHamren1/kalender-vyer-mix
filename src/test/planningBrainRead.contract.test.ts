@@ -173,19 +173,18 @@ describe('route is strictly read-only and fail-closed', () => {
   it('consumes the nonce and enforces actor authority before projecting', () => {
     expect(ROUTE_SRC).toContain('nonce_replayed');
     expect(ROUTE_SRC).toContain('nonce_store_unavailable');
-    expect(ROUTE_SRC).toContain('actor_lookup_failed');
-    expect(ROUTE_SRC).toContain('decidePlanningBrainActor');
+    expect(ROUTE_SRC).toContain('authorizeHubActor');
     const nonceAt = ROUTE_SRC.indexOf('consume_planning_brain_read_nonce');
-    const actorAt = ROUTE_SRC.indexOf('decidePlanningBrainActor(');
+    const actorAt = ROUTE_SRC.indexOf('authorizeHubActor(');
     const projectionAt = ROUTE_SRC.indexOf('buildPlanningBrainProjection(');
     expect(nonceAt).toBeGreaterThan(0);
     expect(nonceAt).toBeLessThan(actorAt);
     expect(actorAt).toBeLessThan(projectionAt);
   });
 
-  it('reads actor authority from Planning-owned auth source without PII columns', () => {
-    expect(ROUTE_SRC).toContain("from('user_roles')");
-    expect(ROUTE_SRC).toContain("from('profiles')");
+  it('resolves actor via shared server-controlled HUB resolver, never profile org', () => {
+    expect(ROUTE_SRC).toContain("from '../_shared/hub-actor.ts'");
+    expect(ROUTE_SRC).not.toContain("from('profiles')");
     expect(ROUTE_SRC).not.toMatch(/select\('[^']*email/);
     expect(ROUTE_SRC).not.toMatch(/select\('[^']*full_name/);
   });
@@ -228,12 +227,12 @@ describe('actor authorization (no body/mail claims)', () => {
     })).toEqual({ ok: false, error: 'actor_not_authorized' });
   });
 
-  it('rejects an unknown actor (no profile row)', () => {
+  it('authorizes a multi-org member whose last-used profile org is another tenant', () => {
     expect(decidePlanningBrainActor({
       organizationId: ORG,
-      profileOrganizationId: null,
+      profileOrganizationId: OTHER_ORG,
       roleRows: [{ role: 'admin', organization_id: ORG }],
-    })).toEqual({ ok: false, error: 'actor_not_authorized' });
+    })).toEqual({ ok: true });
     expect(UNKNOWN_ACTOR).not.toBe(ACTOR);
   });
 });
@@ -268,8 +267,9 @@ describe('replay primitive (security-only nonce store)', () => {
   it('scopes every read by organization_id and makes no provider/model call', () => {
     const selects = ROUTE_SRC.split('.select(').length - 1;
     const orgFilters = (ROUTE_SRC.match(/\.eq\('organization_id', org\)/g) ?? []).length;
-    expect(selects).toBeGreaterThanOrEqual(4);
-    expect(orgFilters).toBe(4);
+    expect(selects).toBeGreaterThanOrEqual(3);
+    // organizations + projects + calendar_events + assignments; actor roles are org-scoped in _shared/hub-actor.ts.
+    expect(orgFilters).toBe(3);
     expect(ROUTE_SRC).not.toMatch(/openai|anthropic|ai\.gateway|lovable-api-key/i);
   });
 });
