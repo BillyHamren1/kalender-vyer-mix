@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { resolveProjectPhaseDates } from "../../../supabase/functions/_shared/projectPhaseDates";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarDays, Check, Circle, Mail, Plus, Save, Send, StickyNote, Users } from "lucide-react";
@@ -124,12 +125,13 @@ export default function SimpleProjectWorkspacePage() {
   if (projectQuery.isLoading) return <div className="p-8 text-muted-foreground">Laddar projekt…</div>;
   if (!project) return <div className="p-8"><p>Projektet hittades inte.</p><Button className="mt-4" onClick={() => navigate("/projects")}>Till projekt</Button></div>;
 
-  const displayBooking = booking || {
+  const phaseDates = resolveProjectPhaseDates(project as any, booking as any);
+  const displayBooking = booking ? { ...booking, rigdaydate: phaseDates.rigdaydate, eventdate: phaseDates.eventdate, rigdowndate: phaseDates.rigdowndate } : {
     id: project.id,
     client: project.client || "Internt projekt",
-    eventdate: project.eventdate,
-    rigdaydate: project.rigdaydate,
-    rigdowndate: project.rigdowndate,
+    eventdate: phaseDates.eventdate,
+    rigdaydate: phaseDates.rigdaydate,
+    rigdowndate: phaseDates.rigdowndate,
     deliveryaddress: project.deliveryaddress,
     delivery_city: project.delivery_city,
     delivery_postal_code: project.delivery_postal_code,
