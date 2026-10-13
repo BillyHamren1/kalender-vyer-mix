@@ -5,13 +5,11 @@ const {PGlite}=await import(process.env.PGLITE_MODULE_PATH||'@electric-sql/pglit
 const db=new PGlite();
 after(()=>db.close());
 const dir=new URL('../../supabase/migrations/',import.meta.url);
-const file=process.env.HUB_LINK_MIGRATION||new URL((await readdir(dir)).sort().reverse().find(async()=>false)??'',dir);
 const migrations=(await readdir(dir)).sort();
 const read=async name=>readFile(new URL(name,dir),'utf8');
 let hubMigration;
 for(const name of migrations.reverse()){const s=await read(name);if(s.includes('CREATE TABLE public.hub_identity_links')){hubMigration=s;break;}}
 if(process.env.HUB_LINK_MIGRATION) hubMigration=await readFile(process.env.HUB_LINK_MIGRATION,'utf8');
-void file;
 assert.ok(hubMigration,'hub identity link migration present');
 await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
 CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY, raw_user_meta_data jsonb, raw_app_meta_data jsonb);
@@ -20,11 +18,11 @@ CREATE TABLE user_roles(user_id uuid,organization_id uuid,role text);
 CREATE TABLE calendar_events(id uuid PRIMARY KEY,organization_id uuid,resource_id text,source_date date,start_time timestamptz,booking_id text);
 CREATE TABLE staff_members(id text PRIMARY KEY,organization_id uuid,is_active boolean);
 CREATE TABLE staff_assignments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),organization_id uuid,staff_id text,team_id text,assignment_date date);
+GRANT SELECT,INSERT,DELETE,UPDATE ON ALL TABLES IN SCHEMA public TO service_role;
 CREATE TABLE bookings(id text PRIMARY KEY,organization_id uuid);
 CREATE TABLE large_projects(id uuid PRIMARY KEY,organization_id uuid,deleted_at timestamptz,start_date text[],event_date text[],end_date text[]);
-CREATE TABLE large_project_bookings(large_project_id uuid,booking_id text,organization_id uuid);
-CREATE SCHEMA planning_mobile_private;
-CREATE TABLE planning_mobile_private.staff_command_receipts(organization_id uuid,actor_user_id uuid,idempotency_key uuid,payload jsonb,receipt jsonb,created_at timestamptz);`);
+CREATE TABLE large_project_bookings(large_project_id uuid,booking_id text,organization_id uuid);`);
+await db.exec(await read('20261012205117_mobile_staff_command.sql'));
 await db.exec(hubMigration);
 const direct='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', hub='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', adopted='cccccccc-cccc-4ccc-8ccc-cccccccccccc', spoofHub='dddddddd-dddd-4ddd-8ddd-dddddddddddd', victim='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const orgA='11111111-1111-4111-8111-111111111111', orgB='22222222-2222-4222-8222-222222222222', event='33333333-3333-4333-8333-333333333333';
