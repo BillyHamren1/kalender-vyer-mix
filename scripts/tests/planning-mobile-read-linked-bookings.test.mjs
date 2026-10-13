@@ -73,6 +73,6 @@ test('dateless projects linked via in-window calendar event or assignment are li
   const body = await resp.json();
   assert.equal(resp.status, 200, JSON.stringify(body));
   const ids = body.projects.map(p => p.projectId).sort();
-  assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000001']);
+  assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000003']);
   assert.deepEqual(body.canonicalIdentity, { organizationId: ORG, actorUserId: HUB });
 });
