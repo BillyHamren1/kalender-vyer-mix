@@ -5,3 +5,4 @@
 
 - Sync circuit breaker for product/packing-row deletes applies only when Booking product source is not complete; a complete Booking list is authoritative and deletes in full, and attachments still sync when a sync is blocked, because Booking (Sales) is the source of truth.
 - Signed BRAIN routes take the canonical HUB subject as principal and resolve the local actor only via `resolve_hub_actor_v1` (auth.users id or immutable `hub_identity_links`), authorizing with per-org `user_roles`; never user_metadata or `profiles.organization_id`, because those are user-editable or last-used tenant.
+- Project phase dates (project own date per field, else same-org linked booking, else null) and Operations status-tab classification live only in supabase/functions/_shared/projectPhaseDates.ts, imported by both web and planning-mobile-read, because the mobile app must mirror Operations exactly.
