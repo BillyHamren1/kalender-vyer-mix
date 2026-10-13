@@ -38,7 +38,8 @@ test('returns named projects and staff from authorized tenant-scoped owner rows'
     assert.equal(r.body.teamAssignments[0].staffName, 'Testpersonal');
     for (const c of r.calls.filter(c => ['projects', 'calendar_events', 'booking_staff_assignments', 'staff_members'].includes(c.table)))
         assert.ok(c.filters.some(([k, v]) => k === 'organization_id' && v === org));
-    assert.ok(r.calls.some(c => c.overlap?.includes('rigdaydate.lte.2026-10-20,rigdowndate.gte.2026-10-10')));
+    // Project list mirrors Operations: no date-window filter on projects.
+  assert.ok(!r.calls.some(c => c.overlap));
 });
 test('rejects wrong tenant actor before project/staff reads', async () => { const r = await run({ authorized: false }); assert.equal(r.response.status, 403); assert.ok(!r.calls.some(c => c.table === 'projects')); });
 test('rejects replay before any table access', async () => { const r = await run({ replay: true }); assert.equal(r.response.status, 401); assert.ok(!r.calls.some(c => c.table || c.rpc === 'resolve_hub_actor_v1')); });

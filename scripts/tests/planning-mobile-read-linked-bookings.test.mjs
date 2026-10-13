@@ -66,7 +66,7 @@ globalThis.__linkClient = () => ({
     return q;
   },
 });
-test('dateless projects linked via in-window calendar event or assignment are listed; no leaks', async () => {
+test('list mirrors Operations: every non-deleted same-org project, dates via shared rule, owner status tabs; no cross-org/deleted leaks', async () => {
   const raw = JSON.stringify({ schema: 'planning-mobile-read-request.v1', actorUserId: HUB, organizationId: ORG, from: FROM, to: TO });
   const ts = String(Date.now()), nonce = 'test_nonce_linked_123456';
   const sig = await contract.signPlanningBrainRequest(secret, ts, nonce, raw);
@@ -74,6 +74,14 @@ test('dateless projects linked via in-window calendar event or assignment are li
   const body = await resp.json();
   assert.equal(resp.status, 200, JSON.stringify(body));
   const ids = body.projects.map(p => p.projectId).sort();
-  assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000003']);
+  // 'Out' (dates outside window, no events) is listed like in Operations; other org + deleted are not.
+  assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000004']);
+  for (const p of body.projects) {
+    assert.equal(p.lifecycle, 'active');
+    assert.ok(p.statusTabs.includes('all_active') && p.statusTabs.includes('planning'));
+  }
+  const out = body.projects.find(p => p.projectId.endsWith('04'));
+  assert.equal(out.rigDate, '2025-01-01'); assert.equal(out.dateSources.rig, 'project');
+  assert.ok(out.statusTabs.includes('closing') === false); // no event date -> not in 'Under slutförande'
   assert.deepEqual(body.canonicalIdentity, { organizationId: ORG, actorUserId: HUB });
 });
