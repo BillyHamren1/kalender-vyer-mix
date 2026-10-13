@@ -11448,6 +11448,29 @@ export type Database = {
         }
         Returns: Json
       }
+      planning_mobile_staff_command_v1: {
+        Args: {
+          p_actor_user_id: string
+          p_event_id: string
+          p_expected_booking_ids: string[]
+          p_expected_date: string
+          p_expected_membership_id: string
+          p_expected_team_id: string
+          p_idempotency_key: string
+          p_operation: string
+          p_organization_id: string
+          p_staff_id: string
+        }
+        Returns: Json
+      }
+      planning_mobile_staff_context_v1: {
+        Args: {
+          p_actor_user_id: string
+          p_event_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       promote_stale_assistant_events: { Args: never; Returns: number }
       recompute_booking_staff_for_day: {
         Args: { p_booking_id: string; p_date: string }
