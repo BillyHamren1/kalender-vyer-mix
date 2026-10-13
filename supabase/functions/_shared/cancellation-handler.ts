@@ -61,6 +61,8 @@ export interface CancellationResult {
   jobs_updated?: boolean;
   packing_deleted?: boolean;
   products_deleted?: boolean;
+  action_required?: boolean;
+  packing_preserved?: number;
   source_logged?: boolean;
   mutations?: Record<string, number>;
   error?: string;
@@ -196,7 +198,9 @@ export async function applyBookingCancellation(
   result.warehouse_events_deleted = true;
   result.projects_updated = true;
   result.jobs_updated = true;
-  result.packing_deleted = true;
+  result.packing_preserved = m.packing_preserved ?? 0;
+  result.action_required = result.packing_preserved > 0;
+  result.packing_deleted = result.packing_preserved === 0;
   result.products_deleted = true;
   result.source_logged = (m.audit ?? 0) > 0;
 

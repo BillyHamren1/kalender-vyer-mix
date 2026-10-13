@@ -19,19 +19,10 @@ export const useChangedPackings = () =>
   useQuery({
     queryKey: ['packing-needs-review'],
     queryFn: async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const horizon = new Date(today);
-      horizon.setDate(horizon.getDate() + 21);
-      const toIso = (d: Date) => d.toISOString().slice(0, 10);
-
       const { data, error } = await supabase
         .from('packing_projects')
         .select('id, name, booking_id, client_name, start_date, needs_packing_review_reason')
         .eq('needs_packing_review', true)
-        .not('start_date', 'is', null)
-        .gte('start_date', toIso(today))
-        .lte('start_date', toIso(horizon))
         .order('start_date', { ascending: true });
 
       if (error) {
@@ -67,7 +58,7 @@ const PackingChangedList: React.FC<Props> = ({ limit = 5, onShowAll }) => {
       queryClient.invalidateQueries({ queryKey: ['packings'] });
       toast.success('Ändring godkänd');
     },
-    onError: () => toast.error('Kunde inte godkänna ändringen'),
+    onError: () => toast.error('Kunde inte godkänna. Kontrollera kvarvarande packning och retur.'),
   });
 
   if (packings.length === 0) {
@@ -80,7 +71,7 @@ const PackingChangedList: React.FC<Props> = ({ limit = 5, onShowAll }) => {
     <div className="divide-y divide-border/30">
       {visible.map(packing => {
         const isExpanded = expandedId === packing.id;
-        const reasonLabel = packing.needs_packing_review_reason === 'cancelled' ? 'Avbokad' : 'Ordern har ändrats';
+        const reasonLabel = packing.needs_packing_review_reason || 'Ordern har ändrats';
         return (
           <div key={packing.id}>
             <div className="flex items-center gap-3 py-2.5">

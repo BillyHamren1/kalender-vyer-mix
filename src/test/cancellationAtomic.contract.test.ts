@@ -87,7 +87,8 @@ describe('STEG 2J – atomisk RPC (SQL-kontrakt)', () => {
 
   it('Test 5: varje mutation är org- och bokningsisolerad', () => {
     // Senaste definitionen är den auktoritativa (tidigare versioner + backfill ignoreras).
-    const body = SQL.slice(SQL.lastIndexOf('CREATE OR REPLACE FUNCTION public.apply_booking_cancellation_atomic'));
+    const definition = SQL.slice(SQL.lastIndexOf('CREATE OR REPLACE FUNCTION public.apply_booking_cancellation_atomic'));
+    const body = definition.slice(0, definition.indexOf('$fn$;', definition.indexOf('AS $fn$')));
     const stmts = body.split(/(?=DELETE FROM public\.|UPDATE public\.)/).filter((s) => /^(DELETE FROM|UPDATE) public\./.test(s));
     for (const s of stmts) {
       const head = s.slice(0, s.indexOf(';'));
