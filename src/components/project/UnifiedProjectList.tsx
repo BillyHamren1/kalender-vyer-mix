@@ -6,7 +6,7 @@ import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'luc
 import { Button } from '@/components/ui/button';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
-import { resolveProjectPhaseDates, projectStatusTabs, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
+import { resolveProjectPhaseDates, projectStatusTabs, smallProjectView, largeProjectView, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
 import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
@@ -97,8 +97,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
       type: 'small',
       date: j.booking?.eventDate ?? null,
-      eventDate: j.booking?.eventDate ?? null,
-      status: j.status === 'planned' ? 'planning' : j.status,
+      eventDate: smallProjectView(j, { eventdate: j.booking?.eventDate }).listEventDate,
+      status: smallProjectView(j, null).status as any,
       subtitle: j.booking?.deliveryAddress ?? null,
       address: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
@@ -153,7 +153,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         name: lp.name,
         type: 'large',
         date: lp.start_date?.[0] ?? null,
-        eventDate: lp.end_date?.[0] ?? lp.start_date?.[0] ?? null,
+        eventDate: largeProjectView(lp as any).listEventDate,
         status: lp.status,
         subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
         address: lp.location ?? null,
