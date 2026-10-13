@@ -70,8 +70,6 @@ export async function handleRequest(request: Request): Promise<Response> {
     const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: ['admin', 'projekt'] });
     if (!actorAuth.ok) { logActorDenial('planning-mobile-staff', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
     const localActor = actorAuth.localUserId;
-    if (!(rolesResult.data ?? []).some(row => row.role === 'admin' || row.role === 'projekt'))
-        return json(403, { error: 'actor_not_authorized' });
     if (body.action === 'command') {
         if (Deno.env.get('PLANNING_MOBILE_STAFF_WRITE') !== 'true')
             return json(503, { error: 'write_disabled' });
