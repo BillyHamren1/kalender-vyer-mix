@@ -28,12 +28,12 @@ const db = {
   ],
   booking_staff_assignments: [{ id: 'a1', organization_id: ORG, booking_id: B_ASSIGN, staff_id: 'staff_x', team_id: 'team-1', role: null, assignment_date: '2026-10-12' }],
   projects: [
-    { id: 'p-event', name: 'Event', organization_id: ORG, booking_id: B_EVENT, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
-    { id: 'p-assign', name: 'Assign', organization_id: ORG, booking_id: B_ASSIGN, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
-    { id: 'p-dated', name: 'Dated', organization_id: ORG, booking_id: null, deleted_at: null, rigdaydate: '2026-10-05', eventdate: '2026-10-06', rigdowndate: '2026-10-07', status: 'planning' },
-    { id: 'p-out', name: 'Out', organization_id: ORG, booking_id: B_OUT, deleted_at: null, rigdaydate: '2025-01-01', eventdate: null, rigdowndate: '2025-01-02', status: 'planning' },
-    { id: 'p-other', name: 'Other', organization_id: OTHER, booking_id: B_OTHERORG, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
-    { id: 'p-del', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000001', name: 'Event', organization_id: ORG, booking_id: B_EVENT, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000002', name: 'Assign', organization_id: ORG, booking_id: B_ASSIGN, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000003', name: 'Dated', organization_id: ORG, booking_id: null, deleted_at: null, rigdaydate: '2026-10-05', eventdate: '2026-10-06', rigdowndate: '2026-10-07', status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000004', name: 'Out', organization_id: ORG, booking_id: B_OUT, deleted_at: null, rigdaydate: '2025-01-01', eventdate: null, rigdowndate: '2025-01-02', status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000005', name: 'Other', organization_id: OTHER, booking_id: B_OTHERORG, deleted_at: null, rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
+    { id: 'a0000000-0000-4000-8000-000000000006', name: 'Deleted', organization_id: ORG, booking_id: B_DELETED, deleted_at: '2026-10-01T00:00:00Z', rigdaydate: null, eventdate: null, rigdowndate: null, status: 'planning' },
   ],
   staff_members: [], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
@@ -73,6 +73,6 @@ test('dateless projects linked via in-window calendar event or assignment are li
   const body = await resp.json();
   assert.equal(resp.status, 200, JSON.stringify(body));
   const ids = body.projects.map(p => p.projectId).sort();
-  assert.deepEqual(ids, ['p-assign', 'p-dated', 'p-event']);
+  assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000001']);
   assert.deepEqual(body.canonicalIdentity, { organizationId: ORG, actorUserId: HUB });
 });
