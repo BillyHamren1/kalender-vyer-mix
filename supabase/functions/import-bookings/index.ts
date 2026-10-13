@@ -2164,6 +2164,7 @@ const reconnectPackingListItems = async (
       kind: 'product_deletes',
       counters: countersOf(supabase),
       filters: { packing_id: verifiedPackingId },
+      sourceComplete: completeness === 'complete',
     });
     if (reconnectDel.error) {
       console.error(`[Packing Reconnect] Error deleting orphaned items:`, reconnectDel.error);
@@ -2539,6 +2540,7 @@ const syncPackingListAfterExpansion = async (
         kind: 'product_deletes',
         counters: countersOf(supabase),
         filters: { packing_id: packingId },
+        sourceComplete: deleteAllowed,
       });
       if (orphanDel.error) {
         console.error(`[Packing Sync] Error deleting orphaned packing items:`, orphanDel.error);
@@ -4987,6 +4989,7 @@ serve(async (req) => {
                   counters: countersOf(supabase),
                   filters: { booking_id: bookingData.id, organization_id: organizationId },
                   ctx: { booking_id: bookingData.id, organization_id: organizationId },
+                  sourceComplete: productDeleteAllowed,
                 });
                 if (generatedDel.error) {
                   console.error(`[Merge] Error deleting generated dependents for booking ${bookingData.id}:`, generatedDel.error);
@@ -5018,6 +5021,7 @@ serve(async (req) => {
                 counters: countersOf(supabase),
                 filters: { booking_id: bookingData.id, organization_id: organizationId },
                 ctx: { booking_id: bookingData.id, organization_id: organizationId },
+                sourceComplete: productDeleteAllowed,
               });
               if (mergeDel.error) {
                 console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDel.error);
