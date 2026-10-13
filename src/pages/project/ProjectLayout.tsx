@@ -21,6 +21,7 @@ import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/serv
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { resolveProjectPhaseDates } from "../../../supabase/functions/_shared/projectPhaseDates";
 import { useOperationsSupportContext } from "@/hooks/useOperationsSupportContext";
 
 const navItems = [
@@ -199,9 +200,10 @@ const ProjectLayout = () => {
 
   // Source-of-truth dates: prefer project's own fields, fall back to booking
   const bRef: any = (project as any).booking ?? null;
-  const rigDate = project.rigdaydate || bRef?.rigdaydate || null;
-  const eventDate = project.eventdate || bRef?.eventdate || null;
-  const rigDownDate = project.rigdowndate || bRef?.rigdowndate || null;
+  const phaseDates = resolveProjectPhaseDates(project as any, bRef);
+  const rigDate = phaseDates.rigdaydate;
+  const eventDate = phaseDates.eventdate;
+  const rigDownDate = phaseDates.rigdowndate;
   const rigStart = project.rig_start_time || bRef?.rig_start_time || null;
   const rigEnd = project.rig_end_time || bRef?.rig_end_time || null;
   const evStart = project.event_start_time || bRef?.event_start_time || null;
@@ -442,9 +444,9 @@ const ProjectLayout = () => {
                 contactName={b?.contact_name ?? p.contact_name ?? null}
                 contactPhone={b?.contact_phone ?? p.contact_phone ?? null}
                 contactEmail={b?.contact_email ?? p.contact_email ?? null}
-                eventdate={p.eventdate ?? b?.eventdate ?? null}
-                rigdaydate={p.rigdaydate ?? b?.rigdaydate ?? null}
-                rigdowndate={p.rigdowndate ?? b?.rigdowndate ?? null}
+                eventdate={resolveProjectPhaseDates(p, b).eventdate}
+                rigdaydate={resolveProjectPhaseDates(p, b).rigdaydate}
+                rigdowndate={resolveProjectPhaseDates(p, b).rigdowndate}
                 carryMoreThan10m={b?.carry_more_than_10m ?? null}
                 groundNailsAllowed={b?.ground_nails_allowed ?? null}
                 exactTimeNeeded={b?.exact_time_needed ?? null}

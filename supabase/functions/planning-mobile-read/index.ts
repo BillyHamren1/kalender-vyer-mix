@@ -6,6 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
+import { resolveProjectPhaseDates, classifyProjectLifecycle, projectStatusTabs } from '../_shared/projectPhaseDates.ts';
 const json = (status: number, body: unknown) => {
     // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
     const b = body as { error?: unknown; schema?: unknown };
@@ -29,17 +30,15 @@ async function loadBookingDates(admin: any, org: string, rows: Array<PhaseDates 
     for (const b of res.data ?? []) map.set(b.id, b);
     return map;
 }
+// Same shared rule as the Operations web header/booking card/team panel.
 function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>(row: T, map: Map<string, PhaseDates>) {
-    const b = row.booking_id ? map.get(row.booking_id) : undefined;
-    const out: any = { ...row }, src: Record<string, string | null> = {};
-    const label = { rigdaydate: 'rig', eventdate: 'event', rigdowndate: 'derig' } as const;
-    for (const k of PHASES) {
-        if (row[k]) { src[label[k]] = 'project'; }
-        else if (b?.[k]) { out[k] = b[k]; src[label[k]] = 'booking'; }
-        else { out[k] = null; src[label[k]] = null; }
-    }
-    out.dateSources = src;
-    return out as T & { dateSources: { rig: string | null; event: string | null; derig: string | null } };
+    const r = resolveProjectPhaseDates(row, row.booking_id ? map.get(row.booking_id) : null);
+    return { ...row, rigdaydate: r.rigdaydate, eventdate: r.eventdate, rigdowndate: r.rigdowndate, dateSources: r.sources };
+}
+// Operations project-list classification (UnifiedProjectList status tabs); internal projects have no event date there.
+const todayUtc = () => new Date().toISOString().slice(0, 10);
+function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; eventdate?: string | null }) {
+    return { lifecycle: classifyProjectLifecycle(row.status), statusTabs: projectStatusTabs(row.status, row.is_internal ? null : row.eventdate, todayUtc()) };
 }
 
 export async function handleRequest(request: Request): Promise<Response> {
@@ -138,9 +137,7 @@ export async function handleRequest(request: Request): Promise<Response> {
             if (bk.error) return json(503, { error: 'booking_dates_read_failed' });
             bookingDates = bk.data ?? null;
         }
-        const pick = (own: string | null, k: 'rigdaydate' | 'eventdate' | 'rigdowndate') =>
-            own ? { v: own, s: 'project' } : bookingDates?.[k] ? { v: bookingDates[k], s: 'booking' } : { v: null, s: null };
-        const rigD = pick(p.rigdaydate, 'rigdaydate'), evD = pick(p.eventdate, 'eventdate'), drD = pick(p.rigdowndate, 'rigdowndate');
+        const resolved = resolveProjectPhaseDates(p, bookingDates);
         const targets = [`project_id.eq.${p.id}`];
         if (p.booking_id) targets.push(`booking_id.eq.${p.booking_id}`);
         const costs = await admin.from('project_staff_time_cost_lines')
@@ -154,7 +151,7 @@ export async function handleRequest(request: Request): Promise<Response> {
             schema: 'planning-mobile-detail.v1',
             canonicalIdentity: { actorUserId: actor, organizationId: org },
             projectId: p.id, title: p.name, bookingRef: p.booking_id,
-            project: {projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:rigD.v,eventDate:evD.v,derigDate:drD.v,dateSources:{rig:rigD.s,event:evD.s,derig:drD.s}},
+            project: {projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,eventdate:resolved.eventdate})},
             contactName: p.contact_name, contactPhone: p.contact_phone, contactEmail: p.contact_email,
             address: p.deliveryaddress, city: p.delivery_city, postalCode: p.delivery_postal_code,
             notes: p.internalnotes, generatedAt: new Date().toISOString(),
@@ -168,28 +165,13 @@ export async function handleRequest(request: Request): Promise<Response> {
             comments: [],
         });
     }
-    // Projects are also in the window when their booking has calendar events or staff
-    // assignments in it (projects often lack own phase dates). Same org, bounded, fail closed.
-    const LINK_LIMIT = 2000;
-    const [linkEvents, linkAssignments] = await Promise.all([
-        admin.from('calendar_events').select('booking_id', { count: 'exact' }).eq('organization_id', org)
-            .gte('source_date', from).lte('source_date', to).not('booking_id', 'is', null).order('id').range(0, LINK_LIMIT - 1),
-        admin.from('booking_staff_assignments').select('booking_id', { count: 'exact' }).eq('organization_id', org)
-            .gte('assignment_date', from).lte('assignment_date', to).not('booking_id', 'is', null).order('id').range(0, LINK_LIMIT - 1),
-    ]);
-    if (linkEvents.error || linkAssignments.error) return json(503, { error: 'planning_read_failed' });
-    if ((linkEvents.count ?? 0) > LINK_LIMIT || (linkAssignments.count ?? 0) > LINK_LIMIT) return json(503, { error: 'window_too_large' });
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const linkedBookingIds = [...new Set([...(linkEvents.data ?? []), ...(linkAssignments.data ?? [])]
-        .map(row => row.booking_id).filter((id): id is string => typeof id === 'string' && UUID_RE.test(id)))].sort();
-    const dateOverlap = `and(rigdaydate.lte.${to},rigdowndate.gte.${from}),and(rigdaydate.gte.${from},rigdaydate.lte.${to}),and(eventdate.gte.${from},eventdate.lte.${to}),and(rigdowndate.gte.${from},rigdowndate.lte.${to})`;
-    const projectFilter = linkedBookingIds.length ? `${dateOverlap},booking_id.in.(${linkedBookingIds.join(',')})` : dateOverlap;
+    // Project list mirrors Operations: every non-deleted project in the org (status tabs are
+    // classified per row). Calendar events and staff assignments stay bounded to the requested window.
     const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
         admin.from('projects')
             .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org)
             .is('deleted_at', null)
-            .or(projectFilter)
             .order('id').range(offset, offset + 199),
         admin.from('calendar_events')
             .select('id, organization_id, booking_id, resource_id, event_type, source_date, start_time, end_time, times_locked', { count: 'exact' })
@@ -208,7 +190,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     const listDates = await loadBookingDates(admin, org, projectsResult.data ?? []);
     if (!listDates) return json(503, { error: 'booking_dates_read_failed' });
     const listProjects = (projectsResult.data ?? []).map(row => withBookingDates(row, listDates));
-    const dateSourcesById = new Map(listProjects.map(row => [row.id, row.dateSources]));
+    const ownerById = new Map(listProjects.map(row => [row.id, { dateSources: row.dateSources, ...ownerClassification(row) }]));
     const projection = buildPlanningBrainProjection({
         request: parsed.value,
         generatedAt: new Date().toISOString(),
@@ -250,7 +232,7 @@ export async function handleRequest(request: Request): Promise<Response> {
         ...projection,
         schema: 'planning-mobile-read.v1',
         canonicalIdentity: { organizationId: org, actorUserId: actor },
-        projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null, dateSources: dateSourcesById.get(row.projectId) ?? { rig: null, event: null, derig: null } })),
+        projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null, ...(ownerById.get(row.projectId) ?? { dateSources: { rig: null, event: null, derig: null }, lifecycle: null, statusTabs: [] }) })),
         teamAssignments: projection.teamAssignments.map(row => ({ ...row, staffName: row.staffRef ? names.get(row.staffRef) ?? null : null })),
         page: { offset, limit: 200, hasMore, nextOffset: hasMore ? offset + 200 : null, totals },
     });

@@ -17,6 +17,7 @@ import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
+import { resolveProjectPhaseDates } from "../../../supabase/functions/_shared/projectPhaseDates";
 import { FileText, MessageSquare, RefreshCw, Users, Truck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -92,7 +93,9 @@ const ProjectViewPage = () => {
 
   // Use booking data if available, otherwise construct from standalone project fields
   const booking = project.booking;
-  const displayBooking = booking || (project.client ? {
+  // Same per-field date rule as the project header and the mobile app.
+  const phaseDates = resolveProjectPhaseDates(project as any, booking as any);
+  const displayBooking = booking ? { ...booking, rigdaydate: phaseDates.rigdaydate, eventdate: phaseDates.eventdate, rigdowndate: phaseDates.rigdowndate } : (project.client ? {
     id: project.id,
     client: project.client,
     eventdate: project.eventdate,
@@ -145,7 +148,7 @@ const ProjectViewPage = () => {
         <TabsContent value="team" className="mt-0">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             <div className="space-y-4">
-              <ProjectTeamPanel bookingId={bookingId} projectLeader={projectLeaderDisplay} onChangeLeader={(name) => detail.updateProject({ project_leader: name })} projectStartDate={project.rigdaydate || project.eventdate} projectEndDate={project.rigdowndate || project.eventdate} />
+              <ProjectTeamPanel bookingId={bookingId} projectLeader={projectLeaderDisplay} onChangeLeader={(name) => detail.updateProject({ project_leader: name })} projectStartDate={phaseDates.rigdaydate || phaseDates.eventdate} projectEndDate={phaseDates.rigdowndate || phaseDates.eventdate} />
               <ProjectFollowersPanel projectId={project.id} projectType="standard" />
             </div>
             <div>

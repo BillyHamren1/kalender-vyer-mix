@@ -6,6 +6,7 @@ import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'luc
 import { Button } from '@/components/ui/button';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
+import { resolveProjectPhaseDates, projectStatusTabs, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
 import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
@@ -118,7 +119,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         name: displayName,
         type: 'medium',
         date: isInternal ? null : (p.booking?.eventdate ?? null),
-        eventDate: isInternal ? null : (p.booking?.eventdate ?? p.eventdate ?? null),
+        eventDate: isInternal ? null : resolveProjectPhaseDates(p, p.booking as any).eventdate,
         status: p.status,
         subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
@@ -182,17 +183,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
           const haystack = `${p.name} ${p.subtitle ?? ''} ${p.searchExtra ?? ''}`.toLowerCase();
           if (!haystack.includes(q)) return false;
         }
-        if (statusFilter === 'all') return true;
-        if (statusFilter === 'all_active') return p.status !== 'completed' && p.status !== 'cancelled';
-        if (statusFilter === 'planning') return p.status === 'planning';
-        if (statusFilter === 'in_progress') return p.status === 'in_progress';
-        if (statusFilter === 'closing') {
-          // Projects past event date but not yet completed
-          return p.status !== 'completed' && p.status !== 'cancelled' && p.eventDate && p.eventDate < today;
-        }
-        if (statusFilter === 'completed') return p.status === 'completed';
-        if (statusFilter === 'cancelled') return p.status === 'cancelled';
-        return p.status !== 'completed' && p.status !== 'cancelled';
+        return projectStatusTabs(p.status, p.eventDate, today).includes(statusFilter as ProjectStatusTab);
       })
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;

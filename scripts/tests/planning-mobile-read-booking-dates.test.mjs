@@ -11,7 +11,8 @@ const contract = await import(contractUrl);
 const source = (await readFile(new URL('../../supabase/functions/planning-mobile-read/index.ts', import.meta.url), 'utf8'))
   .replace(/import \{ createClient \} from '[^']+';?/, 'const createClient = (...a) => globalThis.__linkClient(...a);')
   .replace("'../_shared/planning-brain-read-contract.ts'", JSON.stringify(contractUrl))
-  .replace("'../_shared/hub-actor.ts'", JSON.stringify(hubUrl));
+  .replace("'../_shared/hub-actor.ts'", JSON.stringify(hubUrl))
+  .replace("'../_shared/projectPhaseDates.ts'", JSON.stringify(dataUrl(await readFile(new URL('../../supabase/functions/_shared/projectPhaseDates.ts', import.meta.url), 'utf8'))));
 const { handleRequest } = await import(dataUrl(source));
 const ORG = '22222222-2222-4222-8222-222222222222', OTHER = '66666666-6666-4666-8666-666666666666', HUB = '11111111-1111-4111-8111-111111111111';
 const B_EVENT = '1ad83629-562f-48f7-ab08-0228361ed922', B_ASSIGN = '294ab644-957b-41c9-b517-24ce7a01c71e';
