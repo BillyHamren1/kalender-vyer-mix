@@ -129,12 +129,28 @@ export async function handleRequest(request: Request): Promise<Response> {
             comments: (comments.data ?? []).map(row => ({ id: row.id, authorName: row.author_name, content: row.content, createdAt: row.created_at })),
         });
     }
+    // Projects are also in the window when their booking has calendar events or staff
+    // assignments in it (projects often lack own phase dates). Same org, bounded, fail closed.
+    const LINK_LIMIT = 2000;
+    const [linkEvents, linkAssignments] = await Promise.all([
+        admin.from('calendar_events').select('booking_id', { count: 'exact' }).eq('organization_id', org)
+            .gte('source_date', from).lte('source_date', to).not('booking_id', 'is', null).order('id').range(0, LINK_LIMIT - 1),
+        admin.from('booking_staff_assignments').select('booking_id', { count: 'exact' }).eq('organization_id', org)
+            .gte('assignment_date', from).lte('assignment_date', to).not('booking_id', 'is', null).order('id').range(0, LINK_LIMIT - 1),
+    ]);
+    if (linkEvents.error || linkAssignments.error) return json(503, { error: 'planning_read_failed' });
+    if ((linkEvents.count ?? 0) > LINK_LIMIT || (linkAssignments.count ?? 0) > LINK_LIMIT) return json(503, { error: 'window_too_large' });
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const linkedBookingIds = [...new Set([...(linkEvents.data ?? []), ...(linkAssignments.data ?? [])]
+        .map(row => row.booking_id).filter((id): id is string => typeof id === 'string' && UUID_RE.test(id)))].sort();
+    const dateOverlap = `and(rigdaydate.lte.${to},rigdowndate.gte.${from}),and(rigdaydate.gte.${from},rigdaydate.lte.${to}),and(eventdate.gte.${from},eventdate.lte.${to}),and(rigdowndate.gte.${from},rigdowndate.lte.${to})`;
+    const projectFilter = linkedBookingIds.length ? `${dateOverlap},booking_id.in.(${linkedBookingIds.join(',')})` : dateOverlap;
     const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
         admin.from('projects')
             .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org)
             .is('deleted_at', null)
-            .or(`and(rigdaydate.lte.${to},rigdowndate.gte.${from}),and(rigdaydate.gte.${from},rigdaydate.lte.${to}),and(eventdate.gte.${from},eventdate.lte.${to}),and(rigdowndate.gte.${from},rigdowndate.lte.${to})`)
+            .or(projectFilter)
             .order('id').range(offset, offset + 199),
         admin.from('calendar_events')
             .select('id, organization_id, booking_id, resource_id, event_type, source_date, start_time, end_time, times_locked', { count: 'exact' })

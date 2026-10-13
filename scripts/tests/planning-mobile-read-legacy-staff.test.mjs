@@ -38,7 +38,7 @@ async function run(staffIds, { staffError = false } = {}) {
             };
             const counts = { projects: 0, calendar_events: 0, booking_staff_assignments: assignments.length };
             const q = {
-                select() { return q; }, eq(k, v) { if (k === 'organization_id') (orgFilters[table] ??= []).push(v); return q; }, is() { return q; }, or() { return q; }, gte() { return q; }, lte() { return q; }, order() { return q; }, range() { return q; },
+                select() { return q; }, eq(k, v) { if (k === 'organization_id') (orgFilters[table] ??= []).push(v); return q; }, is() { return q; }, or() { return q; }, not() { return q; }, gte() { return q; }, lte() { return q; }, order() { return q; }, range() { return q; },
                 in(_k, v) { inValues = v; if (table === 'profiles') profileFilters.push(v); return q; },
                 maybeSingle() { single = true; return q; },
                 then(resolve) {
