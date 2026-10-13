@@ -6,7 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
-import { resolveProjectPhaseDates, classifyProjectLifecycle, projectStatusTabs } from '../_shared/projectPhaseDates.ts';
+import { resolveProjectPhaseDates, classifyProjectLifecycle, projectStatusTabs, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
 const json = (status: number, body: unknown) => {
     // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
     const b = body as { error?: unknown; schema?: unknown };
@@ -39,6 +39,34 @@ function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; eventdate?: string | null }) {
     return { lifecycle: classifyProjectLifecycle(row.status), statusTabs: projectStatusTabs(row.status, row.is_internal ? null : row.eventdate, todayUtc()) };
+}
+
+// Additive all-kind entries (small=jobs, medium=projects, large=large_projects), identity = (projectKind, projectId).
+function entry(kind: 'small' | 'medium' | 'large', id: string, title: string | null, view: { status: string | null; dates: any; listEventDate: string | null }, bookingRef: string | null) {
+    return { projectKind: kind, projectId: id, entryKey: `${kind}:${id}`, title, status: view.status, bookingRef,
+        rigDate: view.dates.rigdaydate, eventDate: view.dates.eventdate, derigDate: view.dates.rigdowndate, dateSources: view.dates.sources,
+        lifecycle: classifyProjectLifecycle(view.status), statusTabs: projectStatusTabs(view.status, view.listEventDate, todayUtc()),
+        detailSupported: kind === 'medium' };
+}
+async function loadOtherKinds(admin: any, org: string, offset: number) {
+    const [jobs, large] = await Promise.all([
+        admin.from('jobs').select('id, name, status, booking_id', { count: 'exact' }).eq('organization_id', org).is('deleted_at', null).order('id').range(offset, offset + 199),
+        admin.from('large_projects').select('id, name, status, start_date, event_date, end_date', { count: 'exact' }).eq('organization_id', org).is('deleted_at', null).order('id').range(offset, offset + 199),
+    ]);
+    if (jobs.error || large.error) return null;
+    for (const r of [jobs, large]) if (!Number.isSafeInteger(r.count) || (r.data ?? []).length !== Math.min(200, Math.max((r.count ?? 0) - offset, 0))) return null;
+    const ids = [...new Set((jobs.data ?? []).map((j: any) => j.booking_id).filter((id: any) => typeof id === 'string' && UUID_ID.test(id)))];
+    const bmap = new Map<string, any>();
+    if (ids.length) {
+        const b = await admin.from('bookings').select('id, client, booking_number, rigdaydate, eventdate, rigdowndate').eq('organization_id', org).in('id', ids);
+        if (b.error) return null;
+        for (const row of b.data ?? []) bmap.set(row.id, row);
+    }
+    const small = (jobs.data ?? []).map((j: any) => { const b = j.booking_id ? bmap.get(j.booking_id) : null;
+        const title = b?.client ? `${b.client}${b.booking_number ? ' #' + b.booking_number : ''}` : j.name;
+        return entry('small', j.id, title ?? null, smallProjectView(j, b), b ? j.booking_id : null); });
+    const largeEntries = (large.data ?? []).map((lp: any) => entry('large', lp.id, lp.name ?? null, largeProjectView(lp), null));
+    return { small, large: largeEntries, totals: { small: jobs.count as number, large: large.count as number } };
 }
 
 export async function handleRequest(request: Request): Promise<Response> {
@@ -105,12 +133,26 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (!actorAuth.ok) { logActorDenial('planning-mobile-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
 
     if (bookingId) {
-        const matches = await admin.from('projects').select('id, name, booking_id, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
+        const matches = await admin.from('projects').select('id, name, booking_id, status, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);
         if (matches.error || matches.count === null || matches.count !== (matches.data ?? []).length) return json(503, { error: 'project_lookup_incomplete' });
         const resolverDates = await loadBookingDates(admin, org, matches.data ?? []);
         if (!resolverDates) return json(503, { error: 'booking_dates_read_failed' });
-        return json(200, {schema: 'planning-mobile-booking-projects.v1', canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: row.name, rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
+        const [rj, rl, rb] = await Promise.all([
+            admin.from('jobs').select('id, name, status, booking_id').eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199),
+            admin.from('large_project_bookings').select('large_project_id').eq('organization_id', org).eq('booking_id', bookingId).range(0, 199),
+            admin.from('bookings').select('client, booking_number, rigdaydate, eventdate, rigdowndate, large_project_id').eq('organization_id', org).eq('id', bookingId).maybeSingle(),
+        ]);
+        if (rj.error || rl.error || rb.error) return json(503, { error: 'project_lookup_incomplete' });
+        const lpIds = [...new Set([...(rl.data ?? []).map((r: any) => r.large_project_id), rb.data?.large_project_id].filter((id: any) => typeof id === 'string' && UUID_ID.test(id)))];
+        const rlp = lpIds.length ? await admin.from('large_projects').select('id, name, status, start_date, event_date, end_date').eq('organization_id', org).in('id', lpIds).is('deleted_at', null) : { data: [], error: null };
+        if (rlp.error) return json(503, { error: 'project_lookup_incomplete' });
+        const relatedProjects = [
+            ...(matches.data ?? []).map((raw: any) => { const row = withBookingDates(raw, resolverDates); return entry('medium', row.id, row.name, { status: raw.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.eventdate }, raw.booking_id); }),
+            ...(rj.data ?? []).map((j: any) => { const b = rb.data; const title = b?.client ? `${b.client}${b.booking_number ? ' #' + b.booking_number : ''}` : j.name; return entry('small', j.id, title ?? null, smallProjectView(j, b), b ? bookingId : null); }),
+            ...(rlp.data ?? []).map((lp: any) => entry('large', lp.id, lp.name ?? null, largeProjectView(lp), null)),
+        ];
+        return json(200, {schema: 'planning-mobile-booking-projects.v1', relatedProjects, canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: row.name, rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
     }
     if (projectId) {
         const project = await admin.from('projects')
@@ -151,7 +193,7 @@ export async function handleRequest(request: Request): Promise<Response> {
             schema: 'planning-mobile-detail.v1',
             canonicalIdentity: { actorUserId: actor, organizationId: org },
             projectId: p.id, title: p.name, bookingRef: p.booking_id,
-            project: {projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,eventdate:resolved.eventdate})},
+            project: {projectKind:'medium',projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,eventdate:resolved.eventdate})},
             contactName: p.contact_name, contactPhone: p.contact_phone, contactEmail: p.contact_email,
             address: p.deliveryaddress, city: p.delivery_city, postalCode: p.delivery_postal_code,
             notes: p.internalnotes, generatedAt: new Date().toISOString(),
@@ -227,13 +269,20 @@ export async function handleRequest(request: Request): Promise<Response> {
         if ((result.data ?? []).length !== expected)
             return json(503, { error: 'incomplete_page' });
     }
-    const hasMore = Object.values(totals).some(count => (count ?? 0) > offset + 200);
+    const others = await loadOtherKinds(admin, org, offset);
+    if (!others) return json(503, { error: 'project_kinds_read_failed' });
+    const mediumEntries = listProjects.map((row: any) => entry('medium', row.id, row.name ?? null, { status: row.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.is_internal ? null : row.eventdate }, row.booking_id ?? null));
+    const projectEntries = [...others.small, ...mediumEntries, ...others.large];
+    const entryTotals = { small: others.totals.small, medium: totals.projects as number, large: others.totals.large };
+    const hasMore = Object.values(totals).some(count => (count ?? 0) > offset + 200) || entryTotals.small > offset + 200 || entryTotals.large > offset + 200;
     return json(200, {
         ...projection,
         schema: 'planning-mobile-read.v1',
         canonicalIdentity: { organizationId: org, actorUserId: actor },
         projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null, ...(ownerById.get(row.projectId) ?? { dateSources: { rig: null, event: null, derig: null }, lifecycle: null, statusTabs: [] }) })),
         teamAssignments: projection.teamAssignments.map(row => ({ ...row, staffName: row.staffRef ? names.get(row.staffRef) ?? null : null })),
+        projectEntries,
+        projectEntriesTotals: entryTotals,
         page: { offset, limit: 200, hasMore, nextOffset: hasMore ? offset + 200 : null, totals },
     });
 }
