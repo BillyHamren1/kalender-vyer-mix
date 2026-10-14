@@ -190,3 +190,83 @@
   .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__crew,
   .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__warning { display: none; }
 }
+
+/* Keep day boundaries visible through the time-slot layer. Legacy calendar
+   backgrounds otherwise paint over FullCalendar's vertical grid lines. */
+.warehouse-work-calendar .fc-timegrid-slots,
+.warehouse-work-calendar .fc-timegrid-slot-lane,
+.warehouse-work-calendar .fc-timegrid-cols {
+  background: transparent !important;
+}
+.warehouse-work-calendar .fc-timegrid-col {
+  border-left: 1px solid hsl(var(--border)) !important;
+  border-right: 1px solid hsl(var(--border)) !important;
+}
+.warehouse-work-calendar .fc-timegrid-col-frame {
+  box-shadow: inset 1px 0 hsl(var(--border));
+}
+.warehouse-work-calendar .fc-timegrid-col.fc-day-today {
+  background: hsl(var(--warehouse) / 0.035) !important;
+}
+.warehouse-work-calendar .fc-timegrid-event-harness { margin-right: 3px; }
+.warehouse-work-calendar .fc-timegrid-more-link {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-left: 3px solid hsl(var(--warehouse));
+  border-radius: 6px;
+  padding: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.warehouse-work-calendar .fc-popover {
+  width: min(340px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--card));
+  box-shadow: 0 8px 24px hsl(var(--foreground) / 0.15);
+}
+.warehouse-work-calendar .fc-popover .fc-event { margin: 6px 0; }
+.warehouse-fc-event__summary { display: none; }
+
+/* A week is an overview. Keep secondary details and assignment actions in
+   the job sheet / expanded overlap popover instead of squeezing controls. */
+.warehouse-work-calendar--week { overflow-x: auto; }
+.warehouse-work-calendar--week > .fc { min-width: 1050px; }
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event {
+  padding: 7px 8px;
+  border-left-width: 3px;
+}
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__topline > :last-child:not(:nth-child(2)),
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__phase,
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__progress,
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__crew,
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__warning { display: none; }
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: normal;
+  font-size: 12px;
+  line-height: 1.3;
+  margin: 5px 0;
+}
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__meta {
+  white-space: nowrap;
+  font-size: 11px;
+}
+.warehouse-work-calendar--week .fc-timegrid-event .warehouse-fc-event__summary {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+.warehouse-work-calendar--week .fc-timegrid-col-events:has(.fc-timegrid-more-link) .fc-timegrid-event { margin-right: 30px !important; }
+.warehouse-work-calendar .fc-timegrid-more-link .warehouse-more-caption {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+}
