@@ -111,7 +111,7 @@ const DayColumn: React.FC<{
 }> = ({ jobs, onOpen, unstaffed = false, showUntimed, scrollRef }) => {
   const untimed = jobs.filter((job) => timelinePosition(job) === null);
   const timed = jobs.filter((job) => timelinePosition(job) !== null);
-  const conflicts = conflictingJobs(jobs);
+  const conflicts = unstaffed ? new Set<PersonnelJob>() : conflictingJobs(jobs);
   const layout = timelineLanes(timed.map(job => ({ job, top: Number(timelinePosition(job)!.top), height: Number(timelinePosition(job)!.height) })));
 
   return (
@@ -147,9 +147,9 @@ const DayColumn: React.FC<{
             <button type="button" onClick={() => onOpen(job)}
               title={`${job.title} · ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' · Tidskonflikt' : ''}`}
               aria-label={`${job.title} ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' Tidskonflikt' : ''}`}
-              className={`h-full w-full overflow-hidden rounded-lg border ${height < 48 ? 'px-2 py-0.5' : 'p-2'} text-left text-xs shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-warehouse focus-visible:ring-inset ${getEventBgClass(job.activityType)} ${conflicts.has(job) ? 'border-amber-600' : 'border-black/5'}`}>
+              className={`relative flex h-full w-full flex-col items-start overflow-hidden rounded-lg border ${height < 48 ? 'px-2 py-0.5' : 'p-2'} text-left text-xs shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-warehouse focus-visible:ring-inset ${getEventBgClass(job.activityType)} ${conflicts.has(job) ? 'border-amber-600' : 'border-black/5'}`}>
               <span className={`absolute inset-y-1 left-1 w-1 rounded-full ${getEventDotClass(job.activityType)}`} />
-              <span className="block font-semibold truncate">{job.customerName || job.title}</span>
+              <span className="block w-full font-semibold truncate">{job.customerName || job.title}</span>
               <span className={height < 48 ? 'sr-only' : 'block tabular-nums'}>{job.startTime}–{job.endTime}</span>
               {conflicts.has(job) && <span className={height < 72 ? 'sr-only' : 'block font-semibold'}>Tidskonflikt</span>}
             </button>
@@ -276,7 +276,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
       </div>
 
       {layout === 'list' ? (
-        <div className="space-y-3 overflow-auto">
+        <div key="personnel-list" className="space-y-3 overflow-auto">
           {unstaffed.length > 0 && <section className="rounded-lg border border-amber-300 bg-amber-50/30 p-3">
             <h3 className="mb-3 font-semibold">Behöver bemannas · {unstaffed.length} jobb</h3>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{unstaffed.map(job => <div key={`${job.warehouseEventId || job.title}-${job.date}`}><p className="mb-1 text-xs text-muted-foreground">{job.date}</p><JobCard job={job} onOpen={openJob} unstaffed /></div>)}</div>
@@ -292,7 +292,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
           {visibleRows.length === 0 && unstaffed.length === 0 && <p className="p-6 text-center">Ingen lagerpersonal eller lagerjobb hittades.</p>}
         </div>
       ) : viewMode === 'day' ? (
-        <div ref={timelineRef} data-testid="personnel-day-timeline" className="min-h-0 max-h-[70vh] flex-1 overflow-auto rounded-xl border border-border/25 bg-card shadow-sm">
+        <div key="personnel-timeline" ref={timelineRef} data-testid="personnel-day-timeline" className="min-h-0 max-h-[70vh] flex-1 overflow-auto rounded-xl border border-border/25 bg-card shadow-sm">
           <div
             className="grid"
             style={{

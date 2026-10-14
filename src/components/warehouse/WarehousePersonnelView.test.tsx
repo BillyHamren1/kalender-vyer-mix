@@ -26,6 +26,8 @@ describe('personnel plan', () => {
     timeline.scrollTop = 800;
     rerender(<WarehousePersonnelView currentDate={new Date('2026-10-14T12:00:00')} viewMode="day" />);
     expect(timeline.scrollTop).toBe(800);
+    fireEvent.click(screen.getByRole('button', {name: 'Lista', exact: true}));
+    expect(timeline.isConnected).toBe(false);
   });
   it('keeps people compact when many unstaffed jobs overlap and keeps every job reachable', () => {
     state.overlap = true;
@@ -34,6 +36,7 @@ describe('personnel plan', () => {
     const timeline = screen.getByTestId('personnel-day-timeline');
     expect((timeline.firstElementChild as HTMLElement).style.gridTemplateColumns).toBe('64px 264px repeat(1, 264px)');
     for (let index = 0; index < 6; index++) expect(screen.getByRole('button', {name: new RegExp(`Packning ${index} 08:00`)})).toBeInTheDocument();
+    expect(screen.queryByText('Tidskonflikt')).not.toBeInTheDocument();
     const column = screen.getByLabelText('Överlappande jobb, bläddra i sidled för att se alla');
     column.scrollBy = vi.fn();
     fireEvent.click(screen.getByRole('button', {name: 'Visa fler jobb för obemannat'}));
