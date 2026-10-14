@@ -10178,8 +10178,11 @@ export type Database = {
           event_type: string
           has_source_changes: boolean | null
           id: string
+          linked_internal_project_id: string | null
+          linked_internal_project_type: boolean
           manually_adjusted: boolean | null
           organization_id: string
+          project_task_id: string | null
           resource_id: string
           source_event_date: string | null
           source_rig_date: string | null
@@ -10201,8 +10204,11 @@ export type Database = {
           event_type: string
           has_source_changes?: boolean | null
           id?: string
+          linked_internal_project_id?: string | null
+          linked_internal_project_type?: boolean
           manually_adjusted?: boolean | null
           organization_id?: string
+          project_task_id?: string | null
           resource_id?: string
           source_event_date?: string | null
           source_rig_date?: string | null
@@ -10224,8 +10230,11 @@ export type Database = {
           event_type?: string
           has_source_changes?: boolean | null
           id?: string
+          linked_internal_project_id?: string | null
+          linked_internal_project_type?: boolean
           manually_adjusted?: boolean | null
           organization_id?: string
+          project_task_id?: string | null
           resource_id?: string
           source_event_date?: string | null
           source_rig_date?: string | null
@@ -10260,6 +10269,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "warehouse_calendar_events_project_task_id_fkey"
+            columns: ["project_task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "warehouse_calendar_events_warehouse_project_id_fkey"
             columns: ["warehouse_project_id"]
             isOneToOne: false
@@ -10272,6 +10288,28 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "warehouse_project_tasks"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_internal_project_identity_fk"
+            columns: [
+              "linked_internal_project_id",
+              "organization_id",
+              "linked_internal_project_type",
+            ]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "organization_id", "is_internal"]
+          },
+          {
+            foreignKeyName: "warehouse_internal_task_identity_fk"
+            columns: [
+              "project_task_id",
+              "organization_id",
+              "linked_internal_project_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id", "organization_id", "project_id"]
           },
         ]
       }
