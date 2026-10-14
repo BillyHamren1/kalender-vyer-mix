@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddSupplierDialog from "@/components/project/suppliers/AddSupplierDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import { BookingCostsPanel } from "@/components/project/BookingCostsPanel";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
@@ -161,9 +162,10 @@ export default function SimpleProjectWorkspacePage() {
         </header>
 
         <Tabs defaultValue="booking" className="space-y-5">
-          <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-primary/20 bg-primary/10 p-1">
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl border border-primary/20 bg-primary/10 p-1">
             <TabsTrigger value="booking" className="py-2.5 data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground">Bokningsinformation</TabsTrigger>
             <TabsTrigger value="planning" className="py-2.5 data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground">Projektplanering</TabsTrigger>
+            <TabsTrigger value="costs" className="py-2.5 data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground">Kostnader</TabsTrigger>
           </TabsList>
 
           <TabsContent value="booking" className="mt-0 space-y-5">
@@ -173,6 +175,10 @@ export default function SimpleProjectWorkspacePage() {
             </section>
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><StickyNote className="h-5 w-5" />Interninformation</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea rows={7} value={currentNotes} onChange={(event) => setNotes(event.target.value)} placeholder="Det teamet behöver veta om bokningen…" /><div className="flex justify-end"><Button onClick={() => notesMutation.mutate()} disabled={notesMutation.isPending}><Save className="mr-2 h-4 w-4" />Spara</Button></div></CardContent></Card>
             <ProjectFiles files={filesQuery.data || []} bookingAttachments={attachmentsQuery.data || []} isUploading={fileMutation.isPending} onUpload={({ file }) => fileMutation.mutate({ type: "upload", file })} onDelete={({ id, url }) => fileMutation.mutate({ type: "delete", id, url })} />
+          </TabsContent>
+
+          <TabsContent value="costs" className="mt-0 space-y-5">
+            {bookingId ? <BookingCostsPanel bookingId={bookingId} projectId={projectId} /> : <p className="text-sm text-muted-foreground">Projektet saknar kopplad bokning.</p>}
           </TabsContent>
 
           <TabsContent value="planning" className="mt-0">
