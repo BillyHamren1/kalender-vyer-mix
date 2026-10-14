@@ -5,12 +5,14 @@ const db = new PGlite();
 const migration = readFileSync(new URL('../supabase/migrations/20261014231017_secure_booking_sync_cron.sql', import.meta.url), 'utf8');
 await db.exec(`
   CREATE SCHEMA cron; CREATE SCHEMA vault;
-  CREATE TABLE cron.job(jobid bigint, jobname text, command text, schedule text, active boolean);
+  CREATE TABLE cron.job(jobid bigint, jobname text, command text, schedule text, active boolean, username text DEFAULT current_user, UNIQUE(jobname,username));
   CREATE TABLE vault.secrets(name text);
-  CREATE FUNCTION cron.alter_job(job_id bigint, command text) RETURNS void LANGUAGE sql AS
-    'UPDATE cron.job SET command = $2 WHERE jobid = $1';
+  CREATE FUNCTION cron.alter_job(job_id bigint, command text DEFAULT NULL, active boolean DEFAULT NULL) RETURNS void LANGUAGE sql AS
+    'UPDATE cron.job j SET command = coalesce($2,j.command), active=coalesce($3,j.active) WHERE jobid = $1 AND username=current_user';
+  CREATE FUNCTION cron.schedule(name text, schedule text, command text) RETURNS bigint LANGUAGE sql AS
+    'INSERT INTO cron.job VALUES(2,$1,$3,$2,true,current_user) ON CONFLICT(jobname,username) DO UPDATE SET command=excluded.command,schedule=excluded.schedule RETURNING jobid';
   INSERT INTO cron.job VALUES (1, 'process-sync-jobs-every-minute',
-    'SELECT net.http_post(url := ''https://example.supabase.co/functions/v1/process-sync-jobs'')', '* * * * *', true);
+    'SELECT net.http_post(url := ''https://example.supabase.co/functions/v1/process-sync-jobs'')', '* * * * *', true, current_user);
 `);
 await assert.rejects(db.exec(migration), /CRON_SECRET must be provisioned/);
 await db.exec("INSERT INTO vault.secrets VALUES ('CRON_SECRET')");
@@ -28,6 +30,17 @@ await db.exec("UPDATE cron.job SET command='unexpected endpoint'");
 await assert.rejects(db.exec(migration), /Cannot identify existing booking sync endpoint/);
 await db.exec('DELETE FROM cron.job');
 await db.exec(migration);
+await db.exec(`INSERT INTO cron.job VALUES(1,'process-sync-jobs-every-minute',
+  'https://example.supabase.co/functions/v1/process-sync-jobs','*/2 * * * *',false,'other_owner')`);
+await db.exec(migration);
+await db.exec(migration);
+const jobs=(await db.query('SELECT * FROM cron.job ORDER BY jobid')).rows;
+assert.equal(jobs.length,2);
+assert.equal(jobs[0].username,'other_owner');
+assert.equal(jobs[0].command,'https://example.supabase.co/functions/v1/process-sync-jobs');
+assert.equal(jobs[1].active,false);
+assert.equal(jobs[1].schedule,'*/2 * * * *');
+assert.match(jobs[1].command,/x-cron-secret/);
 const verifier = readFileSync(new URL('../supabase/migrations/20261014232002_verify_booking_sync_cron_secret.sql', import.meta.url), 'utf8');
 await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
   CREATE TABLE vault.decrypted_secrets(name text, decrypted_secret text);
