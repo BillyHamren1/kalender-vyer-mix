@@ -67,6 +67,7 @@ const EventCard: React.FC<{ info: EventContentArg }> = ({ info }) => {
   const activityLabel = optionalText(props.warehouseActivityLabel) || ACTIVITY_LABELS[activityType] || 'Lagerjobb';
   const bookingNumber = optionalText(props.bookingNumber);
   const bookingTitle = optionalText(props.bookingTitle);
+  const displayTitle = (bookingTitle || info.event.title).replace(/^(Packning|Utleverans|Återleverans|Retur|Inventering|Upppackning|Uppackning)\s*[-–]\s*/i, '');
   const timeLabel = optionalText(props.timeLabel);
   const packedLabel = optionalText(props.packedLabel);
   const crewLabel = optionalText(props.crewLabel);
@@ -77,22 +78,23 @@ const EventCard: React.FC<{ info: EventContentArg }> = ({ info }) => {
   const changed = props.has_source_changes === true && props.manually_adjusted !== true;
 
   return (
-    <div className={`warehouse-fc-event ${getEventCardClass(activityType)} ${changed ? 'warehouse-fc-event--changed' : ''}`}>
+    <div title={`${activityLabel} · ${bookingTitle || info.event.title} · ${timeLabel || info.timeText}`} className={`warehouse-fc-event ${getEventCardClass(activityType)} ${changed ? 'warehouse-fc-event--changed' : ''}`}>
       <div className="warehouse-fc-event__topline">
         <span className={`h-2 w-2 rounded-full shrink-0 ${getEventDotClass(activityType)}`} />
         <span className="truncate font-semibold">{activityLabel}</span>
         {bookingNumber && <span className="ml-auto truncate tabular-nums">{bookingNumber}</span>}
       </div>
-      <div className="warehouse-fc-event__title">{bookingTitle || info.event.title}</div>
+      <div className="warehouse-fc-event__title">{displayTitle}</div>
       {phaseContext && <div className="warehouse-fc-event__phase">{phaseContext}</div>}
       <div className="warehouse-fc-event__meta">
         <span>{timeLabel || info.timeText}</span>
         {packedLabel && (
-          <span className="inline-flex items-center gap-1">
+          <span className="warehouse-fc-event__progress inline-flex items-center gap-1">
             <PackageCheck className="h-3 w-3" /> {packedLabel}
           </span>
         )}
       </div>
+      <div className="warehouse-fc-event__summary">{isTransport ? 'Transport' : isUnstaffed ? 'Obemannat' : crewLabel}</div>
       {crewLabel && (
         <div className="warehouse-fc-event__crew" title={crewFullLabel}>
           <QuickAssignStaffPopover
@@ -307,7 +309,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
   }
 
   return (
-    <div className="warehouse-work-calendar relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border/60 bg-card">
+    <div className={`warehouse-work-calendar ${viewMode === 'weekly' ? 'warehouse-work-calendar--week' : ''} relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border/60 bg-card`}>
       {(isLoading || savingEventId) && (
         <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border bg-background/95 px-3 py-1 text-xs font-medium shadow-sm">
           {savingEventId ? 'Sparar…' : 'Laddar…'}
@@ -336,6 +338,10 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
         editable
         eventDurationEditable
         eventStartEditable
+        slotEventOverlap={false}
+        eventMaxStack={viewMode === 'weekly' ? 1 : 3}
+        moreLinkText={(count) => `+${count} fler jobb`}
+        moreLinkContent={(info) => <span title={`Visa ${info.num} fler jobb`}>+{info.num}<span className="warehouse-more-caption"> jobb</span></span>}
         eventDrop={handleDrop}
         eventResize={handleResize}
         eventClick={handleEventClick}
