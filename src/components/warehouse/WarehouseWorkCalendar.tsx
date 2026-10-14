@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
+import luxonPlugin from '@fullcalendar/luxon3';
+import { WAREHOUSE_TIME_ZONE, warehouseTimeOf, warehouseDateOf } from '@/lib/warehouse/warehouseTime';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin, { type EventResizeDoneArg } from '@fullcalendar/interaction';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -24,6 +26,7 @@ interface Props {
   onRefresh: () => Promise<void>;
   onOpenBooking: (bookingId: string) => void;
   onOpenDay: (date: Date) => void;
+  onOpenEvent?: (event: CalendarEvent) => void;
 }
 
 const fullCalendarView: Record<Exclude<WarehouseCalendarView, 'list'>, string> = {
@@ -124,6 +127,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
   onRefresh,
   onOpenBooking,
   onOpenDay,
+  onOpenEvent,
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [savingEventId, setSavingEventId] = useState<string | null>(null);
@@ -158,7 +162,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
     if (viewMode === 'list') return;
     const api = calendarRef.current?.getApi();
     if (!api) return;
-    api.changeView(fullCalendarView[viewMode], currentDate);
+    api.changeView(fullCalendarView[viewMode], format(currentDate, 'yyyy-MM-dd'));
   }, [currentDate, viewMode]);
 
   const persistMove = async (
@@ -198,6 +202,11 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
   };
 
   const handleEventClick = (info: EventClickArg) => {
+    const sourceEvent = events.find((event) => event.id === info.event.id);
+    if (onOpenEvent && sourceEvent) {
+      onOpenEvent(sourceEvent);
+      return;
+    }
     const props = extendedPropsOf(info.event.extendedProps);
     const bookingId = props.bookingId || props.booking_id;
     if (bookingId) onOpenBooking(String(bookingId));
@@ -210,7 +219,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
   const groupedList = useMemo(() => {
     const groups = new Map<string, CalendarEvent[]>();
     for (const event of sortedEvents) {
-      const key = String(event.start).slice(0, 10);
+      const key = warehouseDateOf(event.start) || '';
       const day = groups.get(key) || [];
       day.push(event);
       groups.set(key, day);
@@ -247,11 +256,11 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
                     >
                       <span className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums">
                         <Clock3 className="h-3.5 w-3.5 text-muted-foreground" />
-                        {format(new Date(event.start), 'HH:mm')}–{format(new Date(event.end), 'HH:mm')}
+                        {warehouseTimeOf(event.start)}–{warehouseTimeOf(event.end)}
                       </span>
                       <button
                         type="button"
-                        onClick={() => event.bookingId && onOpenBooking(event.bookingId)}
+                        onClick={() => onOpenEvent ? onOpenEvent(event) : event.bookingId && onOpenBooking(event.bookingId)}
                         className="min-w-0 text-left"
                       >
                         <span className="flex items-center gap-2 text-xs font-semibold">
@@ -306,12 +315,12 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
       )}
       <FullCalendar
         ref={calendarRef}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
         initialView={fullCalendarView[viewMode]}
-        initialDate={currentDate}
+        initialDate={format(currentDate, 'yyyy-MM-dd')}
         headerToolbar={false}
         locale="sv"
-        timeZone="UTC"
+        timeZone={WAREHOUSE_TIME_ZONE}
         firstDay={1}
         weekends
         height="100%"
@@ -330,7 +339,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
         eventResize={handleResize}
         eventClick={handleEventClick}
         eventContent={(info) => <EventCard info={info} />}
-        dateClick={(info) => viewMode === 'monthly' && onOpenDay(info.date)}
+        dateClick={(info) => viewMode === 'monthly' && onOpenDay(new Date(`${info.dateStr.slice(0, 10)}T12:00:00`))}
         dayMaxEvents={viewMode === 'monthly' ? 4 : false}
         moreLinkClick="popover"
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { type LucideIcon,
   Calendar,
+  Users,
   LayoutDashboard,
 
   Boxes,
@@ -38,6 +39,7 @@ const navigationItems: NavItem[] = [
   { title: "Lager OPS", url: "/warehouse", icon: LayoutDashboard, exact: true },
   { title: "Lagerplanering", url: "/warehouse/calendar", icon: Calendar },
 
+  { title: "Personal", url: "/staff-management", icon: Users },
   { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
   { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },
   { title: "Service", url: "/warehouse/service", icon: Wrench },
@@ -332,8 +334,8 @@ export function WarehouseSidebar3D() {
             "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(184 30% 15% / 0.08)",
         }}
       >
-        <div className="flex items-center justify-around py-2 px-4">
-          {navigationItems.filter((_, i) => i <= 4).map((item) => {
+        <div className="flex items-center justify-around py-2 px-1 overflow-x-auto">
+          {navigationItems.map((item) => {
             const active = isItemActive(item);
             const targetUrl = item.children ? item.children[0].url : item.url;
 
@@ -341,7 +343,7 @@ export function WarehouseSidebar3D() {
               <NavLink
                 key={item.url}
                 to={targetUrl}
-                className="relative flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-150"
+                className="relative flex flex-col items-center gap-1 py-2 px-1 min-w-0 flex-1 rounded-xl transition-all duration-150"
               >
                 {active && (
                   <div

@@ -18,6 +18,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { TablesInsert } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
+import { warehouseTimeOf, warehouseDateOf } from '@/lib/warehouse/warehouseTime';
 import { assignStaffToTeamCore } from '@/services/staffAssignmentCore';
 import { getWarehouseTeamId, isWarehouseTeam } from '@/lib/warehouse/warehouseTeam';
 import {
@@ -37,6 +38,7 @@ type WarehouseEventRow = {
   resource_id: string | null;
   event_type: string | null;
   delivery_address: string | null;
+  project_task_id?: string | null;
 };
 
 const isLagerTeamId = (teamId: string | null | undefined): boolean =>
@@ -119,9 +121,10 @@ function toAssignmentRow(
     title: ev.title || 'Lageruppgift',
     description: null as string | null,
     status: 'planned' as const,
-    start_time: ev.start_time,
-    end_time: ev.end_time,
+    start_time: warehouseTimeOf(ev.start_time),
+    end_time: warehouseTimeOf(ev.end_time),
     warehouse_event_id: ev.id,
+    ...(ev.project_task_id ? { project_task_id: ev.project_task_id } : {}),
     booking_id: ev.booking_id,
     booking_number: ev.booking_number,
     delivery_address: ev.delivery_address,
@@ -145,7 +148,7 @@ async function fetchEventsForTeamDay(date: Date, teamId: string): Promise<Wareho
   const { data, error } = await supabase
     .from('warehouse_calendar_events')
     .select(
-      'id, organization_id, booking_id, booking_number, title, start_time, end_time, resource_id, event_type, delivery_address',
+      '*',
     )
     .gte('start_time', dayStart)
     .lte('start_time', dayEnd)
@@ -172,7 +175,8 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   if (!staffId || !isLagerTeamId(teamId)) return;
 
   const dateStr = format(date, 'yyyy-MM-dd');
-  const events = await fetchEventsForTeamDay(date, teamId);
+  const events = (await fetchEventsForTeamDay(date, teamId))
+    .filter(event => !(event.event_type === 'internal_task' && event.project_task_id));
 
   // Write one row per event (no upsert — partial unique indexes, see writeAssignmentRow).
   if (events.length > 0) {
@@ -203,12 +207,13 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   const validEventIds = new Set(events.map((e) => e.id));
   const { data: existing } = await supabase
     .from('warehouse_assignments')
-    .select('id, warehouse_event_id, metadata')
+    .select('id, warehouse_event_id, metadata, project_task_id')
     .eq('staff_id', staffId)
     .eq('assignment_date', dateStr);
 
   const stale =
     (existing || []).filter((row: any) => {
+      if (row.project_task_id) return false;
       const evId = row.warehouse_event_id as string | null;
       const resourceId = (row.metadata?.resource_id as string | null) ?? null;
       // Only consider rows that belonged to this team
@@ -240,7 +245,7 @@ export async function removeWarehouseAssignmentsForStaffTeamDay(params: {
   // Find rows for this staff+date (optionally filtered by team via metadata.resource_id).
   const { data: rows, error } = await supabase
     .from('warehouse_assignments')
-    .select('id, metadata')
+    .select('id, metadata, project_task_id')
     .eq('staff_id', staffId)
     .eq('assignment_date', dateStr);
   if (error) {
@@ -249,6 +254,7 @@ export async function removeWarehouseAssignmentsForStaffTeamDay(params: {
   }
   const targetIds = (rows || [])
     .filter((r: any) => {
+      if (r.project_task_id) return false;
       if (!teamId) return true;
       return (r.metadata?.resource_id as string | null) === teamId;
     })
@@ -332,7 +338,7 @@ export async function assignStaffToWarehouseEvent(params: {
   const { data: ev, error } = await supabase
     .from('warehouse_calendar_events')
     .select(
-      'id, organization_id, booking_id, booking_number, title, start_time, end_time, resource_id, event_type, delivery_address',
+      '*',
     )
     .eq('id', warehouseEventId)
     .maybeSingle();
@@ -346,7 +352,7 @@ export async function assignStaffToWarehouseEvent(params: {
   if (isNaN(date.getTime())) return { ok: false, error: 'invalid_event_date' };
 
   const teamId = getWarehouseTeamId(ev.resource_id);
-  const dateStr = format(date, 'yyyy-MM-dd');
+  const dateStr = warehouseDateOf(ev.start_time)!;
 
   // The warehouse UI assigns a person to THIS concrete job. Do not route this
   // through the legacy team-day sync: that would implicitly assign the person

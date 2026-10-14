@@ -14,11 +14,13 @@ describe('warehouse manager / worker role separation', () => {
 
   it('keeps the mobile lager page worker-facing with one primary action per task', () => {
     const mobile = read('src/pages/mobile/MobileLagerPage.tsx');
-    expect(mobile).toContain('Mitt lager');
+    expect(mobile).toContain('Min dag · Lager');
     expect(mobile).toContain('Här ser du det lagerarbete som är planerat för dig.');
     expect(mobile).toContain("renderSection('Nu'");
-    expect(mobile).toContain("renderSection(today ? 'Senare idag' : 'Planerat'");
-    expect(mobile).toContain("renderSection('Klart'");
+    expect(mobile).toContain("renderSection(today ? 'Nästa' : 'Planerat'");
+    expect(mobile).toContain('Klart ({sections.completed.length})');
+    expect(mobile).toContain('sections.completed.map(renderAssignment)');
+    expect(mobile).toContain("navigate('/m/tools/scanner')");
     expect(mobile).not.toContain('Starta scanner');
     expect(mobile).not.toContain('Starta returscanning');
   });
@@ -27,7 +29,10 @@ describe('warehouse manager / worker role separation', () => {
     const mobile = read('src/pages/mobile/MobileLagerPage.tsx');
     const labels = read('src/lib/warehouse/lagerLabels.ts');
     expect(mobile).toContain('isAssignmentOperationallyActive(item, now)');
-    expect(mobile).toContain('isAssignmentOperationallyActive(item)');
+    expect(mobile).toContain('assignmentStatusLabel(item)');
+    expect(mobile).toContain('workerActionLabel(item)');
+    expect(labels).toContain('if (isAssignmentOperationallyActive(item))');
+    expect(labels).toContain('const active = isAssignmentOperationallyActive(item)');
     expect(labels).toContain('isAssignmentCurrentByTime');
     expect(labels).toContain('isAssignmentOperationallyActive');
   });

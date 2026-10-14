@@ -7,6 +7,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 
 import { MESSAGE_SCHEMA, MESSAGE_ACTIONS, authorizeInternalMessages, safeMessageId, validRequestId, parseMessageCursor, messagePage, sameMessageRequest } from '../_shared/internal-messages.ts'
 
+import { canCompleteWarehouseTask, warehouseVisibleDate } from '../_shared/warehouseTaskAccess.ts'
+import { warehousePlanningDate, warehousePlanningBounds } from '../_shared/warehousePlanningTime.ts'
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
@@ -738,7 +740,7 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       case 'create_lager_task':
         return await handleCreateLagerTask(supabase, staffId, data, organizationId)
       case 'complete_lager_task':
-        return await handleCompleteLagerTask(supabase, data, organizationId)
+        return await handleCompleteLagerTask(supabase, staffId, data, organizationId)
       case 'claim_lager_task':
         return await handleClaimLagerTask(supabase, staffId, data, organizationId)
       case 'get_lager_team':
@@ -6945,9 +6947,13 @@ async function handleGetLagerAssignments(
   organizationId: string,
 ) {
   const dateFrom: string = (data?.date_from as string) ||
-    new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    warehousePlanningDate(new Date(Date.now() - 1 * 24 * 3600 * 1000))
   const dateTo: string = (data?.date_to as string) ||
-    new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    warehousePlanningDate(new Date(Date.now() + 14 * 24 * 3600 * 1000))
+
+  let bounds;
+  try { if (dateFrom > dateTo) throw new Error('Invalid date range'); bounds = warehousePlanningBounds(dateFrom, dateTo); }
+  catch { return new Response(JSON.stringify({ error: 'Ogiltigt datum' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
 
   const assignments: LagerAssignmentDTO[] = []
   const seenWarehouseEventIds = new Set<string>()
@@ -6955,6 +6961,12 @@ async function handleGetLagerAssignments(
 
   // 1) Canonical: warehouse_assignments rows for this staff_id (PRIMARY SOURCE)
   try {
+    const { data: overlappingEvents, error: overlapError } = await supabase.from('warehouse_calendar_events')
+      .select('id').eq('organization_id', organizationId).lt('start_time', bounds.end).gt('end_time', bounds.start);
+    if (overlapError) throw overlapError;
+    const overlapIds = (overlappingEvents || []).map((event: any) => event.id);
+    const dateFilter = `and(assignment_date.gte.${dateFrom},assignment_date.lte.${dateTo})`;
+    const assignmentFilter = overlapIds.length ? `${dateFilter},warehouse_event_id.in.(${overlapIds.join(',')})` : dateFilter;
     const { data: wa, error: waErr } = await supabase
       .from('warehouse_assignments')
       .select(
@@ -6964,14 +6976,24 @@ async function handleGetLagerAssignments(
       )
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId)
-      .gte('assignment_date', dateFrom)
-      .lte('assignment_date', dateTo)
+      .or(assignmentFilter)
       .order('start_time', { ascending: true, nullsFirst: false })
 
     if (waErr) {
-      console.warn('[get_lager_assignments] warehouse_assignments err:', waErr)
+      throw waErr
     } else {
+      const eventIds = [...new Set((wa || []).map((r: any) => r.warehouse_event_id).filter(Boolean))];
+      let eventTimes = new Map();
+      if (eventIds.length) {
+        const { data: events, error: eventsError } = await supabase.from('warehouse_calendar_events')
+          .select('id, start_time, end_time').eq('organization_id', organizationId).in('id', eventIds);
+        if (eventsError) return new Response(JSON.stringify({ error: 'Kunde inte läsa planerade tider' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        eventTimes = new Map((events || []).map((e: any) => [e.id, e]));
+      }
       for (const r of wa || []) {
+        const event = eventTimes.get(r.warehouse_event_id);
+        if (event && (Date.parse(event.start_time) >= Date.parse(bounds.end) || Date.parse(event.end_time) <= Date.parse(bounds.start))) continue;
         if (r.warehouse_event_id) seenWarehouseEventIds.add(r.warehouse_event_id)
         const type = deriveLagerType(r.assignment_type)
         const action = deriveLagerAction(type, r.action)
@@ -6980,9 +7002,9 @@ async function handleGetLagerAssignments(
           type,
           title: r.title || r.customer_name || 'Lageruppgift',
           description: r.description ?? null,
-          date: r.assignment_date ?? (r.start_time ? String(r.start_time).slice(0, 10) : null),
-          start_time: r.start_time ?? null,
-          end_time: r.end_time ?? null,
+          date: warehouseVisibleDate(eventTimes.get(r.warehouse_event_id)?.start_time ? warehousePlanningDate(eventTimes.get(r.warehouse_event_id).start_time) : r.assignment_date, dateFrom, dateTo),
+          start_time: eventTimes.get(r.warehouse_event_id)?.start_time ?? r.start_time ?? null,
+          end_time: eventTimes.get(r.warehouse_event_id)?.end_time ?? r.end_time ?? null,
           status: r.status || 'planned',
           action,
           packing_id: r.packing_id ?? null,
@@ -7004,38 +7026,65 @@ async function handleGetLagerAssignments(
     }
   } catch (e) {
     console.error('[get_lager_assignments] warehouse_assignments block failed:', e)
+    return new Response(JSON.stringify({ error: 'Kunde inte läsa tilldelade lagerjobb' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+
+  const linkedTaskIds = [...new Set(assignments.map(a => a.project_task_id).filter(Boolean))];
+  if (linkedTaskIds.length) {
+    const { data: linkedTasks, error: linkedError } = await supabase.from('project_tasks')
+      .select('id, completed').eq('organization_id', organizationId).in('id', linkedTaskIds);
+    if (linkedError) return new Response(JSON.stringify({ error: 'Kunde inte läsa uppgifternas status' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const states = new Map((linkedTasks || []).map((t: any) => [t.id, t.completed]));
+    for (const assignment of assignments) {
+      if (assignment.project_task_id && states.has(assignment.project_task_id)) {
+        assignment.completed = !!states.get(assignment.project_task_id);
+        assignment.status = assignment.completed ? 'completed' : 'planned';
+      }
+    }
+  }
+
+  // Linked tasks use warehouse_assignments as their sole staffing source.
+  // select('*') keeps this read compatible before the additive column exists.
+  const { data: internalEvents, error: internalEventError } = await supabase
+    .from('warehouse_calendar_events').select('*')
+    .eq('organization_id', organizationId).eq('event_type', 'internal_task');
+  if (internalEventError) return new Response(JSON.stringify({ error: 'Kunde inte läsa lagerplaneringen' }),
+    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  const plannedTaskIds = new Set((internalEvents || []).map((event: any) => event.project_task_id).filter(Boolean));
 
   // 2) Internal lager project tasks assigned to this staff
   try {
-    const { data: project } = await supabase
+    const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id, name, booking_id')
       .eq('organization_id', organizationId)
       .eq('is_internal', true)
       .maybeSingle()
 
+    if (projectError) throw projectError;
     if (project) {
       const { data: tasks, error: tErr } = await supabase
         .from('project_tasks')
-        .select('id, title, description, deadline, completed, assigned_to_ids, created_at')
+        .select('id, title, description, deadline, start_date, end_date, completed, assigned_to_ids, created_at')
         .eq('project_id', project.id)
         .contains('assigned_to_ids', [staffId])
         .order('deadline', { ascending: true, nullsFirst: false })
 
       if (tErr) {
-        console.warn('[get_lager_assignments] project_tasks err:', tErr)
+        throw tErr
       } else {
         for (const t of tasks || []) {
-          const startIso = t.deadline ?? t.created_at
+          if (plannedTaskIds.has(t.id) || assignments.some(a => a.project_task_id === t.id)) continue
+          const startIso = t.start_date ?? t.deadline ?? t.created_at
           assignments.push({
             id: `task-${t.id}`,
             type: 'internal_task',
             title: t.title,
             description: t.description ?? null,
-            date: startIso ? String(startIso).slice(0, 10) : null,
+            date: startIso ? warehousePlanningDate(startIso) : null,
             start_time: startIso ?? null,
-            end_time: t.deadline ?? null,
+            end_time: t.end_date ?? t.deadline ?? null,
             status: t.completed ? 'completed' : 'planned',
             action: 'complete_task',
             packing_id: null,
@@ -7059,6 +7108,7 @@ async function handleGetLagerAssignments(
     }
   } catch (e) {
     console.error('[get_lager_assignments] tasks block failed:', e)
+    return new Response(JSON.stringify({ error: 'Kunde inte läsa lageruppgifter' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // 3) FALLBACK: warehouse_calendar_events on dates where staff has lager team placement
@@ -7070,11 +7120,12 @@ async function handleGetLagerAssignments(
       .from('staff_assignments')
       .select('team_id, assignment_date')
       .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
       .gte('assignment_date', dateFrom)
       .lte('assignment_date', dateTo)
 
     if (saErr) {
-      console.warn('[get_lager_assignments] staff_assignments err:', saErr)
+      throw saErr
     }
 
     for (const row of sa || []) {
@@ -7093,8 +7144,8 @@ async function handleGetLagerAssignments(
         .from('warehouse_calendar_events')
         .select('id, title, booking_id, booking_number, start_time, end_time, event_type, delivery_address, resource_id')
         .eq('organization_id', organizationId)
-        .gte('start_time', `${dateFrom}T00:00:00`)
-        .lte('start_time', `${dateTo}T23:59:59`)
+        .gte('start_time', bounds.start)
+        .lt('start_time', bounds.end)
 
       const allLagerTeams = Array.from(
         new Set(Array.from(lagerTeamsByDate.values()).flatMap((teams) => Array.from(teams))),
@@ -7105,14 +7156,15 @@ async function handleGetLagerAssignments(
 
       const { data: wEvents, error: wErr } = await q
       if (wErr) {
-        console.warn('[get_lager_assignments] warehouse_calendar_events err:', wErr)
+        throw wErr
       } else {
         for (const w of wEvents || []) {
-          const day = (w.start_time as string)?.slice(0, 10)
+          const day = w.start_time ? warehousePlanningDate(w.start_time) : null
           if (!day || !lagerDates.has(day)) continue
           const teamsForDay = lagerTeamsByDate.get(day)
           if (teamsForDay && teamsForDay.size > 0 && !teamsForDay.has(String(w.resource_id || ''))) continue
           if (seenWarehouseEventIds.has(w.id)) continue
+          if (w.event_type === 'internal_task') continue
           const type = deriveLagerType(w.event_type)
           const action = deriveLagerAction(type, null)
           assignments.push({
@@ -7144,6 +7196,7 @@ async function handleGetLagerAssignments(
     }
   } catch (e) {
     console.error('[get_lager_assignments] warehouse block failed:', e)
+    return new Response(JSON.stringify({ error: 'Kunde inte läsa lagerplaneringen' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // 4) FINAL FALLBACK: legacy lager-team placement without details — show a placeholder per day
@@ -7220,7 +7273,9 @@ async function handleGetLagerTasks(supabase: any, staffId: string, organizationI
     .eq('is_internal', true)
     .maybeSingle()
 
-  if (pErr || !project) {
+  if (pErr) return new Response(JSON.stringify({ error: 'Kunde inte läsa lagerprojektet' }),
+    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (!project) {
     return new Response(
       JSON.stringify({ project: null, my_tasks: [], open_tasks: [] }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -7243,7 +7298,12 @@ async function handleGetLagerTasks(supabase: any, staffId: string, organizationI
     )
   }
 
-  const allTasks = tasks || []
+  const { data: linkedEvents, error: linkedEventsError } = await supabase.from('warehouse_calendar_events')
+    .select('*').eq('organization_id', organizationId).eq('event_type', 'internal_task');
+  if (linkedEventsError) return new Response(JSON.stringify({ error: 'Kunde inte läsa lagerplaneringen' }),
+    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  const linkedIds = new Set((linkedEvents || []).map((event: any) => event.project_task_id).filter(Boolean));
+  const allTasks = (tasks || []).filter((task: any) => !linkedIds.has(task.id))
   const myTasks = allTasks.filter((t: any) =>
     Array.isArray(t.assigned_to_ids) && t.assigned_to_ids.includes(staffId)
   )
@@ -7308,13 +7368,23 @@ async function handleCreateLagerTask(supabase: any, staffId: string, data: any, 
   )
 }
 
-async function handleCompleteLagerTask(supabase: any, data: any, organizationId: string) {
+async function handleCompleteLagerTask(supabase: any, staffId: string, data: any, organizationId: string) {
   const { task_id, completed } = data || {}
   if (!task_id) {
     return new Response(
       JSON.stringify({ error: 'task_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  try {
+    if (!await canCompleteWarehouseTask(supabase, organizationId, staffId, task_id))
+      return new Response(JSON.stringify({ error: 'Uppgiften är inte tilldelad dig' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  } catch (error) {
+    console.error('Warehouse task ownership check failed', error);
+    return new Response(JSON.stringify({ error: 'Kunde inte kontrollera tilldelningen' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   const { data: task, error } = await supabase
@@ -7346,6 +7416,18 @@ async function handleClaimLagerTask(supabase: any, staffId: string, data: any, o
       JSON.stringify({ error: 'task_id is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // Planned jobs are staffed through warehouse_assignments. The legacy claim
+  // path must not create a second ownership list on their project task.
+  const { data: plannedEvents, error: plannedError } = await supabase
+    .from('warehouse_calendar_events').select('*')
+    .eq('organization_id', organizationId).eq('event_type', 'internal_task');
+  if (plannedError || (plannedEvents || []).some((event: any) => event.project_task_id === task_id)) {
+    return new Response(JSON.stringify({ error: plannedError
+      ? 'Kunde inte kontrollera planeringen'
+      : 'Den här uppgiften bemannas i lagerplaneringen. Be arbetsledaren tilldela dig.' }),
+      { status: plannedError ? 500 : 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Read current assigned_to_ids

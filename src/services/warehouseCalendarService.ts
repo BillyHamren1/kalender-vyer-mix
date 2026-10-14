@@ -1,5 +1,6 @@
+import { DateTime } from 'luxon';
+import { WAREHOUSE_TIME_ZONE, warehouseDateOf, warehouseDayBounds, warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, addDays, parseISO, setHours, setMinutes } from "date-fns";
 
 // Warehouse event types — only packing + return are shown in the warehouse calendar
 export type WarehouseEventType = 'packing' | 'return' | 'internal_task';
@@ -72,29 +73,16 @@ function calculateEventDateTime(
   customStartTime?: string,
   customEndTime?: string
 ): { start: Date; end: Date } {
-  let date = parseISO(baseDate);
-  
-  if (rule.daysBefore) {
-    date = subDays(date, rule.daysBefore);
-  }
-  if (rule.daysAfter) {
-    date = addDays(date, rule.daysAfter);
-  }
-  
-  let start: Date;
-  let end: Date;
-  
-  // Use custom times if provided (for event type)
-  if (customStartTime && customEndTime) {
-    const [startHour, startMin] = customStartTime.split(':').map(Number);
-    const [endHour, endMin] = customEndTime.split(':').map(Number);
-    start = setMinutes(setHours(date, startHour), startMin);
-    end = setMinutes(setHours(date, endHour), endMin);
-  } else {
-    start = setMinutes(setHours(date, rule.startHour), rule.startMinute);
-    end = new Date(start.getTime() + rule.durationHours * 60 * 60 * 1000);
-  }
-  
+  let date = DateTime.fromISO(baseDate, { zone: WAREHOUSE_TIME_ZONE }).startOf('day');
+  if (rule.daysBefore) date = date.minus({ days: rule.daysBefore });
+  if (rule.daysAfter) date = date.plus({ days: rule.daysAfter });
+  const [hour, minute] = customStartTime ? customStartTime.split(':').map(Number) : [rule.startHour, rule.startMinute];
+  const startAt = date.set({ hour, minute });
+  const [endHour, endMinute] = customEndTime ? customEndTime.split(':').map(Number) : [0, 0];
+  const endAt = customEndTime ? date.set({ hour: endHour, minute: endMinute }) : startAt.plus({ hours: rule.durationHours });
+  const start = startAt.toJSDate();
+  const end = endAt.toJSDate();
+
   return { start, end };
 }
 
@@ -107,19 +95,15 @@ async function findNextReturnSlot(
   baseStart: Date,
   excludeBookingId: string
 ): Promise<{ start: Date; end: Date }> {
-  // Day window in local time
-  const dayStart = new Date(baseStart);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(baseStart);
-  dayEnd.setHours(23, 59, 59, 999);
+  const bounds = warehouseDayBounds(warehouseDateOf(baseStart)!);
 
   const { data, error } = await supabase
     .from('warehouse_calendar_events')
     .select('id, start_time, booking_id')
     .eq('event_type', 'return')
     .eq('resource_id', 'warehouse')
-    .gte('start_time', dayStart.toISOString())
-    .lte('start_time', dayEnd.toISOString());
+    .gte('start_time', bounds.start)
+    .lt('start_time', bounds.end);
 
   if (error) {
     console.warn('[WarehouseCalendar] slot lookup failed, using base time', error);
@@ -129,8 +113,7 @@ async function findNextReturnSlot(
 
   const taken = (data || []).filter(e => e.booking_id !== excludeBookingId).length;
   const startHour = RETURN_FIRST_HOUR + taken * RETURN_SLOT_HOURS;
-  const start = new Date(baseStart);
-  start.setHours(startHour, 0, 0, 0);
+  const start = DateTime.fromJSDate(baseStart, { zone: WAREHOUSE_TIME_ZONE }).startOf('day').plus({ days: Math.floor(startHour / 24) }).set({ hour: startHour % 24 }).toJSDate();
   const end = new Date(start.getTime() + RETURN_SLOT_HOURS * 60 * 60 * 1000);
   return { start, end };
 }
@@ -392,6 +375,13 @@ export async function updateWarehouseCalendarEvent(
     throw beforeError || new Error('warehouse_event_not_found');
   }
 
+  const nextStart = updates.start_time ?? before.start_time;
+  const nextEnd = updates.end_time ?? before.end_time;
+  const assignmentDate = warehouseDateOf(nextStart);
+  if (!assignmentDate || !Number.isFinite(Date.parse(nextEnd)) || Date.parse(nextEnd) <= Date.parse(nextStart)) {
+    throw new Error('Invalid warehouse event time range');
+  }
+
   const { error } = await supabase
     .from('warehouse_calendar_events')
     .update({
@@ -406,15 +396,12 @@ export async function updateWarehouseCalendarEvent(
     throw error;
   }
 
-  const nextStart = updates.start_time ?? before.start_time;
-  const nextEnd = updates.end_time ?? before.end_time;
-  const assignmentDate = nextStart.slice(0, 10);
   const { error: assignmentError } = await supabase
     .from('warehouse_assignments')
     .update({
       assignment_date: assignmentDate,
-      start_time: nextStart,
-      end_time: nextEnd,
+      start_time: warehouseTimeOf(nextStart),
+      end_time: warehouseTimeOf(nextEnd),
     })
     .eq('warehouse_event_id', eventId);
 
@@ -440,8 +427,8 @@ export async function fetchWarehouseEvents(startDate: string, endDate: string, o
   let query = supabase
     .from('warehouse_calendar_events')
     .select('*')
-    .gte('start_time', startDate)
-    .lte('end_time', endDate)
+    .lt('start_time', /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? warehouseDayBounds(endDate).start : endDate)
+    .gt('end_time', /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? warehouseDayBounds(startDate).start : startDate)
     .order('start_time', { ascending: true });
 
   if (organizationId) query = query.eq('organization_id', organizationId);

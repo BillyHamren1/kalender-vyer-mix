@@ -24,7 +24,9 @@ describe('Lager OPS consolidation contract', () => {
 
   it('composes the OPS page as a compact, action-first ops surface', () => {
     const page = read('src/pages/WarehouseOps.tsx');
-    expect(page).toContain('Planning OPS');
+    expect(page).toContain('Lageröversikt');
+    expect(page).toContain('Behöver åtgärdas');
+    expect(page).toContain('<WarehouseJobSheet');
     expect(page).toContain('<WarehouseBookingQuickOpen');
     expect(page).toContain('<WarehouseOverviewNext7Days');
     expect(page).toContain('<WarehouseOpsActionQueue');

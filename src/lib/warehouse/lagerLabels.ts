@@ -5,6 +5,7 @@
  * Lager day card, the Lager detail page and any future surfaces stay
  * consistent.
  */
+import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import type { LagerAssignmentItem } from '@/hooks/useLagerAssignments';
 
 export type AssignmentType = NonNullable<LagerAssignmentItem['assignment_type']>;
@@ -72,19 +73,15 @@ export function assignmentStatusLabel(item: LagerAssignmentItem): string {
 /** Worker-facing CTA. Deliberately describes the job, not the technical tool. */
 export function workerActionLabel(item: LagerAssignmentItem): string {
   if (isAssignmentCompleted(item)) return 'Visa uppgift';
+  const action = resolveAction(item);
+  if (action === 'open_inventory' || (action === 'complete_task' && !item.project_task_id) ||
+      ((action === 'open_scanner' || action === 'open_return_scanner') && !(item.packing_id || item.packlist_id || item.booking_id))) return 'Visa uppgift';
+  if (action === 'open_details') return 'Öppna uppgift';
+  if (action === 'complete_task') return 'Markera klar';
   const active = isAssignmentOperationallyActive(item);
-  switch (resolveAssignmentType(item)) {
-    case 'packing':
-      return active ? 'Fortsätt packning' : 'Starta packning';
-    case 'return':
-      return active ? 'Fortsätt retur' : 'Starta retur';
-    case 'inventory':
-      return active ? 'Fortsätt inventering' : 'Starta inventering';
-    case 'internal_task':
-      return 'Markera klar';
-    default:
-      return 'Öppna uppgift';
-  }
+  if (action === 'open_scanner') return active ? 'Fortsätt packning' : 'Starta packning';
+  if (action === 'open_return_scanner') return active ? 'Fortsätt retur' : 'Starta retur';
+  return 'Visa uppgift';
 }
 
 export const ASSIGNMENT_TYPE_TONE: Record<AssignmentType | 'other', string> = {
@@ -97,7 +94,7 @@ export const ASSIGNMENT_TYPE_TONE: Record<AssignmentType | 'other', string> = {
 
 /** Resolve assignment_type, falling back to event_type from legacy rows. */
 export function resolveAssignmentType(item: LagerAssignmentItem): AssignmentType | 'other' {
-  const t = item.assignment_type ?? (item.event_type as AssignmentType | undefined);
+  const t = item.assignment_type ?? item.type ?? (item.event_type as AssignmentType | undefined);
   switch (t) {
     case 'packing':
     case 'return':
@@ -167,7 +164,7 @@ export function dayTimeWindow(items: LagerAssignmentItem[]): { start: string; en
   }
   const fmt = (ms: number) =>
     Number.isFinite(ms)
-      ? new Date(ms).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+      ? warehouseTimeOf(new Date(ms)) || ''
       : '';
   return { start: fmt(minStart), end: fmt(maxEnd) };
 }

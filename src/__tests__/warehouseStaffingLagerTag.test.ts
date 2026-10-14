@@ -26,7 +26,8 @@ describe('Lagerkalenderns bemanningsregel', () => {
   });
 
   it('behåller Lager-taggfiltret i bemanningslistan och personalmatrisen', () => {
-    expect(quickAssign).toContain(".contains('tags', ['Lager'])");
+    expect(quickAssign).toContain("s.tags?.includes('Lager')");
+    expect(quickAssign).toContain('assignedIds.has(s.id)');
     expect(personnelHook).toContain("member.tags.includes('Lager')");
   });
 });
