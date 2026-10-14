@@ -118,7 +118,8 @@ export const useProjectTransport = (bookingId: string | null | undefined) => {
     if (!bookingId) return;
 
     const channel = supabase
-      .channel(`project-transport-${bookingId}`)
+      // Each mounted consumer owns its channel, including overlapping cleanup/remounts.
+      .channel(`project-transport-${bookingId}-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         {
