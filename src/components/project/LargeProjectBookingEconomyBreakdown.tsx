@@ -1,4 +1,4 @@
-import { extraCostsTotal } from "@/lib/economy/bookingCosts";
+import { extraCostsTotal, extraCostsRevenue } from "@/lib/economy/bookingCosts";
 import { BookingCostsPanel } from "./BookingCostsPanel";
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -337,7 +337,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                       const invoices = Array.isArray(data.invoices) ? data.invoices : [];
                       const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
 
-                      const displayRevenue = productSummary?.revenue ?? 0;
+                      const displayRevenue = (productSummary?.revenue ?? 0) + extraCostsRevenue(data.product_costs?.extra_costs);
                       const displayProductCosts = (productSummary?.costs ?? 0) + extraCostsTotal(data.product_costs?.extra_costs);
 
                       const totalCost =

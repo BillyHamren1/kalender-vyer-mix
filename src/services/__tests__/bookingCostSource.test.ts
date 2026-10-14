@@ -37,3 +37,17 @@ it('counts canonical product and manual estimates exactly once without changing 
   expect(summary.totalActual).toBe(0);
   expect(costs.summary.costs).toBe(100);
 });
+
+import { extraCostsRevenue } from '@/lib/economy/bookingCosts';
+it('includes manual revenue exactly once with Booking quantity/price/discount rules', () => {
+  const extras = [
+    { id: 'a', label: 'Transport', amount: 20, quantity: 2, unit_price: 100, discount: 25 },
+    { id: 'b', label: 'Cost only', amount: 30 },
+    { id: 'c', label: 'Zero quantity', amount: 10, quantity: 0, unit_price: 999 },
+  ];
+  expect(extraCostsRevenue(extras)).toBe(150);
+  const summary = calculateEconomySummary(null, [], [], [], [], { products: [], summary: { revenue: 1000, costs: 100, margin: 900 }, extra_costs: extras }, []);
+  expect(summary.productRevenue).toBe(1150);
+  expect(summary.productCostBudget).toBe(160);
+  expect(summary.totalActual).toBe(0);
+});

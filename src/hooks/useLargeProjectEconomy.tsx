@@ -1,4 +1,4 @@
-import { extraCostsTotal } from "@/lib/economy/bookingCosts";
+import { extraCostsTotal, extraCostsRevenue } from "@/lib/economy/bookingCosts";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -164,7 +164,7 @@ export const useLargeProjectEconomy = (
       // Product costs (revenue from booking)
       const pc = bd.product_costs;
       if (pc?.summary) {
-        totalRevenue += Number(pc.summary.revenue) || 0;
+        totalRevenue += (Number(pc.summary.revenue) || 0) + extraCostsRevenue(pc.extra_costs);
         totalCost += (Number(pc.summary.costs) || 0) + extraCostsTotal(pc.extra_costs);
       }
       // Staff/time hanteras INTE här. Totalsanningen är `largeProjectHours`

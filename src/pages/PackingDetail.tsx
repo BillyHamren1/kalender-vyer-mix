@@ -1,4 +1,4 @@
-import { BookingCostsPanel } from "@/components/project/BookingCostsPanel";
+import { BookingCostsPanel, BookingCostsHeading } from "@/components/project/BookingCostsPanel";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal, CheckCircle2, AlertCircle } from "lucide-react";
@@ -671,7 +671,7 @@ const PackingDetail = () => {
 
               <TabsContent value="costs" className="space-y-6">
                 {[...new Set([packing.booking_id, ...linkedBookingIds].filter(Boolean))].map(id => (
-                  <section key={id}><h3 className="font-medium mb-3">Bokning {id}</h3><BookingCostsPanel bookingId={id} /></section>
+                  <section key={id}><BookingCostsHeading bookingId={id} /><BookingCostsPanel bookingId={id} /></section>
                 ))}
               </TabsContent>
 

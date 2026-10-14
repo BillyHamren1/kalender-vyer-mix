@@ -1,3 +1,4 @@
+import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
 import { extraCostAmount } from "@/lib/economy/bookingCosts";
 export { extraCostAmount } from "@/lib/economy/bookingCosts";
 import { useState } from 'react';
@@ -114,4 +115,10 @@ export function BookingCostsPanel({ bookingId, projectId }: { bookingId: string;
     }} />}
     <BookingExtraCostsCard key={bookingId} bookingId={bookingId} />
   </div>;
+}
+
+export function BookingCostsHeading({ bookingId }: { bookingId: string }) {
+  const { data } = useQuery({ queryKey: ['booking-costs-heading', bookingId], queryFn: () => fetchLiveBookingById(bookingId) });
+  const label = data ? [data.booking_number, data.client].filter(Boolean).join(' · ') : '';
+  return <h3 className="font-medium mb-3">{label || 'Bokningskostnader'}</h3>;
 }
