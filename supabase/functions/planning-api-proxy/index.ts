@@ -1,9 +1,9 @@
 // @ts-nocheck
+import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   fetchEconomyBatch,
   fetchEconomyType,
-  hasValidProductCosts,
   type EconomyDataType,
 } from './economy-fetch.ts';
 
@@ -12,32 +12,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const CHUNK_SIZE = 10; // Fetch at most 10 bookings in parallel
 
 async function fetchFromExternal(
   efUrl: string,
   planningApiKey: string,
   type: string,
-  bookingId: string
+  bookingId: string,
+  organizationId: string
 ): Promise<any> {
-  return fetchEconomyType(fetch, efUrl, planningApiKey, type as EconomyDataType, bookingId);
+  return fetchEconomyType(fetch, efUrl, planningApiKey, type as EconomyDataType, bookingId, organizationId);
 }
 
 /** Fetch all 7 data types for a single booking */
 async function fetchAllForBooking(
   efUrl: string,
   planningApiKey: string,
-  bookingId: string
+  bookingId: string,
+  organizationId: string
 ): Promise<Record<string, any>> {
-  return fetchEconomyBatch(fetch, efUrl, planningApiKey, bookingId);
+  return fetchEconomyBatch(fetch, efUrl, planningApiKey, bookingId, organizationId);
 }
 
 /** Process bookings in chunks of CHUNK_SIZE */
 async function fetchInChunks(
   efUrl: string,
   planningApiKey: string,
-  bookingIds: string[]
+  bookingIds: string[],
+  organizationId: string
 ): Promise<Record<string, Record<string, any>>> {
   const result: Record<string, Record<string, any>> = {};
   for (let i = 0; i < bookingIds.length; i += CHUNK_SIZE) {
@@ -45,7 +47,7 @@ async function fetchInChunks(
     const chunkResults = await Promise.all(
       chunk.map(async (bid) => ({
         bid,
-        data: await fetchAllForBooking(efUrl, planningApiKey, bid),
+        data: await fetchAllForBooking(efUrl, planningApiKey, bid, organizationId),
       }))
     );
     chunkResults.forEach(({ bid, data }) => { result[bid] = data; });
@@ -103,6 +105,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+    const access = await assertPlanningAccess(serviceClient as never, userData.user.id);
+    if (!access.ok) return new Response(JSON.stringify({ error: access.message }), {
+      status: access.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    const organizationId = access.organizationId;
+    // A profile selects context; current same-org roles authorize that context.
+    const { data: roles, error: roleError } = await serviceClient.from('user_roles')
+      .select('role').eq('user_id', userData.user.id).eq('organization_id', organizationId)
+      .in('role', ['admin', 'projekt', 'lager']);
+    if (roleError || !roles?.length) return new Response(JSON.stringify({ error: 'Planning access required in this organization' }), {
+      status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    // Never forward client-chosen tenant scope, including through body data.
+    delete params.organization_id;
+    if (params.data && typeof params.data === 'object') delete params.data.organization_id;
+
     // === MULTI_BATCH: fetch all economy data for multiple bookings ===
     if (type === 'multi_batch' && params.booking_ids) {
       const bookingIds: string[] = Array.isArray(params.booking_ids)
@@ -115,28 +136,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Use service_role client for cache access (bypasses RLS)
-      const serviceClient = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      );
-
-      const now = Date.now();
       const responseData: Record<string, any> = {};
-
-      // 1. Check cache for all booking IDs
-      const { data: profile } = await serviceClient
-        .from('profiles')
-        .select('organization_id')
-        .eq('user_id', userData.user.id)
-        .single();
-      const orgId = profile?.organization_id;
-      if (!orgId) {
-        return new Response(JSON.stringify({ error: 'Organization context missing' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
+      const orgId = organizationId;
 
       // Chunk IN-lists: hundreds of UUIDs in one URL overflow the request line.
       const ID_CHUNK = 100;
@@ -168,55 +169,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      const cached: any[] = [];
-      for (const chunk of idChunks) {
-        const { data } = await serviceClient
-          .from('economy_cache')
-          .select('booking_id, data, cached_at')
-          .eq('organization_id', orgId)
-          .in('booking_id', chunk);
-        cached.push(...(data ?? []));
-      }
-
-      const uncachedIds: string[] = [];
-
-      for (const bid of bookingIds) {
-        const entry = cached?.find((c: any) => c.booking_id === bid);
-        if (entry && hasValidProductCosts(entry.data) && (now - new Date(entry.cached_at).getTime()) < CACHE_TTL_MS) {
-          // Cache hit — use cached data
-          responseData[bid] = entry.data;
-        } else {
-          uncachedIds.push(bid);
-        }
-      }
-
-      // 2. Fetch uncached bookings in chunks
-      if (uncachedIds.length > 0) {
-        console.log(`Cache miss for ${uncachedIds.length}/${bookingIds.length} bookings, fetching externally...`);
-        const freshData = await fetchInChunks(efUrl, planningApiKey, uncachedIds);
-
-        // 3. Upsert fresh data into cache
-        const upsertRows = Object.entries(freshData)
-          .filter(([, data]) => hasValidProductCosts(data))
-          .map(([bid, data]) => ({
-          booking_id: bid,
-          data,
-          cached_at: new Date().toISOString(),
-          organization_id: orgId,
-        }));
-        if (upsertRows.length > 0) {
-          await serviceClient
-            .from('economy_cache')
-            .upsert(upsertRows, { onConflict: 'booking_id' });
-        }
-
-        // Merge into response
-        Object.entries(freshData).forEach(([bid, data]) => {
-          responseData[bid] = data;
-        });
-      } else {
-        console.log(`Full cache hit for all ${bookingIds.length} bookings`);
-      }
+      // Cost changes may originate in Booking, so a local ten-minute cache
+      // cannot establish freshness. Read the canonical economy on each request.
+      const freshData = await fetchInChunks(efUrl, planningApiKey, bookingIds, organizationId);
+      Object.assign(responseData, freshData);
 
       return new Response(JSON.stringify(responseData), {
         status: 200,
@@ -227,7 +183,7 @@ Deno.serve(async (req) => {
     // === BATCH: fetch all economy data in one call ===
     if (type === 'batch' && params.booking_id) {
       const bookingId = params.booking_id;
-      const responseData = await fetchAllForBooking(efUrl, planningApiKey, bookingId);
+      const responseData = await fetchAllForBooking(efUrl, planningApiKey, bookingId, organizationId);
 
       return new Response(JSON.stringify(responseData), {
         status: 200,
@@ -245,6 +201,8 @@ Deno.serve(async (req) => {
         queryParams.set(key, String(value));
       }
     }
+
+    queryParams.set('organization_id', organizationId);
 
     const targetUrl = `${efUrl}/functions/v1/planning-api?${queryParams.toString()}`;
 

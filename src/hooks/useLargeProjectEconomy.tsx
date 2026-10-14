@@ -1,3 +1,4 @@
+import { extraCostsTotal, extraCostsRevenue } from "@/lib/economy/bookingCosts";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -70,20 +71,12 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // Local booking products (for revenue data and editable costs)
-  const { data: localProducts = [] } = useQuery({
-    queryKey: ['large-project-local-products', bookingIds],
-    queryFn: async () => {
-      if (bookingIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('booking_products')
-        .select('id, booking_id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, parent_product_id, is_package_component, sku, sort_index')
-        .in('booking_id', bookingIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: bookingIds.length > 0,
-  });
+  // Compatibility view model only: every product value is read from Booking.
+  const localProducts = Object.entries(bookingEconomyData ?? {}).flatMap(([bookingId, batch]) =>
+    (batch.product_costs?.products ?? []).map((p: any) => ({
+      ...p, booking_id: bookingId, name: p.product_name, total_price: p.total,
+      is_package_component: false, sku: null, sort_index: null,
+    })));
 
   // DETAIL-only: per-booking time reports breakdown.
   //
@@ -170,22 +163,9 @@ export const useLargeProjectEconomy = (
       bookingCount++;
       // Product costs (revenue from booking)
       const pc = bd.product_costs;
-      if (pc?.summary && pc.summary.revenue > 0) {
-        totalRevenue += pc.summary.revenue;
-        totalCost += pc.summary.costs || 0;
-      } else {
-        // Fallback: use local booking_products for revenue and costs
-        const localBP = localProducts.filter(lp => lp.booking_id === bId);
-        const localRev = localBP
-          .filter(lp => !lp.is_package_component && !lp.parent_product_id)
-          .reduce((s, lp) => s + (lp.total_price || 0), 0);
-        const localCost = localBP.reduce((s, lp) =>
-          s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
-        totalRevenue += localRev;
-        totalCost += pc?.summary?.costs || localCost;
-        if (!pc?.summary) {
-          console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
-        }
+      if (pc?.summary) {
+        totalRevenue += (Number(pc.summary.revenue) || 0) + extraCostsRevenue(pc.extra_costs);
+        totalCost += (Number(pc.summary.costs) || 0) + extraCostsTotal(pc.extra_costs);
       }
       // Staff/time hanteras INTE här. Totalsanningen är `largeProjectHours`
       // (Time Engine-cache, LP-aggregerad). Per-booking loop skulle dubbelräkna

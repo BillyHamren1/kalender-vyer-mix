@@ -39,8 +39,10 @@ export async function fetchEconomyType(
   planningApiKey: string,
   type: EconomyDataType,
   bookingId: string,
+  organizationId?: string,
 ): Promise<unknown> {
   const qs = new URLSearchParams({ type, booking_id: bookingId });
+  if (organizationId) qs.set('organization_id', organizationId);
   const response = await fetcher(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json', 'x-api-key': planningApiKey },
@@ -68,9 +70,10 @@ export async function fetchEconomyBatch(
   efUrl: string,
   planningApiKey: string,
   bookingId: string,
+  organizationId?: string,
 ): Promise<EconomyBatch> {
   const settled = await Promise.allSettled(
-    ECONOMY_DATA_TYPES.map((type) => fetchEconomyType(fetcher, efUrl, planningApiKey, type, bookingId)),
+    ECONOMY_DATA_TYPES.map((type) => fetchEconomyType(fetcher, efUrl, planningApiKey, type, bookingId, organizationId)),
   );
   const batch: EconomyBatch = { product_costs: null };
   const errors: Record<string, { code: string; status?: number }> = {};

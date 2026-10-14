@@ -56,8 +56,10 @@ const EditableCell = ({ value, isOverridden, onSave, className }: EditableCellPr
   const commit = () => {
     setEditing(false);
     const parsed = parseFloat(draft.replace(/\s/g, '').replace(',', '.'));
-    if (!isNaN(parsed) && parsed !== value) {
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed !== value) {
       onSave(parsed);
+    } else if (!Number.isFinite(parsed) || parsed < 0) {
+      toast.error('Ange ett giltigt belopp, minst 0');
     }
   };
 
@@ -70,7 +72,7 @@ const EditableCell = ({ value, isOverridden, onSave, className }: EditableCellPr
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => {
-          if (e.key === 'Enter') commit();
+          if (e.key === 'Enter') inputRef.current?.blur();
           if (e.key === 'Escape') setEditing(false);
         }}
         className="w-16 text-right text-xs border border-primary/40 rounded px-1 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
@@ -101,6 +103,9 @@ export const ProductCostsCard = ({
   onUpdateProductCost,
   onResetProductCost,
 }: ProductCostsCardProps) => {
+  const currency = productCosts.currency || 'SEK';
+  const costCurrency = productCosts.cost_currency || 'SEK';
+  const comparable = currency === costCurrency;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const overrideSet = useMemo(() => new Set(costOverrides.map(o => o.product_id)), [costOverrides]);
 
@@ -246,17 +251,17 @@ export const ProductCostsCard = ({
         {renderCostCells(product, 'text-xs')}
         <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
         <td className={`py-1.5 px-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
-          {rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
+          {comparable && rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
         </td>
         <td className="py-1.5 pl-2 text-right text-xs">
           {invoiceInfo ? (
             <div className="flex flex-col items-end">
-              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} kr</span>
+              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} {costCurrency}</span>
               {(() => {
                 const diff = purchaseBudget - invoiceInfo.invoicedTotal;
                 return (
                   <span className={diff >= 0 ? 'text-green-600' : 'text-red-500'}>
-                    {diff >= 0 ? '+' : ''}{fmt(diff)} kr
+                    {diff >= 0 ? '+' : ''}{fmt(diff)} {costCurrency}
                   </span>
                 );
               })()}
@@ -321,17 +326,17 @@ export const ProductCostsCard = ({
         {renderCostCells(group.parent, 'text-sm')}
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
         <td className={`py-2 px-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
-          {groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
+          {comparable && groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
         </td>
         <td className="py-2 pl-2 text-right text-sm">
           {invoiceInfo ? (
             <div className="flex flex-col items-end">
-              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} kr</span>
+              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} {costCurrency}</span>
               {(() => {
                 const diff = purchaseBudget - invoiceInfo.invoicedTotal;
                 return (
                   <span className={`text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {diff >= 0 ? '+' : ''}{fmt(diff)} kr
+                    {diff >= 0 ? '+' : ''}{fmt(diff)} {costCurrency}
                   </span>
                 );
               })()}
@@ -383,22 +388,23 @@ export const ProductCostsCard = ({
         <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b pb-3">
           <div className="text-sm">
             <span className="text-muted-foreground">Intäkter </span>
-            <span className="font-bold">{fmt(revenue)} kr</span>
+            <span className="font-bold">{fmt(revenue)} {currency}</span>
           </div>
           <div className="text-sm">
             <span className="text-muted-foreground">Kostnader </span>
-            <span className="font-bold">{fmt(costs)} kr</span>
+            <span className="font-bold">{fmt(costs)} {costCurrency}</span>
           </div>
           <div className="text-sm">
             <span className="text-muted-foreground">Marginal </span>
-            <span className="font-bold">{fmt(margin)} kr</span>
+            <span className="font-bold">{comparable ? `${fmt(margin)} ${costCurrency}` : '–'}</span>
           </div>
           <div className="text-sm ml-auto">
             <span className="text-muted-foreground">Marginal % </span>
-            <span className={`font-bold ${getMarginColor(marginPct)}`}>{marginPct}%</span>
+            <span className={`font-bold ${getMarginColor(marginPct)}`}>{comparable ? `${marginPct}%` : '–'}</span>
           </div>
         </div>
 
+        {!comparable && <p className="text-xs text-muted-foreground">Intäkt i {currency}, kostnader i {costCurrency}. Marginal visas inte utan omräkning.</p>}
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
@@ -407,11 +413,11 @@ export const ProductCostsCard = ({
                 <th className="text-left py-2 pr-3 font-medium">Produkt</th>
                 <th className="text-right py-2 px-2 font-medium">Antal</th>
                 <th className="text-right py-2 px-2 font-medium">Pris/st</th>
-                <th className="text-right py-2 px-2 font-medium">Totalt</th>
+                <th className="text-right py-2 px-2 font-medium">Intäkt ({currency})</th>
                 <th className="text-right py-2 px-2 font-medium">Montage/st</th>
                 <th className="text-right py-2 px-2 font-medium">Lagerkostnad</th>
                 <th className="text-right py-2 px-2 font-medium">Inköp/st</th>
-                <th className="text-right py-2 px-2 font-medium">Kostn. totalt</th>
+                <th className="text-right py-2 px-2 font-medium">Kostnad ({costCurrency})</th>
                 <th className="text-right py-2 pl-2 font-medium">Marginal</th>
                 <th className="text-right py-2 pl-2 font-medium">Lev.faktura</th>
               </tr>
@@ -429,7 +435,7 @@ export const ProductCostsCard = ({
                 <td className="py-2.5 px-2 text-right">{fmt(handlingCostTotal)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(purchaseCostTotal)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(costs)}</td>
-                <td className={`py-2.5 pl-2 text-right ${getMarginColor(marginPct)}`}>{marginPct}%</td>
+                <td className={`py-2.5 pl-2 text-right ${getMarginColor(marginPct)}`}>{comparable ? `${marginPct}%` : '–'}</td>
                 <td className="py-2.5 pl-2" />
               </tr>
             </tfoot>
