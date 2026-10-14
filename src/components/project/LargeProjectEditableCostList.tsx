@@ -1,3 +1,4 @@
+import { extraCostsTotal } from "@/lib/economy/bookingCosts";
 import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ const fmt = (v: number) =>
 
 const META: Record<CostCategory, { label: string; icon: React.ComponentType<any>; color: string; hint: string }> = {
   purchase: { label: 'Inköp', icon: ShoppingCart, color: 'text-blue-600',
-    hint: 'Inköp för projektet. Importera rapporterade inköp eller lägg till manuellt.' },
+    hint: 'Endast separata inköp för hela projektet. Bokningens inköp visas per bokning.' },
   handling: { label: 'Lagerkostnad', icon: Package, color: 'text-amber-600',
     hint: 'Manuell post – fyll i den lagerkostnad du vill räkna med för projektet.' },
   assembly: { label: 'Montagekostnad', icon: Wrench, color: 'text-purple-600',
@@ -120,40 +121,6 @@ export function LargeProjectEditableCostList({
   const reportedTimeTotal = timeRows.reduce((s, r) => s + r.cost, 0);
   const reportedHoursTotal = timeRows.reduce((s, r) => s + r.hours, 0);
 
-  // Importable suggestions for "Inköp" — purchases and supplier invoices not yet imported
-  const importablePurchases = useMemo(() => {
-    if (!bookingEconomyData) return [];
-    const existingDescs = new Set(byCategory.purchase.map((l) => `${l.description}|${l.amount}|${l.cost_date || ''}`));
-    const items: Array<{ key: string; description: string; supplier: string | null; date: string | null; amount: number }> = [];
-    Object.values(bookingEconomyData).forEach((bd: any) => {
-      (bd.purchases || []).forEach((p: any) => {
-        const item = {
-          key: `p-${p.id || p.description}`,
-          description: p.description || 'Inköp',
-          supplier: p.supplier || null,
-          date: p.purchase_date || null,
-          amount: Number(p.amount) || 0,
-        };
-        const k = `${item.description}|${item.amount}|${item.date || ''}`;
-        if (!existingDescs.has(k)) items.push(item);
-      });
-      (bd.supplier_invoices || []).forEach((s: any) => {
-        if (s.is_final_link && s.linked_cost_id) return;
-        const amount = Number(s.invoice_data?.Total) || 0;
-        const item = {
-          key: `si-${s.id}`,
-          description: s.invoice_data?.Description || `Lev.faktura ${s.invoice_data?.DocumentNumber || ''}`.trim(),
-          supplier: s.invoice_data?.SupplierName || null,
-          date: s.invoice_data?.InvoiceDate || null,
-          amount,
-        };
-        const k = `${item.description}|${item.amount}|${item.date || ''}`;
-        if (!existingDescs.has(k)) items.push(item);
-      });
-    });
-    return items;
-  }, [bookingEconomyData, byCategory.purchase]);
-
   // Per-line budget total (sum of budget_amount on manual lines, per category)
   const lineBudgets = useMemo(() => {
     const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
@@ -167,7 +134,7 @@ export function LargeProjectEditableCostList({
   const productBudgets = useMemo(() => {
     const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
     localProducts.forEach((p) => {
-      const qty = Number(p.quantity) || 1;
+      const qty = Number(p.quantity) || 0;
       b.purchase += (Number(p.purchase_cost) || 0) * qty;
       b.handling += (Number(p.handling_cost) || 0) * qty;
       b.assembly += (Number(p.assembly_cost) || 0) * qty;
@@ -180,7 +147,7 @@ export function LargeProjectEditableCostList({
     purchase: productBudgets.purchase + lineBudgets.purchase,
     handling: productBudgets.handling + lineBudgets.handling,
     assembly: productBudgets.assembly + lineBudgets.assembly,
-    other: productBudgets.other + lineBudgets.other,
+    other: productBudgets.other + lineBudgets.other + Object.values(bookingEconomyData ?? {}).reduce((sum, batch) => sum + extraCostsTotal(batch.product_costs?.extra_costs), 0),
   };
 
   // Actual totals (manual lines + reported time for assembly)
@@ -204,7 +171,7 @@ export function LargeProjectEditableCostList({
     const Icon = meta.icon;
     const items = byCategory[cat];
     const isOpen = expanded[cat];
-    const showImportPanel = cat === 'purchase' && importablePurchases.length > 0;
+
 
     return (
       <React.Fragment key={cat}>
@@ -346,46 +313,6 @@ export function LargeProjectEditableCostList({
               <TableCell />
               <TableCell colSpan={8} className="py-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  {showImportPanel && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Sparkles className="h-3 w-3" /> Importera från bokningar:
-                      </span>
-                      {importablePurchases.slice(0, 6).map((p) => (
-                        <Button
-                          key={p.key}
-                          variant="secondary"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={() => addLine({
-                            category: 'purchase',
-                            description: p.description,
-                            amount: p.amount,
-                            supplier: p.supplier,
-                            cost_date: p.date,
-                          })}
-                        >
-                          + {p.description.slice(0, 24)} {fmt(p.amount)}
-                        </Button>
-                      ))}
-                      {importablePurchases.length > 6 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={() => importablePurchases.forEach((p) => addLine({
-                            category: 'purchase',
-                            description: p.description,
-                            amount: p.amount,
-                            supplier: p.supplier,
-                            cost_date: p.date,
-                          }))}
-                        >
-                          Importera alla ({importablePurchases.length})
-                        </Button>
-                      )}
-                    </div>
-                  )}
                   <span className="text-xs text-muted-foreground italic ml-auto">{meta.hint}</span>
                 </div>
               </TableCell>
@@ -399,9 +326,10 @@ export function LargeProjectEditableCostList({
   return (
     <Card className="border-border/40">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium">Projektkostnader</CardTitle>
+        <CardTitle className="text-base font-medium">Projektgemensamma kostnader</CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="text-sm text-muted-foreground mb-4">Separata projektkostnader. Bokningarnas kostnader redigeras per bokning nedan och kopieras inte hit. Tidigare importerade rader finns kvar; kontrollera dem mot bokningarna innan summeringen används.</p>
         <Table>
           <TableHeader>
             <TableRow>

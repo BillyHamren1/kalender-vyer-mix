@@ -62,3 +62,8 @@ Automatisk säkerhetsgranskning avvisade push till BillyHamren1/kalender-vyer-mi
 
 ## Publiceringsgodkännande 2026-10-14
 Användaren har uttryckligen godkänt publicering i det publika repot BillyHamren1/kalender-vyer-mix och skapande av draft-PR. Ändringarna har kontrollerats för nya hemligheter/personuppgifter. Publicering sker via ansluten GitHub-integration eftersom lokal git saknar autentisering. Ingen merge eller produktionsdeploy ingår.
+
+## Releaseförberedelse 2026-10-14
+Användaren har begärt slutförande inklusive driftsättning. Senaste main integrerad utan konflikter. Databasens tabeller och typer verifierade i pihrhltinhewhoxefjxv; cirka 3033 lagerhändelser, 1135 uppgifter och 332 projekt. RLS är aktiv. Live mobile-app-api v1196 och samtliga dess delade filer matchar main; inga oregistrerade liveändringar skrivs över.
+
+SQL-förslaget har flyttats till CLI-genererad migration 20261014113037_warehouse_internal_task_link.sql med lock_timeout 3s och statement_timeout 30s. Nio SQL-tester passerar. Meddelandetesternas gamla mock ersatt med aktuellt HUB-resolverkontrakt; 30 meddelande-/HUB-tester passerar utan ändring av produktionsbehörigheter.

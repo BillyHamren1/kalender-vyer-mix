@@ -20,6 +20,9 @@ export interface ProductCostData {
 }
 
 export interface ProductCostSummary {
+  extra_costs?: import("./planningApiService").BookingExtraCost[] | null;
+  currency?: string;
+  cost_currency?: string;
   products: ProductCostData[];
   summary: {
     revenue: number;

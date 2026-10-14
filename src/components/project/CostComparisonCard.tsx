@@ -1,3 +1,4 @@
+import { extraCostsTotal } from "@/lib/economy/bookingCosts";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { BarChart3 } from 'lucide-react';
@@ -53,6 +54,7 @@ export const CostComparisonCard = ({
     { label: 'Montagekostnad', budget: assemblyBudget, actual: staffActual },
     { label: 'Lagerkostnad', budget: handlingBudget, actual: 0 },
     { label: 'Inköpskostnad', budget: purchaseBudget, actual: purchaseActual },
+    { label: 'Manuella bokningskostnader', budget: extraCostsTotal(productCosts?.extra_costs), actual: 0 },
   ];
 
   const totalBudget = rows.reduce((s, r) => s + r.budget, 0);

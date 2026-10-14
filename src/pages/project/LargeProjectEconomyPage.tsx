@@ -1,3 +1,4 @@
+import { LegacyBookingCostsNotice } from "@/components/project/BookingCostsPanel";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const LargeProjectEconomyPage = () => {
   const linesTotal = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
   const realTotalCost = linesTotal + reportedTimeTotal;
 
+  const comparableCurrency = Object.values(bookingEconomyData ?? {}).every(batch => !batch.product_costs?.currency || batch.product_costs.currency === 'SEK');
   const margin = summary.grandTotalRevenue > 0
     ? ((summary.grandTotalRevenue - realTotalCost) / summary.grandTotalRevenue) * 100
     : 0;
@@ -57,15 +59,17 @@ const LargeProjectEconomyPage = () => {
 
   return (
     <div className="space-y-5">
+      <LegacyBookingCostsNotice projectId={project.id} />
+      {bookingIds.some(id => !bookingEconomyData?.[id]?.product_costs || bookingEconomyData?.[id]?._errors?.product_costs) && <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">Kostnader saknas för en eller flera bokningar. Summeringen är ofullständig; öppna bokningen nedan och försök läsa om.</div>}
       {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
         <Card className="border-border/40">
           <CardContent className="p-4">
             <div className="flex items-center gap-1.5 mb-1">
               <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Intäkt (bokningar)</p>
             </div>
-            <p className="text-xl font-bold text-foreground">{fmt(summary.grandTotalRevenue)}</p>
+            <p className="text-xl font-bold text-foreground">{comparableCurrency ? fmt(summary.grandTotalRevenue) : 'Olika valutor'}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{summary.bookingCount} bokningar</p>
           </CardContent>
         </Card>
@@ -94,6 +98,11 @@ const LargeProjectEconomyPage = () => {
             )}
           </CardContent>
         </Card>
+        <Card className="border-border/40"><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground">Kalkylerad bokningskostnad</p>
+          <p className="text-xl font-bold">{fmt(summary.totalCost)}</p>
+          <p className="text-xs text-muted-foreground">Produkter och manuella kostnader från Booking</p>
+        </CardContent></Card>
         <Card className={cn("border-border/40", margin < 0 && "border-red-200/60 dark:border-red-800/40")}>
           <CardContent className="p-4">
             <div className="flex items-center gap-1.5 mb-1">
@@ -101,7 +110,7 @@ const LargeProjectEconomyPage = () => {
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">TB / Marginal</p>
             </div>
             <p className={cn("text-xl font-bold", margin >= 20 ? "text-green-600" : margin >= 0 ? "text-amber-600" : "text-red-600")}>
-              {fmt(marginAmount)} ({margin.toFixed(0)}%)
+              {comparableCurrency ? `${fmt(marginAmount)} (${margin.toFixed(0)}%)` : 'Ej jämförbar valuta'}
             </p>
           </CardContent>
         </Card>
