@@ -21,10 +21,10 @@ jobs:
         run: |
           docker run --detach --name lifecycle-pg --env POSTGRES_PASSWORD=local-test-only -p 127.0.0.1:55439:5432 postgres:${{ matrix.postgres }}
           for attempt in $(seq 1 30); do
-            if docker exec lifecycle-pg pg_isready -U postgres; then break; fi
+            if docker exec lifecycle-pg pg_isready -h 127.0.0.1 -U postgres; then break; fi
             sleep 1
           done
-          docker exec lifecycle-pg pg_isready -U postgres
+          docker exec lifecycle-pg pg_isready -h 127.0.0.1 -U postgres
       - name: Migration and lifecycle assertions
         run: |
           docker exec lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;'
