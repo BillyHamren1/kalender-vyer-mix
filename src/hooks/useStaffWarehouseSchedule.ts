@@ -1,3 +1,4 @@
+import { warehouseDayBounds } from '@/lib/warehouse/warehouseTime';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
@@ -119,8 +120,7 @@ export function useStaffWarehouseSchedule(staffId: string | null, date: Date, vi
       // 2. For each (date, lager-N) fetch warehouse_calendar_events for that day & resource
       const lagerFetches: Promise<void>[] = [];
       lagerByDate.forEach((resources, dateStr) => {
-        const startISO = `${dateStr}T00:00:00`;
-        const endISO = `${dateStr}T23:59:59`;
+        const { start: startISO, end: endISO } = warehouseDayBounds(dateStr);
         resources.forEach(resourceId => {
           lagerFetches.push((async () => {
             const { data, error } = await supabase
@@ -128,7 +128,7 @@ export function useStaffWarehouseSchedule(staffId: string | null, date: Date, vi
               .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address')
               .eq('resource_id', resourceId)
               .gte('start_time', startISO)
-              .lte('start_time', endISO);
+              .lt('start_time', endISO);
             if (error) throw error;
             (data || []).forEach((e: any) => {
               items.push({

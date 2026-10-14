@@ -1,0 +1,32 @@
+name: Warehouse Stockholm time
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/import-bookings/**'
+      - 'supabase/functions/_shared/warehouse*'
+      - 'src/lib/warehouse/**'
+      - 'src/hooks/*Warehouse*'
+      - 'src/components/warehouse-dashboard/**'
+      - '.github/workflows/warehouse-timezone.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        timezone: [UTC, America/Los_Angeles, Europe/Stockholm]
+    env:
+      TZ: ${{ matrix.timezone }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run src/lib/warehouse src/services/__tests__/warehouseCalendarTime.test.ts src/pages/mobile/MobileLagerPage.test.tsx src/hooks/useLagerAssignments.test.tsx src/components/warehouse/WarehousePersonnelView.test.tsx
+      - run: npx tsc --noEmit -p tsconfig.app.json
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
