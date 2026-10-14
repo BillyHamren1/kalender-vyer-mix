@@ -1,0 +1,39 @@
+name: Booking lifecycle database gate
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['15', '17']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --detach --name lifecycle-pg --env POSTGRES_PASSWORD=local-test-only -p 127.0.0.1:55439:5432 postgres:${{ matrix.postgres }}
+          for attempt in $(seq 1 30); do
+            if docker exec lifecycle-pg pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          docker exec lifecycle-pg pg_isready -U postgres
+      - name: Migration and lifecycle assertions
+        run: |
+          docker exec lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;'
+          cat supabase/tests/lifecycle-preservation.setup.sql supabase/migrations/20261013134026_preserve_booking_cancellation_work.sql supabase/tests/lifecycle-preservation.assert.sql | docker exec -i lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1
+      - run: npm ci
+      - name: Cancellation and revision contracts
+        run: npx vitest run src/test/cancellationNotice.contract.test.ts src/test/cancellationAtomic.contract.test.ts src/test/cancellationRevisionKind.contract.test.ts src/test/cancellationMutationContract.test.ts src/test/revisionContractEndToEnd.contract.test.ts src/test/canonicalRevisionGuard.contract.test.ts src/test/revisionGuardStaleContract.test.ts src/test/packingReviewSource.contract.test.ts
+      - name: Full application typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npx tsc --noEmit -p tsconfig.app.json
+
