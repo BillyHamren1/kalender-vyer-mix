@@ -452,6 +452,7 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
     .filter(
       (row) =>
         row.organization_id === organizationId &&
+        row.status !== "cancelled" &&
         inRange(row.assignment_date, from, to) &&
         (!staffFilter || staffFilter.has(row.staff_id)),
     )

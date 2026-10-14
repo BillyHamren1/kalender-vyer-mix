@@ -304,7 +304,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
         // Bridge into concrete warehouse_assignments when assigned to a lager column.
         try {
           const { syncWarehouseAssignmentsForStaffTeamDay } = await import('@/services/warehouseAssignmentsSync');
-          await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: dbResourceId, date: effectiveDate });
+          await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: dbResourceId, date: effectiveDate, explicitTeamPlacement: true });
         } catch (e) {
           console.warn('[useUnifiedStaffOperations] warehouse assignment sync failed', e);
         }

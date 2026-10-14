@@ -10,6 +10,7 @@ import { MESSAGE_SCHEMA, MESSAGE_ACTIONS, authorizeInternalMessages, safeMessage
 import { canCompleteWarehouseTask, warehouseVisibleDate } from '../_shared/warehouseTaskAccess.ts'
 import { warehousePlanningDate, warehousePlanningBounds } from '../_shared/warehousePlanningTime.ts'
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
+import { warehouseAssignmentScopes, allowsLegacyWarehouseJob, warehouseMobileEventType } from '../_shared/warehouseAssignmentPrecedence.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6882,15 +6883,10 @@ async function handleStartLocationTimerLegacyDisabled(supabase: any, staffId: st
  * shown in the Time-app's Lager detail view ("Mina lageruppgifter").
  *
  * Sources:
- *  1. project_tasks under the org's internal Lager project where
- *     assigned_to_ids includes staffId (interna lageruppgifter).
- *  2. warehouse_calendar_events for the dates the staff member is
- *     assigned to a warehouse team (staff_assignments.team_id starts
- *     with 'lager-' or equals 'transport') — best-effort koppling.
- *
- * TODO(next): När vi har en explicit person↔warehouse_calendar_events
- * koppling (t.ex. warehouse_event_assignments), filtrera direkt på den
- * istället för dag/team-härledning.
+ *  1. warehouse_assignments: concrete jobs, authoritative per staff/day/team.
+ *  2. Assigned internal project_tasks without linked warehouse planning.
+ *  3. Legacy team-day jobs only where no concrete staffing (including cancelled
+ *     rows) exists. Team placement alone remains valid for legacy staffing.
  */
 type LagerAssignmentDTO = {
   id: string
@@ -6919,7 +6915,7 @@ type LagerAssignmentDTO = {
 }
 
 function deriveLagerType(raw: string | null | undefined): LagerAssignmentDTO['type'] {
-  const t = (raw || '').toLowerCase()
+  const t = warehouseMobileEventType(raw)
   if (t === 'packing' || t === 'return' || t === 'inventory' || t === 'internal_task') return t
   if (t === 'unpacking') return 'return'
   return 'other'
@@ -6958,6 +6954,7 @@ async function handleGetLagerAssignments(
   const assignments: LagerAssignmentDTO[] = []
   const seenWarehouseEventIds = new Set<string>()
   let canonicalCount = 0
+  let canonicalScopes = new Set<string>()
 
   // 1) Canonical: warehouse_assignments rows for this staff_id (PRIMARY SOURCE)
   try {
@@ -6986,15 +6983,18 @@ async function handleGetLagerAssignments(
       let eventTimes = new Map();
       if (eventIds.length) {
         const { data: events, error: eventsError } = await supabase.from('warehouse_calendar_events')
-          .select('id, start_time, end_time').eq('organization_id', organizationId).in('id', eventIds);
+          .select('id, start_time, end_time, resource_id').eq('organization_id', organizationId).in('id', eventIds);
         if (eventsError) return new Response(JSON.stringify({ error: 'Kunde inte läsa planerade tider' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         eventTimes = new Map((events || []).map((e: any) => [e.id, e]));
       }
+      canonicalScopes = warehouseAssignmentScopes(wa || [], eventTimes);
       for (const r of wa || []) {
+        // Cancellation remains authoritative but must never appear as a job.
+        if (r.warehouse_event_id) seenWarehouseEventIds.add(r.warehouse_event_id)
+        if (r.status === 'cancelled') continue
         const event = eventTimes.get(r.warehouse_event_id);
         if (event && (Date.parse(event.start_time) >= Date.parse(bounds.end) || Date.parse(event.end_time) <= Date.parse(bounds.start))) continue;
-        if (r.warehouse_event_id) seenWarehouseEventIds.add(r.warehouse_event_id)
         const type = deriveLagerType(r.assignment_type)
         const action = deriveLagerAction(type, r.action)
         assignments.push({
@@ -7112,7 +7112,8 @@ async function handleGetLagerAssignments(
   }
 
   // 3) FALLBACK: warehouse_calendar_events on dates where staff has lager team placement
-  //    Only used to back-fill events not already represented in warehouse_assignments.
+  //    Concrete rows, including cancellations, override the entire matching
+  //    day/team slice. Their compatibility team mirror never grants extra jobs.
   let lagerDates = new Set<string>()
   const lagerTeamsByDate = new Map<string, Set<string>>()
   try {
@@ -7164,6 +7165,7 @@ async function handleGetLagerAssignments(
           const teamsForDay = lagerTeamsByDate.get(day)
           if (teamsForDay && teamsForDay.size > 0 && !teamsForDay.has(String(w.resource_id || ''))) continue
           if (seenWarehouseEventIds.has(w.id)) continue
+          if (!allowsLegacyWarehouseJob(canonicalScopes, day, String(w.resource_id || ''))) continue
           if (w.event_type === 'internal_task') continue
           const type = deriveLagerType(w.event_type)
           const action = deriveLagerAction(type, null)

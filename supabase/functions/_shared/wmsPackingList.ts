@@ -3,7 +3,7 @@ import {
   buildTimeWmsProjectionRequest,
   fetchTimeWmsProjection,
   normalizeTimeWmsProjectionBody,
-  type TimeWmsActor,
+  type TimeWmsProjectionActor,
 } from './timeWmsProjection.ts';
 /**
  * wmsPackingList — KANONISK källa för packlistan.
@@ -33,7 +33,7 @@ export interface WmsCallDeps {
   organizationId: string;
   hmacSecret?: string;
   bookingId?: string;
-  actor?: TimeWmsActor;
+  actor?: TimeWmsProjectionActor;
   deviceId?: string;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
@@ -421,6 +421,7 @@ export function planWmsPackingSync(
   const inserts: WmsSyncPlan['inserts'] = [];
   const updates: WmsSyncPlan['updates'] = [];
   const seen = new Set<string>();
+  const conflictIds: string[] = [];
 
   for (const row of wmsRows) {
     seen.add(row.wmsLineId);
@@ -500,14 +501,16 @@ export function planWmsPackingSync(
       // Aldrig skriva över packat arbete: minska aldrig under redan packat antal.
       if (typeof patch.quantity_to_pack === 'number') {
         const packed = existingRow.quantity_packed || 0;
-        if ((patch.quantity_to_pack as number) < packed) delete patch.quantity_to_pack;
+        if ((patch.quantity_to_pack as number) < packed) {
+          delete patch.quantity_to_pack;
+          conflictIds.push(existingRow.id);
+        }
       }
       if (Object.keys(patch).length > 0) updates.push({ id: existingRow.id, patch });
     }
   }
 
   const staleIds: string[] = [];
-  const conflictIds: string[] = [];
   for (const row of existing) {
     if (!belongsToBooking(row) || row.excluded) continue;
     if (row.wms_line_id && seen.has(row.wms_line_id)) continue;
@@ -544,7 +547,7 @@ export async function syncPackingListFromWms(
     sourceBookingId: string;
     apiKey: string;
     hmacSecret: string;
-    actor: TimeWmsActor;
+    actor: TimeWmsProjectionActor;
     deviceId: string;
     fetchImpl?: typeof fetch;
     baseUrl?: string;
@@ -583,10 +586,11 @@ export async function syncPackingListFromWms(
     return { ok: false, code: 'db_error', error: readErr.message, reservationId };
   }
 
-  const { count: linkedBookingCount } = await supabase
+  const { count: linkedBookingCount, error: linkedBookingError } = await supabase
     .from('packing_project_bookings')
     .select('booking_id', { count: 'exact', head: true })
     .eq('packing_id', args.packingId);
+  if (linkedBookingError) return { ok: false, code: 'db_error', error: linkedBookingError.message, reservationId };
 
   const plan = planWmsPackingSync(wmsRows, (existing || []) as ExistingPackingRow[], {
     packingId: args.packingId,
@@ -614,11 +618,12 @@ export async function syncPackingListFromWms(
     }
   }
   if (plan.staleIds.length > 0) {
-    await supabase
+    const { error } = await supabase
       .from('packing_list_items')
       .update({ excluded: true })
       .in('id', plan.staleIds)
       .eq('organization_id', args.organizationId);
+    if (error) return { ok: false, code: 'db_error', error: error.message, reservationId };
   }
 
   return {
@@ -884,7 +889,7 @@ export async function syncBookingProductsFromWms(
     bookingNumber: string;
     apiKey: string;
     hmacSecret: string;
-    actor: TimeWmsActor;
+    actor: TimeWmsProjectionActor;
     deviceId: string;
     fetchImpl?: typeof fetch;
     baseUrl?: string;

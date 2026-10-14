@@ -46,7 +46,8 @@ export function useWarehousePackingStaff(packingId: string | null | undefined): 
       const { data, error } = await supabase
         .from('warehouse_assignments')
         .select('id, staff_id, source, status')
-        .eq('packing_id', packingId);
+        .eq('packing_id', packingId)
+        .neq('status', 'cancelled');
       if (cancelled) return;
       if (error) {
         console.warn('[useWarehousePackingStaff] failed', error);

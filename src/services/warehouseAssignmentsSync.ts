@@ -15,10 +15,11 @@
  *    staff currently on that team that day.
  */
 
+import { normalizeWarehouseWorkEventType } from '@/lib/warehouse/warehouseWorkEvents';
 import { supabase } from '@/integrations/supabase/client';
 import type { TablesInsert } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
-import { warehouseTimeOf, warehouseDateOf } from '@/lib/warehouse/warehouseTime';
+import { warehouseTimeOf, warehouseDateOf, warehouseDayBounds } from '@/lib/warehouse/warehouseTime';
 import { assignStaffToTeamCore } from '@/services/staffAssignmentCore';
 import { getWarehouseTeamId, isWarehouseTeam } from '@/lib/warehouse/warehouseTeam';
 import {
@@ -58,8 +59,9 @@ const isLagerTeamId = (teamId: string | null | undefined): boolean =>
 async function writeAssignmentRow(
   row: TablesInsert<'warehouse_assignments'>,
   match: Record<string, string>,
+  reactivateCancelled = false,
 ): Promise<string | null> {
-  let lookup = supabase.from('warehouse_assignments').select('id');
+  let lookup = supabase.from('warehouse_assignments').select('id,status,metadata');
   for (const [key, value] of Object.entries(match)) {
     lookup = lookup.eq(key as never, value);
   }
@@ -71,9 +73,17 @@ async function writeAssignmentRow(
   if (lookupError) return lookupError.message;
 
   if (existing?.id) {
+    // Planning synchronization must not reopen completed/cancelled or ongoing work.
+    const planningFields = { ...row };
+    delete planningFields.status;
+    if (reactivateCancelled && existing.status === 'cancelled') planningFields.status = 'planned';
+    planningFields.metadata = {
+      ...(existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata) ? existing.metadata : {}),
+      ...(row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {}),
+    };
     const { error } = await supabase
       .from('warehouse_assignments')
-      .update(row)
+      .update(planningFields)
       .eq('id', existing.id);
     return error ? error.message : null;
   }
@@ -85,7 +95,7 @@ async function writeAssignmentRow(
 
 /** event_type → assignment_type */
 function deriveType(eventType: string | null | undefined): WarehouseAssignmentType {
-  switch (eventType) {
+  switch (normalizeWarehouseWorkEventType(eventType)) {
     case 'packing':
       return 'packing';
     case 'return':
@@ -142,21 +152,20 @@ function toAssignmentRow(
  * teamId may be 'lager-N', 'transport', or 'warehouse'.
  */
 async function fetchEventsForTeamDay(date: Date, teamId: string): Promise<WarehouseEventRow[]> {
-  const dayStart = `${format(date, 'yyyy-MM-dd')}T00:00:00`;
-  const dayEnd = `${format(date, 'yyyy-MM-dd')}T23:59:59`;
+  const bounds = warehouseDayBounds(format(date, 'yyyy-MM-dd'));
 
   const { data, error } = await supabase
     .from('warehouse_calendar_events')
     .select(
       '*',
     )
-    .gte('start_time', dayStart)
-    .lte('start_time', dayEnd)
+    .gte('start_time', bounds.start)
+    .lt('start_time', bounds.end)
     .eq('resource_id', teamId);
 
   if (error) {
-    console.error('[warehouseAssignmentsSync] fetchEventsForTeamDay failed', error);
-    return [];
+    // A failed read is not an empty team. Never enter destructive reconciliation.
+    throw error;
   }
   return (data || []) as WarehouseEventRow[];
 }
@@ -170,6 +179,8 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   staffId: string;
   teamId: string;
   date: Date;
+  /** Only the direct team-placement gesture may expand explicit job staffing. */
+  explicitTeamPlacement?: boolean;
 }): Promise<void> {
   const { staffId, teamId, date } = params;
   if (!staffId || !isLagerTeamId(teamId)) return;
@@ -177,6 +188,21 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   const dateStr = format(date, 'yyyy-MM-dd');
   const events = (await fetchEventsForTeamDay(date, teamId))
     .filter(event => !(event.event_type === 'internal_task' && event.project_task_id));
+
+  const { data: existing, error: existingError } = await supabase
+    .from('warehouse_assignments')
+    .select('id, warehouse_event_id, metadata, project_task_id')
+    .eq('staff_id', staffId)
+    .eq('assignment_date', dateStr);
+  if (existingError) throw existingError;
+
+  // The team row can be a compatibility mirror of one explicitly selected job.
+  // Passive reconciliation must not turn it into ownership of every team job.
+  if (!params.explicitTeamPlacement && (existing || []).some(row => {
+    const metadata = row.metadata as Record<string, unknown> | null;
+    return metadata?.assignment_mode === 'explicit_event'
+      && (metadata.resource_id === teamId || metadata.mirrored_team_id === teamId);
+  })) return;
 
   // Write one row per event (no upsert — partial unique indexes, see writeAssignmentRow).
   if (events.length > 0) {
@@ -205,15 +231,10 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   // Remove orphans: rows for this staff+date whose warehouse_event_id is no
   // longer in this team's event list (e.g. event moved to another resource).
   const validEventIds = new Set(events.map((e) => e.id));
-  const { data: existing } = await supabase
-    .from('warehouse_assignments')
-    .select('id, warehouse_event_id, metadata, project_task_id')
-    .eq('staff_id', staffId)
-    .eq('assignment_date', dateStr);
 
   const stale =
     (existing || []).filter((row: any) => {
-      if (row.project_task_id) return false;
+      if (row.project_task_id || row.metadata?.assignment_mode === 'explicit_event') return false;
       const evId = row.warehouse_event_id as string | null;
       const resourceId = (row.metadata?.resource_id as string | null) ?? null;
       // Only consider rows that belonged to this team
@@ -363,10 +384,11 @@ export async function assignStaffToWarehouseEvent(params: {
   // them (Postgres raises 42P10). We therefore do an explicit
   // select → update/insert instead of an upsert.
   const row = toAssignmentRow(staffId, dateStr, ev as WarehouseEventRow);
+  row.metadata = { event_type: ev.event_type, resource_id: ev.resource_id, assignment_mode: 'explicit_event', mirrored_team_id: teamId };
   const writeError = await writeAssignmentRow(row, {
     staff_id: staffId,
     warehouse_event_id: warehouseEventId,
-  });
+  }, true);
 
   if (writeError) {
     console.error('[warehouseAssignmentsSync] exact-event write failed', writeError);
@@ -385,7 +407,7 @@ export async function assignStaffToWarehouseEvent(params: {
   return { ok: true };
 }
 
-/** Remove exactly one person's assignment from exactly one warehouse job. */
+/** Cancel exactly one person's job; retain ownership provenance for mobile legacy fallback. */
 export async function removeStaffFromWarehouseEvent(params: {
   staffId: string;
   warehouseEventId: string;
@@ -395,7 +417,7 @@ export async function removeStaffFromWarehouseEvent(params: {
 
   const { error } = await supabase
     .from('warehouse_assignments')
-    .delete()
+    .update({ status: 'cancelled' })
     .eq('staff_id', staffId)
     .eq('warehouse_event_id', warehouseEventId);
 

@@ -1,4 +1,6 @@
 // @ts-nocheck
+import type { TimeWmsProjectionActor } from '../_shared/timeWmsProjection.ts'
+import { authorizePackingSync, PackingSyncAuthError } from '../_shared/packingSyncAuth.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   daysUntil,
@@ -9,7 +11,7 @@ import {
   syncBookingProductsFromWms,
   syncPackingListFromWms,
 } from '../_shared/wmsPackingList.ts'
-import { ensureMissingPackingRowsFromBookingProducts } from '../_shared/packingFailSafe.ts'
+
 
 
 const corsHeaders = {
@@ -27,13 +29,15 @@ const corsHeaders = {
  * 1. If no packing project exists for a CONFIRMED booking → create one
  * 2. If packing project exists → update name to match booking client + event date
  * 3. Sync packing_list_items to match current booking_products
- * 4. If booking is CANCELLED → delete packing project (cascade)
+ * 4. If booking is CANCELLED → preserve packing rows and mark project cancelled
  */
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
+
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
 
   try {
     const supabase = createClient(
@@ -44,24 +48,6 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { booking_id, organization_id, target_packing_id } = body
 
-    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
-    const { data: authData } = token ? await supabase.auth.getUser(token) : { data: null }
-    const actorUser = authData?.user || null
-    let wmsActor = null
-    if (actorUser) {
-      const { data: actorProfile } = await supabase
-        .from('profiles')
-        .select('organization_id, full_name')
-        .eq('user_id', actorUser.id)
-        .maybeSingle()
-      if (actorProfile?.organization_id === organization_id) {
-        wmsActor = {
-          organizationId: organization_id,
-          personnelId: actorUser.id,
-          label: actorProfile.full_name || actorUser.email || actorUser.id,
-        }
-      }
-    }
 
 
     if (!booking_id) {
@@ -77,6 +63,10 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const authorization = await authorizePackingSync(supabase, token, organization_id, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '')
+    let wmsActor: TimeWmsProjectionActor | null = authorization.actor
 
     console.log(`[sync-booking-to-packing] Starting sync for booking ${booking_id}${target_packing_id ? ` → explicit packing ${target_packing_id}` : ''}`)
 
@@ -94,6 +84,13 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Booking not found', details: bookingError?.message }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Construct service provenance only after the trusted request is bound to
+    // a persisted booking in its organization. Never impersonate personnel.
+    if (authorization.service) wmsActor = {
+      kind: 'service', serviceId: 'operations-booking-sync',
+      organizationId: organization_id, label: 'Operations booking sync',
     }
 
     const upperStatus = (booking.status || '').toUpperCase()
@@ -138,19 +135,21 @@ Deno.serve(async (req) => {
       }
 
       // Idempotently ensure link row exists in packing_project_bookings.
-      await supabase
+      const { error: linkError } = await supabase
         .from('packing_project_bookings')
         .upsert(
           { packing_id: target_packing_id, booking_id, organization_id },
           { onConflict: 'packing_id,booking_id', ignoreDuplicates: true }
         )
 
+      if (linkError) throw linkError
+
       const itemsSynced = await syncPackingListItems(supabase, target_packing_id, booking_id, organization_id, wmsActor)
       console.log(`[sync-booking-to-packing] Explicit target sync done: packing=${target_packing_id} booking=${booking_id} items=${itemsSynced}`)
 
       return new Response(
         JSON.stringify({
-          action: 'explicit_target_synced',
+          success: true, organization_id, action: 'explicit_target_synced',
           booking_id,
           packing_id: target_packing_id,
           items_synced: itemsSynced
@@ -169,11 +168,11 @@ Deno.serve(async (req) => {
         .eq('organization_id', organization_id)
 
       if (cancelError) {
-        console.error(`[sync-booking-to-packing] Error cancelling packing:`, cancelError)
+        throw cancelError
       }
 
       return new Response(
-        JSON.stringify({ action: 'cancelled', booking_id }),
+        JSON.stringify({ success: true, organization_id, action: 'cancelled', booking_id }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -182,7 +181,7 @@ Deno.serve(async (req) => {
     // First check if this booking is already linked to a CONSOLIDATED packing
     // via packing_project_bookings. If so, sync into that one — never create
     // a duplicate single-booking packing alongside the consolidated list.
-    const { data: linkedConsolidated } = await supabase
+    const { data: linkedConsolidated, error: linkedConsolidatedError } = await supabase
       .from('packing_project_bookings')
       .select('packing_id, packing_projects!inner(id, large_project_id, organization_id)')
       .eq('booking_id', booking_id)
@@ -190,13 +189,15 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle()
 
+    if (linkedConsolidatedError) throw linkedConsolidatedError
+
     if (linkedConsolidated?.packing_id) {
       const consolidatedId = linkedConsolidated.packing_id
       console.log(`[sync-booking-to-packing] Booking ${booking_id} belongs to consolidated packing ${consolidatedId} — syncing items into it`)
       const itemsSynced = await syncPackingListItems(supabase, consolidatedId, booking_id, organization_id, wmsActor)
       return new Response(
         JSON.stringify({
-          action: 'consolidated_synced',
+          success: true, organization_id, action: 'consolidated_synced',
           booking_id,
           packing_id: consolidatedId,
           items_synced: itemsSynced
@@ -208,7 +209,7 @@ Deno.serve(async (req) => {
     // Defensive: ignore soft-cancelled duplicates and deterministically pick the
     // canonical row (oldest active). Logs a warning if multiple actives exist so
     // we can spot drift in Edge Function logs.
-    const { data: activeMatches } = await supabase
+    const { data: activeMatches, error: activeMatchesError } = await supabase
       .from('packing_projects')
       .select('id, name, status, created_at')
       .eq('booking_id', booking_id)
@@ -217,6 +218,8 @@ Deno.serve(async (req) => {
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true })
       .limit(10)
+
+    if (activeMatchesError) throw activeMatchesError
 
     if (activeMatches && activeMatches.length > 1) {
       console.warn(
@@ -247,7 +250,7 @@ Deno.serve(async (req) => {
       if (upperStatus !== 'CONFIRMED') {
         console.log(`[sync-booking-to-packing] Booking ${booking_id} is ${upperStatus}, not creating packing project`)
         return new Response(
-          JSON.stringify({ action: 'skipped', reason: `Status is ${upperStatus}, not CONFIRMED`, booking_id }),
+          JSON.stringify({ success: true, organization_id, action: 'skipped', reason: `Status is ${upperStatus}, not CONFIRMED`, booking_id }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -283,7 +286,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        action,
+        success: true, organization_id, action,
         booking_id,
         packing_id: packingId,
         packing_name: packingName,
@@ -295,7 +298,7 @@ Deno.serve(async (req) => {
     console.error(`[sync-booking-to-packing] Error:`, error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: error instanceof PackingSyncAuthError ? error.status : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
@@ -311,7 +314,7 @@ async function syncPackingListItems(
   packingId: string,
   bookingId: string,
   organizationId: string,
-  actor: { organizationId: string; personnelId: string; label: string } | null,
+  actor: TimeWmsProjectionActor | null,
 ): Promise<number> {
   // WMS-CANONICAL CUTOVER.
   // Booking writes the complete inventory reservation to WMS. Planning never
@@ -344,9 +347,8 @@ async function syncPackingListItems(
     apiKey,
     hmacSecret,
     actor,
-    deviceId: actor ? `planning-web:${actor.personnelId}` : '',
+    deviceId: actor ? ('kind' in actor ? `planning-service:${actor.serviceId}` : `planning-web:${actor.personnelId}`) : '',
   })
-  let wmsProjectionFailed = false
   if (!projectProjection.ok) {
     // A confirmed Booking with no inventory demand intentionally has no WMS
     // reservation. Treat that as an authoritative empty projection only when
@@ -377,12 +379,7 @@ async function syncPackingListItems(
       }
     }
 
-    // WMS-fel (schema/otillgänglighet) får aldrig blockera Planning-projektionen.
-    // Befintliga booking_products lämnas orörda och lagerraderna fylls på additivt.
-    wmsProjectionFailed = true
-    console.error(
-      `[sync-booking-to-packing] wms_project_projection_failed:${projectProjection.code || 'unknown'}:${projectProjection.error || 'unknown error'} — faller tillbaka på additiv lagerpåfyllning`
-    )
+    throw new Error(`wms_project_projection_failed:${projectProjection.code}:${projectProjection.error}`)
   }
 
   // Project metadata may always follow WMS, but completed/cancelled/returned
@@ -413,9 +410,7 @@ async function syncPackingListItems(
     )
   }
 
-  const packingProjection = wmsProjectionFailed
-    ? { ok: false, code: 'wms_project_projection_failed', error: projectProjection.error }
-    : await syncPackingListFromWms(supabase, {
+  const packingProjection = await syncPackingListFromWms(supabase, {
         packingId,
         organizationId,
         bookingNumber: canonicalBooking.booking_number,
@@ -423,33 +418,15 @@ async function syncPackingListItems(
         apiKey,
         hmacSecret,
         actor,
-        deviceId: actor ? `planning-web:${actor.personnelId}` : '',
+        deviceId: actor ? ('kind' in actor ? `planning-service:${actor.serviceId}` : `planning-web:${actor.personnelId}`) : '',
       })
 
   if (!packingProjection.ok) {
-    console.error(
-      `[sync-booking-to-packing] wms_packing_projection_failed:${packingProjection.code || 'unknown'}:${packingProjection.error || 'unknown error'} — skapar endast saknade lagerrader från aktiva booking_products`
-    )
-    const failSafe = await ensureMissingPackingRowsFromBookingProducts(supabase, {
-      packingId,
-      bookingId,
-      organizationId,
-    })
-    if (!failSafe.ok) {
-      throw new Error(
-        `packing_failsafe_failed:${failSafe.code || 'unknown'}:${failSafe.error || 'unknown error'}`
-      )
-    }
-    return (
-      (projectProjection.inserted || 0) +
-      (projectProjection.updated || 0) +
-      (projectProjection.retired || 0) +
-      (failSafe.inserted || 0)
-    )
+    throw new Error(`wms_packing_projection_failed:${packingProjection.code}:${packingProjection.error}`)
   }
 
   if ((packingProjection.conflicts || 0) > 0) {
-    await supabase
+    const { error: reviewError } = await supabase
       .from('packing_projects')
       .update({
         needs_packing_review: true,
@@ -457,6 +434,7 @@ async function syncPackingListItems(
       })
       .eq('id', packingId)
       .eq('organization_id', organizationId)
+    if (reviewError) throw reviewError
   }
 
   return (

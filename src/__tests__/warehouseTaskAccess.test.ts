@@ -8,7 +8,7 @@ function database(results: Reply[]) {
     const result = results.shift();
     const promise = Promise.resolve(result);
     const chain: Record<string, unknown> = { then: promise.then.bind(promise) };
-    for (const name of ['select', 'eq', 'in', 'limit', 'maybeSingle']) chain[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return chain; };
+    for (const name of ['select', 'eq', 'neq', 'in', 'limit', 'maybeSingle']) chain[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return chain; };
     return chain;
   } };
   return db as unknown as WarehouseTaskDatabase & { calls: typeof calls };
@@ -27,6 +27,11 @@ describe('warehouse task completion ownership', () => {
     const db = database([task, project, linked, { data: [{ id: 'assignment' }] }]);
     expect(await canCompleteWarehouseTask(db, 'org', 'new-worker', 'task')).toBe(true);
     for (const call of db.calls) expect(call.filters).toContainEqual(['eq', 'organization_id', 'org']);
+  });
+  it('rejects cancelled concrete assignments even when legacy ownership remains', async () => {
+    const db = database([task, project, linked, { data: [{ id: 'assignment', status: 'cancelled' }] }]);
+    expect(await canCompleteWarehouseTask(db, 'org', 'former-worker', 'task')).toBe(false);
+    expect(db.calls.at(-1)?.filters).toContainEqual(['neq', 'status', 'cancelled']);
   });
   it('keeps explicit legacy ownership only for unlinked internal tasks', async () => {
     expect(await canCompleteWarehouseTask(database([task, project, { data: [] }]), 'org', 'former-worker', 'task')).toBe(true);

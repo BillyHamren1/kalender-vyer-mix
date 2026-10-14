@@ -10,7 +10,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { personnelIntervals, unstaffedWarehouseEvents } from '@/lib/warehouse/personnelIntervals';
-import { isWarehouseWorkEvent } from '@/lib/warehouse/warehouseWorkEvents';
+import { isWarehouseWorkEvent, normalizeWarehouseWorkEventType } from '@/lib/warehouse/warehouseWorkEvents';
 import { warehouseDateOf, warehouseDayBounds } from '@/lib/warehouse/warehouseTime';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
@@ -99,7 +99,8 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
       const eventIds = sourceEvents.map(event => event.id).filter(Boolean);
       const assignmentQuery = () => supabase.from('warehouse_assignments')
         .select('id, staff_id, assignment_date, assignment_type, status, title, start_time, end_time, warehouse_event_id, packing_id, booking_id, booking_number, customer_name, delivery_address')
-        .eq('organization_id', organizationId!);
+        .eq('organization_id', organizationId!)
+        .neq('status', 'cancelled');
       // Keep query URLs bounded for busy weeks. Exact linked-event queries also
       // include assignments whose original assignment_date precedes this range.
       const linkedQueries = [];
@@ -166,7 +167,7 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
           title: assignment.title || 'Lageruppgift',
           customerName: assignment.customer_name ?? null,
           deliveryAddress: assignment.delivery_address ?? null,
-          activityType: assignment.assignment_type || 'other',
+          activityType: normalizeWarehouseWorkEventType(sourceEvent?.event_type) || assignment.assignment_type || 'other',
           status: assignment.status || 'planned',
           ...interval,
         })));
@@ -185,7 +186,7 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
           title: event.title || 'Lagerjobb',
           customerName: null,
           deliveryAddress: event.delivery_address ?? null,
-          activityType: event.event_type || 'other',
+          activityType: normalizeWarehouseWorkEventType(event.event_type) || 'other',
           status: 'planned',
           ...interval,
         })));

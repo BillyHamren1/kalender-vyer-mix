@@ -1,0 +1,43 @@
+name: Warehouse integrity
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Warehouse sync, staffing and mobile regressions
+        run: >-
+          npx vitest run
+          src/__tests__/packingSyncAuth.test.ts
+          src/__tests__/wmsPackingListSync.test.ts
+          src/__tests__/timeWmsProjection.test.ts
+          src/__tests__/warehouseAssignmentPrecedence.test.ts
+          src/__tests__/warehouseMobileAssignments.test.ts
+          src/__tests__/warehouseTaskAccess.test.ts
+          src/services/__tests__/warehouseAssignmentsIntegrity.test.ts
+          src/lib/warehouse/warehouseWorkEvents.test.ts
+          src/lib/warehouse/personnelIntervals.test.ts
+          src/features/time-v2/__tests__/lagerProjection.test.ts
+          src/components/warehouse-ops/__tests__/QuickAssignStaffPopover.test.tsx
+          src/components/warehouse/WarehousePersonnelView.test.tsx
+          src/components/warehouse/WarehouseJobSheet.test.tsx
+      - run: npx tsc --noEmit -p tsconfig.app.json
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+      - name: Install isolated SQL engine
+        run: npm install --prefix /tmp/warehouse-sql --no-save --ignore-scripts @electric-sql/pglite@0.5.8
+      - name: Verify cron migration
+        env:
+          PGLITE_MODULE: /tmp/warehouse-sql/node_modules/@electric-sql/pglite/dist/index.js
+        run: node scripts/test-wms-cron.mjs

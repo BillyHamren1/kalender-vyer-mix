@@ -363,3 +363,10 @@ describe('permitted targets vs scheduled applicability (site availability)', () 
     expect(p.permittedTargets).toEqual([]);
   });
 });
+
+it('does not project cancelled concrete assignments as personal work', () => {
+  const p = buildLagerContextProjection(base({
+    warehouseAssignments: [{ id: 'cancelled', organization_id: ORG, staff_id: 's1', assignment_date: '2026-09-14', status: 'cancelled' }] as never,
+  }));
+  expect(p.warehouseAssignments).toEqual([]);
+});
