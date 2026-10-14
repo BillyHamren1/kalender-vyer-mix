@@ -180,3 +180,13 @@
   width: 48px !important;
   max-width: 48px !important;
 }
+
+@media (max-width: 640px) {
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event { padding: 3px; border-left-width: 2px; }
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__title { font-size: 10px; }
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__topline,
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__phase,
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__meta,
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__crew,
+  .warehouse-work-calendar .fc-dayGridMonth-view .warehouse-fc-event__warning { display: none; }
+}

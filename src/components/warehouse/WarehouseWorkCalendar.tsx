@@ -345,7 +345,9 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
         moreLinkClick="popover"
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         dayHeaderFormat={
-          viewMode === 'day'
+          viewMode === 'monthly'
+            ? { weekday: 'short' }
+            : viewMode === 'day'
             ? { weekday: 'long', day: 'numeric', month: 'long' }
             : { weekday: 'short', day: 'numeric', month: 'short' }
         }
