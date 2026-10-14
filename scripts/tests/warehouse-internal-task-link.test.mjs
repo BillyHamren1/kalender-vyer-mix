@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 const { PGlite } = await import(process.env.PGLITE_MODULE_PATH || '@electric-sql/pglite');
 const db = new PGlite();
 after(() => db.close());
-const proposal = await readFile(process.env.WAREHOUSE_INTERNAL_TASK_LINK_SQL || new URL('../../supabase/migrations/20261014113037_warehouse_internal_task_link.sql', import.meta.url), 'utf8');
+const proposal = await readFile(process.env.WAREHOUSE_INTERNAL_TASK_LINK_SQL || new URL('../../supabase/migrations/20261014120134_9374de8b-b109-4add-be83-465800b85acc.sql', import.meta.url), 'utf8');
 const orgA = '10000000-0000-4000-8000-000000000001';
 const orgB = '10000000-0000-4000-8000-000000000002';
 const internalA = '20000000-0000-4000-8000-000000000001';

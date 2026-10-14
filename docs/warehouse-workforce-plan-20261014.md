@@ -67,3 +67,6 @@ Användaren har uttryckligen godkänt publicering i det publika repot BillyHamre
 Användaren har begärt slutförande inklusive driftsättning. Senaste main integrerad utan konflikter. Databasens tabeller och typer verifierade i pihrhltinhewhoxefjxv; cirka 3033 lagerhändelser, 1135 uppgifter och 332 projekt. RLS är aktiv. Live mobile-app-api v1196 och samtliga dess delade filer matchar main; inga oregistrerade liveändringar skrivs över.
 
 SQL-förslaget har flyttats till CLI-genererad migration 20261014113037_warehouse_internal_task_link.sql med lock_timeout 3s och statement_timeout 30s. Nio SQL-tester passerar. Meddelandetesternas gamla mock ersatt med aktuellt HUB-resolverkontrakt; 30 meddelande-/HUB-tester passerar utan ändring av produktionsbehörigheter.
+
+## Databas och API aktiverade
+Lovables migrationsverktyg registrerade den identiska SQL-filen under version 20261014120134. Releasen använder nu endast denna faktiska migration; den tidigare CLI-genererade dubbletten är borttagen. Direkt databasverifiering bekräftar tre kolumner, tre validerade constraints, aktiv trigger, SECURITY INVOKER och bevarad RLS. Alla 3170 äldre händelser saknar fortsatt uppgiftskoppling. mobile-app-api v1197 är ACTIVE; oautentiserat anrop returnerar 401.
