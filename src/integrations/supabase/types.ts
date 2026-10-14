@@ -11511,6 +11511,18 @@ export type Database = {
         }
         Returns: Json
       }
+      record_booking_cancellation_notice_atomic: {
+        Args: {
+          p_booking_id: string
+          p_organization_id: string
+          p_reason?: string
+          p_reservation_token?: string
+          p_source_status: string
+          p_source_updated_at?: string
+          p_source_version?: number
+        }
+        Returns: Json
+      }
       resolve_hub_actor_v1: { Args: { _hub_user_id: string }; Returns: Json }
       set_packing_list_item_packability: {
         Args: {
