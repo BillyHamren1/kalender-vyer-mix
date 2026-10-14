@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { BookingEconomics } from '@/types/booking';
 import {
+  updateBookingProductCosts,
   fetchBudget,
   upsertBudget,
   fetchPurchases,
@@ -32,8 +33,6 @@ import {
 } from '@/services/localProjectEconomyService';
 import {
   fetchProductCostOverrides,
-  upsertProductCostOverride,
-  deleteProductCostOverride,
 } from '@/services/productCostOverrideService';
 import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
 import { fetchProjectHoursSummary } from '@/services/projectHoursService';
@@ -169,33 +168,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   const budget = hasBooking ? remoteBudget : localBudget;
   const purchases = hasBooking ? remotePurchases : localPurchases;
 
-  // Merge product cost overrides into productCosts
-  const mergedProductCosts: ProductCostSummary | undefined = useMemo(() => {
-    if (!productCosts) return undefined;
-    if (costOverrides.length === 0) return productCosts;
-
-    const overrideMap = new Map(costOverrides.map(o => [o.product_id, o]));
-    const mergedProducts: ProductCostData[] = productCosts.products.map(p => {
-      const override = overrideMap.get(p.id);
-      if (!override) return p;
-      return {
-        ...p,
-        assembly_cost: override.assembly_cost ?? p.assembly_cost,
-        handling_cost: override.handling_cost ?? p.handling_cost,
-        purchase_cost: override.purchase_cost ?? p.purchase_cost,
-      };
-    });
-
-    // Recalculate summary from merged products (only parents)
-    const parents = mergedProducts.filter(p => !p.parent_product_id);
-    const revenue = parents.reduce((s, p) => s + p.total, 0);
-    const costs = parents.reduce((s, p) => s + (p.assembly_cost + p.handling_cost + p.purchase_cost) * p.quantity, 0);
-
-    return {
-      products: mergedProducts,
-      summary: { revenue, costs, margin: revenue - costs },
-    };
-  }, [productCosts, costOverrides]);
+  // Booking owns live costs. Legacy local overrides are reconciliation records only.
+  const mergedProductCosts = productCosts;
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
 
@@ -518,23 +492,25 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // ===== Product cost override mutation =====
   const updateProductCostMutation = useMutation({
-    mutationFn: ({ productId, costs }: { productId: string; costs: { assembly_cost?: number | null; handling_cost?: number | null; purchase_cost?: number | null } }) =>
-      upsertProductCostOverride(projectId!, productId, costs, bookingId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', projectId] });
-      toast.success('Kostnad uppdaterad');
+    mutationFn: async ({ productId, costs }: { productId: string; costs: { assembly_cost?: number | null; handling_cost?: number | null; purchase_cost?: number | null } }) => {
+      if (!bookingId) throw new Error('Bokning saknas');
+      const product = productCosts?.products.find((p: ProductCostData) => p.id === productId);
+      if (!product) throw new Error('Läs in produktkostnaderna igen');
+      const patch: Record<string, number> = {};
+      const expected: Record<string, number> = {};
+      for (const [field, value] of Object.entries(costs)) {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('Ange en giltig kostnad');
+        patch[field] = value;
+        expected[field] = product[field as keyof ProductCostData] as number;
+      }
+      return updateBookingProductCosts(bookingId, productId, patch, expected);
     },
-    onError: () => toast.error('Kunde inte uppdatera kostnad'),
-  });
-
-  const resetProductCostMutation = useMutation({
-    mutationFn: (productId: string) =>
-      deleteProductCostOverride(projectId!, productId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', projectId] });
-      toast.success('Kostnad återställd');
+      queryClient.invalidateQueries({ queryKey: ['product-costs', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+      toast.success('Kostnaden sparad på bokningen');
     },
-    onError: () => toast.error('Kunde inte återställa kostnad'),
+    onError: () => { toast.error('Kunde inte spara. Uppdatera och kontrollera om kostnaden ändrats.'); },
   });
 
   const isLoading = hasBooking
@@ -548,6 +524,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     quotes,
     invoices,
     productCosts: mergedProductCosts,
+    productCostsError,
     costOverrides,
     supplierInvoices,
     bookingEconomics,
@@ -592,6 +569,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     refetchSupplierInvoices,
     linkSupplierInvoice: linkSupplierInvoiceMutation.mutate,
     updateProductCost: updateProductCostMutation.mutate,
-    resetProductCost: resetProductCostMutation.mutate,
+
   };
 };

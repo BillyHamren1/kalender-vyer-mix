@@ -1,3 +1,4 @@
+import { extraCostsTotal } from "@/lib/economy/bookingCosts";
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ProjectBudget, 
@@ -264,7 +265,7 @@ export const calculateEconomySummary = (
   }
 
   // ── Product costs ──
-  const productCostBudget = safeNum(productCosts?.summary?.costs);
+  const productCostBudget = safeNum(productCosts?.summary?.costs) + extraCostsTotal(productCosts?.extra_costs);
   const productRevenue = safeNum(productCosts?.summary?.revenue)
     || safeSum(productCosts?.products, p => safeNum(p.total) || safeNum(p.unit_price) * safeNum(p.quantity));
 

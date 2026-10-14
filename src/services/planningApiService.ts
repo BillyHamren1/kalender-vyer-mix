@@ -203,3 +203,16 @@ export const deleteAttachmentViaApi = (_attachmentId: string) =>
 
 export const renameAttachmentViaApi = (_attachmentId: string, _newName: string) =>
   assertBookingAttachmentWriteUnavailable();
+
+export type BookingCostPatch = Partial<Record<'assembly_cost' | 'handling_cost' | 'purchase_cost', number>>;
+export interface BookingExtraCost {
+  id: string; label: string; amount: number;
+  quantity?: number; unit_price?: number; discount?: number;
+  assembly_cost?: number; handling_cost?: number; purchase_cost?: number;
+}
+export const updateBookingProductCosts = (bookingId: string, productId: string, costs: BookingCostPatch, expected: BookingCostPatch) =>
+  callPlanningApi({ type: 'product_costs', method: 'PUT', booking_id: bookingId, data: { product_id: productId, costs, expected } });
+export const fetchBookingExtraCosts = (bookingId: string): Promise<{ extra_costs: BookingExtraCost[] | null; currency?: string; cost_currency?: string }> =>
+  callPlanningApi({ type: 'extra_costs', method: 'GET', booking_id: bookingId });
+export const updateBookingExtraCosts = (bookingId: string, extraCosts: BookingExtraCost[], expected: BookingExtraCost[] | null) =>
+  callPlanningApi({ type: 'extra_costs', method: 'PUT', booking_id: bookingId, data: { extra_costs: extraCosts, expected_extra_costs: expected } });

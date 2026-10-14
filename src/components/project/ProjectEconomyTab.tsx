@@ -1,3 +1,4 @@
+import { BookingCostReconciliation, BookingExtraCostsCard } from "./BookingCostsPanel";
 import { useState, useMemo } from 'react';
 import { FileSpreadsheet, FileText, AlertTriangle, Clock, CheckCircle2, Lock, TrendingDown, ArrowRight, DollarSign, BarChart3 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -71,6 +72,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     quotes,
     invoices,
     productCosts,
+    productCostsError,
     supplierInvoices,
     bookingEconomics,
     summary,
@@ -88,9 +90,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     refetchProductCosts,
     refetchSupplierInvoices,
     linkSupplierInvoice,
-    costOverrides,
     updateProductCost,
-    resetProductCost,
   } = useProjectEconomy(projectId, bookingId);
 
   const { data: attestations = [] } = useSupplierInvoiceAttestations(bookingId);
@@ -356,7 +356,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
 
 
       {/* ─── F. Projektresultat - Utfall (AUTHORITATIVE) ─── */}
-      <EconomySummaryCard summary={summary} />
+      <EconomySummaryCard summary={summary} revenueCurrency={productCosts?.currency} />
 
       {/* ─── G. Ordervärde från bokning (REFERENCE ONLY) ─── */}
       {bookingEconomics && (
@@ -372,6 +372,9 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         </div>
       )}
 
+      {bookingId && <BookingCostReconciliation bookingId={bookingId} projectId={projectId} />}
+
+      {productCostsError && <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">Bokningens kostnader kunde inte läsas. Summeringen är ofullständig. <Button variant="outline" size="sm" onClick={() => refetchProductCosts()}>Försök igen</Button></div>}
       {/* ─── H. Product Costs ─── */}
       {productCosts && (
         <ProductCostsCard
@@ -379,11 +382,13 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           isLoading={isLoading}
           onRefresh={refetchProductCosts}
           supplierInvoices={supplierInvoices}
-          costOverrides={costOverrides}
           onUpdateProductCost={updateProductCost}
-          onResetProductCost={resetProductCost}
         />
       )}
+
+      {bookingId && <>
+        <BookingExtraCostsCard bookingId={bookingId} />
+      </>}
 
       {/* Budget vs Utfall */}
       <CostComparisonCard

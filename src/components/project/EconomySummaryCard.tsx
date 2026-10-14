@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 interface EconomySummaryCardProps {
   summary: EconomySummary;
+  revenueCurrency?: string;
 }
 
 const formatCurrency = (amount: number) =>
@@ -17,7 +18,8 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
+export const EconomySummaryCard = ({ summary, revenueCurrency = 'SEK' }: EconomySummaryCardProps) => {
+  const comparable = revenueCurrency === 'SEK';
   const [budgetOpen, setBudgetOpen] = useState(false);
 
   // Revenue from productCosts (single source — same as signals model)
@@ -48,7 +50,7 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg bg-muted/50 p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Intäkter</p>
-            <p className="text-xl font-bold">{formatCurrency(revenue)}</p>
+            <p className="text-xl font-bold">{new Intl.NumberFormat('sv-SE', { style: 'currency', currency: revenueCurrency, maximumFractionDigits: 0 }).format(revenue)}</p>
             <p className="text-xs text-muted-foreground">från produkter</p>
           </div>
 
@@ -61,9 +63,9 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
           <div className="rounded-lg bg-primary/10 p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Resultat</p>
             <p className={`text-xl font-bold ${resultColor}`}>
-              {result >= 0 ? '+' : ''}{formatCurrency(result)}
+              {comparable ? `${result >= 0 ? '+' : ''}${formatCurrency(result)}` : 'Ej jämförbar valuta'}
             </p>
-            {revenue > 0 && (
+            {comparable && revenue > 0 && (
               <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${marginBadge}`}>
                 {marginPct.toFixed(1)}%
               </span>

@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import { extraCostsTotal } from "@/lib/economy/bookingCosts";
+import { BookingCostsPanel } from "./BookingCostsPanel";
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,7 +17,6 @@ import { toast } from 'sonner';
 import type { BatchEconomyData } from '@/services/planningApiService';
 import { createPurchase, updatePurchase, deletePurchase } from '@/services/planningApiService';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -189,36 +190,6 @@ function AddPurchaseRow({ bookingId, onAdded }: { bookingId: string; onAdded: ()
   );
 }
 
-/* ─── Editable product cost cell — always visible input ─── */
-function EditableCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
-  const [val, setVal] = useState(value.toString());
-
-  // Sync external changes (e.g. after save / refetch)
-  React.useEffect(() => {
-    setVal(value.toString());
-  }, [value]);
-
-  const commit = () => {
-    const parsed = parseFloat(val) || 0;
-    if (parsed !== value) onSave(parsed);
-  };
-
-  return (
-    <Input
-      type="number"
-      className="h-7 text-xs text-right w-24 ml-auto"
-      value={val}
-      onChange={e => setVal(e.target.value)}
-      onBlur={commit}
-      onKeyDown={e => {
-        if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); }
-        if (e.key === 'Escape') { setVal(value.toString()); (e.target as HTMLInputElement).blur(); }
-      }}
-      onFocus={e => e.target.select()}
-    />
-  );
-}
-
 export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId, localProducts = [] }: Props) => {
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
@@ -246,43 +217,6 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     };
   };
 
-  // Build lookup: booking_id -> local products for that booking
-  const localProductsByBooking = useMemo(() => {
-    const map: Record<string, LocalProduct[]> = {};
-    localProducts.forEach(lp => {
-      if (!map[lp.booking_id]) map[lp.booking_id] = [];
-      map[lp.booking_id].push(lp);
-    });
-    return map;
-  }, [localProducts]);
-
-  // Find matching local product by name + booking_id
-  const findLocalProduct = useCallback((bookingId: string, productName: string, sku?: string): LocalProduct | undefined => {
-    const candidates = localProductsByBooking[bookingId] || [];
-    // Try SKU match first
-    if (sku) {
-      const bysku = candidates.find(c => c.sku === sku);
-      if (bysku) return bysku;
-    }
-    // Then name match (trimmed)
-    const trimName = (productName || '').replace(/^[↳└]\s*/, '').trim().toLowerCase();
-    return candidates.find(c => c.name.trim().toLowerCase() === trimName);
-  }, [localProductsByBooking]);
-
-  const handleUpdateProductCost = useCallback(async (productId: string, field: 'assembly_cost' | 'handling_cost' | 'purchase_cost', value: number, bookingId: string) => {
-    try {
-      const { upsertProductCostOverride } = await import('@/services/productCostOverrideService');
-      await upsertProductCostOverride(largeProjectId, productId, { [field]: value }, bookingId);
-      queryClient.invalidateQueries({ queryKey: ['product-cost-overrides', largeProjectId] });
-      queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
-      queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
-      toast.success('Kostnad uppdaterad');
-    } catch (e) {
-      console.error('[LargeProjectBookingEconomyBreakdown] update cost failed', e);
-      toast.error('Kunde inte uppdatera kostnad');
-    }
-  }, [queryClient, largeProjectId]);
-
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
     queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
@@ -291,6 +225,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
   // Aggregate all costs across all bookings into category buckets
   const mergedCategories = useMemo(() => {
     const buckets: Record<string, { label: string; amount: number; count: number }> = {
+      extra: { label: 'Manuella bokningskostnader', amount: 0, count: 0 },
       assembly:  { label: 'Montage',             amount: 0, count: 0 },
       handling:  { label: 'Hantering',           amount: 0, count: 0 },
       purchase:  { label: 'Inköp (produkt)',     amount: 0, count: 0 },
@@ -304,7 +239,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
       // Products — split into assembly / handling / purchase
       const products = extractProducts(data);
       products.forEach((p: any) => {
-        const qty = Number(p.quantity) || 1;
+        const qty = Number(p.quantity) || 0;
         const a = (Number(p.assembly_cost) || 0) * qty;
         const h = (Number(p.handling_cost) || 0) * qty;
         const pu = (Number(p.purchase_cost) || 0) * qty;
@@ -312,6 +247,9 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
         if (h) { buckets.handling.amount += h; buckets.handling.count += 1; }
         if (pu) { buckets.purchase.amount += pu; buckets.purchase.count += 1; }
       });
+
+      buckets.extra.amount += extraCostsTotal(data.product_costs?.extra_costs);
+      buckets.extra.count += data.product_costs?.extra_costs?.length ?? 0;
 
       // Staff / time reports
       const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
@@ -399,37 +337,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                       const invoices = Array.isArray(data.invoices) ? data.invoices : [];
                       const supplierInvoices = Array.isArray(data.supplier_invoices) ? data.supplier_invoices : [];
 
-                      // Compute local revenue per booking from local booking_products
-                      const bookingLocalProducts = localProductsByBooking[bookingId] || [];
-                      const localRevenueTotal = bookingLocalProducts
-                        .filter(lp => !lp.is_package_component && !lp.parent_product_id)
-                        .reduce((s, lp) => s + (lp.total_price || 0), 0);
-                      const displayRevenue = (productSummary?.revenue && productSummary.revenue > 0)
-                        ? productSummary.revenue
-                        : localRevenueTotal;
-
-                      // Compute local costs from local products (per-styck × antal)
-                      // Compute local costs from local products (per-styck × antal),
-                      // applying overrides so totals reflect inline edits immediately.
-                      const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
-                        s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
-
-                      // Live product cost = override value per remote product if it
-                      // exists, else remote value. This is the single source of truth
-                      // for the booking-row "Kostnad" cell so edits update instantly.
-                      const liveBookingProductCosts = products.length > 0
-                        ? products.reduce((sum: number, p: any) => {
-                            const productName = p.product_name || p.name || p.description || '—';
-                            const localMatch = findLocalProduct(bookingId, productName, p.sku);
-                            const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
-                            const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
-                            const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                            const qty = Number(p.quantity) || 1;
-                            return sum + (a + h + pu) * qty;
-                          }, 0)
-                        : localCostsTotal;
-
-                      const displayProductCosts = liveBookingProductCosts;
+                      const displayRevenue = productSummary?.revenue ?? 0;
+                      const displayProductCosts = (productSummary?.costs ?? 0) + extraCostsTotal(data.product_costs?.extra_costs);
 
                       const totalCost =
                         displayProductCosts +
@@ -471,7 +380,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                               </div>
                             </TableCell>
                             <TableCell className={cn("text-right text-sm font-medium tabular-nums", isCancelled && "line-through text-muted-foreground")}>
-                              {fmt(displayRevenue)}
+                              {new Intl.NumberFormat('sv-SE', { style: 'currency', currency: data.product_costs?.currency || 'SEK', maximumFractionDigits: 0 }).format(displayRevenue)}
                             </TableCell>
                             <TableCell className={cn("text-right text-sm font-semibold tabular-nums", isCancelled && "line-through text-muted-foreground")}>
                               {fmt(totalCost)}
@@ -482,111 +391,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                             <TableRow className="hover:bg-transparent">
                               <TableCell colSpan={5} className="p-0">
                                 <div className="border-t border-border/40 p-4 space-y-4 bg-muted/20">
-                                  {/* Products — editable costs.
-                                      Fall back to local booking_products when the booking
-                                      system returns no line items (vanligt om bokningen är
-                                      gammal eller inte synkad), så att fälten inte ser tomma ut. */}
-                                  {(() => {
-                                    const hasRemote = products.length > 0;
-                                    const productsToRender = hasRemote
-                                      ? products
-                                      : bookingLocalProducts
-                                          .filter(lp => !lp.is_package_component && !lp.parent_product_id)
-                                          .map(lp => ({
-                                            product_name: lp.name,
-                                            quantity: lp.quantity,
-                                            total_revenue: lp.total_price ?? 0,
-                                            assembly_cost: lp.assembly_cost ?? 0,
-                                            handling_cost: lp.handling_cost ?? 0,
-                                            purchase_cost: lp.purchase_cost ?? 0,
-                                            sku: lp.sku,
-                                            __localId: lp.id,
-                                          }));
-
-                                    if (productsToRender.length === 0) return null;
-
-                                    // Recompute the product-cost total from merged values
-                                    // (local overrides + remote fallback) so edits in
-                                    // Montage/Hantering/Inköp bubble up immediately to
-                                    // the section total, the "Summa"-row and the
-                                    // booking-level cost cell — without waiting for the
-                                    // external system to reflect overrides.
-                                    const liveProductCostsTotal = productsToRender.reduce((sum: number, p: any) => {
-                                      const productName = p.product_name || p.name || p.description || '—';
-                                      const localMatch = p.__localId
-                                        ? bookingLocalProducts.find(lp => lp.id === p.__localId)
-                                        : findLocalProduct(bookingId, productName, p.sku);
-                                      const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
-                                      const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
-                                      const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                                      const qty = Number(p.quantity) || 1;
-                                      return sum + (a + h + pu) * qty;
-                                    }, 0);
-
-                                    return (
-                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={liveProductCostsTotal}>
-                                      <Table>
-                                        <TableHeader>
-                                          <TableRow>
-                                            <TableHead className="text-xs">Produkt</TableHead>
-                                            <TableHead className="text-xs text-right">Antal</TableHead>
-                                            <TableHead className="text-xs text-right">Intäkt</TableHead>
-                                            <TableHead className="text-xs text-right">Montage</TableHead>
-                                            <TableHead className="text-xs text-right">Hantering</TableHead>
-                                            <TableHead className="text-xs text-right">Inköp</TableHead>
-                                            <TableHead className="text-xs text-right">Tot. kostnad</TableHead>
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {productsToRender.map((p: any, i: number) => {
-                                            const productName = p.product_name || p.name || p.description || '—';
-                                            const localMatch = p.__localId
-                                              ? bookingLocalProducts.find(lp => lp.id === p.__localId)
-                                              : findLocalProduct(bookingId, productName, p.sku);
-
-                                            const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
-
-                                            const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
-                                            const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
-                                            const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                                            const qty = Number(p.quantity) || 1;
-                                            const totalPCost = (assemblyCost + handlingCost + purchaseCost) * qty;
-
-                                            return (
-                                              <TableRow key={i}>
-                                                <TableCell className="text-xs font-medium">{productName}</TableCell>
-                                                <TableCell className="text-xs text-right">{p.quantity || 1}</TableCell>
-                                                <TableCell className="text-xs text-right">{fmt(productRevenue)}</TableCell>
-                                                <TableCell className="text-xs text-right">
-                                                  {localMatch ? (
-                                                    <EditableCell value={assemblyCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'assembly_cost', v, bookingId)} />
-                                                  ) : fmt(assemblyCost)}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-right">
-                                                  {localMatch ? (
-                                                    <EditableCell value={handlingCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'handling_cost', v, bookingId)} />
-                                                  ) : fmt(handlingCost)}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-right">
-                                                  {localMatch ? (
-                                                    <EditableCell value={purchaseCost} onSave={(v) => handleUpdateProductCost(localMatch.id, 'purchase_cost', v, bookingId)} />
-                                                  ) : fmt(purchaseCost)}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-right font-semibold">{fmt(totalPCost)}</TableCell>
-                                              </TableRow>
-                                            );
-                                          })}
-                                          <TableRow className="font-semibold border-t">
-                                            <TableCell colSpan={2} className="text-xs">Summa</TableCell>
-                                            <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
-                                            <TableCell colSpan={3}></TableCell>
-                                            <TableCell className="text-xs text-right">{fmt(liveProductCostsTotal)}</TableCell>
-                                          </TableRow>
-                                        </TableBody>
-                                      </Table>
-                                    </Section>
-                                    );
-                                  })()}
+                                  <BookingCostsPanel bookingId={bookingId} projectId={largeProjectId} />
 
                                   {/* Staff */}
                                   {timeReports.length > 0 && (
@@ -696,7 +501,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     </Section>
                                   )}
 
-                                  {products.length === 0 && bookingLocalProducts.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
+                                  {products.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
                                     <p className="text-xs text-muted-foreground text-center py-4">Ingen detaljerad data tillgänglig</p>
                                   )}
                                 </div>

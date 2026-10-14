@@ -1,3 +1,4 @@
+import { BookingCostsPanel } from "@/components/project/BookingCostsPanel";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal, CheckCircle2, AlertCircle } from "lucide-react";
@@ -508,6 +509,7 @@ const PackingDetail = () => {
                   <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
                   Lageruppgifter
                 </TabsTrigger>
+                {(packing.booking_id || linkedBookingIds.length > 0) && <TabsTrigger value="costs" className={tabTriggerClass}>Kostnader</TabsTrigger>}
                 <TabsTrigger value="files" className={tabTriggerClass}>Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments" className={tabTriggerClass}>Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
@@ -666,6 +668,12 @@ const PackingDetail = () => {
                   </TabsContent>
                 </>
               )}
+
+              <TabsContent value="costs" className="space-y-6">
+                {[...new Set([packing.booking_id, ...linkedBookingIds].filter(Boolean))].map(id => (
+                  <section key={id}><h3 className="font-medium mb-3">Bokning {id}</h3><BookingCostsPanel bookingId={id} /></section>
+                ))}
+              </TabsContent>
 
               <TabsContent value="files">
                 <PackingFiles files={files} onUpload={uploadFile} onDelete={deleteFile} isUploading={isUploadingFile} />
