@@ -6,7 +6,9 @@
  * gaps without inferring anything from legacy lager-N teams.
  */
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import WarehouseJobSheet from '@/components/warehouse/WarehouseJobSheet';
+import { Button } from '@/components/ui/button';
+import { clockMinutes, planningSummary, conflictingJobs, timelineLanes } from '@/lib/warehouse/personnelPlanning';
 import { eachDayOfInterval, endOfWeek, format, startOfDay, startOfWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { AlertTriangle, Clock3, MapPin, UserRound, UsersRound } from 'lucide-react';
@@ -37,27 +39,20 @@ interface Props {
   viewMode: 'day' | 'weekly';
 }
 
-const DAY_START_MINUTES = 5 * 60;
+const DAY_START_MINUTES = 0;
 const DAY_END_MINUTES = 24 * 60;
 const HOUR_HEIGHT = 56;
 const TIMELINE_HEIGHT = ((DAY_END_MINUTES - DAY_START_MINUTES) / 60) * HOUR_HEIGHT;
 
-const minutesFromTime = (value: string | null): number | null => {
-  if (!value) return null;
-  const match = value.match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
-};
-
 const timelinePosition = (job: PersonnelJob): React.CSSProperties | null => {
-  const rawStart = minutesFromTime(job.startTime);
+  const rawStart = clockMinutes(job.startTime);
   if (rawStart === null) return null;
-  const rawEnd = minutesFromTime(job.endTime) ?? rawStart + 60;
+  const rawEnd = clockMinutes(job.endTime) ?? rawStart + 60;
   const start = Math.max(DAY_START_MINUTES, Math.min(rawStart, DAY_END_MINUTES - 15));
   const end = Math.max(start + 15, Math.min(rawEnd, DAY_END_MINUTES));
   return {
     top: ((start - DAY_START_MINUTES) / 60) * HOUR_HEIGHT + 4,
-    height: Math.max(46, ((end - start) / 60) * HOUR_HEIGHT - 8),
+    height: Math.max(24, ((end - start) / 60) * HOUR_HEIGHT - 8),
   };
 };
 
@@ -66,24 +61,26 @@ const JobCard: React.FC<{
   onOpen: (job: PersonnelJob) => void;
   unstaffed?: boolean;
   compact?: boolean;
-}> = ({ job, onOpen, unstaffed = false, compact = false }) => (
+  conflict?: boolean;
+}> = ({ job, onOpen, unstaffed = false, compact = false, conflict = false }) => (
   <div className={`overflow-hidden rounded-md border border-border/60 p-1.5 shadow-sm ${getEventBgClass(job.activityType)}`}>
     <button type="button" onClick={() => onOpen(job)} className="block w-full text-left">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[hsl(var(--heading))]">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-[hsl(var(--heading))]">
         <span className={`h-2 w-2 rounded-full shrink-0 ${getEventDotClass(job.activityType)}`} />
         <span className="truncate">{ACTIVITY_LABELS[job.activityType] || ACTIVITY_LABELS.other}</span>
         {job.bookingNumber && <span className="ml-auto tabular-nums truncate">{job.bookingNumber}</span>}
       </div>
-      <div className="mt-1 truncate text-xs font-medium">{job.customerName || job.title}</div>
-      <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+      <div className="mt-1 text-sm font-medium line-clamp-2">{job.customerName || job.title}</div>
+      <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
         <Clock3 className="h-3 w-3 shrink-0" />
         <span>
           {job.startTime || 'Tid saknas'}
           {job.endTime ? `–${job.endTime}` : ''}
         </span>
       </div>
+      {conflict && <p className="mt-1 text-xs font-semibold text-amber-800">Tidskonflikt</p>}
       {!compact && job.deliveryAddress && (
-        <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
           <MapPin className="h-3 w-3 shrink-0" />
           <span className="truncate">{job.deliveryAddress}</span>
         </div>
@@ -110,16 +107,18 @@ const DayColumn: React.FC<{
 }> = ({ jobs, onOpen, unstaffed = false }) => {
   const untimed = jobs.filter((job) => timelinePosition(job) === null);
   const timed = jobs.filter((job) => timelinePosition(job) !== null);
+  const conflicts = conflictingJobs(jobs);
+  const layout = timelineLanes(timed.map(job => ({ job, top: Number(timelinePosition(job)!.top), height: Number(timelinePosition(job)!.height) })));
 
   return (
     <div className={`border-r border-border/60 ${unstaffed ? 'bg-amber-50/20' : 'bg-background'}`}>
       <div className="h-[76px] space-y-1 overflow-y-auto border-b border-border/60 p-1.5">
         {untimed.length === 0 ? (
-          <span className="block pt-5 text-center text-[10px] text-muted-foreground">Inget utan tid</span>
+          <span className="block pt-5 text-center text-xs text-muted-foreground">Inget utan tid</span>
         ) : (
           untimed.map((job) => (
             <JobCard
-              key={job.assignmentId || job.warehouseEventId || job.title}
+              key={`${job.assignmentId || job.warehouseEventId || job.title}-${job.date}`}
               job={job}
               onOpen={onOpen}
               unstaffed={unstaffed}
@@ -136,25 +135,28 @@ const DayColumn: React.FC<{
             'repeating-linear-gradient(to bottom, transparent 0, transparent 55px, hsl(var(--border) / 0.55) 55px, hsl(var(--border) / 0.55) 56px)',
         }}
       >
-        {timed.map((job) => {
-          const position = timelinePosition(job)!;
-          return (
-            <div
-              key={job.assignmentId || job.warehouseEventId || job.title}
-              className="absolute inset-x-1.5 z-10"
-              style={position}
-            >
-              <JobCard job={job} onOpen={onOpen} unstaffed={unstaffed} compact />
-            </div>
-          );
-        })}
+        {layout.items.map(({ job, top, height, lane }) => (
+          <div key={`${job.assignmentId || job.warehouseEventId || job.title}-${job.date}`}
+            className="absolute z-10 px-1"
+            style={{ top, height, left: `${lane / layout.laneCount * 100}%`, width: `${100 / layout.laneCount}%` }}>
+            <button type="button" onClick={() => onOpen(job)}
+              title={`${job.title} · ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' · Tidskonflikt' : ''}`}
+              aria-label={`${job.title} ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' Tidskonflikt' : ''}`}
+              className={`h-full w-full overflow-hidden rounded border p-1 text-left text-xs shadow-sm ${getEventBgClass(job.activityType)} ${conflicts.has(job) ? 'border-amber-600' : 'border-border/60'}`}>
+              <span className="block font-semibold truncate">{job.title}</span>
+              <span className="block tabular-nums">{job.startTime}–{job.endTime}</span>
+              {conflicts.has(job) && <span className="block font-semibold">Tidskonflikt</span>}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
 
 const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
-  const navigate = useNavigate();
+  const [selectedJob, setSelectedJob] = useState<PersonnelJob | null>(null);
+  const [layout, setLayout] = useState<'list' | 'timeline'>('list');
   const [staffFilter, setStaffFilter] = useState('all');
   const rangeStart = useMemo(
     () => viewMode === 'day' ? startOfDay(currentDate) : startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -168,12 +170,9 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
     () => eachDayOfInterval({ start: rangeStart, end: rangeEnd }),
     [rangeEnd, rangeStart],
   );
-  const { data, isLoading } = useWarehousePersonnelWeek(rangeStart, rangeEnd);
+  const { data, isLoading, isError, refetch } = useWarehousePersonnelWeek(rangeStart, rangeEnd);
 
-  const openJob = (job: PersonnelJob) => {
-    if (job.packingId) navigate(`/warehouse/packing/${job.packingId}`);
-    else if (job.bookingId) navigate(`/warehouse/bookings/${job.bookingId}`);
-  };
+  const openJob = (job: PersonnelJob) => setSelectedJob(job);
 
   if (isLoading) {
     return (
@@ -186,6 +185,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
     );
   }
 
+  if (isError) return <div role="alert" className="rounded-lg border p-6 space-y-3"><p>Kunde inte läsa lagerplaneringen. Försök igen för att se aktuell bemanning.</p><Button onClick={() => void refetch()}>Försök igen</Button></div>;
   const rows = data?.rows ?? [];
   const unstaffed = data?.unstaffed ?? [];
   const visibleRows = staffFilter === 'all' ? rows : rows.filter((row) => row.staffId === staffFilter);
@@ -196,6 +196,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
     return jobs.filter((job) => job.date === key);
   };
 
+  const columnWidth = Math.max(240, ...[unstaffed, ...visibleRows.map(row => row.jobs)].map(jobs => timelineLanes(jobs.filter(job => timelinePosition(job)).map(job => ({job, top: Number(timelinePosition(job)!.top), height: Number(timelinePosition(job)!.height)}))).laneCount * 200));
   return (
     <div className="min-h-0 flex-1 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2">
@@ -208,8 +209,12 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
           </span>
         </div>
         <span className="text-xs text-muted-foreground">
-          {rows.length} personer · {totalJobs} bemannade jobb · {unstaffed.length} obemannade
+          {rows.length} personer · {totalJobs} tilldelningar · {unstaffed.length} obemannade
         </span>
+        <div className="flex gap-1" aria-label="Visning av personalplanering">
+          <Button size="sm" variant={layout === 'list' ? 'default' : 'outline'} onClick={() => setLayout('list')}>Lista</Button>
+          <Button size="sm" variant={layout === 'timeline' ? 'default' : 'outline'} onClick={() => setLayout('timeline')}>Tidsöversikt</Button>
+        </div>
         <Select value={staffFilter} onValueChange={setStaffFilter}>
           <SelectTrigger className="ml-auto h-8 w-[210px] text-xs">
             <SelectValue placeholder="Välj personal" />
@@ -227,16 +232,32 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
         </Select>
       </div>
 
-      {viewMode === 'day' ? (
+      {layout === 'list' ? (
+        <div className="space-y-3 overflow-auto">
+          {unstaffed.length > 0 && <section className="rounded-lg border border-amber-300 bg-amber-50/30 p-3">
+            <h3 className="mb-3 font-semibold">Behöver bemannas · {unstaffed.length} jobb</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{unstaffed.map(job => <div key={`${job.warehouseEventId || job.title}-${job.date}`}><p className="mb-1 text-xs text-muted-foreground">{job.date}</p><JobCard job={job} onOpen={openJob} unstaffed /></div>)}</div>
+          </section>}
+          {visibleRows.map(row => {
+            const conflicts = conflictingJobs(row.jobs);
+            return <section key={row.staffId || row.staffName} className="rounded-lg border bg-background p-3">
+              <h3 className="font-semibold">{row.staffName}</h3>
+              <p className="mb-3 text-sm text-muted-foreground">{row.jobs.length} jobb · {planningSummary(row.jobs)}{conflicts.size > 0 ? ` · ${conflicts.size} jobb med tidskonflikt` : ''}</p>
+              {row.jobs.length === 0 ? <p className="text-sm text-muted-foreground">Inga lagerjobb planerade. Tillgänglighet behöver kontrolleras vid bemanning.</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{row.jobs.map(job => <div key={`${job.assignmentId || job.warehouseEventId || job.title}-${job.date}`}><p className="mb-1 text-xs text-muted-foreground">{job.date}</p><JobCard job={job} onOpen={openJob} conflict={conflicts.has(job)} /></div>)}</div>}
+            </section>;
+          })}
+          {visibleRows.length === 0 && unstaffed.length === 0 && <p className="p-6 text-center">Ingen lagerpersonal eller lagerjobb hittades.</p>}
+        </div>
+      ) : viewMode === 'day' ? (
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60 bg-background">
           <div
             className="grid"
             style={{
-              minWidth: 64 + (visibleRows.length + (unstaffed.length > 0 ? 1 : 0)) * 220,
-              gridTemplateColumns: `64px ${unstaffed.length > 0 ? '220px ' : ''}repeat(${visibleRows.length}, 220px)`,
+              minWidth: 64 + (visibleRows.length + (unstaffed.length > 0 ? 1 : 0)) * columnWidth,
+              gridTemplateColumns: `64px ${unstaffed.length > 0 ? `${columnWidth}px ` : ''}repeat(${visibleRows.length}, ${columnWidth}px)`,
             }}
           >
-            <div className="sticky left-0 top-0 z-40 border-b border-r bg-muted/95 px-1 py-3 text-center text-[10px] font-semibold text-muted-foreground">
+            <div className="sticky left-0 top-0 z-40 border-b border-r bg-muted/95 px-1 py-3 text-center text-xs font-semibold text-muted-foreground">
               Tid
             </div>
             {unstaffed.length > 0 && (
@@ -244,7 +265,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                 <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
                   <AlertTriangle className="h-3.5 w-3.5" /> Obemannat
                 </div>
-                <div className="mt-0.5 text-[10px] text-amber-700">{unstaffed.length} jobb</div>
+                <div className="mt-0.5 text-xs text-amber-700">{unstaffed.length} jobb</div>
               </div>
             )}
             {visibleRows.map((row) => (
@@ -258,7 +279,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                   </span>
                   <span className="truncate">{row.staffName}</span>
                 </div>
-                <div className="mt-0.5 text-[10px] text-muted-foreground">{row.jobs.length} lagerjobb</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{row.jobs.length} lagerjobb · {planningSummary(row.jobs)}</div>
               </div>
             ))}
 
@@ -270,7 +291,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                 {Array.from({ length: DAY_END_MINUTES / 60 - DAY_START_MINUTES / 60 }).map((_, index) => (
                   <div
                     key={index}
-                    className="absolute inset-x-0 -translate-y-1/2 pr-2 text-right text-[10px] tabular-nums text-muted-foreground"
+                    className="absolute inset-x-0 -translate-y-1/2 pr-2 text-right text-xs tabular-nums text-muted-foreground"
                     style={{ top: index * HOUR_HEIGHT }}
                   >
                     {String(index + DAY_START_MINUTES / 60).padStart(2, '0')}:00
@@ -298,7 +319,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
           </div>
           {days.map((day) => (
             <div key={day.toISOString()} className="sticky top-0 z-20 border-b border-r bg-muted/90 px-2 py-2 text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {format(day, 'EEE', { locale: sv })}
               </div>
               <div className="text-sm font-bold">{format(day, 'd MMM', { locale: sv })}</div>
@@ -312,17 +333,17 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Obemannat
                 </div>
-                <div className="mt-1 text-[10px] text-amber-700">{unstaffed.length} jobb behöver personal</div>
+                <div className="mt-1 text-xs text-amber-700">{unstaffed.length} jobb behöver personal</div>
               </div>
               {days.map((day) => {
                 const jobs = jobsForDay(unstaffed, day);
                 return (
                   <div key={day.toISOString()} className="min-h-24 space-y-1.5 border-b border-r bg-amber-50/30 p-1.5">
                     {jobs.length === 0 ? (
-                      <span className="block pt-2 text-center text-[10px] text-muted-foreground">Inga</span>
+                      <span className="block pt-2 text-center text-xs text-muted-foreground">Inga</span>
                     ) : (
                       jobs.map((job) => (
-                        <JobCard key={job.warehouseEventId || job.title} job={job} onOpen={openJob} unstaffed />
+                        <JobCard key={`${job.warehouseEventId || job.title}-${job.date}`} job={job} onOpen={openJob} unstaffed />
                       ))
                     )}
                   </div>
@@ -342,15 +363,16 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                     <UserRound className="h-3.5 w-3.5" />
                   </span>
                   <span className="truncate">{row.staffName}</span>
-                  <span className="ml-auto text-[10px] font-medium text-muted-foreground">{row.jobs.length}</span>
+                  <span className="ml-auto text-xs font-medium text-muted-foreground">{row.jobs.length}</span>
                 </div>
               </div>
               {days.map((day) => {
                 const jobs = jobsForDay(row.jobs, day);
                 return (
                   <div key={day.toISOString()} className="min-h-24 space-y-1.5 border-b border-r p-1.5">
+                    {jobs.length > 0 && <p className="text-xs text-muted-foreground">{planningSummary(jobs)}</p>}
                     {jobs.length === 0 ? (
-                      <div className="flex h-full min-h-20 items-center justify-center rounded-md border border-dashed border-border/50 text-center text-[10px] text-muted-foreground">
+                      <div className="flex h-full min-h-20 items-center justify-center rounded-md border border-dashed border-border/50 text-center text-xs text-muted-foreground">
                         Inga lagerjobb
                       </div>
                     ) : (
@@ -359,6 +381,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
                           key={job.assignmentId || `${job.warehouseEventId}-${row.staffId}`}
                           job={job}
                           onOpen={openJob}
+                          conflict={conflictingJobs(jobs).has(job)}
                         />
                       ))
                     )}
@@ -373,6 +396,7 @@ const WarehousePersonnelView: React.FC<Props> = ({ currentDate, viewMode }) => {
         )}
       </div>
       )}
+      <WarehouseJobSheet open={!!selectedJob} target={selectedJob} onOpenChange={(open) => { if (!open) setSelectedJob(null); }} />
     </div>
   );
 };

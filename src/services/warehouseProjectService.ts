@@ -6,7 +6,8 @@ import {
 } from "@/types/warehouseProject";
 import { PackingWithBooking } from "@/types/packing";
 import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
-import { assignStaffToTeamCore } from "@/services/staffAssignmentCore";
+import { getOrganizationId } from "@/hooks/useOrganizationId";
+import { warehouseDateOf, warehouseLocalToISO, warehouseTimeOf } from "@/lib/warehouse/warehouseTime";
 
 // ============================================================================
 // Inbox
@@ -752,9 +753,12 @@ export interface InternalLagerProject {
 }
 
 export const fetchInternalWarehouseProject = async (): Promise<InternalLagerProject | null> => {
+  const organizationId = await getOrganizationId();
+  if (!organizationId) throw new Error("Organisation saknas. Logga in igen.");
   const { data, error } = await supabase
     .from('projects')
     .select('id, organization_id, name, is_internal')
+    .eq('organization_id', organizationId)
     .eq('is_internal', true)
     .maybeSingle();
   if (error) throw error;
@@ -785,13 +789,14 @@ const pickLagerTeamForInternalTask = async (
   endISO: string,
   assignedStaffId: string | null
 ): Promise<string> => {
-  const dateKey = startISO.slice(0, 10);
+  const dateKey = warehouseDateOf(startISO);
 
   // 1. If staff is already on a lager-team that day, use that team.
   if (assignedStaffId) {
     const { data: existing } = await supabase
       .from('staff_assignments')
       .select('team_id')
+      .eq('organization_id', organizationId)
       .eq('staff_id', assignedStaffId)
       .eq('assignment_date', dateKey);
     const lagerTeam = (existing || [])
@@ -804,8 +809,9 @@ const pickLagerTeamForInternalTask = async (
   const { data: dayEvents } = await supabase
     .from('warehouse_calendar_events')
     .select('resource_id, start_time, end_time')
-    .gte('start_time', `${dateKey}T00:00:00`)
-    .lt('start_time', `${dateKey}T23:59:59`);
+    .eq('organization_id', organizationId)
+    .lt('start_time', endISO)
+    .gt('end_time', startISO);
 
   const startMs = new Date(startISO).getTime();
   const endMs = new Date(endISO).getTime();
@@ -831,24 +837,42 @@ export const createInternalWarehouseTask = async (
     throw new Error('Lagerprojektet (Lager) saknas. Ladda om sidan eller kontakta admin.');
   }
 
-  // Accept either pure date (yyyy-MM-dd) or full ISO datetime
-  const toISO = (v: string | null | undefined, fallbackTime: string): string => {
-    if (!v) return `${new Date().toISOString().slice(0, 10)}T${fallbackTime}`;
-    return v.length === 10 ? `${v}T${fallbackTime}` : v;
+  // Date/time inputs are Stockholm wall times, regardless of the device zone.
+  const toISO = (value: string | null | undefined, fallbackTime: string): string => {
+    const raw = value || warehouseDateOf(new Date().toISOString())!;
+    if (/Z$|[+-]\d{2}:\d{2}$/.test(raw)) return new Date(raw).toISOString();
+    return warehouseLocalToISO(raw.length === 10 ? `${raw}T${fallbackTime}` : raw);
   };
   const startISO = toISO(input.start_date, '08:00:00');
   const endISO = toISO(input.end_date || input.start_date, '11:00:00');
+  if (!input.title.trim()) throw new Error('Ange en titel');
+  if (endISO <= startISO) throw new Error('Sluttid måste vara efter starttid');
 
   // Normalize assignees: prefer assigned_to_ids, fall back to single assigned_to.
   const assigneeIds: string[] = (input.assigned_to_ids && input.assigned_to_ids.length > 0)
     ? input.assigned_to_ids
     : (input.assigned_to ? [input.assigned_to] : []);
 
+  // Fail before creating anything if the additive link migration is not active.
+  const { error: schemaError } = await supabase.from('warehouse_calendar_events')
+    .select('project_task_id' as '*').limit(0);
+  if (schemaError) throw new Error('Lageruppgifter behöver uppdateras innan nya uppgifter kan planeras. Ingen uppgift har skapats.');
+
+  if (assigneeIds.length) {
+    const { data: staff, error: staffError } = await supabase.from('staff_members')
+      .select('id').eq('organization_id', project.organization_id)
+      .eq('is_active', true).in('id', assigneeIds);
+    if (staffError) throw staffError;
+    if (new Set(staff?.map(row => row.id)).size !== new Set(assigneeIds).size)
+      throw new Error('En vald person är inte aktiv i organisationen.');
+  }
+
   const { data: task, error } = await supabase
     .from('project_tasks')
     .insert({
       project_id: project.id,
-      title: input.title,
+      organization_id: project.organization_id,
+      title: input.title.trim(),
       description: input.description ?? null,
       assigned_to: assigneeIds[0] ?? null,
       assigned_to_ids: assigneeIds.length > 0 ? assigneeIds : null,
@@ -861,94 +885,42 @@ export const createInternalWarehouseTask = async (
 
   if (error) throw error;
 
-  // Pick a lager-team per assignee so each person ends up in their own
-  // planned lager-column. If no assignees, place a single event in the first
-  // available lager team.
-  const teamsToInsert: string[] = [];
-  if (assigneeIds.length === 0) {
-    teamsToInsert.push(
-      await pickLagerTeamForInternalTask(project.organization_id, startISO, endISO, null)
+  let eventId: string | undefined;
+  try {
+    const resourceId = await pickLagerTeamForInternalTask(
+      project.organization_id, startISO, endISO, assigneeIds[0] ?? null,
     );
-  } else {
-    for (const sid of assigneeIds) {
-      const team = await pickLagerTeamForInternalTask(
-        project.organization_id, startISO, endISO, sid
+    const { data: event, error: eventError } = await supabase.from('warehouse_calendar_events')
+      .insert({
+        title: input.title.trim(), start_time: startISO, end_time: endISO,
+        resource_id: resourceId, event_type: 'internal_task', manually_adjusted: true,
+        organization_id: project.organization_id, project_task_id: task.id,
+      } as any).select('id').single();
+    if (eventError) throw eventError;
+    eventId = event.id;
+    if (assigneeIds.length) {
+      const { error: assignmentError } = await supabase.from('warehouse_assignments').insert(
+        [...new Set(assigneeIds)].map(staffId => ({
+          organization_id: project.organization_id, staff_id: staffId,
+          assignment_date: warehouseDateOf(startISO)!, assignment_type: 'internal_task',
+          action: 'complete_task', title: input.title.trim(), description: input.description ?? null,
+          start_time: warehouseTimeOf(startISO), end_time: warehouseTimeOf(endISO), status: 'planned',
+          warehouse_event_id: event.id, project_task_id: task.id, source: 'warehouse_calendar_event',
+        })),
       );
-      if (!teamsToInsert.includes(team)) teamsToInsert.push(team);
+      if (assignmentError) throw assignmentError;
     }
-  }
-
-  const events = teamsToInsert.map(resourceId => ({
-    title: input.title,
-    start_time: new Date(startISO).toISOString(),
-    end_time: new Date(endISO).toISOString(),
-    resource_id: resourceId,
-    event_type: 'internal_task',
-    manually_adjusted: true,
-    organization_id: project.organization_id,
-  }));
-
-  const { error: calErr } = await supabase
-    .from('warehouse_calendar_events')
-    .insert(events as any);
-
-  if (calErr) {
-    console.error('Failed to create warehouse calendar event for internal task:', calErr);
-    throw new Error(`Uppgiften skapades men kunde inte placeras i kalendern: ${calErr.message}`);
-  }
-
-  // ── Bridge: mirror assignees into Planning calendar's "Lager" column ──
-  // The Lager column in the staff planning calendar uses team_id='transport'.
-  // Lager-N (lager-1, lager-2…) stays for warehouse calendar detail planning,
-  // but the Planning view ALWAYS sees the person on 'transport' for this date.
-  if (assigneeIds.length > 0) {
-    // Build one row per (staff, date) for every day the task covers.
-    const startDay = new Date(startISO);
-    const endDay = new Date(endISO);
-    const dates: string[] = [];
-    const cursor = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate());
-    const endKey = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, '0')}-${String(endDay.getDate()).padStart(2, '0')}`;
-    while (true) {
-      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-      dates.push(key);
-      if (key >= endKey) break;
-      cursor.setDate(cursor.getDate() + 1);
-      if (dates.length > 60) break; // safety cap
+  } catch (error) {
+    // Compensate only rows from this creation. Never touch existing planning.
+    const cleanups = [];
+    if (eventId) {
+      cleanups.push(await supabase.from('warehouse_assignments').delete().eq('warehouse_event_id', eventId));
+      cleanups.push(await supabase.from('warehouse_calendar_events').delete().eq('id', eventId));
     }
-
-    const rows = assigneeIds.flatMap(staffId =>
-      dates.map(d => ({
-        staff_id: staffId,
-        team_id: 'transport',
-        assignment_date: d,
-      })),
-    );
-
-    console.log('[lager-bridge] Mirroring assignees to Lager column (team_id=transport)', {
-      taskId: task.id,
-      assigneeIds,
-      startISO,
-      endISO,
-      dates,
-      rowCount: rows.length,
-    });
-
-    // Kanonisk skrivväg med läs-tillbaka-kvittens (staffAssignmentCore).
-    for (const row of rows) {
-      const [y, m, d] = row.assignment_date.split('-').map((v) => parseInt(v, 10));
-      try {
-        await assignStaffToTeamCore(row.staff_id, row.team_id, new Date(y, m - 1, d));
-      } catch (bridgeErr) {
-        console.error('[lager-bridge] assignment failed', {
-          taskId: task.id,
-          staffId: row.staff_id,
-          date: row.assignment_date,
-          error: (bridgeErr as any)?.message,
-        });
-      }
-    }
+    cleanups.push(await supabase.from('project_tasks').delete().eq('id', task.id));
+    if (cleanups.some(result => result.error))
+      throw new Error('Uppgiften kunde inte färdigställas. Kontrollera planeringen innan du försöker igen.');
+    throw error;
   }
-
   return task as { id: string };
 };
-

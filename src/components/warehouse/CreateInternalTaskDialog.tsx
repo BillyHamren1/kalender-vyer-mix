@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { warehouseDateOf } from "@/lib/warehouse/warehouseTime";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { Check, ChevronDown, X } from "lucide-react";
 import {
   Dialog,
@@ -62,7 +63,8 @@ export default function CreateInternalTaskDialog({
   onSuccess,
 }: CreateInternalTaskDialogProps) {
   const qc = useQueryClient();
-  const today = format(new Date(), "yyyy-MM-dd");
+  const { organizationId } = useOrganizationId();
+  const today = warehouseDateOf(new Date().toISOString())!;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
@@ -74,21 +76,23 @@ export default function CreateInternalTaskDialog({
   const [staffPickerOpen, setStaffPickerOpen] = useState(false);
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff-members-list"],
+    queryKey: ["warehouse-task-staff", organizationId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("staff_members")
         .select("id, name")
+        .eq("organization_id", organizationId!)
         .eq("is_active", true)
         .order("name");
+      if (error) throw error;
       return (data || []) as StaffOption[];
     },
-    enabled: open,
+    enabled: open && !!organizationId,
   });
 
   useEffect(() => {
     if (open) {
-      const t = format(new Date(), "yyyy-MM-dd");
+      const t = warehouseDateOf(new Date().toISOString())!;
       setTitle("");
       setDescription("");
       setAssignedIds([]);
@@ -129,9 +133,9 @@ export default function CreateInternalTaskDialog({
       onSuccess?.();
       onOpenChange(false);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       console.error("Failed to create internal task", err);
-      toast.error(err?.message || "Kunde inte skapa uppgift");
+      toast.error(err instanceof Error ? err.message : "Kunde inte skapa uppgift");
     },
   });
 
@@ -165,8 +169,8 @@ export default function CreateInternalTaskDialog({
           <DialogTitle>Skapa lageruppgift</DialogTitle>
           <DialogDescription>
             Skapas på projektet <strong>Lager</strong> och placeras direkt i
-            lagerkalendern. Tilldela en eller flera personer — varje person
-            hamnar i sitt redan planerade lagerteam (eller nästa lediga).
+            lagerkalendern. Tilldela de personer som ska utföra uppgiften.
+            Tiderna anges i svensk tid.
           </DialogDescription>
         </DialogHeader>
 
@@ -346,7 +350,7 @@ export default function CreateInternalTaskDialog({
             >
               Avbryt
             </Button>
-            <Button type="submit" disabled={createMutation.isPending} className="bg-warehouse text-warehouse-foreground hover:bg-warehouse-hover">
+            <Button type="submit" disabled={createMutation.isPending || !organizationId} className="bg-warehouse text-warehouse-foreground hover:bg-warehouse-hover">
               {createMutation.isPending ? "Skapar..." : "Skapa uppgift"}
             </Button>
           </DialogFooter>

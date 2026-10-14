@@ -22,7 +22,8 @@ import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOver
 import WarehouseOpsActionQueue from "@/components/warehouse-ops/WarehouseOpsActionQueue";
 import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
 import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaffPopover";
-import OpsJobBookingSheet from "@/components/warehouse-ops/OpsJobBookingSheet";
+import WarehouseJobSheet from "@/components/warehouse/WarehouseJobSheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
@@ -51,6 +52,7 @@ const statusLabel: Record<string, string> = {
  */
 const WarehouseOps = () => {
   const navigate = useNavigate();
+  const [showAttention, setShowAttention] = useState(false);
   const [showTask, setShowTask] = useState(false);
   const [showPacking, setShowPacking] = useState(false);
   const [anchorDate, setAnchorDate] = useState(() => new Date());
@@ -95,7 +97,7 @@ const WarehouseOps = () => {
   const selectJob = (job: OpsJob) => {
     setSelectedJobId(job.id);
     setDetailTab("overview");
-    navigate(`/warehouse/packing/${job.packingId}`);
+    setBookingSheetOpen(true);
   };
 
 
@@ -103,13 +105,13 @@ const WarehouseOps = () => {
     <div className="h-full min-h-0 overflow-hidden bg-background">
       <div className="h-full min-h-0 px-2.5 py-2 sm:px-3 flex flex-col gap-2">
         <header className="shrink-0 rounded-lg border border-border/60 bg-background/95 shadow-sm">
-          <div className="h-12 px-2.5 flex items-center gap-2 min-w-0">
+          <div className="min-h-12 px-2.5 py-2 flex flex-wrap items-center gap-2 min-w-0">
             <div className="flex items-center gap-2 shrink-0">
               <div className="h-8 w-8 rounded-lg bg-warehouse flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
               <div className="leading-tight hidden lg:block">
-                <div className="font-bold text-[15px] text-[hsl(var(--heading))]">Planning OPS</div>
+                <div className="font-bold text-[15px] text-[hsl(var(--heading))]">Lageröversikt</div>
                 <div className="text-[9px] text-muted-foreground">Operativ lagerstyrning</div>
               </div>
             </div>
@@ -127,18 +129,19 @@ const WarehouseOps = () => {
 
             <WarehouseBookingQuickOpen compact className="min-w-0 flex-1 max-w-[480px]" />
 
-            <div className="ml-auto flex items-center gap-1 shrink-0">
-              <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => navigate("/warehouse/calendar")}>
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              <Button className="xl:hidden" variant="outline" size="sm" onClick={() => setShowAttention(true)}>Behöver åtgärdas</Button>
+              <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => navigate(`/warehouse/calendar?date=${format(anchorDate, "yyyy-MM-dd")}&planning=personnel`)}>
                 <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                <span className="hidden xl:inline">Bemanning</span>
+                <span>Bemanning</span>
               </Button>
               <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setShowPacking(true)}>
                 <Rows3 className="h-3.5 w-3.5 mr-1.5" />
-                <span className="hidden xl:inline">Ny packning</span>
+                <span>Ny packning</span>
               </Button>
               <Button onClick={() => setShowTask(true)} size="sm" className="h-8 px-2.5 bg-warehouse hover:bg-warehouse-hover text-xs">
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden 2xl:inline">Lageruppgift</span>
+                <span>Lageruppgift</span>
               </Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()} disabled={isFetching} title="Uppdatera">
                 <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
@@ -239,7 +242,8 @@ const WarehouseOps = () => {
 
       <CreateInternalTaskDialog open={showTask} onOpenChange={setShowTask} onSuccess={() => { setShowTask(false); refetch(); }} />
       <CreatePackingWizard open={showPacking} onOpenChange={setShowPacking} onSuccess={() => { setShowPacking(false); refetch(); }} />
-      <OpsJobBookingSheet job={selectedJob} open={bookingSheetOpen && !!selectedJob} onOpenChange={setBookingSheetOpen} />
+      <WarehouseJobSheet target={selectedJob ? { packingId: selectedJob.packingId, bookingId: selectedJob.bookingId, title: selectedJob.name } : null} open={bookingSheetOpen && !!selectedJob} onOpenChange={setBookingSheetOpen} />
+      <Sheet open={showAttention} onOpenChange={setShowAttention}><SheetContent className="w-full sm:max-w-lg flex flex-col"><SheetHeader><SheetTitle>Behöver åtgärdas</SheetTitle></SheetHeader><div className="min-h-0 flex-1 overflow-auto mt-4"><WarehouseOpsActionQueue jobs={weekJobs} attention={weekAttention} /></div></SheetContent></Sheet>
     </div>
   );
 };

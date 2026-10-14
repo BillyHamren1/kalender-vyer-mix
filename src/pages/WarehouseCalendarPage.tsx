@@ -1,3 +1,5 @@
+import WarehouseJobSheet, { type WarehouseJobTarget } from '@/components/warehouse/WarehouseJobSheet';
+import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import React, { useEffect, useMemo, useState } from 'react';
 import { format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -73,7 +75,7 @@ const warehouseEventToCalendarEvent = (event: WarehouseEvent): CalendarEvent => 
     change_details: event.change_details || undefined,
     phaseContext: phaseContext(event),
     warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.event_type] || 'Lagerjobb',
-    timeLabel: event.start_time.slice(11, 16) + '–' + event.end_time.slice(11, 16),
+    timeLabel: warehouseTimeOf(event.start_time) + '–' + warehouseTimeOf(event.end_time),
   },
 });
 
@@ -88,6 +90,7 @@ const PERSONNEL_VIEW_OPTIONS = [
 
 const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
+  const [jobTarget, setJobTarget] = useState<WarehouseJobTarget | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<WarehouseCalendarView>('weekly');
   const [planningMode, setPlanningMode] = useState<WarehousePlanningMode>(() =>
@@ -163,6 +166,7 @@ const WarehouseCalendarPage = () => {
   const {
     events: warehouseEvents,
     loading: warehouseLoading,
+    error: warehouseError,
     refetch: refreshWarehouseEvents,
   } = useWarehouseCalendarEvents({ currentDate: selectedDate, view: dataView });
   const { transportEvents, isLoading: transportLoading } = useTransportCalendarEvents(
@@ -356,13 +360,14 @@ const WarehouseCalendarPage = () => {
                       : 'text-muted-foreground hover:text-foreground')
                   }
                 >
-                  {mode === 'calendar' ? 'Kalender' : 'Personal'}
+                  {mode === 'calendar' ? 'Jobb' : 'Personal'}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
+        {warehouseError && <div role="alert" className="mx-2 mb-2 rounded-lg border border-destructive p-3 text-sm">Kunde inte uppdatera lagerplaneringen. Visade uppgifter kan vara inaktuella. <button className="underline font-semibold" onClick={() => void refreshWarehouseEvents()}>Försök igen</button></div>}
         <main className="mx-2 mb-2 flex min-h-0 flex-1 flex-col rounded-2xl bg-card p-3 shadow-sm">
           {planningMode === 'personnel' ? (
             <WarehousePersonnelView currentDate={selectedDate} viewMode={personnelViewMode} />
@@ -374,10 +379,18 @@ const WarehouseCalendarPage = () => {
               isLoading={warehouseLoading || transportLoading}
               onRefresh={refreshWarehouseEvents}
               onOpenBooking={(bookingId) => navigate('/warehouse/bookings/' + bookingId)}
+              onOpenEvent={(event) => {
+                if (event.extendedProps?.isTransport) {
+                  if (event.bookingId) navigate('/warehouse/bookings/' + event.bookingId);
+                  return;
+                }
+                setJobTarget({ warehouseEventId: event.id, bookingId: event.bookingId, title: event.title });
+              }}
               onOpenDay={openDay}
             />
           )}
         </main>
+        <WarehouseJobSheet target={jobTarget} open={!!jobTarget} onOpenChange={(open) => !open && setJobTarget(null)} onSaved={() => void refreshWarehouseEvents()} />
       </div>
     </TooltipProvider>
   );

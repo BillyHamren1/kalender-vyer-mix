@@ -9,6 +9,8 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { personnelIntervals, unstaffedWarehouseEvents } from '@/lib/warehouse/personnelIntervals';
+import { warehouseDateOf, warehouseDayBounds } from '@/lib/warehouse/warehouseTime';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
@@ -27,6 +29,7 @@ export interface PersonnelJob {
   date: string;
   startTime: string | null;
   endTime: string | null;
+  plannedDurationMinutes?: number | null;
 }
 
 export interface PersonnelRow {
@@ -57,12 +60,6 @@ interface Row {
   tags?: string[] | null;
 }
 
-const timeOf = (value: string | null | undefined) => (value ? value.slice(0, 5) : null);
-const activityKey = (value: string | null | undefined) => {
-  if (value === 'unpacking') return 'return';
-  return value || 'other';
-};
-
 export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
   const from = format(rangeStart, 'yyyy-MM-dd');
   const to = format(rangeEnd, 'yyyy-MM-dd');
@@ -87,33 +84,39 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
-      const [{ data: assignments, error: aErr }, { data: events, error: eErr }, { data: staff, error: sErr }] =
-        await Promise.all([
-          supabase
-            .from('warehouse_assignments')
-            .select(
-              'id, staff_id, assignment_date, assignment_type, status, title, start_time, end_time, warehouse_event_id, packing_id, booking_id, booking_number, customer_name, delivery_address',
-            )
-            .eq('organization_id', organizationId!)
-            .gte('assignment_date', from)
-            .lte('assignment_date', to),
-          supabase
-            .from('warehouse_calendar_events')
-            .select('id, title, booking_id, booking_number, event_type, start_time, end_time, delivery_address')
-            .eq('organization_id', organizationId!)
-            .gte('start_time', `${from}T00:00:00`)
-            .lte('start_time', `${to}T23:59:59`),
-          supabase
-            .from('staff_members')
-            .select('id, name, color, tags, is_active')
-            .eq('organization_id', organizationId!)
-            .eq('is_active', true)
-            .order('name', { ascending: true }),
-        ]);
-
-      if (aErr) throw aErr;
+      // Fetch overlapping source events first: assignments may only store clock times,
+      // so their assignment_date alone cannot discover a job continuing into this range.
+      const { data: events, error: eErr } = await supabase
+        .from('warehouse_calendar_events')
+        .select('id, title, booking_id, booking_number, event_type, start_time, end_time, delivery_address')
+        .eq('organization_id', organizationId!)
+        .lt('start_time', warehouseDayBounds(to).end)
+        .gt('end_time', warehouseDayBounds(from).start);
       if (eErr) throw eErr;
+      const sourceEvents = (events || []) as Row[];
+      const byEventId = new Map(sourceEvents.map(event => [event.id, event]));
+      const eventIds = sourceEvents.map(event => event.id).filter(Boolean);
+      const assignmentQuery = () => supabase.from('warehouse_assignments')
+        .select('id, staff_id, assignment_date, assignment_type, status, title, start_time, end_time, warehouse_event_id, packing_id, booking_id, booking_number, customer_name, delivery_address')
+        .eq('organization_id', organizationId!);
+      // Keep query URLs bounded for busy weeks. Exact linked-event queries also
+      // include assignments whose original assignment_date precedes this range.
+      const linkedQueries = [];
+      for (let offset = 0; offset < eventIds.length; offset += 80) {
+        linkedQueries.push(assignmentQuery().in('warehouse_event_id', eventIds.slice(offset, offset + 80)));
+      }
+      const [assignmentResults, { data: staff, error: sErr }] = await Promise.all([
+        Promise.all([assignmentQuery().gte('assignment_date', from).lte('assignment_date', to), ...linkedQueries]),
+        supabase.from('staff_members')
+          .select('id, name, color, tags, is_active')
+          .eq('organization_id', organizationId!)
+          .eq('is_active', true)
+          .order('name', { ascending: true }),
+      ]);
+      const aErr = assignmentResults.find(result => result.error)?.error;
+      if (aErr) throw aErr;
       if (sErr) throw sErr;
+      const assignments = [...new Map(assignmentResults.flatMap(result => result.data || []).map(row => [row.id, row])).values()];
 
       const allStaff = (staff || []) as Row[];
       const names = new Map(allStaff.map((member) => [String(member.id), String(member.name)]));
@@ -140,17 +143,9 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
         });
       }
 
-      const assignedEventIds = new Set<string>();
-      const directPackingKeys = new Set<string>();
-
       for (const assignment of (assignments || []) as Row[]) {
-        if (assignment.warehouse_event_id) assignedEventIds.add(String(assignment.warehouse_event_id));
-        if (assignment.packing_id && assignment.booking_id) {
-          directPackingKeys.add(
-            `${assignment.booking_id}|${activityKey(assignment.assignment_type)}|${assignment.assignment_date}`,
-          );
-        }
-
+        const sourceEvent = assignment.warehouse_event_id ? byEventId.get(assignment.warehouse_event_id) : undefined;
+        const intervals = personnelIntervals(sourceEvent?.start_time ?? assignment.start_time, sourceEvent?.end_time ?? assignment.end_time, assignment.assignment_date || from, from, to);
         const staffId = String(assignment.staff_id ?? 'unknown');
         const row =
           byStaff.get(staffId) ||
@@ -161,7 +156,7 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
             jobs: [],
           } as PersonnelRow);
 
-        row.jobs.push({
+        row.jobs.push(...intervals.map(interval => ({
           assignmentId: assignment.id ?? null,
           warehouseEventId: assignment.warehouse_event_id ?? null,
           packingId: assignment.packing_id ?? null,
@@ -172,21 +167,13 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
           deliveryAddress: assignment.delivery_address ?? null,
           activityType: assignment.assignment_type || 'other',
           status: assignment.status || 'planned',
-          date: assignment.assignment_date || from,
-          startTime: timeOf(assignment.start_time),
-          endTime: timeOf(assignment.end_time),
-        });
+          ...interval,
+        })));
         byStaff.set(staffId, row);
       }
 
-      const unstaffed: PersonnelJob[] = ((events || []) as Row[])
-        .filter((event) => {
-          if (assignedEventIds.has(String(event.id))) return false;
-          const date = String(event.start_time).slice(0, 10);
-          const fallbackKey = `${event.booking_id}|${activityKey(event.event_type)}|${date}`;
-          return !event.booking_id || !directPackingKeys.has(fallbackKey);
-        })
-        .map((event) => ({
+      const unstaffed: PersonnelJob[] = unstaffedWarehouseEvents(sourceEvents, (assignments || []) as Row[])
+        .flatMap(event => personnelIntervals(event.start_time, event.end_time, warehouseDateOf(event.start_time) || from, from, to).map(interval => ({
           assignmentId: null,
           warehouseEventId: event.id ?? null,
           packingId: null,
@@ -197,10 +184,8 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
           deliveryAddress: event.delivery_address ?? null,
           activityType: event.event_type || 'other',
           status: 'planned',
-          date: String(event.start_time).slice(0, 10),
-          startTime: String(event.start_time).slice(11, 16) || null,
-          endTime: event.end_time ? String(event.end_time).slice(11, 16) : null,
-        }));
+          ...interval,
+        })));
 
       const rows = Array.from(byStaff.values()).map((row) => ({
         ...row,

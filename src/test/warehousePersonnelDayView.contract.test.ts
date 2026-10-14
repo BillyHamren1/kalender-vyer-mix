@@ -15,7 +15,7 @@ describe('lagerpersonalens dagsvy', () => {
 
   it('ritar varje person som egen kolumn mot samma tidsaxel', () => {
     expect(personnel).toContain('TIMELINE_HEIGHT');
-    expect(personnel).toContain('repeat(${visibleRows.length}, 220px)');
+    expect(personnel).toContain('repeat(${visibleRows.length}, ${columnWidth}px)');
     expect(personnel).toContain('<DayColumn key={row.staffId ?? row.staffName}');
     expect(personnel).toContain('Obemannat');
     expect(personnel).toContain('<DayColumn jobs={unstaffed}');

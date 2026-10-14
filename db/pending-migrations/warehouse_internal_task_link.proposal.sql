@@ -1,0 +1,2 @@
+-- Promoted to supabase/migrations/20261014120134_9374de8b-b109-4add-be83-465800b85acc.sql.
+-- Historical proposal location; apply only the canonical migration.

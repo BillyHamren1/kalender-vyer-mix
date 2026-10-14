@@ -56,7 +56,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
     switch (view) {
       case 'day':
         start = currentDate;
-        end = addDays(currentDate, 1);
+        end = currentDate;
         break;
       case 'week':
         start = startOfWeek(currentDate, { weekStartsOn: 1 });

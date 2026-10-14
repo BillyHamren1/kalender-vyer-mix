@@ -12,11 +12,16 @@ async function authorize(overrides = {}, options = {}) {
   const signature = await signPlanningBrainRequest(options.key || secret, timestamp, nonce, (options.noDomain ? '' : MESSAGE_SCHEMA + '\n') + rawBody);
   const filters = [];
   const supabase = {
-    rpc: async () => ({ data: !options.replayed, error: options.nonceError ? {} : null }),
+    rpc: async (name) => name === 'consume_planning_brain_read_nonce'
+      ? { data: !options.replayed, error: options.nonceError ? {} : null }
+      : name === 'resolve_hub_actor_v1'
+        ? { data: options.unmapped ? { status: 'actor_unmapped' } : { status: 'ok', mode: 'direct', localUserId: user }, error: options.lookupError ? {} : null }
+        : { data: null, error: { message: 'Unexpected RPC' } },
     from(table) {
-      const values = table === 'profiles' ? (options.noProfile ? null : { organization_id: org }) : table === 'user_roles' ? (options.noRole ? [] : [{ role: 'staff' }]) : options.staff ?? [{ id: 'staff-me', is_active: true }];
+      assert.notEqual(table, 'profiles', 'last-used profile organization is not authorization');
+      const values = table === 'user_roles' ? (options.noRole ? [] : [{ role: 'lager', organization_id: org }]) : options.staff ?? [{ id: 'staff-me', is_active: true }];
       const result = { data: values, error: options.lookupError ? {} : null };
-      const chain = { select() { return chain; }, eq(key, v) { filters.push([table,key,v]); return chain; }, limit() { return Promise.resolve(result); }, maybeSingle() { return Promise.resolve(result); } };
+      const chain = { select() { return chain; }, eq(key, v) { filters.push([table,key,v]); return chain; }, in() { return Promise.resolve(result); }, limit() { return Promise.resolve(result); }, maybeSingle() { return Promise.resolve(result); } };
       return chain;
     },
   };
@@ -47,7 +52,7 @@ test('retries must retain exact actor, organization, recipient and content', () 
 test('signed active actor resolves both identity and organization; every membership query is scoped', async () => {
   const {result,filters}=await authorize();
   assert.deepEqual(result,{staffId:'staff-me',organizationId:org,userId:user});
-  for (const table of ['profiles','user_roles','staff_members']) {
+  for (const table of ['user_roles','staff_members']) {
     assert.ok(filters.some(f=>f[0]===table&&f[1]==='organization_id'&&f[2]===org));
     assert.ok(filters.some(f=>f[0]===table&&f[1]==='user_id'&&f[2]===user));
   }
@@ -56,7 +61,7 @@ test('unlinked planner keeps verified auth identity', async()=>assert.equal((awa
 for (const [name,options,status] of [
   ['other key',{key:'wrong-key'},401],['read-only domain',{noDomain:true},401],['expired',{skew:-600000},401],
   ['replay',{replayed:true},401],['nonce outage',{nonceError:true},503],['lookup outage',{lookupError:true},503],
-  ['profile in another organization',{noProfile:true},403],['no membership',{noRole:true},403],['inactive',{staff:[{id:'a',is_active:false}]},403],
+  ['unmapped HUB actor',{unmapped:true},403],['no membership',{noRole:true},403],['inactive',{staff:[{id:'a',is_active:false}]},403],
   ['ambiguous identity',{staff:[{id:'a',is_active:true},{id:'b',is_active:true}]},403],
 ]) test(`bridge rejects ${name}`,async()=>assert.equal((await authorize({},options)).result.status,status));
 test('bridge does not expose unrelated mobile actions or caller-selected sender',async()=>{
