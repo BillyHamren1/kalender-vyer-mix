@@ -4567,6 +4567,7 @@ export type Database = {
           quantity_packed: number
           quantity_returned: number
           quantity_to_pack: number
+          retired_from_booking_at: string | null
           returned_at: string | null
           returned_by: string | null
           source_booking_id: string | null
@@ -4604,6 +4605,7 @@ export type Database = {
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
+          retired_from_booking_at?: string | null
           returned_at?: string | null
           returned_by?: string | null
           source_booking_id?: string | null
@@ -4641,6 +4643,7 @@ export type Database = {
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
+          retired_from_booking_at?: string | null
           returned_at?: string | null
           returned_by?: string | null
           source_booking_id?: string | null
@@ -11505,6 +11508,18 @@ export type Database = {
           p_booking_id: string
           p_date: string
           p_organization_id: string
+        }
+        Returns: Json
+      }
+      record_booking_cancellation_notice_atomic: {
+        Args: {
+          p_booking_id: string
+          p_organization_id: string
+          p_reason?: string
+          p_reservation_token?: string
+          p_source_status: string
+          p_source_updated_at?: string
+          p_source_version?: number
         }
         Returns: Json
       }
