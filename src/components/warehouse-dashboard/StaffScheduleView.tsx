@@ -1,3 +1,4 @@
+import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { format, addDays, addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
@@ -38,7 +39,7 @@ const periodLabel = (date: Date, view: ScheduleViewMode): string => {
   return format(date, 'MMMM yyyy', { locale: sv });
 };
 
-const formatTime = (iso: string | null) => iso ? format(new Date(iso), 'HH:mm') : null;
+const formatTime = (iso: string | null) => warehouseTimeOf(iso);
 
 const ScheduleItemRow = ({ item }: { item: StaffScheduleItem }) => {
   const start = formatTime(item.startTime);

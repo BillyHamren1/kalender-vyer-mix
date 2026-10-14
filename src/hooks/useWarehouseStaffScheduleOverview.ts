@@ -1,3 +1,4 @@
+import { warehouseDayBounds, warehouseDateOf } from '@/lib/warehouse/warehouseTime';
 import { useQuery } from '@tanstack/react-query';
 import { addDays, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -98,8 +99,8 @@ export function useWarehouseStaffScheduleOverview(
             .from('warehouse_calendar_events')
             .select('id, title, start_time, end_time, event_type, resource_id, booking_id, booking_number, delivery_address')
             .in('resource_id', lagerTeamIds)
-            .gte('start_time', `${startKey}T00:00:00`)
-            .lt('start_time', `${endExclusiveKey}T00:00:00`)
+            .gte('start_time', warehouseDayBounds(startKey).start)
+            .lt('start_time', warehouseDayBounds(endExclusiveKey).start)
         : { data: [], error: null };
 
       if (warehouseEvents.error) throw warehouseEvents.error;
@@ -118,7 +119,7 @@ export function useWarehouseStaffScheduleOverview(
       const eventsByDateAndResource = new Map<string, Array<any>>();
 
       [...(warehouseEvents.data || []), ...(fieldEvents.data || [])].forEach((event) => {
-        const dateKey = event.start_time.slice(0, 10);
+        const dateKey = event.resource_id?.startsWith('lager-') ? warehouseDateOf(event.start_time)! : event.start_time.slice(0, 10);
         const mapKey = `${dateKey}__${event.resource_id}`;
         const current = eventsByDateAndResource.get(mapKey) || [];
         current.push(event);

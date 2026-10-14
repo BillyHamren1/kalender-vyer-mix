@@ -1,3 +1,4 @@
+import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { addDays, addMonths, addWeeks, endOfWeek, format, startOfWeek } from 'date-fns';
@@ -56,8 +57,9 @@ const periodLabel = (date: Date, view: WarehouseScheduleView) => {
 
 const timeLabel = (item: WarehouseStaffScheduleItem) => {
   if (!item.startTime) return null;
-  const start = extractUTCTime(item.startTime);
-  const end = item.endTime ? extractUTCTime(item.endTime) : null;
+  const clock = item.kind === 'warehouse' ? warehouseTimeOf : extractUTCTime;
+  const start = clock(item.startTime);
+  const end = item.endTime ? clock(item.endTime) : null;
   return end && end !== start ? `${start}–${end}` : start;
 };
 
