@@ -78,3 +78,25 @@ BEGIN
  RAISE NOTICE 'PASS: commercial deletion, operational preservation, allocations, duplicate retry, final row, review fence and cancellation receipt';
 END;$$;
 
+-- Historical returns can exist without a populated packed counter/timestamp.
+-- Commercial edits must preserve their original demand and inventory identity.
+DO $$
+DECLARE org uuid := '00000000-0000-0000-0000-000000000001';
+ p uuid := '00000000-0000-0000-0000-000000000012';
+ item uuid := '00000000-0000-0000-0000-000000000014';
+BEGIN
+ INSERT INTO packing_projects(id,organization_id,booking_id) VALUES(p,org,'returned-history');
+ INSERT INTO packing_list_items(id,organization_id,packing_id,quantity_returned)
+ VALUES(item,org,p,1);
+ BEGIN
+  UPDATE packing_list_items SET quantity_to_pack=1 WHERE id=item;
+  RAISE EXCEPTION 'return-only history target silently changed';
+ EXCEPTION WHEN check_violation THEN NULL; END;
+ UPDATE packing_list_items SET quantity_returned=0,returned_at=now() WHERE id=item;
+ BEGIN
+  UPDATE packing_list_items SET wms_line_id='replacement-line' WHERE id=item;
+  RAISE EXCEPTION 'return timestamp history identity silently changed';
+ EXCEPTION WHEN check_violation THEN NULL; END;
+ RAISE NOTICE 'PASS: return-only history preserves demand and inventory identity';
+END;$$;
+

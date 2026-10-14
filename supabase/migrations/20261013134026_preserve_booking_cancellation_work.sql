@@ -104,7 +104,8 @@ BEGIN
       OR NEW.source_booking_id IS DISTINCT FROM OLD.source_booking_id
       OR (NEW.booking_product_id IS DISTINCT FROM OLD.booking_product_id
         AND NOT (NEW.booking_product_id IS NULL AND NEW.retired_from_booking_at IS NOT NULL)))
-    AND (OLD.quantity_packed > 0 OR OLD.packed_at IS NOT NULL OR OLD.verified_at IS NOT NULL
+    AND (OLD.quantity_packed > 0 OR OLD.quantity_returned > 0
+      OR OLD.packed_at IS NOT NULL OR OLD.returned_at IS NOT NULL OR OLD.verified_at IS NOT NULL
       OR EXISTS (SELECT 1 FROM public.packing_list_item_allocations a
         WHERE a.packing_list_item_id=OLD.id AND a.organization_id=OLD.organization_id)) THEN
     RAISE EXCEPTION 'packing_target_change_requires_review' USING ERRCODE='23514';
@@ -179,3 +180,4 @@ $body$ || substring(v_def FROM v_start+v_end-1);
 END;$$;
 REVOKE ALL ON FUNCTION public.record_booking_cancellation_notice_atomic(uuid,text,text,timestamptz,bigint,text,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.record_booking_cancellation_notice_atomic(uuid,text,text,timestamptz,bigint,text,uuid) TO service_role;
+
