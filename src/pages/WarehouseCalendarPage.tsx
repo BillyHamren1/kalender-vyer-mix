@@ -1,5 +1,6 @@
 import WarehouseJobSheet, { type WarehouseJobTarget } from '@/components/warehouse/WarehouseJobSheet';
 import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
+import { CalendarDays, UsersRound } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -302,8 +303,8 @@ const WarehouseCalendarPage = () => {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
-        <div className="flex items-center">
+      <div className="warehouse-planning-page flex h-screen flex-col overflow-hidden bg-card">
+        <div className="flex flex-wrap items-center border-b border-border/50 bg-card">
           <div className="flex-1">
             {(planningMode === 'calendar' && viewMode === 'day') ||
             (planningMode === 'personnel' && personnelViewMode === 'day') ? (
@@ -341,26 +342,27 @@ const WarehouseCalendarPage = () => {
           )}
         </div>
 
-        <div className="mx-2 mb-2 shrink-0 rounded-xl border border-border/60 bg-card/80 px-3 py-2">
+        <div className="shrink-0 border-b border-border/50 bg-card px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-sm font-semibold">Lagerplanering</span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warehouse/10 text-warehouse-dark"><CalendarDays className="h-5 w-5" /></span><h1 className="text-xl font-semibold tracking-tight">Lagerplanering</h1>
             <span className="text-xs text-muted-foreground">
-              Planera alla lagerjobb och bemanna dem här. Arbetarna ser sin planering i Mitt lager.
+              Jobb, tider och bemanning — samlat på ett ställe.
             </span>
-            <div className="ml-auto flex items-center gap-1 rounded-md border border-border/60 bg-background p-0.5">
+            <div className="ml-auto flex items-center gap-1 rounded-xl bg-warehouse/5 p-1">
               {(['calendar', 'personnel'] as WarehousePlanningMode[]).map((mode) => (
                 <button
                   key={mode}
+                  aria-pressed={planningMode === mode}
                   type="button"
                   onClick={() => handlePlanningModeChange(mode)}
                   className={
-                    'h-7 rounded px-3 text-xs font-semibold transition-colors ' +
+                    'flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warehouse ' +
                     (planningMode === mode
-                      ? 'bg-warehouse text-white'
+                      ? 'bg-warehouse text-white shadow-sm'
                       : 'text-muted-foreground hover:text-foreground')
                   }
                 >
-                  {mode === 'calendar' ? 'Jobb' : 'Personal'}
+                  {mode === 'calendar' ? <CalendarDays className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}{mode === 'calendar' ? 'Jobb' : 'Personal'}
                 </button>
               ))}
             </div>
@@ -368,7 +370,7 @@ const WarehouseCalendarPage = () => {
         </div>
 
         {warehouseError && <div role="alert" className="mx-2 mb-2 rounded-lg border border-destructive p-3 text-sm">Kunde inte uppdatera lagerplaneringen. Visade uppgifter kan vara inaktuella. <button className="underline font-semibold" onClick={() => void refreshWarehouseEvents()}>Försök igen</button></div>}
-        <main className="mx-2 mb-2 flex min-h-0 flex-1 flex-col rounded-2xl bg-card p-3 shadow-sm">
+        <main className="flex min-h-0 flex-1 flex-col bg-warehouse/[0.025] p-3 sm:p-5">
           {planningMode === 'personnel' ? (
             <WarehousePersonnelView currentDate={selectedDate} viewMode={personnelViewMode} />
           ) : (

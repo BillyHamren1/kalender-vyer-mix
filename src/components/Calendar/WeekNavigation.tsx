@@ -165,8 +165,8 @@ const WeekNavigation = <T extends string,>({
   ] as unknown as ReadonlyArray<{ key: T; label: string }>);
 
   return (
-    <div className="flex items-center justify-between gap-4 bg-white/95 backdrop-blur border-b border-border/60 px-5 py-2">
-      <div className="w-24 shrink-0" />
+    <div className={cn("flex items-center justify-between gap-4 bg-card border-b border-border/60 px-5 py-2", variant === "warehouse" && "flex-wrap gap-2 border-b-0 py-3")}>
+      <div className={cn("w-24 shrink-0", variant === "warehouse" && "hidden")} />
 
       <div className="flex items-center gap-1">
         <button
@@ -266,7 +266,7 @@ const WeekNavigation = <T extends string,>({
           })}
         </div>
       ) : (
-        <div className="w-24 shrink-0" />
+        <div className={cn("w-24 shrink-0", variant === "warehouse" && "hidden")} />
       )}
     </div>
   );

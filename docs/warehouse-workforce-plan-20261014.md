@@ -70,3 +70,10 @@ SQL-förslaget har flyttats till CLI-genererad migration 20261014113037_warehous
 
 ## Databas och API aktiverade
 Lovables migrationsverktyg registrerade den identiska SQL-filen under version 20261014120134. Releasen använder nu endast denna faktiska migration; den tidigare CLI-genererade dubbletten är borttagen. Direkt databasverifiering bekräftar tre kolumner, tre validerade constraints, aktiv trigger, SECURITY INVOKER och bevarad RLS. Alla 3170 äldre händelser saknar fortsatt uppgiftskoppling. mobile-app-api v1197 är ACTIVE; oautentiserat anrop returnerar 401.
+
+## Visuell uppföljning och inloggad kontroll 2026-10-14
+PR #59 är mergad och frontend, databas och API driftsatta. Inloggning lyckades och befintligt jobb öppnades med tid och bemanningsväljare. Livekontrollen visade två problem: grå kalenderarbetsyta med alltför breda personkolumner samt öppna event/legacy-poster i personallistan som jobbkalendern filtrerar bort.
+
+Användaren begär systemets befintliga utseende med högre visuell kvalitet. Uppföljningen behåller HUB/WMS-palett, typsnitt och komponenter; använder kortytan i kalendern, befintliga aktivitetsfärger, tydligare val och responsiva kontroller. Personkolumner får fast bredd, överlappningar hanteras inom sin kolumn och tidsvyn öppnar nära första jobbet utan att nattarbete döljs.
+
+Gemensam policy för sex lageraktiviteter används i kalenderfilter och obemannade jobb. Verkliga tilldelningar bevaras även för äldre typer; ingen namnmatchning, radering eller produktionsdatamutation. Före release: integrerad typkontroll/build, riktade tester och visuell kontroll på mobil/desktop. Efter release: inloggad kontroll av lista/tidsvy/kalender och jobbdetalj.
