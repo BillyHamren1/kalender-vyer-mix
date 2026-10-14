@@ -51,25 +51,30 @@ BEGIN
  IF EXISTS(SELECT 1 FROM packing_list_items WHERE id=allocation) THEN RAISE EXCEPTION 'unstarted row retained'; END IF;
  -- Cancellation retains project and historical physical row, truthful receipt.
  r := apply_booking_cancellation_atomic(org,'booking','CANCELLED',now(),1,'test',null);
- IF (r->'mutations'->>'packing_preserved')::int<>1 OR (r->'mutations'->>'packing_projects')::int<>0 THEN RAISE EXCEPTION 'untruthful cancellation receipt: %',r; END IF;
+ IF r->>'success' IS DISTINCT FROM 'true' OR r->>'outcome' IS DISTINCT FROM 'cancelled'
+   OR (r->'mutations'->>'packing_preserved')::int IS DISTINCT FROM 1
+   OR (r->'mutations'->>'packing_projects')::int IS DISTINCT FROM 0 THEN
+   RAISE EXCEPTION 'untruthful cancellation receipt: %',r;
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM packing_projects WHERE id=p AND needs_packing_review) THEN RAISE EXCEPTION 'cancel review lost'; END IF;
  -- Non-destructive automatic cancellation has its own canonical receipt.
  INSERT INTO booking_products VALUES(product,org,'booking','Retain commercial snapshot');
  INSERT INTO calendar_events VALUES(org,'booking',null,'event','Event');
  INSERT INTO jobs VALUES(org,'booking','completed',now());
  r := record_booking_cancellation_notice_atomic(org,'booking','CANCELLED','2099-01-01',2,'test',null);
- IF r->>'outcome'<>'cancelled' THEN RAISE EXCEPTION 'notice failed: %',r; END IF;
+ IF r->>'outcome' IS DISTINCT FROM 'cancelled' THEN RAISE EXCEPTION 'notice failed: %',r; END IF;
  IF NOT EXISTS(SELECT 1 FROM booking_products WHERE id=product) OR NOT EXISTS(SELECT 1 FROM calendar_events WHERE booking_id='booking') THEN RAISE EXCEPTION 'automatic notice performed cleanup'; END IF;
  IF NOT EXISTS(SELECT 1 FROM calendar_events WHERE title='[AVBOKAD] Event') THEN RAISE EXCEPTION 'calendar cancellation not visible'; END IF;
  IF NOT EXISTS(SELECT 1 FROM jobs WHERE status='completed') THEN RAISE EXCEPTION 'completed history overwritten'; END IF;
  IF NOT EXISTS(SELECT 1 FROM bookings WHERE id='booking' AND status='CANCELLED') THEN RAISE EXCEPTION 'commercial cancellation hidden'; END IF;
  r := record_booking_cancellation_notice_atomic(org,'booking','CANCELLED','2099-01-01',2,'retry',null);
- IF r->>'outcome'<>'already_cancelled' THEN RAISE EXCEPTION 'duplicate notice not idempotent: %',r; END IF;
+ IF r->>'outcome' IS DISTINCT FROM 'already_cancelled' THEN RAISE EXCEPTION 'duplicate notice not idempotent: %',r; END IF;
  r := record_booking_cancellation_notice_atomic(org,'booking','CANCELLED','2098-01-01',1,'stale',null);
- IF r->>'outcome'<>'stale_revision' THEN RAISE EXCEPTION 'old notice accepted: %',r; END IF;
+ IF r->>'outcome' IS DISTINCT FROM 'stale_revision' THEN RAISE EXCEPTION 'old notice accepted: %',r; END IF;
  r := record_booking_cancellation_notice_atomic(org,'never-imported','CANCELLED','2099-01-01',null,'test',null);
- IF r->>'outcome'<>'cancelled' OR NOT EXISTS(SELECT 1 FROM booking_source_state WHERE booking_id='never-imported' AND applied_source_status='CANCELLED') THEN RAISE EXCEPTION 'absent booking tombstone missing'; END IF;
+ IF r->>'outcome' IS DISTINCT FROM 'cancelled' OR NOT EXISTS(SELECT 1 FROM booking_source_state WHERE booking_id='never-imported' AND applied_source_status='CANCELLED') THEN RAISE EXCEPTION 'absent booking tombstone missing'; END IF;
  r := record_booking_cancellation_notice_atomic(org,'never-imported','CANCELLED','2098-01-01',null,'stale',null);
- IF r->>'outcome'<>'stale_revision' THEN RAISE EXCEPTION 'absent booking stale watermark lost'; END IF;
+ IF r->>'outcome' IS DISTINCT FROM 'stale_revision' THEN RAISE EXCEPTION 'absent booking stale watermark lost'; END IF;
  RAISE NOTICE 'PASS: commercial deletion, operational preservation, allocations, duplicate retry, final row, review fence and cancellation receipt';
 END;$$;
+

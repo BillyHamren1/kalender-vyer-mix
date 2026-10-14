@@ -8,7 +8,7 @@ CREATE TABLE public.packing_list_items(id uuid PRIMARY KEY, organization_id uuid
   booking_product_id uuid REFERENCES booking_products ON DELETE CASCADE,
   quantity_to_pack integer DEFAULT 2, quantity_packed integer DEFAULT 0, quantity_returned integer DEFAULT 0,
   packed_at timestamptz, returned_at timestamptz, verified_at timestamptz,
-  manual_name text, notes text, wms_line_id text, wms_item_type_id uuid, source_booking_id text);
+  manual_name text, notes text, wms_line_id text, wms_item_type_id text, source_booking_id text);
 CREATE TABLE public.packing_list_item_allocations(id uuid PRIMARY KEY,
  organization_id uuid, packing_list_item_id uuid REFERENCES packing_list_items ON DELETE CASCADE);
 
@@ -26,7 +26,7 @@ CREATE TABLE public.projects(organization_id uuid, booking_id text, status text,
 CREATE TABLE public.jobs(organization_id uuid, booking_id text, status text, updated_at timestamptz);
 CREATE TABLE public.calendar_events(organization_id uuid, booking_id text, todo_id uuid,event_type text,title text);
 CREATE TABLE public.warehouse_calendar_events(organization_id uuid, booking_id text,title text);
-CREATE TABLE public.booking_changes(booking_id text, organization_id uuid,change_type text,changed_fields text[],
+CREATE TABLE public.booking_changes(booking_id text, organization_id uuid,change_type text,changed_fields jsonb,
  previous_values jsonb,new_values jsonb,version bigint);
 CREATE OR REPLACE FUNCTION public.apply_booking_cancellation_atomic(
   p_organization_id uuid,
@@ -292,7 +292,7 @@ BEGIN
         booking_id, organization_id, change_type, changed_fields,
         previous_values, new_values, version
       ) VALUES (
-        p_booking_id, p_organization_id, 'cancellation_source', ARRAY['status']::text[],
+        p_booking_id, p_organization_id, 'cancellation_source', to_jsonb(ARRAY['status']),
         jsonb_build_object('status', v_booking.status),
         jsonb_strip_nulls(jsonb_build_object(
           'status', 'CANCELLED',
