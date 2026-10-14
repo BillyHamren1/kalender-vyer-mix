@@ -25,11 +25,21 @@ export async function authorizePackingSync(
   return { service: false, actor: { organizationId, personnelId: data.user.id, label: data.user.email || data.user.id } };
 }
 
-/** Dedicated cron secret or exact internal service credential, never an anon JWT. */
-export function isPackingSyncWorkerAuthorized(
+/** Internal service credentials bypass cron lookup. Cron credentials are
+ * verified against the same Vault source used by pg_cron; env copies can drift.
+ * The verifier RPC is service-role-only and returns a boolean, never a secret. */
+export async function isPackingSyncWorkerAuthorized(
   token: string, providedCronSecret: string | null,
-  serviceRoleKey: string, cronSecret: string,
-): boolean {
-  return Boolean((serviceRoleKey && token === serviceRoleKey) ||
-    (cronSecret && providedCronSecret === cronSecret));
+  serviceRoleKey: string, admin: any,
+): Promise<boolean> {
+  if (serviceRoleKey && token === serviceRoleKey) return true;
+  if (!providedCronSecret) return false;
+  try {
+    const { data, error } = await admin.rpc('verify_booking_sync_cron_secret', {
+      p_candidate: providedCronSecret,
+    });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }

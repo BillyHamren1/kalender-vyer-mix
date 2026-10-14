@@ -4,9 +4,11 @@ DO $migration$
 DECLARE
   worker record;
   endpoint text;
+  secured_command text;
+  replacement_id bigint;
 BEGIN
   IF to_regclass('cron.job') IS NULL THEN RETURN; END IF;
-  SELECT jobid, command INTO worker FROM cron.job
+  SELECT jobid, command, username, schedule, active INTO worker FROM cron.job
     WHERE jobname = 'process-sync-jobs-every-minute';
   IF NOT FOUND THEN RETURN; END IF;
   IF NOT EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'CRON_SECRET') THEN
@@ -16,7 +18,7 @@ BEGIN
   IF endpoint IS NULL THEN
     RAISE EXCEPTION 'Cannot identify existing booking sync endpoint';
   END IF;
-  PERFORM cron.alter_job(worker.jobid, command := format($command$
+  secured_command := format($command$
     SELECT net.http_post(
       url := %L,
       headers := jsonb_build_object(
@@ -26,6 +28,18 @@ BEGIN
       ),
       body := '{}'::jsonb
     ) AS request_id;
-  $command$, endpoint));
+  $command$, endpoint);
+  IF worker.username = current_user THEN
+    PERFORM cron.alter_job(worker.jobid, command := secured_command);
+  ELSE
+    -- Do not bypass another role's job ownership. Install a separately owned
+    -- authenticated replacement. The old anon request is rejected by the
+    -- worker and must be removed later by its owner; it cannot claim jobs.
+    IF worker.command LIKE '%x-cron-secret%' OR worker.command LIKE '%vault.%' THEN
+      RAISE EXCEPTION 'Existing foreign-owned worker already uses private credentials; owner review required';
+    END IF;
+    replacement_id := cron.schedule('process-sync-jobs-authenticated-every-minute', worker.schedule, secured_command);
+    PERFORM cron.alter_job(replacement_id, active := worker.active);
+  END IF;
 END;
 $migration$;

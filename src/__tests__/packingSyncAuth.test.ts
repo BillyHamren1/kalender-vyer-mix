@@ -44,7 +44,28 @@ describe('packing sync authorization', () => {
 });
 
 describe('worker credentials', () => {
-  it.each([['', null, '', '', false], ['anon', null, 'svc', 'cron', false], ['wrong', 'wrong', 'svc', 'cron', false], ['svc', null, 'svc', 'cron', true], ['', 'cron', 'svc', 'cron', true]] as const)('rejects blank/wrong and permits exact trusted credentials', (token, supplied, service, cron, expected) => {
-    expect(isPackingSyncWorkerAuthorized(token, supplied, service, cron)).toBe(expected);
+  it('rejects anonymous or missing credentials without looking up Vault', async () => {
+    const admin = { rpc: vi.fn() };
+    expect(await isPackingSyncWorkerAuthorized('anon', null, 'service', admin)).toBe(false);
+    expect(await isPackingSyncWorkerAuthorized('', '', '', admin)).toBe(false);
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+  it('permits exact service credential without requiring a cron secret', async () => {
+    const admin = { rpc: vi.fn() };
+    expect(await isPackingSyncWorkerAuthorized('service', null, 'service', admin)).toBe(true);
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+  it('checks the supplied candidate against the service-only Vault verifier', async () => {
+    const admin = { rpc: vi.fn().mockResolvedValue({ data: true, error: null }) };
+    expect(await isPackingSyncWorkerAuthorized('anon', 'vault-candidate', 'service', admin)).toBe(true);
+    expect(admin.rpc).toHaveBeenCalledWith('verify_booking_sync_cron_secret', { p_candidate: 'vault-candidate' });
+  });
+  it.each([{data:false,error:null}, {data:null,error:null}, {data:'true',error:null}, {data:true,error:{message:'db down'}}])('fails closed on rejected/malformed/error results', async response => {
+    const admin = { rpc: vi.fn().mockResolvedValue(response) };
+    expect(await isPackingSyncWorkerAuthorized('', 'candidate', 'service', admin)).toBe(false);
+  });
+  it('fails closed on transport exceptions', async () => {
+    const admin = { rpc: vi.fn().mockRejectedValue(new Error('offline')) };
+    expect(await isPackingSyncWorkerAuthorized('', 'candidate', 'service', admin)).toBe(false);
   });
 });
