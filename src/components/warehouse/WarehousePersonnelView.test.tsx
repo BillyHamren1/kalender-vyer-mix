@@ -26,7 +26,7 @@ describe('personnel plan', () => {
     timeline.scrollTop = 800;
     rerender(<WarehousePersonnelView currentDate={new Date('2026-10-14T12:00:00')} viewMode="day" />);
     expect(timeline.scrollTop).toBe(800);
-    fireEvent.click(screen.getByRole('button', {name: 'Lista', exact: true}));
+    fireEvent.click(screen.getByRole('button', {name: 'Lista'}));
     expect(timeline.isConnected).toBe(false);
   });
   it('keeps people compact when many unstaffed jobs overlap and keeps every job reachable', () => {
