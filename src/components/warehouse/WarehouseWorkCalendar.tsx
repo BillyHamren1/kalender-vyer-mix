@@ -11,7 +11,7 @@ import { sv } from 'date-fns/locale';
 import { Clock3, MapPin, PackageCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { getEventDotClass } from '@/components/Calendar/ResourceData';
+import { getEventDotClass, getEventCardClass } from '@/components/Calendar/ResourceData';
 import { updateWarehouseCalendarEvent } from '@/services/warehouseCalendarService';
 import QuickAssignStaffPopover from '@/components/warehouse-ops/QuickAssignStaffPopover';
 import './WarehouseWorkCalendar.css';
@@ -77,7 +77,7 @@ const EventCard: React.FC<{ info: EventContentArg }> = ({ info }) => {
   const changed = props.has_source_changes === true && props.manually_adjusted !== true;
 
   return (
-    <div className={`warehouse-fc-event ${changed ? 'warehouse-fc-event--changed' : ''}`}>
+    <div className={`warehouse-fc-event ${getEventCardClass(activityType)} ${changed ? 'warehouse-fc-event--changed' : ''}`}>
       <div className="warehouse-fc-event__topline">
         <span className={`h-2 w-2 rounded-full shrink-0 ${getEventDotClass(activityType)}`} />
         <span className="truncate font-semibold">{activityLabel}</span>
@@ -229,7 +229,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
 
   if (viewMode === 'list') {
     return (
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60 bg-background">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60 bg-card">
         {groupedList.size === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">Inga lagerjobb i perioden.</p>
         ) : (
@@ -307,7 +307,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
   }
 
   return (
-    <div className="warehouse-work-calendar relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border/60 bg-background">
+    <div className="warehouse-work-calendar relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border/60 bg-card">
       {(isLoading || savingEventId) && (
         <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border bg-background/95 px-3 py-1 text-xs font-medium shadow-sm">
           {savingEventId ? 'Sparar…' : 'Laddar…'}
@@ -327,7 +327,8 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
         expandRows
         nowIndicator
         allDaySlot={false}
-        slotMinTime="05:00:00"
+        slotMinTime="00:00:00"
+        scrollTime="07:00:00"
         slotMaxTime="24:00:00"
         slotDuration="00:30:00"
         slotLabelInterval="01:00:00"

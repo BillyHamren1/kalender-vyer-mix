@@ -4,11 +4,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Filter, Package, Truck, RotateCcw, ClipboardList, PackageOpen, ListTodo } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WAREHOUSE_WORK_EVENT_TYPES, type WarehouseWorkEventType } from '@/lib/warehouse/warehouseWorkEvents';
 
 // Endast verkliga lageraktiviteter är filtrerbara. Planning-faserna
 // (rig/event/rigDown) renderas inte längre som egna lagerkalenderposter —
 // de visas som kontext inuti lageraktivitetens kort.
-export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'internal_task';
+export type WarehouseEventTypeFilter = WarehouseWorkEventType;
 
 interface WarehouseEventFilterProps {
   activeFilters: WarehouseEventTypeFilter[];
@@ -24,7 +25,7 @@ const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.El
   { id: 'internal_task', label: 'Lageruppgift', icon: ListTodo, color: 'text-amber-600' },
 ];
 
-export const WAREHOUSE_EVENT_TYPE_FILTERS: WarehouseEventTypeFilter[] = EVENT_TYPES.map(t => t.id);
+export const WAREHOUSE_EVENT_TYPE_FILTERS: WarehouseEventTypeFilter[] = [...WAREHOUSE_WORK_EVENT_TYPES];
 
 const WarehouseEventFilter: React.FC<WarehouseEventFilterProps> = ({
   activeFilters,

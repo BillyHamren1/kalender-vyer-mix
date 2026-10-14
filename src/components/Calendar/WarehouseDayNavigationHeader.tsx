@@ -33,19 +33,18 @@ const WarehouseDayNavigationHeader: React.FC<WarehouseDayNavigationHeaderProps> 
   ];
 
   return (
-    <div className="flex items-center justify-between bg-background border-b border-border px-6 py-3">
-      <div className="w-32" />
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-card px-4 py-3 sm:px-6">
 
       <div className="flex items-center">
         <button
           onClick={() => onDateChange(subDays(date, 1))}
-          className="bg-warehouse hover:bg-warehouse-hover transition-colors duration-300 rounded-lg p-1.5 mr-4"
+          className="bg-warehouse hover:bg-warehouse-hover transition-colors duration-300 rounded-lg p-1.5 mr-1"
           aria-label="Föregående dag"
         >
           <ChevronLeft className="h-5 w-5 text-warehouse-foreground" strokeWidth={3} />
         </button>
 
-        <div className="text-xl font-semibold text-foreground px-3 py-1.5 text-center tracking-wide h-auto">
+        <div className="text-sm sm:text-lg font-semibold text-foreground px-3 py-1.5 text-center tracking-tight h-auto">
           <div className="flex items-center justify-center gap-2">
             <CalendarIcon className="h-5 w-5" />
             {dayLabel}
@@ -54,7 +53,7 @@ const WarehouseDayNavigationHeader: React.FC<WarehouseDayNavigationHeaderProps> 
 
         <button
           onClick={() => onDateChange(addDays(date, 1))}
-          className="bg-warehouse hover:bg-warehouse-hover transition-colors duration-300 rounded-lg p-1.5 ml-4"
+          className="bg-warehouse hover:bg-warehouse-hover transition-colors duration-300 rounded-lg p-1.5 ml-1"
           aria-label="Nästa dag"
         >
           <ChevronRight className="h-5 w-5 text-warehouse-foreground" strokeWidth={3} />
@@ -69,7 +68,7 @@ const WarehouseDayNavigationHeader: React.FC<WarehouseDayNavigationHeaderProps> 
             size="sm"
             onClick={() => onViewModeChange(option.key)}
             className={cn(
-              'h-7 px-2 py-1 text-xs',
+              'h-9 px-3 py-1 text-xs',
               viewMode === option.key && 'bg-warehouse hover:bg-warehouse-hover',
             )}
           >

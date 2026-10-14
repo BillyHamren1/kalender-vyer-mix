@@ -10,6 +10,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { personnelIntervals, unstaffedWarehouseEvents } from '@/lib/warehouse/personnelIntervals';
+import { isWarehouseWorkEvent } from '@/lib/warehouse/warehouseWorkEvents';
 import { warehouseDateOf, warehouseDayBounds } from '@/lib/warehouse/warehouseTime';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
@@ -172,7 +173,9 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
         byStaff.set(staffId, row);
       }
 
-      const unstaffed: PersonnelJob[] = unstaffedWarehouseEvents(sourceEvents, (assignments || []) as Row[])
+      // Only actual warehouse activities can become open jobs. Keep raw events
+      // above for linked assignments so legacy staffed work is never hidden.
+      const unstaffed: PersonnelJob[] = unstaffedWarehouseEvents(sourceEvents.filter(isWarehouseWorkEvent), (assignments || []) as Row[])
         .flatMap(event => personnelIntervals(event.start_time, event.end_time, warehouseDateOf(event.start_time) || from, from, to).map(interval => ({
           assignmentId: null,
           warehouseEventId: event.id ?? null,
