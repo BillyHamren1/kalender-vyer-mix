@@ -205,6 +205,13 @@ describe('planWmsPackingSync', () => {
     ]);
   });
 
+  it('flags reduced demand below already packed quantities for review', () => {
+    const rows = flattenWmsPackingLines({ lines: [{ line_id: 'l1', name: 'Test', required_qty: 2 }] });
+    const plan = planWmsPackingSync(rows, [{ id: 'packed', wms_line_id: 'l1', manual_name: 'Test', quantity_to_pack: 10, quantity_packed: 5 }], CTX);
+    expect(plan.conflictIds).toEqual(['packed']);
+    expect(plan.updates).toEqual([]);
+  });
+
   it('retires unscoped legacy rows on cutover and flags packed rows as conflicts', () => {
     const plan = planWmsPackingSync(flattenWmsPackingLines(wmsBody), [
       { id: 'legacy', wms_line_id: null, booking_product_id: 'old', quantity_to_pack: 1, quantity_packed: 0, manual_name: 'Gammal rad', excluded: false },

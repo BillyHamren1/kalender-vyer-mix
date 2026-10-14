@@ -53,7 +53,8 @@ export default function WarehouseJobSheet({ target, open, onOpenChange, onSaved 
       const packing = packingResult.data;
       const assignmentsQuery = supabase.from('warehouse_assignments')
         .select('id,staff_id,project_task_id,title,description,start_time,end_time,status')
-        .eq('organization_id', organizationId!);
+        .eq('organization_id', organizationId!)
+        .neq('status', 'cancelled');
       const assignmentsResult = event
         ? await assignmentsQuery.eq('warehouse_event_id', event.id)
         : packing ? await assignmentsQuery.eq('packing_id', packing.id).is('warehouse_event_id', null)

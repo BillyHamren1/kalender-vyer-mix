@@ -78,7 +78,8 @@ const QuickAssignStaffPopover: React.FC<Props> = ({
       let assignmentQuery = supabase
         .from('warehouse_assignments')
         .select('id, staff_id')
-        .eq('organization_id', organizationId!);
+        .eq('organization_id', organizationId!)
+        .neq('status', 'cancelled');
       assignmentQuery = warehouseEventId
         ? assignmentQuery.eq('warehouse_event_id', warehouseEventId)
         : assignmentQuery.eq('packing_id', packingId!).is('warehouse_event_id', null);

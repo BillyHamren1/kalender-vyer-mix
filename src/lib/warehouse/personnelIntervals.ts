@@ -41,7 +41,7 @@ export function personnelIntervals(start: string | null | undefined, end: string
   return result;
 }
 
-export function unstaffedWarehouseEvents<T extends { id?: string | null }>(events: T[], assignments: { warehouse_event_id?: string | null }[]): T[] {
-  const assigned = new Set(assignments.map(a => a.warehouse_event_id).filter(Boolean));
+export function unstaffedWarehouseEvents<T extends { id?: string | null }>(events: T[], assignments: { warehouse_event_id?: string | null; status?: string | null }[]): T[] {
+  const assigned = new Set(assignments.filter(a => a.status !== 'cancelled').map(a => a.warehouse_event_id).filter(Boolean));
   return events.filter(event => !event.id || !assigned.has(event.id));
 }

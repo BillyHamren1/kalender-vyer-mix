@@ -8,13 +8,22 @@ export interface TimeWmsActor {
   label: string;
 }
 
+/** Explicit read-only principal; accepted by WMS only for Planning projection. */
+export interface TimeWmsServiceActor {
+  kind: 'service';
+  serviceId: 'operations-booking-sync';
+  organizationId: string;
+  label: string;
+}
+export type TimeWmsProjectionActor = TimeWmsActor | TimeWmsServiceActor;
+
 export interface TimeWmsProjectionRequest {
   schema: typeof TIME_WMS_PROJECTION_SCHEMA;
   bookingId: string;
   bookingNumber: string;
   reservationId: null;
   deviceId: string;
-  actor: TimeWmsActor;
+  actor: TimeWmsProjectionActor;
 }
 
 export interface TimeWmsProjectionDeps {
@@ -50,7 +59,7 @@ export function buildTimeWmsProjectionRequest(input: {
   bookingId: string;
   bookingNumber: string;
   deviceId: string;
-  actor: TimeWmsActor;
+  actor: TimeWmsProjectionActor;
 }): TimeWmsProjectionRequest {
   return {
     schema: TIME_WMS_PROJECTION_SCHEMA,
@@ -74,7 +83,9 @@ export async function fetchTimeWmsProjection(
     !request.bookingNumber ||
     !request.deviceId ||
     !request.actor.organizationId ||
-    !request.actor.personnelId ||
+    !('kind' in request.actor
+      ? request.actor.kind === 'service' && request.actor.serviceId === 'operations-booking-sync'
+      : request.actor.personnelId) ||
     !request.actor.label
   ) {
     return { ok: false, code: 'wms_bad_response', error: 'WMS-anropet saknar verifierad scope eller aktör' };

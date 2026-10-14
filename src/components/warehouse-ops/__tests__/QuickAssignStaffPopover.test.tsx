@@ -49,10 +49,11 @@ describe('safe warehouse assignment', () => {
     expect(screen.queryByRole('button', {name: /Alex/})).not.toBeInTheDocument();
   });
   it('reads only directly assigned packing crew, leaving event crew to event-level removal', async () => {
-    const rows = [{id: 'direct', staff_id: 'a', organization_id: 'org', packing_id: 'packing', warehouse_event_id: null}, {id: 'linked', staff_id: 'b', organization_id: 'org', packing_id: 'packing', warehouse_event_id: 'event'}];
+    const rows = [{id: 'direct', staff_id: 'a', organization_id: 'org', packing_id: 'packing', warehouse_event_id: null, status: 'planned'}, {id: 'linked', staff_id: 'b', organization_id: 'org', packing_id: 'packing', warehouse_event_id: 'event', status: 'planned'}, {id: 'cancelled', staff_id: 'c', organization_id: 'org', packing_id: 'packing', warehouse_event_id: null, status: 'cancelled'}];
     let selected = rows;
     const chain = {
       select: () => chain,
+      neq: (key: keyof typeof rows[number], value: string) => { selected = selected.filter(row => row[key] !== value); return chain; },
       eq: (key: keyof typeof rows[number], value: string) => { selected = selected.filter(row => row[key] === value); return chain; },
       is: (key: keyof typeof rows[number], value: null) => { selected = selected.filter(row => row[key] === value); return chain; },
       then: (resolve: (value: unknown) => void) => resolve({data: selected, error: null}),

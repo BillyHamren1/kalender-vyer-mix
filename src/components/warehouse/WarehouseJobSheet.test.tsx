@@ -17,6 +17,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     const chain = {
       select: () => chain,
       order: () => chain,
+      neq: (field: string, value: unknown) => { filters[`neq_${field}`] = value; return chain; },
       eq: (field: string, value: unknown) => { filters[field] = value; return chain; },
       is: (field: string, value: unknown) => { filters[field] = value; return chain; },
       in: (field: string, value: unknown) => { filters[field] = value; return chain; },

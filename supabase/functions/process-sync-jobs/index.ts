@@ -15,6 +15,7 @@
  *   - Permanent fel eller attempts >= max_attempts → status='failed'.
  *   - Batchen håller cursorn så länge det finns retriable jobb kvar.
  */
+import { isPackingSyncWorkerAuthorized } from '../_shared/packingSyncAuth.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { finalizeBatchIfDone } from '../_shared/syncBatch.ts'
@@ -79,6 +80,17 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const healthcheck = req.method === 'GET' && new URL(req.url).searchParams.get('health') === '1'
+  if (req.method !== 'POST' && !healthcheck) return new Response('Method not allowed', { status: 405, headers: corsHeaders })
+  const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+  const cronSecret = Deno.env.get('CRON_SECRET') || ''
+  if (!isPackingSyncWorkerAuthorized(token, req.headers.get('x-cron-secret'), serviceRoleKey, cronSecret)) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders })
+  }
+  // Verify the installed cron credential without claiming or processing jobs.
+  if (healthcheck) return new Response(JSON.stringify({ ready: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
   // ── 1. Claim en batch jobb (FOR UPDATE SKIP LOCKED) ───────────────
@@ -247,7 +259,11 @@ serve(async (req) => {
         },
       )
       const wmsProjectionText = await wmsProjectionResponse.text().catch(() => '')
-      if (!wmsProjectionResponse.ok) {
+      let projectionReceipt: any = null
+      try { projectionReceipt = JSON.parse(wmsProjectionText) } catch { /* invalid receipt is retryable */ }
+      if (!wmsProjectionResponse.ok || projectionReceipt?.success !== true ||
+          projectionReceipt?.booking_id !== group.booking_id ||
+          projectionReceipt?.organization_id !== group.organization_id) {
         const err = new Error(
           `WMS projection failed http=${wmsProjectionResponse.status} body=${wmsProjectionText.substring(0, 500)}`
         )

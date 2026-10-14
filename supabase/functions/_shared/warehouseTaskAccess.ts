@@ -3,6 +3,7 @@ type Result<T> = { data: T | null; error?: unknown };
 interface Query extends PromiseLike<Result<Row[]>> {
   select(columns: string): Query;
   eq(column: string, value: unknown): Query;
+  neq(column: string, value: unknown): Query;
   in(column: string, values: unknown[]): Query;
   limit(count: number): Query;
   maybeSingle(): PromiseLike<Result<Row>>;
@@ -27,10 +28,10 @@ export async function canCompleteWarehouseTask(db: WarehouseTaskDatabase, organi
   const eventIds = (events || []).filter((e) => e.project_task_id === task.id).map((e) => e.id);
   if (!eventIds.length) return task.assigned_to === staffId || (Array.isArray(task.assigned_to_ids) && task.assigned_to_ids.includes(staffId));
   const { data: assignments, error: assignmentError } = await db.from('warehouse_assignments')
-    .select('id').eq('organization_id', organizationId).eq('staff_id', staffId)
+    .select('id, status').eq('organization_id', organizationId).eq('staff_id', staffId).neq('status', 'cancelled')
     .eq('project_task_id', task.id).in('warehouse_event_id', eventIds).limit(1);
   if (assignmentError) throw assignmentError;
-  return !!assignments?.length;
+  return !!assignments?.some((assignment) => assignment.status !== 'cancelled');
 }
 
 /** Keep full instants, but place a continuing job on the requested calendar day. */

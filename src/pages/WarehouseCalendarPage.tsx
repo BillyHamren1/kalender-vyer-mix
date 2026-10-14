@@ -1,3 +1,4 @@
+import { normalizeWarehouseWorkEventType } from '@/lib/warehouse/warehouseWorkEvents';
 import WarehouseJobSheet, { type WarehouseJobTarget } from '@/components/warehouse/WarehouseJobSheet';
 import { warehouseTimeOf } from '@/lib/warehouse/warehouseTime';
 import { CalendarDays, UsersRound } from 'lucide-react';
@@ -63,7 +64,7 @@ const warehouseEventToCalendarEvent = (event: WarehouseEvent): CalendarEvent => 
   resourceId: 'warehouse',
   bookingId: event.booking_id || undefined,
   bookingNumber: event.booking_number || undefined,
-  eventType: event.event_type as CalendarEvent['eventType'],
+  eventType: (normalizeWarehouseWorkEventType(event.event_type) || event.event_type) as CalendarEvent['eventType'],
   deliveryAddress: event.delivery_address || undefined,
   viewed: event.viewed,
   extendedProps: {
@@ -75,7 +76,7 @@ const warehouseEventToCalendarEvent = (event: WarehouseEvent): CalendarEvent => 
     manually_adjusted: event.manually_adjusted,
     change_details: event.change_details || undefined,
     phaseContext: phaseContext(event),
-    warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.event_type] || 'Lagerjobb',
+    warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[normalizeWarehouseWorkEventType(event.event_type) || event.event_type] || 'Lagerjobb',
     timeLabel: warehouseTimeOf(event.start_time) + '–' + warehouseTimeOf(event.end_time),
   },
 });
@@ -178,7 +179,7 @@ const WarehouseCalendarPage = () => {
   const filteredWarehouseEvents = useMemo(
     () =>
       warehouseEvents
-        .filter((event) => eventTypeFilters.includes(event.event_type as WarehouseEventTypeFilter))
+        .filter((event) => eventTypeFilters.includes(normalizeWarehouseWorkEventType(event.event_type) as WarehouseEventTypeFilter))
         .map(warehouseEventToCalendarEvent),
     [eventTypeFilters, warehouseEvents],
   );
