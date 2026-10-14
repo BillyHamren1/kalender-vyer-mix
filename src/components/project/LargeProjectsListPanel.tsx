@@ -61,7 +61,7 @@ const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externa
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteLargeProject,
+    mutationFn: (id: string) => deleteLargeProject(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
@@ -295,3 +295,4 @@ const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externa
 };
 
 export default LargeProjectsListPanel;
+

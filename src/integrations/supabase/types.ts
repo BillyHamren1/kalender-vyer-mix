@@ -4567,6 +4567,7 @@ export type Database = {
           quantity_packed: number
           quantity_returned: number
           quantity_to_pack: number
+          retired_from_booking_at: string | null
           returned_at: string | null
           returned_by: string | null
           source_booking_id: string | null
@@ -4604,6 +4605,7 @@ export type Database = {
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
+          retired_from_booking_at?: string | null
           returned_at?: string | null
           returned_by?: string | null
           source_booking_id?: string | null
@@ -4641,6 +4643,7 @@ export type Database = {
           quantity_packed?: number
           quantity_returned?: number
           quantity_to_pack?: number
+          retired_from_booking_at?: string | null
           returned_at?: string | null
           returned_by?: string | null
           source_booking_id?: string | null

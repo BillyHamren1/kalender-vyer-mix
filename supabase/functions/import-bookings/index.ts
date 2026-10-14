@@ -2,6 +2,7 @@
 // Import bookings from external API - filters out bookings before 2026-01-01
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { recordCancellationNotice } from '../_shared/cancellation-notice.ts'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
 import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
 import {
@@ -3274,10 +3275,9 @@ serve(async (req) => {
 
 
       if (decision.allowed && decision.action === 'cancellation') {
-        // STEG 3L: normal sync (single/batch/incremental/historical) utför
-        // ALDRIG destruktiv cancellation — inte ens när feature-flaggan är på.
-        // Här loggas endast en kandidat. Enda destruktiva vägen är den
-        // separata, explicit bekräftade reconcile/cancellation-vägen.
+        // Normal sync records the verified commercial cancellation through a
+        // non-destructive, revision-fenced notice. Cleanup remains explicit;
+        // packing/returns and operational history are preserved.
         // STEG 4K: KLASS A (canonical decision read). Ett DB-fel får ALDRIG
         // tolkas som "bokningen finns inte lokalt" → already_current.
         // Endast en LYCKAD read som ger null betyder "saknas lokalt".
@@ -3307,54 +3307,16 @@ serve(async (req) => {
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
-        if (!existingBooking) {
-          return new Response(JSON.stringify(buildSingleBookingEnvelope({
-            bookingId: normalizedSingleBookingId,
-            organizationId,
-            outcome: 'already_current',
-            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_noop' },
-          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-        }
-
-
-        // Redan avbokad lokalt → inget att göra, ingen kandidat.
-        if (String(existingBooking.status ?? '').toUpperCase() === 'CANCELLED') {
-          return new Response(JSON.stringify(buildSingleBookingEnvelope({
-            bookingId: normalizedSingleBookingId,
-            organizationId,
-            outcome: 'already_current',
-            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_idempotent' },
-          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-        }
-
-        logBlockedCancellation({
-          booking_id: normalizedSingleBookingId,
-          organization_id: organizationId,
-          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
-          caller: 'import-bookings:single_booking_cancellation_candidate',
+        // Even without a local booking, persist the cancellation watermark so
+        // an older confirmed snapshot cannot create it on a later retry.
+        const notice = await recordCancellationNotice(supabase, {
+          bookingId: normalizedSingleBookingId, organizationId,
+          sourceUpdatedAt: decision.tombstone.source_updated_at ?? null,
+          sourceVersion: decision.tombstone.source_version ?? null,
         });
-        console.log('[cancellation] candidate — requires explicit apply', JSON.stringify({
-          booking_id: normalizedSingleBookingId,
-          organization_id: organizationId,
-          source_status: decision.tombstone.source_status,
-          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version,
-          mutations: 0,
-        }));
-
-        return new Response(JSON.stringify(buildSingleBookingEnvelope({
-          bookingId: normalizedSingleBookingId,
-          organizationId,
-          outcome: 'cancellation_requires_explicit_apply',
-          error: CANCELLATION_REQUIRES_EXPLICIT_APPLY,
-          results: {
-            total: 1,
-            imported: 0,
-            failed: 0,
-            errors: [],
-            cancellation_candidates: [normalizedSingleBookingId],
-            sync_mode: 'cancellation_candidate',
-          },
-        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        return new Response(JSON.stringify(notice), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+        });
       }
 
 
@@ -3433,7 +3395,7 @@ serve(async (req) => {
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
       const canonicalRow: any = externalData.data[0];
       const incoming = {
-        sourceUpdatedAt: canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? null,
+        sourceUpdatedAt: canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
         sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
         sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
       };
@@ -3451,31 +3413,14 @@ serve(async (req) => {
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
 
-      const forceRevision = body?.force_revision === true;
-      let reserved = await reserveCanonicalRevision(supabase, {
+      // A repair must never erase the monotonic source watermark. The existing
+      // same-revision safety net below may repair empty projections safely.
+      const reserved = await reserveCanonicalRevision(supabase, {
         bookingId: normalizedSingleBookingId,
         organizationId: organizationId,
         incoming,
         ownerJobId: `import-bookings:${crypto.randomUUID()}`,
       });
-      if (reserved.ok && reserved.decision === 'already_current' && forceRevision) {
-        // Explicit omkörning: revisionen är redan applicerad men innehållet
-        // (t.ex. produktlistan) kan ha blockerats vid förra körningen.
-        console.warn('[import-bookings] force_revision=true — nollställer applied revision och kör om', JSON.stringify({
-          booking_id: normalizedSingleBookingId, organization_id: organizationId,
-        }));
-        await supabase
-          .from('booking_source_state')
-          .update({ applied_source_updated_at: null, applied_source_version: null, highest_seen_source_updated_at: null, highest_seen_source_version: null })
-          .eq('booking_id', normalizedSingleBookingId)
-          .eq('organization_id', organizationId);
-        reserved = await reserveCanonicalRevision(supabase, {
-          bookingId: normalizedSingleBookingId,
-          organizationId: organizationId,
-          incoming,
-          ownerJobId: `import-bookings:${crypto.randomUUID()}`,
-        });
-      }
       if (reserved.ok && reserved.decision === 'already_current') {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
@@ -3553,6 +3498,22 @@ serve(async (req) => {
         organizationId,
         incoming,
         reservationToken: guardedReservationToken,
+      });
+    }
+
+    // A full canonical CANCELLED row is handled before date filtering. This
+    // records only the commercial fact; physical work and history remain live.
+    if (isSingleBookingRefresh && normalizedSingleBookingId && guardedReservationToken
+      && normalizeBookingStatus(externalData.data?.[0]?.status) === 'CANCELLED') {
+      const row = externalData.data[0];
+      const notice = await recordCancellationNotice(supabase, {
+        bookingId: normalizedSingleBookingId, organizationId,
+        sourceUpdatedAt: row.source_updated_at ?? row.updated_at ?? null,
+        sourceVersion: row.version ?? row.source_version ?? null,
+        reservationToken: guardedReservationToken,
+      });
+      return new Response(JSON.stringify(notice), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
       });
     }
 
@@ -5558,7 +5519,7 @@ serve(async (req) => {
         } else {
           // Ingen guardad revision (icke-single/legacy-väg) → audit-only-logg.
           const canonicalRevision =
-            canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? canonicalRow?.version ?? null;
+            canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? canonicalRow?.version ?? null;
           const logged = await recordAppliedSourceRevision(supabase, {
             bookingId: normalizedSingleBookingId,
             organizationId,

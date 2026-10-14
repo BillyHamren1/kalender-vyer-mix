@@ -74,17 +74,17 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   };
 
   const cancelJobMutation = useMutation({
-    mutationFn: cancelJob,
+    mutationFn: (id: string) => cancelJob(id),
     onSuccess: () => { invalidateAll(); toast.success('Litet projekt avbokat och dolt'); },
     onError: (err: any) => toast.error(err.message || 'Kunde inte avboka projekt'),
   });
   const cancelProjectMutation = useMutation({
-    mutationFn: cancelProject,
+    mutationFn: (id: string) => cancelProject(id),
     onSuccess: () => { invalidateAll(); toast.success('Medelprojekt avbokat och dolt'); },
     onError: (err: any) => toast.error(err.message || 'Kunde inte avboka projekt'),
   });
   const deleteLargeMutation = useMutation({
-    mutationFn: deleteLargeProject,
+    mutationFn: (id: string) => deleteLargeProject(id),
     onSuccess: () => { invalidateAll(); toast.success('Stort projekt borttaget'); },
     onError: (err: any) => toast.error(err.message || 'Kunde inte ta bort projekt'),
   });
@@ -356,3 +356,4 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 };
 
 export default UnifiedProjectList;
+

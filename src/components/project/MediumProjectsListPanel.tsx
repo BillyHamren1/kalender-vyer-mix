@@ -38,7 +38,7 @@ const MediumProjectsListPanel = ({ completedOnly = false, externalSearch, extern
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteProject,
+    mutationFn: (id: string) => deleteProject(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
@@ -206,3 +206,4 @@ const MediumProjectsListPanel = ({ completedOnly = false, externalSearch, extern
 };
 
 export default MediumProjectsListPanel;
+

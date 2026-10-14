@@ -82,6 +82,7 @@ interface PackingItem {
   id: string;
   quantity_to_pack: number;
   quantity_packed: number;
+  retired_from_booking_at?: string | null;
   verified_at: string | null;
   verified_by: string | null;
   parcel_id: string | null;
@@ -532,6 +533,11 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           >
             {displayName}
           </span>
+          {item.retired_from_booking_at && (
+            <span className="block text-xs font-semibold text-amber-700">
+              Borttagen från bokningen – kontrollera kvarvarande utrustning och retur
+            </span>
+          )}
           {(() => {
             const itemTypeId = resolveCanonicalItemTypeId(item as any);
             return itemTypeId ? (
