@@ -147,11 +147,11 @@ const DayColumn: React.FC<{
             <button type="button" onClick={() => onOpen(job)}
               title={`${job.title} · ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' · Tidskonflikt' : ''}`}
               aria-label={`${job.title} ${job.startTime}–${job.endTime}${conflicts.has(job) ? ' Tidskonflikt' : ''}`}
-              className={`h-full w-full overflow-hidden rounded-lg border p-2 text-left text-xs shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-warehouse focus-visible:ring-inset ${getEventBgClass(job.activityType)} ${conflicts.has(job) ? 'border-amber-600' : 'border-black/5'}`}>
-              <span className={`mb-1 block h-1 w-6 rounded-full ${getEventDotClass(job.activityType)}`} />
+              className={`h-full w-full overflow-hidden rounded-lg border ${height < 48 ? 'px-2 py-0.5' : 'p-2'} text-left text-xs shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-warehouse focus-visible:ring-inset ${getEventBgClass(job.activityType)} ${conflicts.has(job) ? 'border-amber-600' : 'border-black/5'}`}>
+              <span className={`absolute inset-y-1 left-1 w-1 rounded-full ${getEventDotClass(job.activityType)}`} />
               <span className="block font-semibold truncate">{job.customerName || job.title}</span>
-              <span className="block tabular-nums">{job.startTime}–{job.endTime}</span>
-              {conflicts.has(job) && <span className="block font-semibold">Tidskonflikt</span>}
+              <span className={height < 48 ? 'sr-only' : 'block tabular-nums'}>{job.startTime}–{job.endTime}</span>
+              {conflicts.has(job) && <span className={height < 72 ? 'sr-only' : 'block font-semibold'}>Tidskonflikt</span>}
             </button>
           </div>
         ))}
