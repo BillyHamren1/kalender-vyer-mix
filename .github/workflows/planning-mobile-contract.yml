@@ -16,10 +16,10 @@ jobs:
         with:
           node-version: 24
       - name: Signed read and command handlers
-        run: node --test scripts/tests/planning-mobile-read.test.mjs scripts/tests/planning-mobile-read-booking-dates.test.mjs scripts/tests/planning-mobile-staff.test.mjs
+        run: node --test scripts/tests/planning-mobile-read.test.mjs scripts/tests/planning-mobile-read-booking-dates.test.mjs scripts/tests/planning-mobile-read-linked-bookings.test.mjs scripts/tests/planning-mobile-staff.test.mjs
       - name: Install isolated SQL test engine
         run: npm install --prefix /tmp/planning-mobile-sql --no-save --ignore-scripts @electric-sql/pglite@0.5.8
       - name: Actual SQL migration and canonical trigger fixture
         env:
           PGLITE_MODULE_PATH: /tmp/planning-mobile-sql/node_modules/@electric-sql/pglite/dist/index.js
-        run: node --test scripts/tests/mobile-staff-command.test.mjs scripts/tests/hub-actor-resolver.test.mjs scripts/tests/planning-mobile-read-legacy-staff.test.mjs scripts/tests/internal-messages-hub-actor.test.mjs
+        run: node --test scripts/tests/operations-project-states.test.mjs scripts/tests/mobile-staff-command.test.mjs scripts/tests/hub-actor-resolver.test.mjs scripts/tests/planning-mobile-read-legacy-staff.test.mjs scripts/tests/internal-messages-hub-actor.test.mjs
