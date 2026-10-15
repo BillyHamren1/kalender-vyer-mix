@@ -20,7 +20,7 @@ const json = (status: number, body: unknown) => {
 type PhaseDates = { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null };
 /** A shared cursor can outlive one collection. Only recover an exact 416 after
  * a fresh, identically scoped count proves that collection is exhausted. */
-export async function readMobilePage(makeQuery: (head: boolean) => any, offset: number) {
+export async function readMobilePage(makeQuery: (head: boolean) => any, offset: number): Promise<any> {
     const page = await makeQuery(false).order('id').range(offset, offset + 199);
     if (offset === 0 || page.status !== 416 || page.error?.code !== 'PGRST103') return page;
     const total = await makeQuery(true);
@@ -218,7 +218,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
     // Project list mirrors Operations: every non-deleted project in the org (status tabs are
     // classified per row). Calendar events and staff assignments stay bounded to the requested window.
-    const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
+    const [projectsResult, eventsResult, assignmentsResult]: any[] = await Promise.all([
         readMobilePage(head => admin.from('projects')
             .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact', head })
             .eq('organization_id', org)
@@ -239,8 +239,8 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
     const listDates = await loadBookingDates(admin, org, projectsResult.data ?? []);
     if (!listDates) return json(503, { error: 'booking_dates_read_failed' });
-    const listProjects = (projectsResult.data ?? []).map(row => withBookingDates(row, listDates));
-    const ownerById = new Map(listProjects.map(row => [row.id, { dateSources: row.dateSources, ...ownerClassification(row) }]));
+    const listProjects = (projectsResult.data ?? []).map((row: any) => withBookingDates(row, listDates));
+    const ownerById = new Map(listProjects.map((row: any) => [row.id, { dateSources: row.dateSources, ...ownerClassification(row) }]));
     const projection = buildPlanningBrainProjection({
         request: parsed.value,
         generatedAt: new Date().toISOString(),
@@ -250,9 +250,9 @@ export async function handleRequest(request: Request): Promise<Response> {
             assignments: assignmentsResult.data ?? [],
         },
     });
-    const staffIds = [...new Set((assignmentsResult.data ?? []).map(row => row.staff_id).filter(Boolean))];
+    const staffIds = [...new Set((assignmentsResult.data ?? []).map((row: any) => row.staff_id).filter(Boolean))];
     // profiles.user_id is uuid; legacy staff ids (e.g. 'staff_…') are text and must not reach that filter.
-    const profileIds = staffIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+    const profileIds = staffIds.filter((id: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
     const [staff, profiles] = staffIds.length ? await Promise.all([
         admin.from('staff_members').select('id, name').eq('organization_id', org).in('id', staffIds),
         profileIds.length
@@ -268,7 +268,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     for (const row of staff.data ?? [])
         if (row.name)
             names.set(row.id, row.name);
-    const titles = new Map((projectsResult.data ?? []).map(row => [row.id, row.name]));
+    const titles = new Map((projectsResult.data ?? []).map((row: any) => [row.id, row.name]));
     const totals = { projects: projectsResult.count, planningDays: eventsResult.count, teamAssignments: assignmentsResult.count };
     if (Object.values(totals).some(count => !Number.isSafeInteger(count) || (count ?? -1) < 0))
         return json(503, { error: 'count_unavailable' });
