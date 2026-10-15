@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { updateBookingFieldsViaSource } from "@/services/booking/liveBookingService";
 
 export type SupplierRequestThread = {
   id: string;
@@ -23,27 +24,10 @@ export async function fetchSupplierRequestThreads(projectId: string): Promise<Su
 }
 
 export async function saveSimpleProjectNotes(projectId: string, bookingId: string | null, notes: string) {
-  const target = bookingId
-    ? supabase.from("bookings").update({ internalnotes: notes }).eq("id", bookingId)
-    : supabase.from("projects").update({ internalnotes: notes }).eq("id", projectId);
+  if (bookingId) return updateBookingFieldsViaSource(bookingId, { internalnotes: notes });
+  const target = supabase.from("projects").update({ internalnotes: notes }).eq("id", projectId);
   const { error } = await target;
   if (error) throw error;
 }
 
-export const SIMPLE_SUPPLIER_STATUS: Record<string, string> = {
-  draft: "Inte kontaktad",
-  request_sent: "Väntar på svar",
-  quote_received: "Svar mottaget",
-  negotiating: "Svar mottaget",
-  confirmed: "Bekräftad",
-  cancelled: "Avböjt",
-};
-
-export const SIMPLE_THREAD_STATUS: Record<string, string> = {
-  sending: "Skickar",
-  sent: "Väntar på svar",
-  replied: "Svar mottaget",
-  confirmed: "Bekräftad",
-  declined: "Avböjt",
-  failed: "Misslyckades",
-};
+export { SUPPLIER_STATUS as SIMPLE_SUPPLIER_STATUS, THREAD_STATUS as SIMPLE_THREAD_STATUS } from "../../supabase/functions/_shared/operations-project-workspace-presentation";

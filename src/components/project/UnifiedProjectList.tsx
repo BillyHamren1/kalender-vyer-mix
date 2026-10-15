@@ -1,3 +1,4 @@
+import { projectListDisplayName } from '../../../supabase/functions/_shared/operations-project-workspace-presentation';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -97,7 +98,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
     jobs.forEach(j => items.push({
       id: j.id,
-      name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name,
+      name: projectListDisplayName(j.name, false, j.booking?.client, j.booking?.bookingNumber),
       type: 'small',
       date: j.booking?.eventDate ?? null,
       eventDate: smallProjectView(j, { eventdate: j.booking?.eventDate }).listEventDate,
@@ -117,7 +118,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       const isInternal = (p as any).is_internal === true;
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
-      const displayName = isInternal ? p.name : (client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name);
+      const displayName = projectListDisplayName(p.name, isInternal, client, bookingNum);
       const addressParts = [p.booking?.deliveryaddress, p.booking?.delivery_city].filter(Boolean);
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({

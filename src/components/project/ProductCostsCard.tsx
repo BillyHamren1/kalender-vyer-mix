@@ -1,3 +1,4 @@
+import { productCostDisplay, costSummaryDisplay, costProductGroups, cleanCostName as cleanName } from '../../../supabase/functions/_shared/operations-product-presentation';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,10 +22,6 @@ interface ProductCostsCardProps {
 interface ProductGroup {
   parent: ProductCostData;
   children: ProductCostData[];
-}
-
-function cleanName(name: string): string {
-  return (name ?? '').replace(/^[\s↳└⦿L,\-–]+/, '').trim();
 }
 
 const fmt = (v: number) =>
@@ -105,7 +102,7 @@ export const ProductCostsCard = ({
 }: ProductCostsCardProps) => {
   const currency = productCosts.currency || 'SEK';
   const costCurrency = productCosts.cost_currency || 'SEK';
-  const comparable = currency === costCurrency;
+  const comparable = costSummaryDisplay(productCosts).comparable;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const overrideSet = useMemo(() => new Set(costOverrides.map(o => o.product_id)), [costOverrides]);
 
@@ -122,13 +119,7 @@ export const ProductCostsCard = ({
     }
   };
 
-  const groupedProducts = useMemo((): ProductGroup[] => {
-    const parents = productCosts.products.filter(p => !p.parent_product_id);
-    return parents.map(parent => ({
-      parent,
-      children: productCosts.products.filter(p => p.parent_product_id === parent.id),
-    }));
-  }, [productCosts.products]);
+  const groupedProducts = useMemo(() => costProductGroups(productCosts.products), [productCosts.products]);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -156,8 +147,7 @@ export const ProductCostsCard = ({
     );
   }
 
-  const calcTotalCost = (p: ProductCostData) =>
-    (p.assembly_cost + p.handling_cost + p.purchase_cost) * p.quantity;
+  const calcTotalCost = (p: ProductCostData) => productCostDisplay(p).totalCost;
 
   const getLinkedInvoiceInfo = (productId: string) => {
     const linked = supplierInvoices.filter(
@@ -218,7 +208,7 @@ export const ProductCostsCard = ({
   const renderChildRow = (product: ProductCostData) => {
     const rev = product.total;
     const cost = calcTotalCost(product);
-    const pct = rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0;
+    const pct = productCostDisplay(product).marginPercent;
     const purchaseBudget = product.purchase_cost * product.quantity;
     const invoiceInfo = getLinkedInvoiceInfo(product.id);
     const isOverridden = overrideSet.has(product.id);
@@ -239,7 +229,7 @@ export const ProductCostsCard = ({
           )}
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.quantity > 0 ? product.total / product.quantity : product.unit_price)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(productCostDisplay(product).displayUnitPrice)}</td>
         <td className="py-1.5 px-2 text-right text-xs">
           <div className="flex flex-col items-end">
             <span>{fmt(rev)}</span>
@@ -280,7 +270,7 @@ export const ProductCostsCard = ({
     const isExpanded = !collapsedGroups.has(group.parent.id);
     const groupRev = group.parent.total;
     const groupCost = calcTotalCost(group.parent);
-    const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
+    const groupPct = productCostDisplay(group.parent).marginPercent;
     const purchaseBudget = group.parent.purchase_cost * group.parent.quantity;
     const invoiceInfo = getLinkedInvoiceInfo(group.parent.id);
     const isOverridden = overrideSet.has(group.parent.id);
@@ -314,7 +304,7 @@ export const ProductCostsCard = ({
           </span>
         </td>
         <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.quantity > 0 ? group.parent.total / group.parent.quantity : group.parent.unit_price)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(productCostDisplay(group.parent).displayUnitPrice)}</td>
         <td className="py-2 px-2 text-right text-sm font-medium">
           <div className="flex flex-col items-end">
             <span>{fmt(groupRev)}</span>
@@ -356,11 +346,7 @@ export const ProductCostsCard = ({
   };
 
   const { revenue, costs, margin } = productCosts.summary;
-  const marginPct = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
-
-  const assemblyCostTotal = productCosts.products.reduce((s, p) => s + p.assembly_cost * p.quantity, 0);
-  const handlingCostTotal = productCosts.products.reduce((s, p) => s + p.handling_cost * p.quantity, 0);
-  const purchaseCostTotal = productCosts.products.reduce((s, p) => s + p.purchase_cost * p.quantity, 0);
+  const {marginPercent:marginPct,assemblyCostTotal,handlingCostTotal,purchaseCostTotal} = costSummaryDisplay(productCosts);
 
   return (
     <Card>

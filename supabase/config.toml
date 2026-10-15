@@ -234,3 +234,7 @@ verify_jwt = false
 # Signed scanner token + live session + tenant checks run inside the handler.
 [functions.scanner-dispatch-api]
 verify_jwt = false
+
+# HMAC, nonce, live actor role and tenant checks are enforced in the handler.
+[functions.planning-mobile-workspace-command]
+verify_jwt = false

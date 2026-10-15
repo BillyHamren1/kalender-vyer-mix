@@ -1,3 +1,4 @@
+import { workspaceTransportDisplay, workspaceTransportGroups } from '../../../supabase/functions/_shared/operations-project-workspace-presentation';
 import React, { useState } from 'react';
 import { Truck, AlertTriangle, Clock, CheckCircle2, Mail, Send, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -45,8 +46,9 @@ const ProjectCard = ({
     || null;
   const response = assignment.partner_response;
 
-  const isPlanningConfirmed = assignment.planning_status === 'confirmed' || assignment.partner_response === 'accepted';
-  const statusLabel = isPlanningConfirmed ? 'Bekräftad' : 'Preliminär';
+  const display = workspaceTransportDisplay(assignment);
+  const statusLabel = display.statusLabel;
+  const isPlanningConfirmed = statusLabel === 'Bekräftad';
   const statusDot = isPlanningConfirmed ? 'bg-emerald-500' : 'bg-amber-500';
 
   const assignmentEmails = emailLogs.filter(e => e.assignment_id === assignment.id);
@@ -74,7 +76,7 @@ const ProjectCard = ({
         </div>
 
         <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
-          {supplier?.name || vehicle?.name || (assignment.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej bestämt')}
+          {display.displayName}
         </h4>
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
@@ -141,12 +143,12 @@ const ProjectCard = ({
           )}
           <div className="flex items-center gap-2 pt-1">
             {isPlanningConfirmed ? (
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSetPlanningStatus('preliminary')}>
-                Gör preliminär
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSetPlanningStatus(display.nextPlanningStatus)}>
+                {display.planningActionLabel}
               </Button>
             ) : (
-              <Button size="sm" className="h-7 text-xs" onClick={() => onSetPlanningStatus('confirmed')}>
-                Bekräfta transport
+              <Button size="sm" className="h-7 text-xs" onClick={() => onSetPlanningStatus(display.nextPlanningStatus)}>
+                {display.planningActionLabel}
               </Button>
             )}
           </div>
@@ -214,10 +216,8 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
     );
   }
 
-  const isConfirmed = (a: ProjectTransportAssignment) => a.planning_status === 'confirmed' || a.partner_response === 'accepted';
-  const preliminary = assignments.filter(a => !isConfirmed(a) && a.status !== 'delivered');
-  const confirmed = assignments.filter(a => isConfirmed(a) && a.status !== 'delivered');
-  const completed = assignments.filter(a => a.status === 'delivered');
+  const groups = workspaceTransportGroups(assignments);
+  const [preliminary,confirmed,completed] = groups.map(g=>g.items);
 
   const columns = [
     {

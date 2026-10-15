@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
 import { resolveProjectPhaseDates } from "../../../supabase/functions/_shared/projectPhaseDates";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -70,7 +71,8 @@ export default function SimpleProjectWorkspacePage() {
   const bookingId = project?.booking_id || booking?.id || null;
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
   const attachmentsQuery = useQuery({ queryKey: ["booking-attachments", bookingId], queryFn: () => fetchBookingAttachments(bookingId!), enabled: !!bookingId });
-  const currentNotes = notes ?? booking?.internalnotes ?? project?.internalnotes ?? "";
+  const canonicalNotes = useQuery({ queryKey: ["simple-project-booking-notes", bookingId], queryFn: () => fetchLiveBookingById(bookingId!), enabled: !!bookingId });
+  const currentNotes = notes ?? (bookingId ? canonicalNotes.data?.internalNotes ?? "" : project?.internalnotes ?? "");
 
   const fileMutation = useMutation({
     mutationFn: async (action: { type: "upload"; file: File } | { type: "delete"; id: string; url: string }): Promise<void> => {
@@ -96,7 +98,7 @@ export default function SimpleProjectWorkspacePage() {
   const mutateTask = taskMutation.mutate;
   const notesMutation = useMutation({
     mutationFn: () => saveSimpleProjectNotes(projectId, bookingId, currentNotes),
-    onSuccess: () => { toast.success(bookingId ? "Anteckningen är sparad på bokningen" : "Anteckningen är sparad på projektet"); queryClient.invalidateQueries({ queryKey: ["simple-project", projectId] }); },
+    onSuccess: () => { toast.success(bookingId ? "Anteckningen är sparad på bokningen" : "Anteckningen är sparad på projektet"); queryClient.invalidateQueries({ queryKey: ["simple-project", projectId] }); queryClient.invalidateQueries({ queryKey: ["simple-project-booking-notes", bookingId] }); },
     onError: () => toast.error("Kunde inte spara anteckningen"),
   });
 
@@ -173,7 +175,7 @@ export default function SimpleProjectWorkspacePage() {
               <div><h2 id="booking-core-heading" className="text-lg font-semibold">Bokning och leverans</h2><p className="text-sm text-muted-foreground">Adress, kontakt, datum, markspik och allt som ska levereras.</p></div>
               <BookingInfoExpanded booking={displayBooking} projectLeader={project.project_leader} bookingAttachments={attachmentsQuery.data || []} showProductsHeading />
             </section>
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><StickyNote className="h-5 w-5" />Interninformation</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea rows={7} value={currentNotes} onChange={(event) => setNotes(event.target.value)} placeholder="Det teamet behöver veta om bokningen…" /><div className="flex justify-end"><Button onClick={() => notesMutation.mutate()} disabled={notesMutation.isPending}><Save className="mr-2 h-4 w-4" />Spara</Button></div></CardContent></Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2"><StickyNote className="h-5 w-5" />Interninformation</CardTitle></CardHeader><CardContent className="space-y-3">{bookingId && canonicalNotes.isError && <p role="alert">Interninformationen kunde inte hämtas från Booking.</p>}<Textarea disabled={!!bookingId && !canonicalNotes.data} rows={7} value={currentNotes} onChange={(event) => setNotes(event.target.value)} placeholder="Det teamet behöver veta om bokningen…" /><div className="flex justify-end"><Button onClick={() => notesMutation.mutate()} disabled={notesMutation.isPending || (!!bookingId && !canonicalNotes.data)}><Save className="mr-2 h-4 w-4" />Spara</Button></div></CardContent></Card>
             <ProjectFiles files={filesQuery.data || []} bookingAttachments={attachmentsQuery.data || []} isUploading={fileMutation.isPending} onUpload={({ file }) => fileMutation.mutate({ type: "upload", file })} onDelete={({ id, url }) => fileMutation.mutate({ type: "delete", id, url })} />
           </TabsContent>
 
