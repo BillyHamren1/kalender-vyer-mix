@@ -1,3 +1,4 @@
+import { projectOperationalStatus, resolveProjectPhaseDates } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -65,9 +66,9 @@ const ProjectDashboardWidgets = () => {
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({
         id: p.id, name: displayName, type: 'medium',
-        date: p.booking?.eventdate ?? null,
-        rigDate: p.booking?.rigdaydate ?? p.booking?.eventdate ?? null,
-        rigDownDate: p.booking?.rigdowndate ?? p.booking?.eventdate ?? null,
+        date: resolveProjectPhaseDates(p, p.booking).eventdate,
+        rigDate: resolveProjectPhaseDates(p, p.booking).rigdaydate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
+        rigDownDate: resolveProjectPhaseDates(p, p.booking).rigdowndate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
         status: p.status,
         subtitle: fullAddress,
         navigateTo: `/project-next/${p.id}`,
@@ -94,12 +95,11 @@ const ProjectDashboardWidgets = () => {
   const nonCancelled = unified.filter(p => p.status !== 'cancelled');
   /** Ett projekt räknas som avslutat när status är completed ELLER när nedriggsdagen har passerat. */
   const isFinished = (p: UnifiedItem) =>
-    p.status === 'completed' || (!!p.rigDownDate && p.rigDownDate < today);
+    projectOperationalStatus(p.status, p, today) === 'completed';
   const activeCount = nonCancelled.filter(p => !isFinished(p)).length;
   /** Pågående = projektet har startat (riggdag/event passerad eller idag) men är inte avslutat. */
   const isOngoing = (p: UnifiedItem) => {
-    const start = p.rigDate ?? p.date;
-    return !isFinished(p) && !!start && start <= today;
+    return projectOperationalStatus(p.status, p, today) === 'in_progress';
   };
   const inProgressCount = nonCancelled.filter(isOngoing).length;
   const planningCount = nonCancelled.filter(p => !isFinished(p) && !isOngoing(p)).length;
