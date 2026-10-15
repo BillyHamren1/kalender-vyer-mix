@@ -1,3 +1,4 @@
+import { resolveProjectPhaseDates } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -36,9 +37,9 @@ const TYPE_BADGE_CLASSES: Record<string, string> = {
 
 const ProjectDashboardWidgets = () => {
   const navigate = useNavigate();
-  const { data: jobs = [], isLoading: jL } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
-  const { data: projects = [], isLoading: pL } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
-  const { data: largeProjects = [], isLoading: lL } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: jobs = [], isLoading: jL, isError: stateError0 } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
+  const { data: projects = [], isLoading: pL, isError: stateError1 } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const { data: largeProjects = [], isLoading: lL, isError: stateError2 } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
 
   const isLoading = jL || pL || lL;
 
@@ -51,7 +52,7 @@ const ProjectDashboardWidgets = () => {
       date: j.booking?.eventDate ?? null,
       rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate ?? null,
       rigDownDate: j.booking?.rigDownDate ?? j.booking?.eventDate ?? null,
-      status: j.status === 'planned' ? 'planning' : j.status,
+      status: j.operationalState.status,
       subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
       updatedAt: j.updatedAt,
@@ -65,10 +66,10 @@ const ProjectDashboardWidgets = () => {
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({
         id: p.id, name: displayName, type: 'medium',
-        date: p.booking?.eventdate ?? null,
-        rigDate: p.booking?.rigdaydate ?? p.booking?.eventdate ?? null,
-        rigDownDate: p.booking?.rigdowndate ?? p.booking?.eventdate ?? null,
-        status: p.status,
+        date: resolveProjectPhaseDates(p, p.booking).eventdate,
+        rigDate: resolveProjectPhaseDates(p, p.booking).rigdaydate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
+        rigDownDate: resolveProjectPhaseDates(p, p.booking).rigdowndate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
+        status: p.operationalState.status,
         subtitle: fullAddress,
         navigateTo: `/project-next/${p.id}`,
         updatedAt: p.updated_at,
@@ -80,7 +81,7 @@ const ProjectDashboardWidgets = () => {
       date: lp.start_date?.[0] ?? null,
       rigDate: lp.start_date?.[0] ?? lp.event_date?.[0] ?? null,
       rigDownDate: lp.end_date?.[lp.end_date.length - 1] ?? lp.event_date?.[lp.event_date.length - 1] ?? null,
-      status: lp.status,
+      status: lp.operationalState.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,
       updatedAt: lp.updated_at,
@@ -94,12 +95,11 @@ const ProjectDashboardWidgets = () => {
   const nonCancelled = unified.filter(p => p.status !== 'cancelled');
   /** Ett projekt räknas som avslutat när status är completed ELLER när nedriggsdagen har passerat. */
   const isFinished = (p: UnifiedItem) =>
-    p.status === 'completed' || (!!p.rigDownDate && p.rigDownDate < today);
+    p.status === 'completed';
   const activeCount = nonCancelled.filter(p => !isFinished(p)).length;
   /** Pågående = projektet har startat (riggdag/event passerad eller idag) men är inte avslutat. */
   const isOngoing = (p: UnifiedItem) => {
-    const start = p.rigDate ?? p.date;
-    return !isFinished(p) && !!start && start <= today;
+    return p.status === 'in_progress';
   };
   const inProgressCount = nonCancelled.filter(isOngoing).length;
   const planningCount = nonCancelled.filter(p => !isFinished(p) && !isOngoing(p)).length;
@@ -140,6 +140,8 @@ const ProjectDashboardWidgets = () => {
 
     { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat eller där nedriggsdagen har passerat. Ingår inte i Aktiva totalt.' },
   ];
+
+  if (stateError0 || stateError1 || stateError2) return <div role="alert" className="p-4 text-destructive">Kunde inte hämta Operations projekt. Försök uppdatera sidan.</div>;
 
   if (isLoading) {
     return (

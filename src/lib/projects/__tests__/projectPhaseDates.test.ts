@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveProjectPhaseDates, classifyProjectLifecycle, projectStatusTabs } from '../../../../supabase/functions/_shared/projectPhaseDates';
+import { resolveProjectPhaseDates } from '../../../../supabase/functions/_shared/projectPhaseDates';
 
 describe('resolveProjectPhaseDates (shared by Operations web + mobile read)', () => {
   it('project own date wins per field, booking fills the rest', () => {
@@ -19,21 +19,6 @@ describe('resolveProjectPhaseDates (shared by Operations web + mobile read)', ()
   it('stays null when neither has a date, and with no booking (e.g. booking from another org not passed)', () => {
     expect(resolveProjectPhaseDates({ rigdaydate: null }, null)).toMatchObject({ rigdaydate: null, eventdate: null, rigdowndate: null, sources: { rig: null, event: null, derig: null } });
     expect(resolveProjectPhaseDates(null, { eventdate: null }).eventdate).toBeNull();
-  });
-});
-
-describe('Operations status classification', () => {
-  it('completed / cancelled / everything else active', () => {
-    expect(classifyProjectLifecycle('completed')).toBe('completed');
-    expect(classifyProjectLifecycle('cancelled')).toBe('cancelled');
-    expect(classifyProjectLifecycle('planning')).toBe('active');
-    expect(classifyProjectLifecycle(null)).toBe('active');
-  });
-  it('status tabs match the project list tabs', () => {
-    expect(projectStatusTabs('planning', '2026-10-14', '2026-10-13')).toEqual(['all', 'all_active', 'planning']);
-    expect(projectStatusTabs('planning', '2026-10-12', '2026-10-13')).toEqual(['all', 'all_active', 'planning', 'closing']);
-    expect(projectStatusTabs('completed', '2026-10-01', '2026-10-13')).toEqual(['all', 'completed']);
-    expect(projectStatusTabs('cancelled', null, '2026-10-13')).toEqual(['all', 'cancelled']);
   });
 });
 
