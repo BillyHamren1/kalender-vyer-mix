@@ -218,7 +218,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
     // Project list mirrors Operations: every non-deleted project in the org (status tabs are
     // classified per row). Calendar events and staff assignments stay bounded to the requested window.
-    const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
+    const [projectsResult, eventsResult, assignmentsResult]: any[] = await Promise.all([
         readMobilePage(head => admin.from('projects')
             .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact', head })
             .eq('organization_id', org)
