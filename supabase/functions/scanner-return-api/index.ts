@@ -62,7 +62,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   let body: unknown
   try { body = await req.json() } catch { return json(400, { error: 'invalid_json' }, headers) }
   const parsed = parseScannerReturnCommand(body)
-  if (!parsed.ok) return json(400, { error: parsed.error }, headers)
+  if (parsed.ok === false) return json(400, { error: parsed.error }, headers)
 
   const transport = resolveScannerTokenTransport(req.headers.get('Authorization'), null)
   if (!transport.valid || !transport.token.startsWith(`${SCANNER_SIGNED_TOKEN_PREFIX}.`)) {

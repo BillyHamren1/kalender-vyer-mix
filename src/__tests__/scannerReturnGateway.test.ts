@@ -5,7 +5,7 @@ const input = { schema: 'eventflow-scanner-return-gateway.v1', scanner_contract_
 const actor = { organizationId: id('5'), staffId: id('6'), staffName: 'Lager', bookingNumber: 'B-1001' }
 const owner = (patch = {}) => {
   const parsed = parseScannerReturnCommand({ ...input, ...patch })
-  if (!parsed.ok) throw new Error(parsed.error)
+  if (parsed.ok === false) throw new Error(parsed.error)
   return buildBundleScannerReturn({ ...actor, command: parsed.value })
 }
 const receipt = (patch = {}) => ({ schema: 'bundle-scanner-return-receipt.v1', operationId: input.operationId, bundleOperationId: id('7'), command: input.command, status: 'COMMITTED', canonicalIdentity: { organizationId: actor.organizationId, reservationId: input.reservationId, bookingNumber: actor.bookingNumber, reservationLineId: input.reservationLineId, itemTypeId: input.itemTypeId }, authoritativeReturnState: { returnedQuantity: 1, outstandingQuantity: 2, manualOutstandingQuantity: 0 }, itemInstance: { itemInstanceId: id('8'), status: 'available' }, reason: null, reasonDetail: null, serverTimestamp: input.occurredAt, ...patch })
