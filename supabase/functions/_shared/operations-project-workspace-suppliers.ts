@@ -133,7 +133,7 @@ export async function executeWorkspaceSupplierCommand(ctx: WorkspaceSupplierCont
     if(error || !Array.isArray(data) || data.length!==transportRows.length) fail('transport_write_failed',502);
     let projectionSynced = true;
     try { await deps.invokeOwner('sync-operational-plan-to-booking',{booking_id:project.booking_id}); } catch { projectionSynced = false; }
-    return {persisted:true,assignmentId:data[0].id,assignmentIds:data.map(a=>a.id),projectionSynced};
+    return {persisted:true,assignmentId:data[0].id,assignmentIds:data.map((a:any)=>a.id),projectionSynced};
   }
   const {data:assignments,error} = await scoped('transport_assignments').eq('booking_id',project.booking_id).in('id',command.assignmentIds);
   if(error) fail('workspace_read_failed',502);
