@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scannerJobsReadOptions, readScannerPackingPage } from '../_shared/scannerJobsPage.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { computePackingProgress, deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
@@ -889,15 +890,21 @@ Deno.serve(async (req) => {
         horizon.setDate(horizon.getDate() + horizonDays)
         const cutoffDate = horizon.toISOString().split('T')[0]
 
-        const { data: allPackings, error } = await supabase
-          .from('packing_projects')
-          .select('*')
-          .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning', 'back'])
-          .order('created_at', { ascending: false })
-          .limit(500)
-
-        if (error) throw error
+        const pageOptions = scannerJobsReadOptions(params)
+        let allPackings: any[]
+        let nextCursor: string | null = null
+        if (pageOptions) {
+          const page = await readScannerPackingPage(supabase, ORG_ID, pageOptions)
+          allPackings = page.packings
+          nextCursor = page.nextCursor
+        } else {
+          const { data, error } = await supabase.from('packing_projects').select('*')
+            .eq('organization_id', ORG_ID)
+            .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning', 'back'])
+            .order('created_at', { ascending: false }).limit(500)
+          if (error) throw error
+          allPackings = data || []
+        }
 
         // Fetch booking data for all packings to enable date filtering.
         // Inkluderar large_project_id så att klienten kan gruppera packlistor
@@ -942,7 +949,8 @@ Deno.serve(async (req) => {
         // - planning   → show if rigdaydate within 14 days (or unset)
         // - delivered  → show if rigdowndate within 14 days (or unset) so the
         //                return (IN) flow can be picked up from the calendar.
-        const filtered = packingsWithBookings.filter((p: any) => {
+        const eligible = packingsWithBookings.filter((p: any) => {
+          if (pageOptions?.bookingId) return true
           if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning' || p.status === 'back') return true
           if (p.status === 'planning') {
             const rigDate = p.booking?.rigdaydate
@@ -955,7 +963,8 @@ Deno.serve(async (req) => {
             return downDate <= cutoffDate
           }
           return false
-        }).slice(0, 300)
+        })
+        const filtered = pageOptions ? eligible : eligible.slice(0, 300)
 
         // ---- scanner-read-contract-v1 (OPT-IN, additivt) ----------------------
         // Utan params.includeScannerContractV1 === true är svarsformen och det
@@ -1042,7 +1051,7 @@ Deno.serve(async (req) => {
             }
           })
 
-          return new Response(JSON.stringify(enriched), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
+          return new Response(JSON.stringify(pageOptions ? { schema: 'scanner-jobs-page.v1', packings: enriched, nextCursor } : enriched), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
         }
 
         return new Response(JSON.stringify(filtered), { headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' } })
