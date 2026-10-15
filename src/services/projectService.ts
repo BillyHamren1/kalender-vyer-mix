@@ -1,3 +1,4 @@
+import { loadProjectStates } from '../../supabase/functions/_shared/projectPhaseDates';
 import { supabase } from "@/integrations/supabase/client";
 import { Project, ProjectTask, ProjectComment, ProjectFile, ProjectStatus, ProjectWithBooking } from "@/types/project";
 import { recordJobCompletion } from "@/services/jobCompletionAnalyticsService";
@@ -5,7 +6,7 @@ import { recomputeBookingAssignment } from "@/services/bookingAssignmentService"
 import { fetchLiveBookingAttachments } from "@/services/booking/liveBookingService";
 
 // Projects
-export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
+export const fetchProjects = async (): Promise<(ProjectWithBooking & { operationalState: { status: string; statusTabs: string[] } })[]> => {
   const { data, error } = await supabase
     .from('projects')
     .select(`
@@ -28,7 +29,8 @@ export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []) as unknown as ProjectWithBooking[];
+  const states = await loadProjectStates(supabase, 'medium', (data || []).map(p => p.id));
+  return (data || []).map(p => ({ ...p, operationalState: states.get(p.id)! })) as unknown as (ProjectWithBooking & { operationalState: { status: string; statusTabs: string[] } })[];
 };
 
 export const fetchProject = async (id: string): Promise<ProjectWithBooking | null> => {
