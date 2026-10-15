@@ -79,7 +79,8 @@ globalThis.__linkClient = () => ({
     return q;
   },
 });
-test('list mirrors Operations: every non-deleted same-org project, dates via shared rule, owner status tabs; no cross-org/deleted leaks', async () => {
+test('list mirrors Operations: every non-deleted same-org project, dates via shared rule, owner status tabs; no cross-org/deleted leaks', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-15T12:00:00Z') });
   const raw = JSON.stringify({ schema: 'planning-mobile-read-request.v1', actorUserId: HUB, organizationId: ORG, from: FROM, to: TO });
   const ts = String(Date.now()), nonce = 'test_nonce_linked_123456';
   const sig = await contract.signPlanningBrainRequest(secret, ts, nonce, raw);
@@ -90,8 +91,14 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   // 'Out' (dates outside window, no events) is listed like in Operations; other org + deleted are not.
   assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000004']);
   for (const p of body.projects) {
-    assert.equal(p.lifecycle, 'active');
-    assert.ok(p.statusTabs.includes('all_active') && p.statusTabs.includes('planning'));
+    const expected = { Event: 'in_progress', Assign: 'planning', Dated: 'completed', Out: 'completed' }[p.title];
+    assert.equal(p.status, expected);
+    assert.equal(p.lifecycle, expected === 'completed' ? 'completed' : 'active');
+    assert.equal(p.statusTabs.includes('all_active'), expected !== 'completed');
+    assert.ok(p.statusTabs.includes(expected));
+    const entry = body.projectEntries.find(e => e.projectKind === 'medium' && e.projectId === p.projectId);
+    assert.equal(entry.status, p.status);
+    assert.equal(entry.lifecycle, p.lifecycle);
   }
   const out = body.projects.find(p => p.projectId.endsWith('04'));
   assert.equal(out.rigDate, '2025-01-01'); assert.equal(out.dateSources.rig, 'project');
@@ -102,7 +109,7 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   assert.deepEqual(keys, ['large:a0000000-0000-4000-8000-000000000001', 'medium:a0000000-0000-4000-8000-000000000001', 'medium:a0000000-0000-4000-8000-000000000002', 'medium:a0000000-0000-4000-8000-000000000003', 'medium:a0000000-0000-4000-8000-000000000004', 'small:b0000000-0000-4000-8000-000000000001']);
   assert.deepEqual(body.projectEntriesTotals, { small: 1, medium: 4, large: 1 });
   const small = body.projectEntries.find(e => e.projectKind === 'small');
-  assert.equal(small.title, 'Perfect Event #2609-61'); assert.equal(small.status, 'planning');
+  assert.equal(small.title, 'Perfect Event #2609-61'); assert.equal(small.status, 'in_progress');
   assert.deepEqual([small.rigDate, small.eventDate, small.derigDate], ['2026-10-13', '2026-10-14', '2026-10-15']);
   assert.equal(small.dateSources.event, 'booking'); assert.equal(small.detailSupported, false);
   const large = body.projectEntries.find(e => e.projectKind === 'large');
@@ -111,4 +118,18 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   assert.ok(body.projectEntries.filter(e => e.projectKind === 'medium').every(e => e.detailSupported === true));
   // Legacy `projects` array keeps medium-only semantics.
   assert.equal(body.projects.length, 4);
+});
+
+test('operational status follows phase boundaries and explicit terminal states', async () => {
+  const { projectOperationalStatus: status, largeProjectView } = await import(dataUrl(await readFile(new URL('../../supabase/functions/_shared/projectPhaseDates.ts', import.meta.url), 'utf8')));
+  const today = '2026-10-15';
+  assert.equal(status('planning', { rigDownDate: '2026-10-14' }, today), 'completed');
+  assert.equal(status('planning', { rigDate: '2026-10-13', rigDownDate: today }, today), 'in_progress');
+  assert.equal(status('planning', { rigDate: '2026-10-16' }, today), 'planning');
+  assert.equal(status('cancelled', { rigDownDate: '2026-10-14' }, today), 'cancelled');
+  assert.equal(status('completed', { rigDate: '2026-10-16' }, today), 'completed');
+  assert.equal(status('planning', {}, today), 'planning');
+  const view = largeProjectView({ status: 'planning', start_date: ['2026-10-01'], end_date: ['2026-10-14', '2026-10-16'] });
+  assert.equal(view.dates.rigdowndate, '2026-10-16');
+  assert.equal(status(view.status, { rigDate: view.dates.rigdaydate, rigDownDate: view.dates.rigdowndate }, today), 'in_progress');
 });
