@@ -31,9 +31,9 @@ describe('workspace commands',()=>{
   const fetcher=vi.fn();await expect(executeWorkspaceCommand(req({type:'costs.extra.save',extraCosts:[],expected:null}),{admin:db({data:{claimed:false},error:null}),localActor:id,fetcher})).rejects.toMatchObject({code:'outcome_unknown'});expect(fetcher).not.toHaveBeenCalled();
  });
  it('forwards owner cost guard',async()=>{
-  const fetcher=vi.fn(async()=>new Response('{"success":true}',{status:200}));
+  const fetcher=vi.fn(async(_input: RequestInfo | URL, _init?: RequestInit)=>new Response('{"success":true}',{status:200}));
   await executeWorkspaceCommand(req({type:'costs.product.save',productId:id,costs:{purchase_cost:10},expected:{purchase_cost:0}}),{admin:db({data:{claimed:true,bookingId:id},error:null}),localActor:id,env:k=>k==='EF_SUPABASE_URL'?'https://owner.test':'key',fetcher});
-  expect(fetcher.mock.calls[0][0]).toContain(`organization_id=${id}`);expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({product_id:id,costs:{purchase_cost:10},expected:{purchase_cost:0}});
+  expect(fetcher.mock.calls[0][0]).toContain(`organization_id=${id}`);expect(JSON.parse(fetcher.mock.calls[0][1]?.body as string)).toEqual({product_id:id,costs:{purchase_cost:10},expected:{purchase_cost:0}});
  });
  it('rejects stale notes before writer',async()=>{
   const pushNotes=vi.fn();await expect(executeWorkspaceCommand(req({type:'notes.save',notes:'new',expectedNotes:'old'}),{admin:db({data:{claimed:true,bookingId:id},error:null}),localActor:id,readBooking:vi.fn(async()=>({internalNotes:'changed'})) as any,pushNotes})).rejects.toMatchObject({code:'conflict'});expect(pushNotes).not.toHaveBeenCalled();

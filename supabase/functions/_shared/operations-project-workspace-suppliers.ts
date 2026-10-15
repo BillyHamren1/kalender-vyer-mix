@@ -33,7 +33,7 @@ const keys: Record<string, string[]> = {
 export function validateWorkspaceSupplierCommand(value: unknown): value is WorkspaceSupplierCommand {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const c = value as Record<string, any>;
-  if (typeof c.type !== 'string' || !Object.hasOwn(keys, c.type) || Object.keys(c).some(k => !keys[c.type].includes(k))) return false;
+  if (typeof c.type !== 'string' || !Object.prototype.hasOwnProperty.call(keys, c.type) || Object.keys(c).some(k => !keys[c.type].includes(k))) return false;
   if (!['subject','message','notes','serviceType','pickupAddress','destinationAddress','vehicleSize','cargoDescription','referencePerson'].every(k => optionalText(c[k], k === 'subject' ? 300 : 10000))) return false;
   if (c.type.endsWith('.request.send') && (!text(c.expectedRecipientEmail, 320) || !/^[^\s@]+@[^\s@]+$/.test(c.expectedRecipientEmail))) return false;
   if(c.quotedPrice !== undefined && (typeof c.quotedPrice !== 'number' || !Number.isFinite(c.quotedPrice) || c.quotedPrice < 0 || c.quotedPrice > 1e10)) return false;
