@@ -48,7 +48,7 @@ function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; rigdaydate?: string | null; eventdate?: string | null; rigdowndate?: string | null }) {
     const status = projectOperationalStatus(row.status, { rigDate: row.rigdaydate, date: row.eventdate, rigDownDate: row.rigdowndate ?? row.eventdate }, todayUtc());
-    return { status, lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, row.eventdate, todayUtc()) };
+    return { status, lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, row.is_internal ? null : row.eventdate, todayUtc()) };
 }
 
 // Additive all-kind entries (small=jobs, medium=projects, large=large_projects), identity = (projectKind, projectId).
