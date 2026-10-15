@@ -1,3 +1,4 @@
+import { loadProjectStates } from '../../supabase/functions/_shared/projectPhaseDates';
 import { supabase } from '@/integrations/supabase/client';
 import { Job, JobStaffAssignment } from '@/types/job';
 import { recomputeBookingAssignment } from '@/services/bookingAssignmentService';
@@ -30,7 +31,7 @@ const transformJob = (dbJob: any): Job => ({
 });
 
 // Fetch all jobs with booking info
-export const fetchJobs = async (): Promise<Job[]> => {
+export const fetchJobs = async (): Promise<(Job & { operationalState: { status: string; statusTabs: string[] } })[]> => {
   // First fetch jobs
   const { data: jobs, error } = await supabase
     .from('jobs')
@@ -63,10 +64,11 @@ export const fetchJobs = async (): Promise<Job[]> => {
     }
   }
 
+  const states = await loadProjectStates(supabase, 'small', jobs.map(j => j.id));
   // Transform jobs with booking data
   return jobs.map(job => {
     const booking = job.booking_id ? bookingsMap[job.booking_id] : undefined;
-    return transformJob({ ...job, bookings: booking });
+    return { ...transformJob({ ...job, bookings: booking }), operationalState: states.get(job.id)! };
   });
 };
 
