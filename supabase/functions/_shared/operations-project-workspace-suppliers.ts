@@ -77,10 +77,10 @@ export async function executeWorkspaceSupplierCommand(ctx: WorkspaceSupplierCont
   };
   if(command.type === 'supplier.registry.create' || command.type === 'supplier.create_and_link') {
     if(!deps.registryWrite) fail('supplier_registry_unavailable',503);
-    let created=validateRegistrySupplier(await deps.registryWrite(ctx.organizationId,{action:'create_supplier',payload:{name:command.name.trim(),email:command.email?.trim() || undefined,phone:command.phone?.trim() || undefined}}),ctx.organizationId);
+    let created=validateRegistrySupplier(await deps.registryWrite!(ctx.organizationId,{action:'create_supplier',payload:{name:command.name.trim(),email:command.email?.trim() || undefined,phone:command.phone?.trim() || undefined}}),ctx.organizationId);
     let contactId:string|null=null;
     if(command.type==='supplier.registry.create' && command.contactName?.trim()) {
-      const withContact=validateRegistrySupplier(await deps.registryWrite(ctx.organizationId,{action:'create_supplier_contact',supplier_id:created.id,payload:{name:command.contactName.trim(),email:command.email?.trim() || undefined,phone:command.phone?.trim() || undefined,is_primary:true}}),ctx.organizationId);
+      const withContact=validateRegistrySupplier(await deps.registryWrite!(ctx.organizationId,{action:'create_supplier_contact',supplier_id:created.id,payload:{name:command.contactName.trim(),email:command.email?.trim() || undefined,phone:command.phone?.trim() || undefined,is_primary:true}}),ctx.organizationId);
       if(withContact.id!==created.id) fail('supplier_registry_invalid',502);
       created=withContact;
       contactId=created.primary_contact?.id || null;
@@ -210,8 +210,8 @@ export async function loadWorkspaceSupplierTransportOptions(admin:any,input:{org
   // Registry currently has no pagination/count contract and defaults to 500.
   // Refuse a boundary-sized response rather than returning a partial picker.
   if(!Array.isArray(suppliers)||suppliers.length>=500) fail('supplier_options_incomplete',502);
-  suppliers.forEach(s=>validateRegistrySupplier(s,organizationId));
-  if(new Set(suppliers.map(s=>s.id)).size!==suppliers.length || suppliers.reduce((n,s)=>n+s.contacts.length,0)>=500) fail('supplier_options_incomplete',502);
+  suppliers.forEach((s:any)=>validateRegistrySupplier(s,organizationId));
+  if(new Set(suppliers.map((s:any)=>s.id)).size!==suppliers.length || suppliers.reduce((n:number,s:any)=>n+s.contacts.length,0)>=500) fail('supplier_options_incomplete',502);
   const vehicles:any[]=[]; let total:number|null=null;
   for(let offset=0;offset<=20000;offset+=200) {
     const result=await admin.from('vehicles').select('id,name,vehicle_type,is_external',{count:'exact'}).eq('organization_id',organizationId).order('id').range(offset,offset+199);
