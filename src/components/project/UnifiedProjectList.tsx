@@ -6,7 +6,7 @@ import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'luc
 import { Button } from '@/components/ui/button';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
-import { resolveProjectPhaseDates, projectStatusTabs, smallProjectView, largeProjectView, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
+import { resolveProjectPhaseDates, projectOperationalStatus, projectStatusTabs, smallProjectView, largeProjectView, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
 import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
@@ -24,6 +24,8 @@ interface UnifiedProject {
   type: 'small' | 'medium' | 'large';
   date: string | null;
   eventDate: string | null;
+  rigDate?: string | null;
+  rigDownDate?: string | null;
   status: string;
   subtitle: string | null;
   address: string | null;
@@ -98,6 +100,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       type: 'small',
       date: j.booking?.eventDate ?? null,
       eventDate: smallProjectView(j, { eventdate: j.booking?.eventDate }).listEventDate,
+      rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate,
+      rigDownDate: j.booking?.rigDownDate ?? j.booking?.eventDate,
       status: smallProjectView(j, null).status as any,
       subtitle: j.booking?.deliveryAddress ?? null,
       address: j.booking?.deliveryAddress ?? null,
@@ -120,6 +124,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         type: 'medium',
         date: isInternal ? null : (p.booking?.eventdate ?? null),
         eventDate: isInternal ? null : resolveProjectPhaseDates(p, p.booking as any).eventdate,
+        rigDate: resolveProjectPhaseDates(p, p.booking).rigdaydate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
+        rigDownDate: resolveProjectPhaseDates(p, p.booking).rigdowndate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
         status: p.status,
         subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
@@ -154,6 +160,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         type: 'large',
         date: lp.start_date?.[0] ?? null,
         eventDate: largeProjectView(lp as any).listEventDate,
+        rigDate: largeProjectView(lp).dates.rigdaydate ?? largeProjectView(lp).dates.eventdate,
+        rigDownDate: largeProjectView(lp).dates.rigdowndate,
         status: lp.status,
         subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
         address: lp.location ?? null,
@@ -166,7 +174,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       });
     });
 
-    return items;
+    const today = new Date().toISOString().split('T')[0];
+    return items.map(item => ({ ...item, status: projectOperationalStatus(item.status, { rigDate: item.rigDate, rigDownDate: item.rigDownDate, date: item.eventDate }, today) }));
   }, [jobs, projects, largeProjects]);
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
