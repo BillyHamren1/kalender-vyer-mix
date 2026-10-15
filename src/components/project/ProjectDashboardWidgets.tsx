@@ -1,3 +1,4 @@
+import { projectListDisplayName } from '../../../supabase/functions/_shared/operations-project-workspace-presentation';
 import { resolveProjectPhaseDates } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -47,7 +48,7 @@ const ProjectDashboardWidgets = () => {
     const items: UnifiedItem[] = [];
     jobs.forEach(j => items.push({
       id: j.id, 
-      name: j.booking?.client ? `${j.booking.client}${j.booking.bookingNumber ? ' #' + j.booking.bookingNumber : ''}` : j.name, 
+      name: projectListDisplayName(j.name, false, j.booking?.client, j.booking?.bookingNumber),
       type: 'small',
       date: j.booking?.eventDate ?? null,
       rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate ?? null,
@@ -61,7 +62,7 @@ const ProjectDashboardWidgets = () => {
     projects.forEach(p => {
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
-      const displayName = client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name;
+      const displayName = projectListDisplayName(p.name, (p as any).is_internal === true, client, bookingNum);
       const addressParts = [p.booking?.deliveryaddress, p.booking?.delivery_city].filter(Boolean);
       const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null;
       items.push({

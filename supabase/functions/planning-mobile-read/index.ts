@@ -6,6 +6,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
+import { loadOperationsProjectWorkspace } from '../_shared/operations-project-workspace.ts';
+import { loadWorkspaceSupplierTransportOptions } from '../_shared/operations-project-workspace-suppliers.ts';
+import { projectListDisplayName } from '../_shared/operations-project-workspace-presentation.ts';
 import { resolveProjectPhaseDates, loadProjectStates, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
 const json = (status: number, body: unknown) => {
     // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
@@ -99,7 +102,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     const offset = body.offset ?? 0;
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000)
         return json(400, { error: 'invalid_offset' });
-    const { offset: ignoredOffset, projectId, bookingId, ...baseBody } = body;
+    const { offset: ignoredOffset, projectId, bookingId, workspace, workspaceOptions, ...baseBody } = body;
+    if (workspace !== undefined && (workspace !== true || !projectId || bookingId !== undefined))
+        return json(400, { error: 'invalid_workspace_request' });
+    if (workspaceOptions !== undefined && (workspaceOptions !== true || !projectId || bookingId !== undefined || workspace !== undefined))
+        return json(400, { error: 'invalid_workspace_request' });
     if (projectId !== undefined && (typeof projectId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId)))
         return json(400, { error: 'invalid_project_id' });
     if (bookingId !== undefined && (typeof bookingId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookingId))) return json(400, { error: 'invalid_booking_id' });
@@ -135,8 +142,24 @@ export async function handleRequest(request: Request): Promise<Response> {
     const actorAuth = await authorizeHubActor(admin, { hubSubject: actor, organizationId: org, roles: PLANNING_BRAIN_ACTOR_ROLES });
     if (!actorAuth.ok) { logActorDenial('planning-mobile-read', actorAuth.reason, org); return json(actorAuth.status, { error: actorAuth.error }); }
 
+    if (workspaceOptions === true) {
+        try {
+            const result = await loadWorkspaceSupplierTransportOptions(admin, { organizationId: org, projectId, localUserId: actorAuth.localUserId });
+            return json(200, { ...result, canonicalIdentity: { actorUserId: actor, organizationId: org } });
+        } catch { return json(503, { error: 'project_workspace_options_unavailable' }); }
+    }
+    if (workspace === true) {
+        try {
+            const result = await loadOperationsProjectWorkspace(admin, { organizationId: org, projectId, localUserId: actorAuth.localUserId });
+            return json(200, { ...result, canonicalIdentity: { actorUserId: actor, organizationId: org } });
+        } catch (error) {
+            const missing = error instanceof Error && error.message === 'project_not_found';
+            return json(missing ? 404 : 503, { error: missing ? 'project_not_found' : 'project_workspace_unavailable' });
+        }
+    }
+
     if (bookingId) {
-        const matches = await admin.from('projects').select('id, name, booking_id, status, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
+        const matches = await admin.from('projects').select('id, name, booking_id, status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);
         if (matches.error || matches.count === null || matches.count !== (matches.data ?? []).length) return json(503, { error: 'project_lookup_incomplete' });
         const resolverDates = await loadBookingDates(admin, org, matches.data ?? []);
@@ -151,11 +174,11 @@ export async function handleRequest(request: Request): Promise<Response> {
         const rlp = lpIds.length ? await admin.from('large_projects').select('id, name, status, start_date, event_date, end_date').eq('organization_id', org).in('id', lpIds).is('deleted_at', null) : { data: [], error: null };
         if (rlp.error) return json(503, { error: 'project_lookup_incomplete' });
         const relatedProjects = [
-            ...(matches.data ?? []).map((raw: any) => { const row = withBookingDates(raw, resolverDates); return entry('medium', row.id, row.name, { status: raw.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.eventdate }, raw.booking_id); }),
+            ...(matches.data ?? []).map((raw: any) => { const row = withBookingDates(raw, resolverDates); return entry('medium', row.id, projectListDisplayName(row.name,row.is_internal===true,rb.data?.client,rb.data?.booking_number), { status: raw.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.eventdate }, raw.booking_id); }),
             ...(rj.data ?? []).map((j: any) => { const b = rb.data; const title = b?.client ? `${b.client}${b.booking_number ? ' #' + b.booking_number : ''}` : j.name; return entry('small', j.id, title ?? null, smallProjectView(j, b), b ? bookingId : null); }),
             ...(rlp.data ?? []).map((lp: any) => entry('large', lp.id, lp.name ?? null, largeProjectView(lp), null)),
         ];
-        return json(200, {schema: 'planning-mobile-booking-projects.v1', relatedProjects, canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: row.name, rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
+        return json(200, {schema: 'planning-mobile-booking-projects.v1', relatedProjects, canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: projectListDisplayName(row.name,row.is_internal===true,rb.data?.client,rb.data?.booking_number), rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
     }
     if (projectId) {
         const project = await admin.from('projects')
@@ -237,6 +260,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     const listDates = await loadBookingDates(admin, org, projectsResult.data ?? []);
     if (!listDates) return json(503, { error: 'booking_dates_read_failed' });
     const listProjects = (projectsResult.data ?? []).map((row: any) => withBookingDates(row, listDates));
+    const labelIds = [...new Set(listProjects.map((row: any) => row.booking_id).filter((id: unknown) => typeof id === 'string' && UUID_ID.test(id)))];
+    const labels = labelIds.length ? await admin.from('bookings').select('id,client,booking_number').eq('organization_id',org).in('id',labelIds) : {data:[],error:null};
+    if(labels.error) return json(503,{error:'booking_labels_read_failed'});
+    const bookingLabels = new Map((labels.data ?? []).map((row: any)=>[row.id,row]));
+    const listTitle = (row: any) => { const b: any = bookingLabels.get(row.booking_id); return projectListDisplayName(row.name,row.is_internal===true,b?.client,b?.booking_number); };
 
     const projection = buildPlanningBrainProjection({
         request: parsed.value,
@@ -265,7 +293,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     for (const row of staff.data ?? [])
         if (row.name)
             names.set(row.id, row.name);
-    const titles = new Map((projectsResult.data ?? []).map((row: any) => [row.id, row.name]));
+    const titles = new Map((projectsResult.data ?? []).map((row: any) => [row.id, listTitle(row)]));
     const totals = { projects: projectsResult.count, planningDays: eventsResult.count, teamAssignments: assignmentsResult.count };
     if (Object.values(totals).some(count => !Number.isSafeInteger(count) || (count ?? -1) < 0))
         return json(503, { error: 'count_unavailable' });
@@ -276,7 +304,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
     const others = await loadOtherKinds(admin, org, offset);
     if (!others) return json(503, { error: 'project_kinds_read_failed' });
-    const mediumEntries = listProjects.map((row: any) => entry('medium', row.id, row.name ?? null, { status: row.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.is_internal ? null : row.eventdate }, row.booking_id ?? null));
+    const mediumEntries = listProjects.map((row: any) => entry('medium', row.id, listTitle(row), { status: row.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.is_internal ? null : row.eventdate }, row.booking_id ?? null));
     let states;
     try {
         states = await Promise.all([

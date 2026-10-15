@@ -1,3 +1,5 @@
+import { legacyCostDifference, legacyCostDifferences } from '../../../supabase/functions/_shared/operations-product-presentation';
+export { legacyCostDifference } from '../../../supabase/functions/_shared/operations-product-presentation';
 import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
 import { extraCostAmount } from "@/lib/economy/bookingCosts";
 export { extraCostAmount } from "@/lib/economy/bookingCosts";
@@ -14,17 +16,6 @@ import type { ProductCostSummary } from '@/services/productCostService';
 
 const fields = ['assembly_cost', 'handling_cost', 'purchase_cost'] as const;
 const fmt = (n: number) => n.toLocaleString('sv-SE');
-export function legacyCostDifference(product: Record<string, unknown> | undefined, legacy: Record<string, unknown>) {
-  const costs: BookingCostPatch = {}, expected: BookingCostPatch = {};
-  if (!product) return { costs, expected };
-  for (const field of fields) {
-    const value = legacy[field];
-    if (typeof value === 'number' && value !== product[field]) {
-      costs[field] = value; expected[field] = product[field] as number;
-    }
-  }
-  return { costs, expected };
-}
 function useCostRefresh(bookingId: string) {
   const client = useQueryClient();
   return () => Promise.all([
@@ -45,10 +36,7 @@ export function BookingCostReconciliation({ bookingId, projectId }: { bookingId:
   const [saving, setSaving] = useState(false);
   const refresh = useCostRefresh(bookingId);
   const currency = data?.cost_currency || 'SEK';
-  const differences = legacy.filter(row => !row.booking_id || row.booking_id === bookingId).map(row => {
-    const product = data?.products.find(p => p.id === row.product_id);
-    return { row, product, ...legacyCostDifference(product as unknown as Record<string, unknown>, row as unknown as Record<string, unknown>) };
-  }).filter(item => !item.product || Object.keys(item.costs).length > 0);
+  const differences = legacyCostDifferences(legacy, data?.products ?? [], bookingId);
   if (error) return <p role="alert">Tidigare lokala kostnadsändringar kunde inte läsas.</p>;
   if (!differences.length) return null;
   return <Card><CardHeader><CardTitle className="text-base">Tidigare lokala kostnadsändringar</CardTitle></CardHeader><CardContent className="space-y-3">

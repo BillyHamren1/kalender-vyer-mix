@@ -8,10 +8,17 @@ const dataUrl = s => `data:text/javascript;base64,${Buffer.from(stripTypeScriptT
 const contractUrl = dataUrl(await readFile(new URL('../../supabase/functions/_shared/planning-brain-read-contract.ts', import.meta.url), 'utf8'));
 const hubUrl = dataUrl(await readFile(new URL('../../supabase/functions/_shared/hub-actor.ts', import.meta.url), 'utf8'));
 const contract = await import(contractUrl);
+// These suites exercise legacy list/detail routes; unexpected workspace routing must fail.
+const workspaceUrl = dataUrl(`export async function loadOperationsProjectWorkspace() { throw new Error('unexpected_workspace_route_in_legacy_suite'); }`);
+const workspaceOptionsUrl = dataUrl(`export async function loadWorkspaceSupplierTransportOptions() { throw new Error('unexpected_workspace_options_route_in_legacy_suite'); }`);
+const workspacePresentationUrl = dataUrl(await readFile(new URL('../../supabase/functions/_shared/operations-project-workspace-presentation.ts', import.meta.url), 'utf8'));
 const source = (await readFile(new URL('../../supabase/functions/planning-mobile-read/index.ts', import.meta.url), 'utf8'))
   .replace(/import \{ createClient \} from '[^']+';?/, 'const createClient = (...a) => globalThis.__linkClient(...a);')
   .replace("'../_shared/planning-brain-read-contract.ts'", JSON.stringify(contractUrl))
   .replace("'../_shared/hub-actor.ts'", JSON.stringify(hubUrl))
+  .replace("'../_shared/operations-project-workspace.ts'", JSON.stringify(workspaceUrl))
+  .replace("'../_shared/operations-project-workspace-suppliers.ts'", JSON.stringify(workspaceOptionsUrl))
+  .replace("'../_shared/operations-project-workspace-presentation.ts'", JSON.stringify(workspacePresentationUrl))
   .replace("'../_shared/projectPhaseDates.ts'", JSON.stringify(dataUrl(await readFile(new URL('../../supabase/functions/_shared/projectPhaseDates.ts', import.meta.url), 'utf8'))));
 const { handleRequest } = await import(dataUrl(source));
 const ORG = '22222222-2222-4222-8222-222222222222', OTHER = '66666666-6666-4666-8666-666666666666', HUB = '11111111-1111-4111-8111-111111111111';
@@ -101,7 +108,7 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   // 'Out' (dates outside window, no events) is listed like in Operations; other org + deleted are not.
   assert.deepEqual(ids, ['a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000004']);
   for (const p of body.projects) {
-    const expected = { Event: 'in_progress', Assign: 'planning', Dated: 'completed', Out: 'completed' }[p.title];
+    const expected = db.operations_project_states.find(state => state.project_kind === 'medium' && state.project_id === p.projectId && state.organization_id === ORG).status;
     assert.equal(p.status, expected);
     assert.equal(p.lifecycle, expected === 'completed' ? 'completed' : 'active');
     assert.equal(p.statusTabs.includes('all_active'), expected !== 'completed');
@@ -110,6 +117,8 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
     assert.equal(entry.status, p.status);
     assert.equal(entry.lifecycle, p.lifecycle);
   }
+  assert.equal(body.projects.find(p => p.projectId === 'a0000000-0000-4000-8000-000000000001').title, 'Perfect Event #2609-61');
+  assert.equal(body.projectEntries.find(p => p.projectKind === 'medium' && p.projectId === 'a0000000-0000-4000-8000-000000000001').title, 'Perfect Event #2609-61');
   const out = body.projects.find(p => p.projectId.endsWith('04'));
   assert.equal(out.rigDate, '2025-01-01'); assert.equal(out.dateSources.rig, 'project');
   assert.ok(out.statusTabs.includes('closing') === false); // no event date -> not in 'Under slutförande'
@@ -129,4 +138,3 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   // Legacy `projects` array keeps medium-only semantics.
   assert.equal(body.projects.length, 4);
 });
-

@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { resolveSender, SenderNotConfiguredError } from "../_shared/email/senderIdentity.ts";
 
+import { authenticateWorkspaceOwnerSender, authorizeWorkspaceOwnerOrganization } from "../_shared/operations-project-workspace-suppliers.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -420,12 +422,24 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    if (req.method !== "POST") return new Response(null, { status: 405, headers: corsHeaders });
+    const principal = await authenticateWorkspaceOwnerSender(req, supabase);
     const body = await req.json();
     // Support both single assignment_id and array of assignment_ids
     const assignmentIds: string[] = body.assignment_ids || (body.assignment_id ? [body.assignment_id] : []);
     const { custom_subject, custom_message, reference_person } = body;
 
-    if (assignmentIds.length === 0) throw new Error("assignment_id or assignment_ids is required");
+    if (!Array.isArray(assignmentIds) || assignmentIds.length === 0 || assignmentIds.length > 100 ||
+        assignmentIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) ||
+        new Set(assignmentIds).size !== assignmentIds.length) throw new Error("assignment_id or assignment_ids is required");
+    const { data: targets, error: targetError } = await supabase.from("transport_assignments")
+      .select("id,organization_id,booking_id").in("id", assignmentIds);
+    if (targetError || targets?.length !== assignmentIds.length) throw new Error("Assignments not found");
+    const organizationId = targets[0].organization_id;
+    await authorizeWorkspaceOwnerOrganization(supabase, principal, organizationId);
+    if (targets.some(a => a.organization_id !== organizationId || a.booking_id !== targets[0].booking_id)) {
+      throw new Error("Assignments must belong to the same organization and booking");
+    }
 
     console.log(`[send-transport-request] Processing ${assignmentIds.length} assignment(s): ${assignmentIds.join(', ')}`);
 
@@ -435,26 +449,32 @@ Deno.serve(async (req) => {
       .select(`
         *,
         booking:bookings!booking_id (
-          id, client, booking_number,
+          id, organization_id, client, booking_number,
           deliveryaddress, delivery_city, delivery_postal_code,
           contact_name, contact_phone, contact_email,
           rigdaydate, eventdate, rigdowndate
         ),
         vehicle:vehicles!vehicle_id (
-          id, name, contact_email, contact_person, contact_phone,
+          id, organization_id, name, contact_email, contact_person, contact_phone,
           vehicle_type, provided_vehicle_types
         ),
         supplier:suppliers!supplier_id (
-          id, name, email, phone, primary_contact, contacts
+          id, organization_id, name, email, phone, primary_contact, contacts
         )
       `)
-      .in("id", assignmentIds);
+      .in("id", assignmentIds)
+      .eq("organization_id", organizationId);
 
     if (assignmentError) throw new Error(`Assignments not found: ${assignmentError.message}`);
     if (!assignments || assignments.length === 0) throw new Error("No assignments found");
 
     // Avsändaridentitet härleds från uppdragets organisation – fail closed.
-    const organizationId = assignments[0].organization_id ?? null;
+    if (assignments.length !== assignmentIds.length || assignments.some(a =>
+      a.organization_id !== organizationId || !a.booking || a.booking.organization_id !== organizationId ||
+      a.booking_id !== targets[0].booking_id ||
+      (a.supplier_id && (!a.supplier || a.supplier.organization_id !== organizationId)) ||
+      (a.vehicle_id && (!a.vehicle || a.vehicle.organization_id !== organizationId))
+    )) throw new Error("Assignment relationship scope mismatch");
     const senderIdentity = await resolveSender(supabase, organizationId, "planning");
 
     // New external transports use the shared supplier registry. The vehicle
@@ -475,6 +495,16 @@ Deno.serve(async (req) => {
 
     if (!partnerEmail) {
       throw new Error(`Leverantören ${supplier?.name || vehicle?.name || 'okänd'} saknar mejladress`);
+    }
+
+    // Mobile command reviewed this recipient before authorizing the send.
+    // Recheck inside the canonical sender, after its own assignment read.
+    if (body.expected_recipient_email !== undefined &&
+        (typeof body.expected_recipient_email !== 'string' ||
+         body.expected_recipient_email.toLowerCase() !== partnerEmail.toLowerCase())) {
+      return new Response(JSON.stringify({ error: 'recipient_changed' }), {
+        status: 409, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     // Build response URLs and assignment data
@@ -550,7 +580,8 @@ Deno.serve(async (req) => {
       await supabase
         .from("transport_assignments")
         .update({ partner_response: "pending" })
-        .eq("id", aId);
+        .eq("id", aId)
+        .eq("organization_id", organizationId);
     }
 
     // Log the email send for the first assignment (primary)
@@ -580,7 +611,7 @@ Deno.serve(async (req) => {
     console.error("[send-transport-request] Error:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: error?.status || 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 });

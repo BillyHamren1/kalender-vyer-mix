@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { resolveSender, buildReplyTo, SenderNotConfiguredError } from "../_shared/email/senderIdentity.ts";
 
+import { resolveWorkspaceSupplierRecipient, authenticateWorkspaceOwnerSender, authorizeWorkspaceOwnerOrganization } from "../_shared/operations-project-workspace-suppliers.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -52,6 +54,8 @@ Deno.serve(async (req) => {
   );
 
   try {
+    if (req.method !== "POST") return new Response(null, { status: 405, headers: corsHeaders });
+    const principal = await authenticateWorkspaceOwnerSender(req, supabase);
     const body = await req.json();
     const linkId: string | undefined = body.project_supplier_link_id;
     const customSubject: string | null = body.subject ?? null;
@@ -71,49 +75,28 @@ Deno.serve(async (req) => {
 
     // Organisationen härleds serverside – aldrig från klienten.
     const organizationId: string | null = link.organization_id ?? null;
+    await authorizeWorkspaceOwnerOrganization(supabase, principal, organizationId);
     const sender = await resolveSender(supabase, organizationId, "planning");
 
-    const { data: project } = await supabase
+    const { data: project, error: projectError } = await supabase
       .from("projects")
       .select("id, name, booking_id, organization_id")
       .eq("id", link.project_id)
+      .eq("organization_id", organizationId)
       .maybeSingle();
 
-    if (project?.organization_id && project.organization_id !== organizationId) {
+    if (projectError || !project || project.organization_id !== organizationId) {
       throw new Error("Projektet tillhör en annan organisation – utskicket stoppades");
     }
 
-    // Mottagare: kontaktperson i första hand, annars leverantörens huvudmejl.
-    let recipientEmail: string | null = null;
-    let recipientName: string | null = null;
-
-    if (link.contact_id) {
-      const { data: contact } = await supabase
-        .from("external_supplier_contacts")
-        .select("name, email, organization_id")
-        .eq("id", link.contact_id)
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (contact?.email) {
-        recipientEmail = contact.email;
-        recipientName = contact.name ?? null;
-      }
-    }
-
-    if (!recipientEmail) {
-      const { data: supplier } = await supabase
-        .from("external_suppliers")
-        .select("name, email, organization_id")
-        .eq("id", link.supplier_id)
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (supplier?.email) {
-        recipientEmail = supplier.email;
-        recipientName = recipientName ?? supplier.name ?? null;
-      }
-    }
-
-    if (!recipientEmail) throw new Error("Leverantören saknar mejladress");
+    // Same authoritative WMS supplier/contact as the project's supplier picker.
+    // Never resolve a modern WMS supplier id against historical local tables.
+    const recipient = await resolveWorkspaceSupplierRecipient(
+      organizationId, link.supplier_id, link.contact_id,
+      body.expected_recipient_email,
+    );
+    const recipientEmail = recipient.email;
+    const recipientName = recipient.name;
 
     const subject = customSubject?.trim() ||
       `Förfrågan${project?.booking_id ? ` – ${project.booking_id}` : ""}: ${link.service_type || project?.name || "Projekt"}`;
@@ -179,7 +162,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );
   } catch (error: any) {
-    const status = error instanceof SenderNotConfiguredError ? 422 : 400;
+    const status = error instanceof SenderNotConfiguredError ? 422 : error?.status || 400;
     console.error("[send-supplier-request]", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status,
