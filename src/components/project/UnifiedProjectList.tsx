@@ -63,16 +63,16 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
-  const { data: jobs = [], isLoading: jobsLoading, isError: stateError0 } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
-  const { data: projects = [], isLoading: projectsLoading, isError: stateError1 } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
-  const { data: largeProjects = [], isLoading: largeLoading, isError: stateError2 } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: jobs = [], isLoading: jobsLoading, isError: stateError0 } = useQuery({ queryKey: ['jobs', 'operations-state-v1'], queryFn: fetchJobs });
+  const { data: projects = [], isLoading: projectsLoading, isError: stateError1 } = useQuery({ queryKey: ['projects', 'operations-state-v1'], queryFn: fetchProjects });
+  const { data: largeProjects = [], isLoading: largeLoading, isError: stateError2 } = useQuery({ queryKey: ['large-projects', 'operations-state-v1'], queryFn: fetchLargeProjects });
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['jobs'] });
-    queryClient.invalidateQueries({ queryKey: ['projects'] });
-    queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+    queryClient.invalidateQueries({ queryKey: ['jobs', 'operations-state-v1'] });
+    queryClient.invalidateQueries({ queryKey: ['projects', 'operations-state-v1'] });
+    queryClient.invalidateQueries({ queryKey: ['large-projects', 'operations-state-v1'] });
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
   };
 
