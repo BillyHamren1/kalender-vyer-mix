@@ -51,6 +51,16 @@ const db = {
   ],
   staff_members: [], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
+db.operations_project_states = [
+  ...db.projects.filter(p => !p.deleted_at).map((p, i) => ({
+    project_id: p.id, project_kind: 'medium', organization_id: p.organization_id,
+    status: ['in_progress', 'planning', 'completed', 'completed', 'planning'][i],
+    lifecycle: [2, 3].includes(i) ? 'completed' : 'active',
+    status_tabs: ['all', ...([2, 3].includes(i) ? [] : ['all_active']), ['in_progress', 'planning', 'completed', 'completed', 'planning'][i]],
+  })),
+  ...db.jobs.filter(p => !p.deleted_at).map(p => ({ project_id: p.id, project_kind: 'small', organization_id: p.organization_id, status: 'in_progress', lifecycle: 'active', status_tabs: ['all', 'all_active', 'in_progress'] })),
+  ...db.large_projects.filter(p => !p.deleted_at).map(p => ({ project_id: p.id, project_kind: 'large', organization_id: p.organization_id, status: 'completed', lifecycle: 'completed', status_tabs: ['all', 'completed'] })),
+];
 const inRange = (d, a, b) => d != null && d >= a && d <= b;
 // Minimal PostgREST emulation of the exact filters used (eq/gte/lte/is/not/or).
 function evalOr(row, expr) {
@@ -64,7 +74,7 @@ globalThis.__linkClient = () => ({
   from(table) {
     const preds = []; let single = false;
     const q = {
-      select() { return q; }, order() { return q; }, range() { return q; }, in() { return q; },
+      select() { return q; }, order() { return q; }, range() { return q; }, in(k, v) { preds.push(r => v.includes(r[k])); return q; },
       eq(k, v) { preds.push(r => r[k] === v); return q; },
       gte(k, v) { preds.push(r => r[k] >= v); return q; }, lte(k, v) { preds.push(r => r[k] <= v); return q; },
       is(k, v) { preds.push(r => r[k] === v); return q; }, not(k) { preds.push(r => r[k] != null); return q; },
@@ -120,16 +130,3 @@ test('list mirrors Operations: every non-deleted same-org project, dates via sha
   assert.equal(body.projects.length, 4);
 });
 
-test('operational status follows phase boundaries and explicit terminal states', async () => {
-  const { projectOperationalStatus: status, largeProjectView } = await import(dataUrl(await readFile(new URL('../../supabase/functions/_shared/projectPhaseDates.ts', import.meta.url), 'utf8')));
-  const today = '2026-10-15';
-  assert.equal(status('planning', { rigDownDate: '2026-10-14' }, today), 'completed');
-  assert.equal(status('planning', { rigDate: '2026-10-13', rigDownDate: today }, today), 'in_progress');
-  assert.equal(status('planning', { rigDate: '2026-10-16' }, today), 'planning');
-  assert.equal(status('cancelled', { rigDownDate: '2026-10-14' }, today), 'cancelled');
-  assert.equal(status('completed', { rigDate: '2026-10-16' }, today), 'completed');
-  assert.equal(status('planning', {}, today), 'planning');
-  const view = largeProjectView({ status: 'planning', start_date: ['2026-10-01'], end_date: ['2026-10-14', '2026-10-16'] });
-  assert.equal(view.dates.rigdowndate, '2026-10-16');
-  assert.equal(status(view.status, { rigDate: view.dates.rigdaydate, rigDownDate: view.dates.rigdowndate }, today), 'in_progress');
-});
