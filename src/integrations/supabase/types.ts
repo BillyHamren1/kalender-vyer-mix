@@ -5526,6 +5526,42 @@ export type Database = {
         }
         Relationships: []
       }
+      planning_mobile_workspace_receipts: {
+        Row: {
+          actor_user_id: string
+          command_type: string
+          created_at: string
+          idempotency_key: string
+          organization_id: string
+          project_id: string
+          request_hash: string
+          result: Json | null
+          state: string
+        }
+        Insert: {
+          actor_user_id: string
+          command_type: string
+          created_at?: string
+          idempotency_key: string
+          organization_id: string
+          project_id: string
+          request_hash: string
+          result?: Json | null
+          state: string
+        }
+        Update: {
+          actor_user_id?: string
+          command_type?: string
+          created_at?: string
+          idempotency_key?: string
+          organization_id?: string
+          project_id?: string
+          request_hash?: string
+          result?: Json | null
+          state?: string
+        }
+        Relationships: []
+      }
       product_cost_overrides: {
         Row: {
           assembly_cost: number | null
@@ -11549,6 +11585,17 @@ export type Database = {
           p_actor_user_id: string
           p_event_id: string
           p_organization_id: string
+        }
+        Returns: Json
+      }
+      planning_mobile_workspace_command_v1: {
+        Args: {
+          p_actor_user_id: string
+          p_command: Json
+          p_idempotency_key: string
+          p_organization_id: string
+          p_project_id: string
+          p_request_hash: string
         }
         Returns: Json
       }
