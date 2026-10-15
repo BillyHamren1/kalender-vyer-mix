@@ -1,3 +1,4 @@
+import { loadProjectStates } from '../../supabase/functions/_shared/projectPhaseDates';
 import { supabase } from "@/integrations/supabase/client";
 import { recomputeBookingAssignment } from "@/services/bookingAssignmentService";
 import type { 
@@ -24,7 +25,7 @@ export { LargeProjectMembershipConflictError };
 // LARGE PROJECT CRUD
 // ============================================
 
-export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> {
+export async function fetchLargeProjects(): Promise<(LargeProjectWithBookings & { operationalState: { status: string; statusTabs: string[] } })[]> {
   const { data, error } = await supabase
     .from('large_projects')
     .select(`
@@ -66,6 +67,7 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
     }
   }
 
+  const states = await loadProjectStates(supabase, 'large', (data || []).map(p => p.id));
   return (data || []).map(project => {
     const joinRows = (project.large_project_bookings || []) as any[];
     const legacy = legacyByProject.get(project.id) || [];
@@ -79,6 +81,7 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
     }) as unknown as LargeProjectBooking[];
     return {
       ...project,
+      operationalState: states.get(project.id)!,
       status: project.status as LargeProjectStatus,
       bookings,
       bookingCount: bookings.length,
