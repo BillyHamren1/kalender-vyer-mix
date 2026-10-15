@@ -6,7 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
-import { resolveProjectPhaseDates, classifyProjectLifecycle, projectStatusTabs, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
+import { resolveProjectPhaseDates, projectOperationalStatus, classifyProjectLifecycle, projectStatusTabs, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
 const json = (status: number, body: unknown) => {
     // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
     const b = body as { error?: unknown; schema?: unknown };
@@ -46,15 +46,17 @@ function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>
 }
 // Operations project-list classification (UnifiedProjectList status tabs); internal projects have no event date there.
 const todayUtc = () => new Date().toISOString().slice(0, 10);
-function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; eventdate?: string | null }) {
-    return { lifecycle: classifyProjectLifecycle(row.status), statusTabs: projectStatusTabs(row.status, row.is_internal ? null : row.eventdate, todayUtc()) };
+function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; rigdaydate?: string | null; eventdate?: string | null; rigdowndate?: string | null }) {
+    const status = projectOperationalStatus(row.status, { rigDate: row.rigdaydate, date: row.eventdate, rigDownDate: row.rigdowndate ?? row.eventdate }, todayUtc());
+    return { status, lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, row.eventdate, todayUtc()) };
 }
 
 // Additive all-kind entries (small=jobs, medium=projects, large=large_projects), identity = (projectKind, projectId).
 function entry(kind: 'small' | 'medium' | 'large', id: string, title: string | null, view: { status: string | null; dates: any; listEventDate: string | null }, bookingRef: string | null) {
-    return { projectKind: kind, projectId: id, entryKey: `${kind}:${id}`, title, status: view.status, bookingRef,
+    const status = projectOperationalStatus(view.status, { rigDate: view.dates.rigdaydate, date: view.dates.eventdate, rigDownDate: view.dates.rigdowndate ?? view.dates.eventdate }, todayUtc());
+    return { projectKind: kind, projectId: id, entryKey: `${kind}:${id}`, title, status, bookingRef,
         rigDate: view.dates.rigdaydate, eventDate: view.dates.eventdate, derigDate: view.dates.rigdowndate, dateSources: view.dates.sources,
-        lifecycle: classifyProjectLifecycle(view.status), statusTabs: projectStatusTabs(view.status, view.listEventDate, todayUtc()),
+        lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, view.listEventDate, todayUtc()),
         detailSupported: kind === 'medium' };
 }
 async function loadOtherKinds(admin: any, org: string, offset: number) {
@@ -202,7 +204,7 @@ export async function handleRequest(request: Request): Promise<Response> {
             schema: 'planning-mobile-detail.v1',
             canonicalIdentity: { actorUserId: actor, organizationId: org },
             projectId: p.id, title: p.name, bookingRef: p.booking_id,
-            project: {projectKind:'medium',projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,eventdate:resolved.eventdate})},
+            project: {projectKind:'medium',projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,rigdaydate:resolved.rigdaydate,eventdate:resolved.eventdate,rigdowndate:resolved.rigdowndate})},
             contactName: p.contact_name, contactPhone: p.contact_phone, contactEmail: p.contact_email,
             address: p.deliveryaddress, city: p.delivery_city, postalCode: p.delivery_postal_code,
             notes: p.internalnotes, generatedAt: new Date().toISOString(),
