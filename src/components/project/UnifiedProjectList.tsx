@@ -6,7 +6,7 @@ import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'luc
 import { Button } from '@/components/ui/button';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
-import { resolveProjectPhaseDates, projectOperationalStatus, projectStatusTabs, smallProjectView, largeProjectView, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
+import { resolveProjectPhaseDates, smallProjectView, largeProjectView, type ProjectStatusTab } from '../../../supabase/functions/_shared/projectPhaseDates';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
 import { convertToMedium, prepareConvertToLarge, getBookingIdForProject, type ProjectType } from '@/services/projectConversionService';
 import ProjectActionMenu from '@/components/project/ProjectActionMenu';
@@ -27,6 +27,7 @@ interface UnifiedProject {
   rigDate?: string | null;
   rigDownDate?: string | null;
   status: string;
+  statusTabs: string[];
   subtitle: string | null;
   address: string | null;
   navigateTo: string;
@@ -62,9 +63,9 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
-  const { data: jobs = [], isLoading: jobsLoading } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
-  const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: jobs = [], isLoading: jobsLoading, isError: stateError0 } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
+  const { data: projects = [], isLoading: projectsLoading, isError: stateError1 } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const { data: largeProjects = [], isLoading: largeLoading, isError: stateError2 } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
@@ -102,7 +103,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       eventDate: smallProjectView(j, { eventdate: j.booking?.eventDate }).listEventDate,
       rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate,
       rigDownDate: j.booking?.rigDownDate ?? j.booking?.eventDate,
-      status: smallProjectView(j, null).status as any,
+      status: j.operationalState.status,
+      statusTabs: j.operationalState.statusTabs,
       subtitle: j.booking?.deliveryAddress ?? null,
       address: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
@@ -126,7 +128,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         eventDate: isInternal ? null : resolveProjectPhaseDates(p, p.booking as any).eventdate,
         rigDate: resolveProjectPhaseDates(p, p.booking).rigdaydate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
         rigDownDate: resolveProjectPhaseDates(p, p.booking).rigdowndate ?? resolveProjectPhaseDates(p, p.booking).eventdate,
-        status: p.status,
+        status: p.operationalState.status,
+        statusTabs: p.operationalState.statusTabs,
         subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
         navigateTo: `/project-next/${p.id}`,
@@ -162,7 +165,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         eventDate: largeProjectView(lp as any).listEventDate,
         rigDate: largeProjectView(lp).dates.rigdaydate ?? largeProjectView(lp).dates.eventdate,
         rigDownDate: largeProjectView(lp).dates.rigdowndate,
-        status: lp.status,
+        status: lp.operationalState.status,
+        statusTabs: lp.operationalState.statusTabs,
         subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
         address: lp.location ?? null,
         navigateTo: `/large-project/${lp.id}`,
@@ -174,13 +178,11 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       });
     });
 
-    const today = new Date().toISOString().split('T')[0];
-    return items.map(item => ({ ...item, status: projectOperationalStatus(item.status, { rigDate: item.rigDate, rigDownDate: item.rigDownDate, date: item.eventDate }, today) }));
+    return items;
   }, [jobs, projects, largeProjects]);
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const filtered = useMemo(() => {
     if (!hasActiveFilters) return [];
@@ -192,7 +194,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
           const haystack = `${p.name} ${p.subtitle ?? ''} ${p.searchExtra ?? ''}`.toLowerCase();
           if (!haystack.includes(q)) return false;
         }
-        return projectStatusTabs(p.status, p.eventDate, today).includes(statusFilter as ProjectStatusTab);
+        return p.statusTabs.includes(statusFilter as ProjectStatusTab);
       })
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;
@@ -253,6 +255,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     try { return format(new Date(dateStr), 'd MMM yyyy', { locale: sv }); }
     catch { return dateStr; }
   };
+
+  if (stateError0 || stateError1 || stateError2) return <div role="alert" className="p-4 text-destructive">Kunde inte hämta Operations projekt. Försök uppdatera sidan.</div>;
 
   if (isLoading) {
     return (
