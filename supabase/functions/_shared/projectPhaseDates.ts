@@ -41,44 +41,7 @@ export function resolveProjectPhaseDates(
 }
 
 export type ProjectLifecycle = 'active' | 'completed' | 'cancelled';
-/** Read-only operational state. Shared with the web dashboard; never persists status. */
-export function projectOperationalStatus(
-  status: string | null | undefined,
-  dates: { rigDate?: string | null; date?: string | null; rigDownDate?: string | null },
-  today: string,
-): 'planning' | 'in_progress' | 'completed' | 'cancelled' {
-  if (status === 'cancelled') return 'cancelled';
-  const end = dates.rigDownDate;
-  if (status === 'completed' || (end && end < today)) return 'completed';
-  const start = dates.rigDate ?? dates.date;
-  return start && start <= today ? 'in_progress' : 'planning';
-}
 export type ProjectStatusTab = 'all' | 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'cancelled';
-
-/** Operations project-list status classification (UnifiedProjectList status tabs). */
-export function classifyProjectLifecycle(status: string | null | undefined): ProjectLifecycle {
-  if (status === 'completed') return 'completed';
-  if (status === 'cancelled') return 'cancelled';
-  return 'active';
-}
-
-/** Every Operations status tab the project appears under. `today` = YYYY-MM-DD. */
-export function projectStatusTabs(
-  status: string | null | undefined,
-  eventDate: string | null | undefined,
-  today: string,
-): ProjectStatusTab[] {
-  const normalized = status === 'planned' ? 'planning' : status;
-  const lifecycle = classifyProjectLifecycle(normalized);
-  const tabs: ProjectStatusTab[] = ['all'];
-  if (lifecycle === 'active') tabs.push('all_active');
-  if (normalized === 'planning') tabs.push('planning');
-  if (normalized === 'in_progress') tabs.push('in_progress');
-  if (lifecycle === 'active' && eventDate && eventDate < today) tabs.push('closing');
-  if (lifecycle === 'completed') tabs.push('completed');
-  if (lifecycle === 'cancelled') tabs.push('cancelled');
-  return tabs;
-}
 
 // ---------------------------------------------------------------------------
 // Unified project kinds — the same three kinds Operations' project list shows
@@ -107,4 +70,29 @@ export function largeProjectView(lp: { status?: string | null; start_date?: unkn
     } as ResolvedPhaseDates,
     listEventDate: derig ?? rig,
   };
+}
+
+/** Operations database is the only authority for operational status.
+ * No client clock or local classification fallback is allowed.
+ */
+export async function loadProjectStates(client: any, kind: ProjectKind, ids: string[], organizationId?: string) {
+  const states = new Map<string, { status: string; lifecycle: ProjectLifecycle; statusTabs: ProjectStatusTab[] }>();
+  const unique = [...new Set(ids)];
+  for (let offset = 0; offset < unique.length; offset += 200) {
+    const batch = unique.slice(offset, offset + 200);
+    let query = client.from('operations_project_states')
+      .select('project_id, status, lifecycle, status_tabs').eq('project_kind', kind).in('project_id', batch);
+    if (organizationId) query = query.eq('organization_id', organizationId);
+    const { data, error } = await query;
+    if (error) throw error;
+    for (const row of data ?? []) {
+      if (!batch.includes(row.project_id) || !['planning', 'in_progress', 'completed', 'cancelled'].includes(row.status)
+        || !['active', 'completed', 'cancelled'].includes(row.lifecycle) || !Array.isArray(row.status_tabs)) {
+        throw new Error('Invalid Operations project state');
+      }
+      states.set(row.project_id, { status: row.status, lifecycle: row.lifecycle, statusTabs: row.status_tabs });
+    }
+    if (batch.some(id => !states.has(id))) throw new Error('Incomplete Operations project states');
+  }
+  return states;
 }
