@@ -16,12 +16,12 @@ const org = '22222222-2222-4222-8222-222222222222', actor = '11111111-1111-4111-
 const staffId = '44444444-4444-4444-8444-444444444444', projectId = '33333333-3333-4333-8333-333333333333';
 const secret = 'test-only-signing-secret';
 globalThis.Deno = { env: { get: key => ({ PLANNING_BRAIN_READ_SIGNING_SECRET: secret, SUPABASE_URL: 'https://test.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-only' })[key] } };
-async function run({ exhausted = false, body = {}, authorized = true, replay = false, count = 1, cap = 200, resolver = { status: 'ok', mode: 'direct', localUserId: actor }, roleOrg = org } = {}) {
+async function run({ missingStates = false, exhausted = false, body = {}, authorized = true, replay = false, count = 1, cap = 200, resolver = { status: 'ok', mode: 'direct', localUserId: actor }, roleOrg = org } = {}) {
     const calls = [];
     globalThis.__mobileReadClient = () => ({ rpc: async (name, args) => { calls.push({ rpc: name, args }); return name === 'resolve_hub_actor_v1' ? { data: resolver, error: null } : { data: !replay, error: null }; }, from(table) {
             let single = false, head = false;
             const filters = [], row = { id: projectId, name: 'Etablering', organization_id: org, status: 'active', rigdaydate: '2026-10-01', rigdowndate: '2026-10-31' };
-            const rows = { project_staff_time_cost_lines: [{id:projectId,staff_name:'Testpersonal',date:'2026-10-12',minutes:60,cost:200,submission_status:'submitted'}], project_files: [{ id: projectId, file_name: 'PM.pdf', file_type: 'application/pdf', url: 'https://files.invalid/pm.pdf' }], project_comments: [{ id: projectId, author_name: 'Test', content: 'Rigg 08:00', created_at: '2026-10-12T07:00:00Z' }], organizations: { id: org }, profiles: { organization_id: authorized ? org : 'wrong' }, user_roles: authorized ? [{ role: 'projekt', organization_id: roleOrg }] : [], projects: Array.from({ length: Math.min(cap, Math.max(count - (body.offset ?? 0), 0)) }, () => row), jobs: [], large_projects: [], calendar_events: [], booking_staff_assignments: (body.offset ?? 0) > 0 ? [] : [{ id: projectId, organization_id: org, staff_id: staffId, assignment_date: '2026-10-12' }], staff_members: [{ id: staffId, name: 'Testpersonal' }] };
+            const rows = { operations_project_states: missingStates ? [] : [{ project_id: projectId, status: "in_progress", lifecycle: "active", status_tabs: ["all", "all_active", "in_progress"] }], project_staff_time_cost_lines: [{id:projectId,staff_name:'Testpersonal',date:'2026-10-12',minutes:60,cost:200,submission_status:'submitted'}], project_files: [{ id: projectId, file_name: 'PM.pdf', file_type: 'application/pdf', url: 'https://files.invalid/pm.pdf' }], project_comments: [{ id: projectId, author_name: 'Test', content: 'Rigg 08:00', created_at: '2026-10-12T07:00:00Z' }], organizations: { id: org }, profiles: { organization_id: authorized ? org : 'wrong' }, user_roles: authorized ? [{ role: 'projekt', organization_id: roleOrg }] : [], projects: Array.from({ length: Math.min(cap, Math.max(count - (body.offset ?? 0), 0)) }, () => row), jobs: [], large_projects: [], calendar_events: [], booking_staff_assignments: (body.offset ?? 0) > 0 ? [] : [{ id: projectId, organization_id: org, staff_id: staffId, assignment_date: '2026-10-12' }], staff_members: [{ id: staffId, name: 'Testpersonal' }] };
             const query = { select(columns, options) { head = options?.head === true; calls.push({ table, columns, filters }); return this; }, eq(k, v) { filters.push([k, v]); return this; }, in() { return this; }, is() { return this; }, not() { return this; }, or(value) { calls.push({ overlap: value }); return this; }, gte() { return this; }, lte() { return this; }, order() { return this; }, range(a, b) { calls.push({ range: [a, b] }); return this; }, maybeSingle() { single = true; return this; }, then(resolve) { const totals = { calendar_events: 59, booking_staff_assignments: 102, jobs: 0, large_projects: 0 }; if (exhausted && table in totals && (body.offset ?? 0) >= totals[table]) return Promise.resolve(head ? { data: null, error: null, count: totals[table], status: 200 } : { data: null, error: { code: 'PGRST103' }, count: null, status: 416 }).then(resolve); return Promise.resolve({ data: table === 'projects' && single ? row : table === 'profiles' && filters.some(([k]) => k === 'organization_id') ? [] : rows[table], error: null, count: table === 'projects' ? count : (table === 'calendar_events' || table === 'jobs' || table === 'large_projects') ? 0 : table === 'booking_staff_assignments' ? ((body.offset ?? 0) === 0 ? 1 : (rows[table] = [], 0)) : count }).then(resolve); } };
             return query;
         } });
@@ -117,4 +117,22 @@ test('exact boundary and empty collections retain independently verified totals'
    const result = await readMobilePage(factory(rangeError,{count,error:null},[]),200);
    assert.equal(result.error,null); assert.equal(result.count,count); assert.deepEqual(result.data,[]);
  }
+});
+
+test('missing canonical state fails closed instead of inventing an active/planning status', async () => {
+  for (const body of [{}, { projectId }]) {
+    const r = await run({ missingStates: true, body });
+    assert.equal(r.response.status, 503);
+    assert.equal(r.body.error, 'project_states_read_failed');
+  }
+});
+test('mobile forwards Operations status unchanged in list and detail', async () => {
+  for (const body of [{}, { projectId }]) {
+    const r = await run({ body });
+    const p = body.projectId ? r.body.project : r.body.projectEntries[0];
+    assert.equal(p.status, 'in_progress');
+    assert.equal(p.lifecycle, 'active');
+    assert.deepEqual(p.statusTabs, ['all', 'all_active', 'in_progress']);
+    assert.ok(r.calls.find(c => c.table === 'operations_project_states').filters.some(([key,value]) => key === 'organization_id' && value === org));
+  }
 });
