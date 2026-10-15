@@ -41,6 +41,18 @@ export function resolveProjectPhaseDates(
 }
 
 export type ProjectLifecycle = 'active' | 'completed' | 'cancelled';
+/** Read-only operational state. Shared with the web dashboard; never persists status. */
+export function projectOperationalStatus(
+  status: string | null | undefined,
+  dates: { rigDate?: string | null; date?: string | null; rigDownDate?: string | null },
+  today: string,
+): 'planning' | 'in_progress' | 'completed' | 'cancelled' {
+  if (status === 'cancelled') return 'cancelled';
+  const end = dates.rigDownDate;
+  if (status === 'completed' || (end && end < today)) return 'completed';
+  const start = dates.rigDate ?? dates.date;
+  return start && start <= today ? 'in_progress' : 'planning';
+}
 export type ProjectStatusTab = 'all' | 'all_active' | 'planning' | 'in_progress' | 'closing' | 'completed' | 'cancelled';
 
 /** Operations project-list status classification (UnifiedProjectList status tabs). */
@@ -86,7 +98,7 @@ export function smallProjectView(job: { status?: string | null }, booking: Phase
 
 /** Large project: own date arrays only. listEventDate is exactly what the Operations list uses for tabs. */
 export function largeProjectView(lp: { status?: string | null; start_date?: unknown; event_date?: unknown; end_date?: unknown }) {
-  const rig = first(lp.start_date), ev = first(lp.event_date), derig = first(lp.end_date);
+  const rig = first(lp.start_date), ev = first(lp.event_date), derig = (Array.isArray(lp.end_date) ? first(lp.end_date.slice(-1)) : null) ?? (Array.isArray(lp.event_date) ? first(lp.event_date.slice(-1)) : null);
   return {
     status: lp.status ?? null,
     dates: {
