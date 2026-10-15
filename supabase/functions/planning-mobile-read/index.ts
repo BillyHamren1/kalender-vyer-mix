@@ -20,7 +20,7 @@ const json = (status: number, body: unknown) => {
 type PhaseDates = { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null };
 /** A shared cursor can outlive one collection. Only recover an exact 416 after
  * a fresh, identically scoped count proves that collection is exhausted. */
-export async function readMobilePage(makeQuery: (head: boolean) => any, offset: number) {
+export async function readMobilePage(makeQuery: (head: boolean) => any, offset: number): Promise<any> {
     const page = await makeQuery(false).order('id').range(offset, offset + 199);
     if (offset === 0 || page.status !== 416 || page.error?.code !== 'PGRST103') return page;
     const total = await makeQuery(true);
