@@ -224,3 +224,13 @@ verify_jwt = false
 
 [functions.planning-mobile-staff]
 verify_jwt = false
+
+[functions.scanner-return-api]
+verify_jwt = false
+
+[functions.scanner-return-read-api]
+verify_jwt = false
+
+# Signed scanner token + live session + tenant checks run inside the handler.
+[functions.scanner-dispatch-api]
+verify_jwt = false
