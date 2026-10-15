@@ -14,6 +14,8 @@ export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
         id,
         client,
         eventdate,
+        rigdaydate,
+        rigdowndate,
         deliveryaddress,
         contact_name,
         contact_phone,
