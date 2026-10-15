@@ -159,7 +159,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
 
     if (bookingId) {
-        const matches = await admin.from('projects').select('id, name, booking_id, status, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
+        const matches = await admin.from('projects').select('id, name, booking_id, status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
             .eq('organization_id', org).eq('booking_id', bookingId).is('deleted_at', null).order('id').range(0, 199);
         if (matches.error || matches.count === null || matches.count !== (matches.data ?? []).length) return json(503, { error: 'project_lookup_incomplete' });
         const resolverDates = await loadBookingDates(admin, org, matches.data ?? []);
@@ -174,11 +174,11 @@ export async function handleRequest(request: Request): Promise<Response> {
         const rlp = lpIds.length ? await admin.from('large_projects').select('id, name, status, start_date, event_date, end_date').eq('organization_id', org).in('id', lpIds).is('deleted_at', null) : { data: [], error: null };
         if (rlp.error) return json(503, { error: 'project_lookup_incomplete' });
         const relatedProjects = [
-            ...(matches.data ?? []).map((raw: any) => { const row = withBookingDates(raw, resolverDates); return entry('medium', row.id, row.name, { status: raw.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.eventdate }, raw.booking_id); }),
+            ...(matches.data ?? []).map((raw: any) => { const row = withBookingDates(raw, resolverDates); return entry('medium', row.id, projectListDisplayName(row.name,row.is_internal===true,rb.data?.client,rb.data?.booking_number), { status: raw.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.eventdate }, raw.booking_id); }),
             ...(rj.data ?? []).map((j: any) => { const b = rb.data; const title = b?.client ? `${b.client}${b.booking_number ? ' #' + b.booking_number : ''}` : j.name; return entry('small', j.id, title ?? null, smallProjectView(j, b), b ? bookingId : null); }),
             ...(rlp.data ?? []).map((lp: any) => entry('large', lp.id, lp.name ?? null, largeProjectView(lp), null)),
         ];
-        return json(200, {schema: 'planning-mobile-booking-projects.v1', relatedProjects, canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: row.name, rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
+        return json(200, {schema: 'planning-mobile-booking-projects.v1', relatedProjects, canonicalIdentity: {actorUserId: actor, organizationId: org}, bookingId, projects: (matches.data ?? []).map(raw => { const row = withBookingDates(raw, resolverDates); return {projectId: row.id, title: projectListDisplayName(row.name,row.is_internal===true,rb.data?.client,rb.data?.booking_number), rigDate: row.rigdaydate, eventDate: row.eventdate, derigDate: row.rigdowndate, dateSources: row.dateSources}; })});
     }
     if (projectId) {
         const project = await admin.from('projects')
