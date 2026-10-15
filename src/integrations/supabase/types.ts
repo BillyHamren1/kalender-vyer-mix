@@ -11601,6 +11601,10 @@ export type Database = {
         Args: { _task_id: string }
         Returns: string
       }
+      verify_booking_sync_cron_secret: {
+        Args: { p_candidate: string }
+        Returns: boolean
+      }
     }
     Enums: {
       anomaly_classification: "break" | "work"
