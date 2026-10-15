@@ -39,6 +39,16 @@ const db = {
   staff_members: [], project_files: [], project_staff_time_cost_lines: [], jobs: [], large_projects: [],
   bookings: [{ id: B_EVENT, organization_id: ORG, rigdaydate: '2026-10-13', eventdate: '2026-10-14', rigdowndate: '2026-10-15' }, { id: B_ASSIGN, organization_id: OTHER, rigdaydate: '2026-10-20', eventdate: '2026-10-21', rigdowndate: '2026-10-22' }], profiles: [], organizations: { id: ORG }, user_roles: [{ role: 'projekt', organization_id: ORG, user_id: HUB }],
 };
+db.operations_project_states = [
+  ...db.projects.filter(p => !p.deleted_at).map((p, i) => ({
+    project_id: p.id, project_kind: 'medium', organization_id: p.organization_id,
+    status: ['in_progress', 'planning', 'completed', 'completed', 'planning'][i],
+    lifecycle: [2, 3].includes(i) ? 'completed' : 'active',
+    status_tabs: ['all', ...([2, 3].includes(i) ? [] : ['all_active']), ['in_progress', 'planning', 'completed', 'completed', 'planning'][i]],
+  })),
+  ...db.jobs.filter(p => !p.deleted_at).map(p => ({ project_id: p.id, project_kind: 'small', organization_id: p.organization_id, status: 'in_progress', lifecycle: 'active', status_tabs: ['all', 'all_active', 'in_progress'] })),
+  ...db.large_projects.filter(p => !p.deleted_at).map(p => ({ project_id: p.id, project_kind: 'large', organization_id: p.organization_id, status: 'completed', lifecycle: 'completed', status_tabs: ['all', 'completed'] })),
+];
 const inRange = (d, a, b) => d != null && d >= a && d <= b;
 // Minimal PostgREST emulation of the exact filters used (eq/gte/lte/is/not/or).
 function evalOr(row, expr) {
