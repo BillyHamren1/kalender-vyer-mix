@@ -6,7 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import { PLANNING_BRAIN_ACTOR_ROLES, PLANNING_BRAIN_NONCE_TTL_SECONDS, buildPlanningBrainProjection, parsePlanningBrainReadRequest, verifyPlanningBrainSignature, } from '../_shared/planning-brain-read-contract.ts';
 import { authorizeHubActor, logActorDenial } from '../_shared/hub-actor.ts';
-import { resolveProjectPhaseDates, projectOperationalStatus, classifyProjectLifecycle, projectStatusTabs, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
+import { resolveProjectPhaseDates, loadProjectStates, smallProjectView, largeProjectView } from '../_shared/projectPhaseDates.ts';
 const json = (status: number, body: unknown) => {
     // Safe outcome diagnostic: status + error code / schema only, never ids or payload.
     const b = body as { error?: unknown; schema?: unknown };
@@ -44,19 +44,11 @@ function withBookingDates<T extends PhaseDates & { booking_id?: string | null }>
     const r = resolveProjectPhaseDates(row, row.booking_id ? map.get(row.booking_id) : null);
     return { ...row, rigdaydate: r.rigdaydate, eventdate: r.eventdate, rigdowndate: r.rigdowndate, dateSources: r.sources };
 }
-// Operations project-list classification (UnifiedProjectList status tabs); internal projects have no event date there.
-const todayUtc = () => new Date().toISOString().slice(0, 10);
-function ownerClassification(row: { status?: string | null; is_internal?: boolean | null; rigdaydate?: string | null; eventdate?: string | null; rigdowndate?: string | null }) {
-    const status = projectOperationalStatus(row.status, { rigDate: row.rigdaydate, date: row.eventdate, rigDownDate: row.rigdowndate ?? row.eventdate }, todayUtc());
-    return { status, lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, row.is_internal ? null : row.eventdate, todayUtc()) };
-}
-
 // Additive all-kind entries (small=jobs, medium=projects, large=large_projects), identity = (projectKind, projectId).
 function entry(kind: 'small' | 'medium' | 'large', id: string, title: string | null, view: { status: string | null; dates: any; listEventDate: string | null }, bookingRef: string | null) {
-    const status = projectOperationalStatus(view.status, { rigDate: view.dates.rigdaydate, date: view.dates.eventdate, rigDownDate: view.dates.rigdowndate ?? view.dates.eventdate }, todayUtc());
+    const status = view.status;
     return { projectKind: kind, projectId: id, entryKey: `${kind}:${id}`, title, status, bookingRef,
         rigDate: view.dates.rigdaydate, eventDate: view.dates.eventdate, derigDate: view.dates.rigdowndate, dateSources: view.dates.sources,
-        lifecycle: classifyProjectLifecycle(status), statusTabs: projectStatusTabs(status, view.listEventDate, todayUtc()),
         detailSupported: kind === 'medium' };
 }
 async function loadOtherKinds(admin: any, org: string, offset: number) {
@@ -200,11 +192,14 @@ export async function handleRequest(request: Request): Promise<Response> {
             .order('date').order('id').range(0, 199);
         const costsComplete = !costs.error && costs.count !== null && costs.count === (costs.data ?? []).length;
 
+        let state;
+        try { state = (await loadProjectStates(admin, 'medium', [projectId], org)).get(projectId); }
+        catch { return json(503, { error: 'project_states_read_failed' }); }
         return json(200, {
             schema: 'planning-mobile-detail.v1',
             canonicalIdentity: { actorUserId: actor, organizationId: org },
             projectId: p.id, title: p.name, bookingRef: p.booking_id,
-            project: {projectKind:'medium',projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...ownerClassification({status:p.status,is_internal:p.is_internal,rigdaydate:resolved.rigdaydate,eventdate:resolved.eventdate,rigdowndate:resolved.rigdowndate})},
+            project: {projectKind:'medium',projectId:p.id,title:p.name,bookingRef:p.booking_id,status:p.status,planningStatus:p.planning_status,isInternal:p.is_internal,rigDate:resolved.rigdaydate,eventDate:resolved.eventdate,derigDate:resolved.rigdowndate,dateSources:resolved.sources,...state},
             contactName: p.contact_name, contactPhone: p.contact_phone, contactEmail: p.contact_email,
             address: p.deliveryaddress, city: p.delivery_city, postalCode: p.delivery_postal_code,
             notes: p.internalnotes, generatedAt: new Date().toISOString(),
@@ -242,7 +237,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     const listDates = await loadBookingDates(admin, org, projectsResult.data ?? []);
     if (!listDates) return json(503, { error: 'booking_dates_read_failed' });
     const listProjects = (projectsResult.data ?? []).map((row: any) => withBookingDates(row, listDates));
-    const ownerById = new Map(listProjects.map((row: any) => [row.id, { dateSources: row.dateSources, ...ownerClassification(row) }]));
+
     const projection = buildPlanningBrainProjection({
         request: parsed.value,
         generatedAt: new Date().toISOString(),
@@ -282,7 +277,16 @@ export async function handleRequest(request: Request): Promise<Response> {
     const others = await loadOtherKinds(admin, org, offset);
     if (!others) return json(503, { error: 'project_kinds_read_failed' });
     const mediumEntries = listProjects.map((row: any) => entry('medium', row.id, row.name ?? null, { status: row.status ?? null, dates: { rigdaydate: row.rigdaydate, eventdate: row.eventdate, rigdowndate: row.rigdowndate, sources: row.dateSources }, listEventDate: row.is_internal ? null : row.eventdate }, row.booking_id ?? null));
-    const projectEntries = [...others.small, ...mediumEntries, ...others.large];
+    let states;
+    try {
+        states = await Promise.all([
+            loadProjectStates(admin, 'small', others.small.map((e: any) => e.projectId), org),
+            loadProjectStates(admin, 'medium', mediumEntries.map((e: any) => e.projectId), org),
+            loadProjectStates(admin, 'large', others.large.map((e: any) => e.projectId), org),
+        ]);
+    } catch { return json(503, { error: 'project_states_read_failed' }); }
+    const projectEntries = [others.small, mediumEntries, others.large].flatMap((entries, i) => entries.map((e: any) => ({ ...e, ...states[i].get(e.projectId) })));
+    const ownerById = new Map(listProjects.map((row: any) => [row.id, { dateSources: row.dateSources, ...states[1].get(row.id) }]));
     const entryTotals = { small: others.totals.small, medium: totals.projects as number, large: others.totals.large };
     const hasMore = Object.values(totals).some(count => (count ?? 0) > offset + 200) || entryTotals.small > offset + 200 || entryTotals.large > offset + 200;
     return json(200, {
