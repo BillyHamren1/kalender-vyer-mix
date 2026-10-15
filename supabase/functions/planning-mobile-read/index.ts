@@ -18,6 +18,15 @@ const json = (status: number, body: unknown) => {
 };
 
 type PhaseDates = { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null };
+/** A shared cursor can outlive one collection. Only recover an exact 416 after
+ * a fresh, identically scoped count proves that collection is exhausted. */
+export async function readMobilePage(makeQuery: (head: boolean) => any, offset: number) {
+    const page = await makeQuery(false).order('id').range(offset, offset + 199);
+    if (offset === 0 || page.status !== 416 || page.error?.code !== 'PGRST103') return page;
+    const total = await makeQuery(true);
+    if (total.error || !Number.isSafeInteger(total.count) || total.count < 0 || total.count > offset) return page;
+    return { ...page, status: 200, statusText: 'OK', error: null, data: [], count: total.count };
+}
 const PHASES = ['rigdaydate', 'eventdate', 'rigdowndate'] as const;
 const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Booking dates single source: per field, project's own date wins, else linked same-org booking date, else null.
@@ -50,8 +59,8 @@ function entry(kind: 'small' | 'medium' | 'large', id: string, title: string | n
 }
 async function loadOtherKinds(admin: any, org: string, offset: number) {
     const [jobs, large] = await Promise.all([
-        admin.from('jobs').select('id, name, status, booking_id', { count: 'exact' }).eq('organization_id', org).is('deleted_at', null).order('id').range(offset, offset + 199),
-        admin.from('large_projects').select('id, name, status, start_date, event_date, end_date', { count: 'exact' }).eq('organization_id', org).is('deleted_at', null).order('id').range(offset, offset + 199),
+        readMobilePage(head => admin.from('jobs').select('id, name, status, booking_id', { count: 'exact', head }).eq('organization_id', org).is('deleted_at', null), offset),
+        readMobilePage(head => admin.from('large_projects').select('id, name, status, start_date, event_date, end_date', { count: 'exact', head }).eq('organization_id', org).is('deleted_at', null), offset),
     ]);
     if (jobs.error || large.error) return null;
     for (const r of [jobs, large]) if (!Number.isSafeInteger(r.count) || (r.data ?? []).length !== Math.min(200, Math.max((r.count ?? 0) - offset, 0))) return null;
@@ -210,21 +219,20 @@ export async function handleRequest(request: Request): Promise<Response> {
     // Project list mirrors Operations: every non-deleted project in the org (status tabs are
     // classified per row). Calendar events and staff assignments stay bounded to the requested window.
     const [projectsResult, eventsResult, assignmentsResult] = await Promise.all([
-        admin.from('projects')
-            .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact' })
+        readMobilePage(head => admin.from('projects')
+            .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact', head })
             .eq('organization_id', org)
-            .is('deleted_at', null)
-            .order('id').range(offset, offset + 199),
-        admin.from('calendar_events')
-            .select('id, organization_id, booking_id, resource_id, event_type, source_date, start_time, end_time, times_locked', { count: 'exact' })
+            .is('deleted_at', null), offset),
+        readMobilePage(head => admin.from('calendar_events')
+            .select('id, organization_id, booking_id, resource_id, event_type, source_date, start_time, end_time, times_locked', { count: 'exact', head })
             .eq('organization_id', org)
             .gte('source_date', from)
-            .lte('source_date', to).order('id').range(offset, offset + 199),
-        admin.from('booking_staff_assignments')
-            .select('id, organization_id, booking_id, staff_id, team_id, role, assignment_date', { count: 'exact' })
+            .lte('source_date', to), offset),
+        readMobilePage(head => admin.from('booking_staff_assignments')
+            .select('id, organization_id, booking_id, staff_id, team_id, role, assignment_date', { count: 'exact', head })
             .eq('organization_id', org)
             .gte('assignment_date', from)
-            .lte('assignment_date', to).order('id').range(offset, offset + 199),
+            .lte('assignment_date', to), offset),
     ]);
     if (projectsResult.error || eventsResult.error || assignmentsResult.error) {
         return json(503, { error: 'planning_read_failed' });
