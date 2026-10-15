@@ -37,9 +37,9 @@ const TYPE_BADGE_CLASSES: Record<string, string> = {
 
 const ProjectDashboardWidgets = () => {
   const navigate = useNavigate();
-  const { data: jobs = [], isLoading: jL, isError: stateError0 } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
-  const { data: projects = [], isLoading: pL, isError: stateError1 } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
-  const { data: largeProjects = [], isLoading: lL, isError: stateError2 } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: jobs = [], isLoading: jL, isError: stateError0 } = useQuery({ queryKey: ['jobs', 'operations-state-v1'], queryFn: fetchJobs });
+  const { data: projects = [], isLoading: pL, isError: stateError1 } = useQuery({ queryKey: ['projects', 'operations-state-v1'], queryFn: fetchProjects });
+  const { data: largeProjects = [], isLoading: lL, isError: stateError2 } = useQuery({ queryKey: ['large-projects', 'operations-state-v1'], queryFn: fetchLargeProjects });
 
   const isLoading = jL || pL || lL;
 
