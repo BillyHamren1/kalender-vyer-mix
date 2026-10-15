@@ -10891,6 +10891,22 @@ export type Database = {
         }
         Relationships: []
       }
+      operations_project_states: {
+        Row: {
+          as_of_date: string | null
+          derig_date: string | null
+          event_date: string | null
+          lifecycle: string | null
+          organization_id: string | null
+          project_id: string | null
+          project_kind: string | null
+          rig_date: string | null
+          status: string | null
+          status_tabs: string[] | null
+          stored_status: string | null
+        }
+        Relationships: []
+      }
       v_derived_period: {
         Row: {
           avg_closure_delay_days: number | null
