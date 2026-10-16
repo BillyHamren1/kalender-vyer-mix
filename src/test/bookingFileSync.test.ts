@@ -58,7 +58,8 @@ describe('one Booking file sync for webhook and export', () => {
     expect(f.results).toEqual({ attachments_imported: 2, errors: [] });
     expect(f.files.map((row) => row.file_type)).toEqual(['application/pdf', 'image/png']);
     expect(f.writes).toHaveLength(2);
-    expect(f.filters.every((scope) => scope.organization_id === 'org')).toBe(true);
+    expect(f.filters.filter((scope) => scope.id || scope.booking_id).every((scope) => scope.organization_id === 'org')).toBe(true);
+    expect(f.writes.every(({ row }) => row.organization_id === 'org' && row.source === 'import')).toBe(true);
   });
   it('null attachment URLs do not mask files_metadata with the same filename', async () => {
     const f = fixture();
