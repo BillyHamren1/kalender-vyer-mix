@@ -143,8 +143,9 @@ describe('STEG 4K — cursor och attachments', () => {
   });
 
   it('booking_attachments dedup-read fail-closar istället för att gissa "inga bilagor"', () => {
-    expect(SRC).toContain('error: existingAttachmentsError');
-    expect(SRC).toContain('attachments_existing_read_failed');
+    const files = readFileSync(join(process.cwd(), 'supabase/functions/_shared/bookingFileSync.ts'), 'utf-8');
+    expect(files).toContain('error: existingAttachmentsError');
+    expect(files).toContain('attachments_existing_read_failed');
   });
 });
 
