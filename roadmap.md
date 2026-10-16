@@ -4,7 +4,7 @@
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
 ## Pågående visuellt
-- [ ] Harmonisera Operations med neutrala solida primärknappar, neutrala arbetsytor och 2A-modulbricka; verifiera preview och UI-/sidebar-tester.
+- [x] Harmonisera Operations med neutrala solida primärknappar, neutrala arbetsytor och 2A-modulbricka; preview och berörda UI-/sidebar-tester verifierade. Hela sviten har separata fel; inloggade vyer ej åtkomliga via extern auth.
 
 ## Ekonomiöversikt
 - [x] Återställ Bookings kanoniska produktsummor: ingen lokal reserv, upstream-fel cachas inte och visas aldrig som falska 0 kr.
