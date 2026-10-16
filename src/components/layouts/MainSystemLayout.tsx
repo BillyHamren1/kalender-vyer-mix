@@ -4,6 +4,7 @@ import { Sidebar3D } from '@/components/Sidebar3D';
 import { SIDEBAR_SURFACE } from '@/lib/layout/sidebarContract';
 import { PinnedTabsProvider } from '@/contexts/PinnedTabsContext';
 import { PinnedTabsRail } from '@/components/PinnedTabsRail';
+import { BrainFloatingButton } from '@/components/BrainFloatingButton';
 
 interface MainSystemLayoutProps {
   children?: React.ReactNode;
@@ -26,6 +27,7 @@ const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
           {children ?? <Outlet />}
         </main>
         <PinnedTabsRail />
+        <BrainFloatingButton />
       </div>
     </PinnedTabsProvider>
   );
