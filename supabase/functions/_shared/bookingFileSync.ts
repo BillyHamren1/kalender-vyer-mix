@@ -8,7 +8,7 @@ const text = (...values: unknown[]): string | null => {
 };
 const rows = (value: unknown): FileRow[] => Array.isArray(value)
   ? value.filter((row): row is FileRow => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
-export const attachmentBaseUrl = (url: string): string => url.split(/[?#]/)[0];
+export const attachmentBaseUrl = (url: string): string => url.split('?')[0];
 export const bookingMapUrl = (booking: FileRow): string | null => {
   const map = rows([booking.map_drawing])[0] ?? {};
   return text(map.public_url, map.url, booking.map_drawing_url, booking.map_snapshot_url);
@@ -55,11 +55,11 @@ export async function syncBookingFiles(
         if (!url) { fail('attachment_upload_failed'); continue; }
       }
       if (!url || seenUrls.has(attachmentBaseUrl(url))) continue;
-      // No conflict target: DO NOTHING covers BOTH existing unique indexes,
-      // including a concurrent insert with a different name but the same URL.
-      const { data: inserted, error } = await client.from('booking_attachments').upsert({
+      // Both unique indexes enforce races; either 23505 means another writer saved it.
+      const { data: inserted, error } = await client.from('booking_attachments').insert({
         booking_id: bookingId, organization_id: orgId, url, file_name: name, file_type: mime, source: 'import',
-      }, { ignoreDuplicates: true }).select('id');
+      }).select('id');
+      if (error?.code === '23505') { seenUrls.add(attachmentBaseUrl(url)); seenNames.add(name); continue; }
       if (error) { fail('attachment_insert_failed', error.message); continue; }
       seenUrls.add(attachmentBaseUrl(url)); seenNames.add(name);
       results.attachments_imported += inserted?.length ?? 0;

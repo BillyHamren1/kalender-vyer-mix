@@ -6,7 +6,7 @@ function fixture(options: { existing?: any[]; ownerOrg?: string; readError?: boo
   const writes: any[] = [], filters: any[] = [], maps: any[] = [];
   const owner = { id: 'booking', map_drawing_url: 'https://files/old.jpg' };
   const client = { from(table: string) {
-    let operation = 'read', row: any, opts: any;
+    let operation = 'read', row: any;
     const scope: Record<string, string> = {};
     const resolve = () => {
       filters.push({ table, ...scope });
@@ -20,17 +20,17 @@ function fixture(options: { existing?: any[]; ownerOrg?: string; readError?: boo
         return { data: owner, error: null };
       }
       if (operation === 'read') return { data: files, error: options.readError ? { message: 'read unavailable' } : null };
-      writes.push({ row, opts });
+      writes.push({ row });
       if (options.insertError) return { error: { message: 'write unavailable' } };
       const duplicate = files.some((f) => f.file_name === row.file_name || attachmentBaseUrl(f.url) === attachmentBaseUrl(row.url));
-      if (duplicate) return { data: [], error: null };
+      if (duplicate) return { data: null, error: { code: '23505', message: 'duplicate' } };
       files.push(row); return { data: [{ id: String(files.length) }], error: null };
     };
     const builder: any = {
       select: () => builder,
       eq: (key: string, value: string) => { scope[key] = value; return builder; },
       maybeSingle: async () => resolve(),
-      upsert: (value: any, config: any) => { operation = 'insert'; row = value; opts = config; return builder; },
+      insert: (value: any) => { operation = 'insert'; row = value; return builder; },
       update: (value: any) => { operation = 'update'; row = value; return builder; },
       then: (fn: any) => Promise.resolve(resolve()).then(fn),
     };
@@ -57,7 +57,7 @@ describe('one Booking file sync for webhook and export', () => {
     expect(f.files).toHaveLength(2);
     expect(f.results).toEqual({ attachments_imported: 2, errors: [] });
     expect(f.files.map((row) => row.file_type)).toEqual(['application/pdf', 'image/png']);
-    expect(f.writes.every(({ opts }) => opts.ignoreDuplicates === true && !opts.onConflict)).toBe(true);
+    expect(f.writes).toHaveLength(2);
     expect(f.filters.every((scope) => scope.organization_id === 'org')).toBe(true);
   });
   it('null attachment URLs do not mask files_metadata with the same filename', async () => {
