@@ -4,7 +4,7 @@
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
 ## Pågående visuellt
-- [x] Matcha alla knappar och aktiva tabbar mot Planning-ikonens lila lyster, ljus och djup; verifierat i preview och tester.
+- [ ] Harmonisera Operations med neutrala solida primärknappar, neutrala arbetsytor och 2A-modulbricka; verifiera preview och UI-/sidebar-tester.
 
 ## Ekonomiöversikt
 - [x] Återställ Bookings kanoniska produktsummor: ingen lokal reserv, upstream-fel cachas inte och visas aldrig som falska 0 kr.
