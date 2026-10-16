@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { openOperationsBrain, shouldShowBrainButton, BRAIN_STANDALONE_URL } from '../operationsBrain';
 
 type Listener = (e: MessageEvent) => void;
@@ -20,7 +20,6 @@ function makeEmbedded(origin: string | null) {
   return { win, parent, posted, emit, listeners };
 }
 
-afterEach(() => vi.useRealTimers());
 
 describe('openOperationsBrain', () => {
   it('opens standalone URL when not embedded', async () => {
@@ -63,13 +62,11 @@ describe('openOperationsBrain', () => {
   });
 
   it('ignores ACKs with wrong requestId, origin or source, then times out', async () => {
-    vi.useFakeTimers();
     const { win, emit } = makeEmbedded('https://e-flow.se');
-    const p = openOperationsBrain(undefined, { win, createRequestId: () => 'r3', timeoutMs: 1000 });
+    const p = openOperationsBrain(undefined, { win, createRequestId: () => 'r3', timeoutMs: 20 });
     emit({ type: 'EVENTFLOW_OPEN_BRAIN_ACK', requestId: 'other' });
     emit({ type: 'EVENTFLOW_OPEN_BRAIN_ACK', requestId: 'r3' }, undefined, 'https://evil.example');
     emit({ type: 'EVENTFLOW_OPEN_BRAIN_ACK', requestId: 'r3' }, {} as any);
-    vi.advanceTimersByTime(1000);
     await expect(p).resolves.toBe(false);
   });
 
