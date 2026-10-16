@@ -4,6 +4,7 @@
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
 ## Pågående visuellt
+- [ ] Ge standardknappar Hubbens obsidian-/smaragdfinish med topphighlight; verifiera preview, kontrast och berörda tester.
 - [x] Förstärk 2A-kubens ikon till elektrisk violett gradient och mjuk lila aura; verifierat visuellt i preview, 28 berörda tester och build gröna.
 - [x] Harmonisera Operations med neutrala solida primärknappar, neutrala arbetsytor och 2A-modulbricka; preview och berörda UI-/sidebar-tester verifierade. Hela sviten har separata fel; inloggade vyer ej åtkomliga via extern auth.
 

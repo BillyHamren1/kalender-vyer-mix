@@ -9,10 +9,13 @@
 
 @layer base {
   :root {
-    --action: 222.222 47.368% 11.176%; /* #0F172A */
-    --action-hover: 217.241 32.584% 17.451%; /* #1E293B */
+    --action: 188.571 50% 5.490%; /* #071315 */
+    --action-end: 189 47.619% 8.235%; /* #0B1C1F */
+    --action-hover: 189.6 47.170% 10.392%; /* #0E2327 */
     --action-foreground: 0 0% 100%;
-    --shadow-action: 0 1px 2px hsl(var(--action) / 0.22), 0 3px 6px hsl(var(--action) / 0.10);
+    --gradient-action: linear-gradient(180deg, hsl(var(--action)), hsl(var(--action-end)));
+    --gradient-action-hover: linear-gradient(180deg, hsl(var(--action-end)), hsl(var(--action-hover)));
+    --shadow-action: inset 0 1px 0 hsl(var(--action-foreground) / 0.12), 0 1px 2px hsl(var(--action) / 0.22), 0 3px 6px hsl(var(--action) / 0.10);
     /* === BACKGROUND LAYERS (Premium Enterprise) === */
     --background: 200 20% 94.1176%;     /* #EDF1F3 — låst neutral canvas */
     --surface-active: 200 14% 93%;      /* L2 — aktiva kontroller, header */

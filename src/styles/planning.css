@@ -129,15 +129,19 @@
   box-shadow: 0 0 0 3px hsl(var(--module-accent-base) / 0.15);
 }
 
-/* Neutral default action, with no luster inherited by ghost controls. */
+/* Shared HUB obsidian/emerald finish; ghost controls inherit no luster. */
 .operations-primary-action,
 .theme-purple .planning-btn-primary {
   background: hsl(var(--action));
+  background-image: var(--gradient-action);
   color: hsl(var(--action-foreground));
   box-shadow: var(--shadow-action);
 }
 .operations-primary-action:hover,
-.theme-purple .planning-btn-primary:hover { background: hsl(var(--action-hover)); }
+.theme-purple .planning-btn-primary:hover {
+  background: hsl(var(--action-hover));
+  background-image: var(--gradient-action-hover);
+}
 
 .theme-purple .operations-tab-luster[data-state='active'] {
   background: hsl(var(--card));
