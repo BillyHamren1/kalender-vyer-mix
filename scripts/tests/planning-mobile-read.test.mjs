@@ -143,3 +143,31 @@ test('mobile forwards Operations status unchanged in list and detail', async () 
     assert.ok(r.calls.find(c => c.table === 'operations_project_states').filters.some(([key,value]) => key === 'organization_id' && value === org));
   }
 });
+
+
+test('projects-only list skips calendar, assignments and staff without changing canonical project state', async () => {
+ const full = await run();
+ const r = await run({ body: { projectsOnly: true } });
+ assert.equal(r.response.status, 200);
+ assert.equal(r.body.projectionKind, 'projects');
+ assert.deepEqual(r.body.projectEntries, full.body.projectEntries);
+ assert.deepEqual(r.body.projects, full.body.projects);
+ assert.equal(r.body.page.totals.planningDays, 0);
+ assert.equal(r.body.page.totals.teamAssignments, 0);
+ assert.ok(!r.calls.some(c => ['calendar_events','booking_staff_assignments','staff_members','profiles'].includes(c.table)));
+});
+test('projects-only still checks authority and exact pagination', async () => {
+ const denied = await run({ authorized: false, body: { projectsOnly: true } });
+ assert.equal(denied.response.status,403);
+ assert.ok(!denied.calls.some(c => c.table === 'projects'));
+ const p = await run({ count: 420, body: { projectsOnly: true, offset: 200 } });
+ assert.equal(p.response.status,200);
+ assert.equal(p.body.page.nextOffset,400);
+ assert.equal((await run({count: 201, cap:100, body:{projectsOnly:true}})).response.status,503);
+});
+test('projects-only cannot be mixed with another action or use nonboolean flags', async () => {
+ for (const body of [{projectsOnly:false},{projectsOnly:'true'},{projectsOnly:true,projectId},{projectsOnly:true,bookingId:projectId}]) {
+  const r = await run({body}); assert.equal(r.response.status,400);
+  assert.equal(r.calls.length,0);
+ }
+});

@@ -102,7 +102,9 @@ export async function handleRequest(request: Request): Promise<Response> {
     const offset = body.offset ?? 0;
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000)
         return json(400, { error: 'invalid_offset' });
-    const { offset: ignoredOffset, projectId, bookingId, workspace, workspaceOptions, ...baseBody } = body;
+    const { offset: ignoredOffset, projectId, bookingId, workspace, workspaceOptions, projectsOnly, ...baseBody } = body;
+    if (projectsOnly !== undefined && (projectsOnly !== true || projectId !== undefined || bookingId !== undefined || workspace !== undefined || workspaceOptions !== undefined))
+        return json(400, { error: 'invalid_projects_request' });
     if (workspace !== undefined && (workspace !== true || !projectId || bookingId !== undefined))
         return json(400, { error: 'invalid_workspace_request' });
     if (workspaceOptions !== undefined && (workspaceOptions !== true || !projectId || bookingId !== undefined || workspace !== undefined))
@@ -243,12 +245,12 @@ export async function handleRequest(request: Request): Promise<Response> {
             .select('id, name, organization_id, booking_id, status, planning_status, is_internal, rigdaydate, eventdate, rigdowndate', { count: 'exact', head })
             .eq('organization_id', org)
             .is('deleted_at', null), offset),
-        readMobilePage(head => admin.from('calendar_events')
+        projectsOnly === true ? { data: [], error: null, count: 0 } : readMobilePage(head => admin.from('calendar_events')
             .select('id, organization_id, booking_id, resource_id, event_type, source_date, start_time, end_time, times_locked', { count: 'exact', head })
             .eq('organization_id', org)
             .gte('source_date', from)
             .lte('source_date', to), offset),
-        readMobilePage(head => admin.from('booking_staff_assignments')
+        projectsOnly === true ? { data: [], error: null, count: 0 } : readMobilePage(head => admin.from('booking_staff_assignments')
             .select('id, organization_id, booking_id, staff_id, team_id, role, assignment_date', { count: 'exact', head })
             .eq('organization_id', org)
             .gte('assignment_date', from)
@@ -320,6 +322,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     return json(200, {
         ...projection,
         schema: 'planning-mobile-read.v1',
+        ...(projectsOnly === true ? { projectionKind: 'projects' } : {}),
         canonicalIdentity: { organizationId: org, actorUserId: actor },
         projects: projection.projects.map(row => ({ ...row, title: titles.get(row.projectId) || null, ...(ownerById.get(row.projectId) ?? { dateSources: { rig: null, event: null, derig: null }, lifecycle: null, statusTabs: [] }) })),
         teamAssignments: projection.teamAssignments.map(row => ({ ...row, staffName: row.staffRef ? names.get(row.staffRef) ?? null : null })),
