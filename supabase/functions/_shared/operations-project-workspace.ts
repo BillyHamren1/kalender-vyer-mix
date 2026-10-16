@@ -68,11 +68,23 @@ export async function loadOperationsProjectWorkspace(admin: any, input: { organi
     if (type === 'extra_costs' && !(value.extra_costs === null || Array.isArray(value.extra_costs))) throw new Error('invalid_costs');
     return value;
   };
-  const [projectFiles,tasks,threads,links,transports,emailLogs,legacyOverrides,productCosts,extraCosts,wmsRows,live] = await Promise.all([
+  const suppliersPromise = section('suppliers', async () => {
+    const links = await rows('project_supplier_links','project_id',projectId,'created_at',false);
+    return Promise.all(links.map(async link => {
+    const key = env('SUPPLIER_REGISTRY_API_KEY');
+    if (!key) throw new Error('not_configured');
+    const response = await json('https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/supplier-registry', { method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`,'x-organization-id':org},body:JSON.stringify({action:'get_supplier',supplier_id:link.supplier_id}) });
+    const supplier = response.success === true ? response.data : response;
+    if (supplier.id !== link.supplier_id || (supplier.organization_id && supplier.organization_id !== org)) throw new Error('supplier_identity_mismatch');
+    const merged = mergeSupplierData(link as any,supplier);
+    return { ...merged, statusLabel: SUPPLIER_STATUS[link.status] ?? link.status };
+  }));
+  });
+  const [projectFiles,tasks,threads,suppliers,transports,emailLogs,legacyOverrides,productCosts,extraCosts,wmsRows,live] = await Promise.all([
     section('projectFiles', () => rows('project_files','project_id',projectId,'uploaded_at',false)),
     section('tasks', () => rows('project_tasks','project_id',projectId,'sort_order')),
     section('threads', () => rows('supplier_request_threads','project_id',projectId,'created_at',false,'id,recipient_email,recipient_name,subject,status,response_message,sent_at,responded_at,created_at')),
-    section('suppliers', () => rows('project_supplier_links','project_id',projectId,'created_at',false)),
+    suppliersPromise,
     safeBookingId ? section('transports', () => rows('transport_assignments','booking_id',safeBookingId,'transport_date',true,'id,booking_id,vehicle_id,supplier_id,supplier_contact_id,requested_vehicle_type,cargo_description,cargo_weight_kg,cargo_volume_m3,transport_date,transport_time,transport_end_time,pickup_address,origin_address,destination_address,planning_status,transport_type,status,partner_response,partner_responded_at,created_at,stop_order,driver_notes,vehicle:vehicles!vehicle_id(id,name,contact_person,contact_email,contact_phone,is_external,vehicle_type,organization_id),supplier:suppliers!supplier_id(id,external_id,name,email,phone,primary_contact,contacts,organization_id)')) : Promise.resolve([]),
     safeBookingId ? section('emailLogs', () => rows('transport_email_log','booking_id',safeBookingId,'sent_at',false,'id,assignment_id,booking_id,recipient_email,recipient_name,subject,custom_message,sent_at,email_type')) : Promise.resolve([]),
     section('legacyOverrides', () => rows('product_cost_overrides','project_id',projectId,'id')),
@@ -82,16 +94,6 @@ export async function loadOperationsProjectWorkspace(admin: any, input: { organi
     livePromise,
   ]);
   if (bookingId && !live) { sectionErrors.bookingAttachments = 'unavailable'; sectionErrors.notes = 'unavailable'; }
-  let suppliers: WorkspaceRecord[] | null = null;
-  if (links) suppliers = await section('suppliers', async () => Promise.all(links.map(async link => {
-    const key = env('SUPPLIER_REGISTRY_API_KEY');
-    if (!key) throw new Error('not_configured');
-    const response = await json('https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/supplier-registry', { method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`,'x-organization-id':org},body:JSON.stringify({action:'get_supplier',supplier_id:link.supplier_id}) });
-    const supplier = response.success === true ? response.data : response;
-    if (supplier.id !== link.supplier_id || (supplier.organization_id && supplier.organization_id !== org)) throw new Error('supplier_identity_mismatch');
-    const merged = mergeSupplierData(link as any,supplier);
-    return { ...merged, statusLabel: SUPPLIER_STATUS[link.status] ?? link.status };
-  })));
   if (transports?.some(t => (t.vehicle && t.vehicle.organization_id !== org) || (t.supplier && t.supplier.organization_id !== org))) {
     sectionErrors.transports = 'unavailable';
   }
