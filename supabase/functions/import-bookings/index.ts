@@ -22,6 +22,7 @@ import {
 } from '../_shared/destructiveSyncFlag.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import { notifyTimeWorkerAssignments } from '../_shared/time-v2/notifyWorkerAssignments.ts'
+import { bookingMapUrl, syncBookingFiles } from '../_shared/bookingFileSync.ts'
 
 import {
   normalizeIncomingRevision,
@@ -367,154 +368,13 @@ const normalizeDateTimeForBookingField = (
   return undefined;
 };
 
-/**
- * Unified attachment sync — fetches existing URLs once, then processes
- * products[], files_metadata[], and tent_images[] against a SHARED seenUrls set.
- * This prevents duplicates that occurred when the three functions ran sequentially
- * and each fetched existing attachments independently before the others had committed.
- */
-/**
- * Bilagor är additiva och ofarliga. Om produkt-/packlistesteget stoppas av
- * säkerhetsspärren ska Bookings bilagor (t.ex. PDF från Sales) ändå komma in.
- * Körs endast för en redan befintlig, tenant-verifierad bokning. Raderar aldrig.
- */
-async function syncAttachmentsAfterBlockedSync(
-  supabase: any,
-  externalBooking: any,
-  results: any,
-  orgId: string,
-): Promise<void> {
-  const bookingId = externalBooking?.id;
-  if (!bookingId || !orgId) return;
-  const { data: owned, error: ownedErr } = await supabase
-    .from('bookings').select('id').eq('id', bookingId).eq('organization_id', orgId).maybeSingle();
-  if (ownedErr || !owned) return;
-
-  const { data: existing, error: existingErr } = await supabase
-    .from('booking_attachments').select('url, file_name').eq('booking_id', bookingId);
-  if (existingErr) return;
-  const strip = (u: string) => u.split('?')[0];
-  const seenUrls = new Set<string>((existing || []).map((a: any) => strip(a.url || '')));
-  const seenNames = new Set<string>((existing || []).map((a: any) => a.file_name || ''));
-
-  for (const attachment of Array.isArray(externalBooking.attachments) ? externalBooking.attachments : []) {
-    try {
-      let attUrl: string | null = attachment.public_url || attachment.url || attachment.file_url || null;
-      const attFileName = attachment.file_name || attachment.name || 'Unknown File';
-      if (seenNames.has(attFileName) || (attUrl && seenUrls.has(strip(attUrl)))) continue;
-      if (!attUrl && attachment.content_base64) {
-        const ext = attFileName.includes('.') ? attFileName.split('.').pop()!.toLowerCase() : 'bin';
-        const safeFileName = attFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const mimeMap: Record<string, string> = {
-          pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-          png: 'image/png', webp: 'image/webp', gif: 'image/gif',
-        };
-        attUrl = await uploadBase64ToStorage(supabase, attachment.content_base64, `${bookingId}/attachments/${safeFileName}`, mimeMap[ext] || 'application/octet-stream');
-      }
-      if (!attUrl) continue;
-      const { error } = await supabase.from('booking_attachments').upsert(
-        { booking_id: bookingId, url: attUrl, file_name: attFileName, file_type: attachment.file_type || attachment.type || 'unknown', source: 'import', organization_id: orgId },
-        { onConflict: 'booking_id,file_name', ignoreDuplicates: true },
-      );
-      if (!error) {
-        seenUrls.add(strip(attUrl)); seenNames.add(attFileName);
-        results.attachments_imported++;
-        console.log(`[Attachments] Saved "${attFileName}" for booking ${bookingId} despite blocked product sync`);
-      }
-    } catch (e) {
-      console.error(`[Attachments] fallback failed for booking ${bookingId}:`, e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  await syncAllAttachments(
-    supabase, bookingId,
-    externalBooking.products || [], externalBooking.files_metadata || [], externalBooking.tent_images || [],
-    results, orgId,
-  );
+/** Blocked product sync still uses the same additive, tenant-checked file writer. */
+async function syncAttachmentsAfterBlockedSync(supabase: any, externalBooking: any, results: any, orgId: string): Promise<void> {
+  await syncAllAttachments(supabase, externalBooking.id, externalBooking, results, orgId);
 }
 
-async function syncAllAttachments(
-  supabase: any,
-  bookingId: string,
-  products: any[],
-  filesMetadata: any[],
-  tentImages: any[],
-  results: any,
-  orgId: string
-) {
-  // --- 1. Fetch all existing URLs for this booking ONCE ---
-  // STEG 4K: KLASS A (dedup styr mutation). Ett läsfel får inte tolkas som
-  // "inga befintliga bilagor" → hoppa additiv insert helt istället för att
-  // gissa. Inga bilagor raderas någonsin här.
-  const { data: existingAttachments, error: existingAttachmentsError } = await supabase
-    .from('booking_attachments')
-    .select('url')
-    .eq('booking_id', bookingId);
-
-  if (existingAttachmentsError) {
-    console.error(`[Attachments] FAIL-CLOSED existing attachments read failed for ${bookingId}:`, existingAttachmentsError);
-    results?.errors?.push({ booking_id: bookingId, error: `attachments_existing_read_failed:${existingAttachmentsError.message || existingAttachmentsError}` });
-    return;
-  }
-
-  // Strip query params for dedup comparison to avoid duplicates from cache-busting params
-  const stripQueryParams = (url: string) => url.split('?')[0];
-  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => stripQueryParams(a.url)));
-
-
-  const insertAttachment = async (url: string, fileName: string, fileType: string) => {
-    const baseUrl = stripQueryParams(url);
-    if (!url || seenUrls.has(baseUrl)) return;
-    seenUrls.add(baseUrl);
-    const { error } = await supabase
-      .from('booking_attachments')
-      .upsert(
-        { booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId, source: 'import' },
-        { onConflict: 'booking_id,file_name', ignoreDuplicates: true }
-      );
-    if (error) {
-      console.error(`[Attachments] Error inserting "${fileName}" for booking ${bookingId}:`, error.message);
-    } else {
-      results.attachments_imported++;
-      console.log(`[Attachments] Saved "${fileName}" for booking ${bookingId}`);
-    }
-  };
-
-  // --- 2. files_metadata (new API format) ---
-  for (const file of (filesMetadata || [])) {
-    const fileUrl: string = file.url || file.public_url;
-    const fileName: string = file.name || file.file_name || 'Fil';
-    let fileType = 'image/jpeg';
-    const lower = fileName.toLowerCase();
-    if (lower.endsWith('.png')) fileType = 'image/png';
-    else if (lower.endsWith('.webp')) fileType = 'image/webp';
-    else if (lower.endsWith('.pdf')) fileType = 'application/pdf';
-    else if (lower.endsWith('.gif')) fileType = 'image/gif';
-    await insertAttachment(fileUrl, fileName, fileType);
-  }
-
-  // --- 4. tent_images (legacy format, supports base64) ---
-  for (const tentImage of (tentImages || [])) {
-    const tentIndex = tentImage.tent_index ?? '';
-    const viewKey   = tentImage.view_key   ?? '';
-    const fileName  = (`Tält ${tentIndex} - ${viewKey}`).trim() || 'Tältbild';
-
-    let imgUrl: string | null = tentImage.public_url || null;
-    if (!imgUrl && tentImage.content_base64) {
-      const storageFileName = `tent-${bookingId}-${tentIndex}-${String(viewKey).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
-      imgUrl = await uploadBase64ToStorage(supabase, tentImage.content_base64, `${bookingId}/${storageFileName}`, 'image/jpeg');
-      if (!imgUrl) {
-        console.error(`[Attachments] Failed to upload base64 tent image for booking ${bookingId}`);
-        continue;
-      }
-    }
-    if (!imgUrl) continue;
-
-    let fileType = 'image/jpeg';
-    if (imgUrl.includes('.png')) fileType = 'image/png';
-    else if (imgUrl.includes('.webp')) fileType = 'image/webp';
-    await insertAttachment(imgUrl, fileName, fileType);
-  }
+async function syncAllAttachments(supabase: any, bookingId: string, externalBooking: any, results: any, orgId: string) {
+  await syncBookingFiles(supabase, bookingId, externalBooking, results, orgId, uploadBase64ToStorage);
 }
 
 /**
@@ -3655,7 +3515,7 @@ serve(async (req) => {
           assigned_project_id: externalBooking.assigned_project_id,
           assigned_project_name: externalBooking.assigned_project_name,
           assigned_to_project: parseAssignedToProject(externalBooking.assigned_to_project),
-          map_drawing_url: externalBooking.map_drawing_url || null,
+          ...(bookingMapUrl(externalBooking) ? { map_drawing_url: bookingMapUrl(externalBooking) } : {}),
           economics_data: externalBooking.economics || (externalBooking.totals ? {
             total_revenue_ex_vat: externalBooking.totals.total_ex_vat,
             total_costs: externalBooking.totals.total_costs,
@@ -3874,13 +3734,12 @@ serve(async (req) => {
 
             }
 
-            // Sync all attachments (products, files_metadata, tent_images) with shared dedup
+            // Sync all Booking files and map aliases through the shared writer
             assertLeaseOwned('attachments');
-            await syncAllAttachments(
+            assertLeaseOwned('attachments');
+        await syncAllAttachments(
               supabase, bookingData.id,
-              externalBooking.products || [],
-              externalBooking.files_metadata || [],
-              externalBooking.tent_images || [],
+              externalBooking,
               results,
               organizationId
             );
@@ -3899,11 +3758,10 @@ serve(async (req) => {
             results.warehouse_events_created += warehouseEventsCreated;
             // Sync all attachments with shared dedup
             assertLeaseOwned('attachments');
-            await syncAllAttachments(
+            assertLeaseOwned('attachments');
+        await syncAllAttachments(
               supabase, bookingData.id,
-              externalBooking.products || [],
-              externalBooking.files_metadata || [],
-              externalBooking.tent_images || [],
+              externalBooking,
               results,
               organizationId
             );
@@ -4187,11 +4045,10 @@ serve(async (req) => {
             
             // Sync all attachments with shared dedup
             assertLeaseOwned('attachments');
-            await syncAllAttachments(
+            assertLeaseOwned('attachments');
+        await syncAllAttachments(
               supabase, bookingData.id,
-              externalBooking.products || [],
-              externalBooking.files_metadata || [],
-              externalBooking.tent_images || [],
+              externalBooking,
               results,
               organizationId
             );
@@ -4989,111 +4846,11 @@ serve(async (req) => {
           }
         }
 
-        // Process attachments
-        if (externalBooking.attachments && Array.isArray(externalBooking.attachments)) {
-          console.log(`Processing ${externalBooking.attachments.length} attachments for booking ${bookingData.id}`)
-          
-          for (const attachment of externalBooking.attachments) {
-            try {
-              let attUrl: string | null = attachment.public_url || attachment.url || attachment.file_url || null;
-              const attFileName = attachment.file_name || attachment.name || 'Unknown File';
-
-              // New format: upload base64 to Storage
-              if (!attUrl && attachment.content_base64) {
-                const ext = attFileName.includes('.') ? attFileName.split('.').pop()!.toLowerCase() : 'bin';
-                const safeFileName = attFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const filePath = `${bookingData.id}/attachments/${safeFileName}`;
-                const mimeMap: Record<string, string> = {
-                  pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-                  png: 'image/png', webp: 'image/webp', gif: 'image/gif'
-                };
-                const contentType = mimeMap[ext] || 'application/octet-stream';
-                attUrl = await uploadBase64ToStorage(supabase, attachment.content_base64, filePath, contentType);
-                if (attUrl) {
-                  console.log(`[Attachment] Uploaded base64 attachment "${attFileName}" to Storage`);
-                } else {
-                  console.error(`[Attachment] Failed to upload base64 for "${attFileName}", booking ${bookingData.id}`);
-                  continue;
-                }
-              }
-
-              if (!attUrl) {
-                console.warn(`[Attachment] No URL for attachment "${attFileName}", skipping`);
-                continue;
-              }
-
-              const attachmentData: any = {
-                booking_id: bookingData.id,
-                url: attUrl,
-                file_name: attFileName,
-                file_type: attachment.file_type || attachment.type || 'unknown',
-                source: 'import',
-                organization_id: organizationId
-              }
-
-              const { error: attachmentError } = await supabase
-                .from('booking_attachments')
-                .insert(attachmentData)
-
-              if (attachmentError) {
-                console.error(`Error inserting attachment for booking ${bookingData.id}:`, attachmentError)
-              } else {
-                results.attachments_imported++
-              }
-            } catch (attachmentErr) {
-              console.error(`Error processing attachment for booking ${bookingData.id}:`, attachmentErr)
-            }
-          }
-        }
-
-        // Process map_drawing (situationsplan) — supports both map_drawing_url and content_base64
-        if (externalBooking.map_drawing) {
-          const md = externalBooking.map_drawing;
-          let mdUrl: string | null = md.public_url || md.url || externalBooking.map_drawing_url || null;
-
-          if (!mdUrl && md.content_base64) {
-            const filePath = `${bookingData.id}/map_drawing.jpg`;
-            mdUrl = await uploadBase64ToStorage(supabase, md.content_base64, filePath, 'image/jpeg');
-            if (mdUrl) {
-              console.log(`[Map Drawing] Uploaded base64 map_drawing to Storage for booking ${bookingData.id}`);
-            } else {
-              console.error(`[Map Drawing] Failed to upload base64 map_drawing for booking ${bookingData.id}`);
-            }
-          }
-
-          if (mdUrl && mdUrl !== bookingData.map_drawing_url) {
-            const { error: mdErr } = await supabase
-              .from('bookings')
-              .update({ map_drawing_url: mdUrl })
-              .eq('id', bookingData.id)
-              .eq('organization_id', organizationId);
-            if (mdErr) {
-              console.error(`[Map Drawing] Error updating map_drawing_url for booking ${bookingData.id}:`, mdErr);
-              results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${mdErr.message || mdErr}` });
-            } else {
-              console.log(`[Map Drawing] Updated map_drawing_url for booking ${bookingData.id}`);
-            }
-          }
-        } else if (externalBooking.map_drawing_url && externalBooking.map_drawing_url !== bookingData.map_drawing_url) {
-          // Legacy: map_drawing_url directly on the booking object
-          const { error: legacyMdErr } = await supabase
-            .from('bookings')
-            .update({ map_drawing_url: externalBooking.map_drawing_url })
-            .eq('id', bookingData.id)
-            .eq('organization_id', organizationId);
-          if (legacyMdErr) {
-            console.error(`[Map Drawing] Legacy map_drawing_url update failed for ${bookingData.id}:`, legacyMdErr);
-            results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${legacyMdErr.message || legacyMdErr}` });
-          }
-        }
-
-
-        // Sync all attachments (products, files_metadata, tent_images) with shared dedup
+        // Sync all Booking files and map aliases through the shared writer
+        assertLeaseOwned('attachments');
         await syncAllAttachments(
           supabase, bookingData.id,
-          externalBooking.products || [],
-          externalBooking.files_metadata || [],
-          externalBooking.tent_images || [],
+          externalBooking,
           results,
           organizationId
         );
