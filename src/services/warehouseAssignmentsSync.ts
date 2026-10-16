@@ -440,6 +440,10 @@ export async function removeStaffFromWarehouseEvent(params: {
 export async function assignStaffToPacking(params: {
   staffId: string;
   packingId: string;
+  /** Dag som personen bemannar (dagstavlan). Utelämnat = packningens startdatum som tidigare. */
+  assignmentDate?: string;
+  /** Tvinga retur-typ när dagstavlan bemannar returdelen. */
+  forceReturn?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   const { staffId, packingId } = params;
   if (!staffId || !packingId) return { ok: false, error: 'missing_params' };
@@ -455,7 +459,7 @@ export async function assignStaffToPacking(params: {
     return { ok: false, error: 'packing_not_found' };
   }
 
-  const isReturn = pk.status === 'returning' || pk.status === 'back' || pk.status === 'returned';
+  const isReturn = params.forceReturn || pk.status === 'returning' || pk.status === 'back' || pk.status === 'returned';
   const type: WarehouseAssignmentType = isReturn ? 'return' : 'packing';
   const action = deriveAction(type);
 
@@ -469,7 +473,7 @@ export async function assignStaffToPacking(params: {
     bookingNumber = (bk as any)?.booking_number ?? null;
   }
 
-  const dateStr = (pk.start_date as string | null) ?? format(new Date(), 'yyyy-MM-dd');
+  const dateStr = params.assignmentDate ?? (pk.start_date as string | null) ?? format(new Date(), 'yyyy-MM-dd');
   const teamId = getWarehouseTeamId(null);
 
   const row = {
