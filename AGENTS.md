@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Booking import file projection uses `_shared/bookingFileSync.ts` for normal, unchanged, recovery and blocked paths; one tenant-scoped additive writer handles all payload aliases and both unique keys to prevent divergent push/pull behavior.
+
 - Customer-facing order rows in Planning project views must be read live from Booking; never fall back to local WMS projection rows because Booking is the source of truth.
 - Package members (e.g. tent frame parts) are shown under their Booking main row before its accessories, taken from Booking package_components or else only from WMS package-component rows matched by inventory_package_id, because they are package definition, not order rows.- Warehouse article map lookups go only through the signed server proxies (scanner-api get_article_locations, warehouse-article-locations) using the shared warehouseArticleLocations contract validator, with tenant/actor from the session, because Bundle owns placement data and the browser must never call Bundle or pick its own organization.
 

@@ -21,8 +21,14 @@ describe('STEG 3P – partial-safe canonical mutations', () => {
     'product_parent_link_failed',
     'product_processing_failed',
     'packing_item_insert_failed',
-    'map_drawing_update_failed',
   ];
+
+  it('shared file writer propagates map update errors to the import outcome', () => {
+    const files = readFileSync(resolve(process.cwd(), 'supabase/functions/_shared/bookingFileSync.ts'), 'utf-8');
+    expect(files).toContain('results.errors.push');
+    expect(files).toContain("if (error) fail('map_drawing_update_failed'");
+    expect(src).toContain('syncBookingFiles(supabase, bookingId, externalBooking, results, orgId');
+  });
 
   for (const key of requiredErrorKeys) {
     it(`registrerar ${key} i results.errors`, () => {
