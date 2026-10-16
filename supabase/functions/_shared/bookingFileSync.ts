@@ -38,7 +38,7 @@ export async function syncBookingFiles(
     if (url) seenUrls.add(attachmentBaseUrl(url));
     if (name) seenNames.add(name);
   }
-  const candidates = [...rows(booking.attachments), ...rows(booking.files_metadata),
+  const candidates: FileRow[] = [...rows(booking.attachments), ...rows(booking.files_metadata),
     ...rows(booking.tent_images).map((image) => ({ ...image,
       file_name: text(image.file_name, image.name) ?? `Tält ${image.tent_index ?? ''} - ${image.view_key ?? ''}`.trim(),
     }))];
