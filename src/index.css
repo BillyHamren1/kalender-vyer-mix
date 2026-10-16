@@ -9,6 +9,10 @@
 
 @layer base {
   :root {
+    --action: 222.222 47.368% 11.176%; /* #0F172A */
+    --action-hover: 217.241 32.584% 17.451%; /* #1E293B */
+    --action-foreground: 0 0% 100%;
+    --shadow-action: 0 1px 2px hsl(var(--action) / 0.22), 0 3px 6px hsl(var(--action) / 0.10);
     /* === BACKGROUND LAYERS (Premium Enterprise) === */
     --background: 200 20% 94.1176%;     /* #EDF1F3 — låst neutral canvas */
     --surface-active: 200 14% 93%;      /* L2 — aktiva kontroller, header */
@@ -32,9 +36,9 @@
 
 
     /* === SECONDARY === */
-    --secondary: 184 45% 65%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-hover: 184 45% 58%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 217 33% 18%;
+    --secondary-hover: 214 32% 91%;
 
     /* === ACCENT (insjunken yta) === */
     --accent: 200 14% 93%;
@@ -56,8 +60,8 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 200 12% 74%;              /* Generell kant */
-    --input: 200 12% 74%;
+    --border: 214.286 31.818% 91.373%; /* #E2E8F0 */
+    --input: 212.727 26.829% 83.922%; /* #CBD5E1 */
 
     --radius: 0.5rem;
 

@@ -1,4 +1,5 @@
 # Architecture rules
+- Default actions use dedicated semantic action tokens independently of module identity; the shared ModuleIcon renders the 2A identity tile so headers cannot drift from module symbols.
 
 - Booking import file projection uses `_shared/bookingFileSync.ts` for normal, unchanged, recovery and blocked paths; one tenant-scoped additive writer handles all payload aliases and both unique keys to prevent divergent push/pull behavior.
 

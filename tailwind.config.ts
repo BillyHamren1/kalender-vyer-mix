@@ -19,6 +19,11 @@ export default {
 		},
 		extend: {
 			colors: {
+				action: {
+					DEFAULT: 'hsl(var(--action))',
+					hover: 'hsl(var(--action-hover))',
+					foreground: 'hsl(var(--action-foreground))'
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
