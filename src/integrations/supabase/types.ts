@@ -9323,6 +9323,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_time: string | null
+          external_ref: string | null
+          external_source: string | null
           id: string
           internal_notes: string | null
           large_project_id: string | null
@@ -9351,6 +9353,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_time?: string | null
+          external_ref?: string | null
+          external_source?: string | null
           id?: string
           internal_notes?: string | null
           large_project_id?: string | null
@@ -9379,6 +9383,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_time?: string | null
+          external_ref?: string | null
+          external_source?: string | null
           id?: string
           internal_notes?: string | null
           large_project_id?: string | null
