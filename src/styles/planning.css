@@ -227,10 +227,12 @@
   --cube-chassis-top: 255 18% 22%;
   --cube-chassis-bottom: 252 24% 8%;
   --cube-edge: 255 18% 32%;
-  --cube-glyph: 258 100% 80%;
+  --cube-glyph: 270 95% 75%; /* #C084FC */
+  --cube-glyph-vivid: 271 91% 65%; /* #A855F7 */
+  --cube-glyph-deep: 271 81% 56%; /* #9333EA */
   --cube-highlight: 0 0% 100%;
   --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.07), 0 3px 7px hsl(222 47% 11% / 0.04);
-  --cube-shadow: 0 2px 0 hsl(var(--cube-chassis-bottom)), 0 5px 12px hsl(var(--module-accent) / 0.18), inset 0 1px 0 hsl(var(--cube-highlight) / 0.18);
+  --cube-shadow: 0 2px 0 hsl(var(--cube-chassis-bottom)), 0 5px 16px hsl(var(--cube-glyph-vivid) / 0.30), inset 0 1px 0 hsl(var(--cube-highlight) / 0.22);
 }
 .operations-module-cube {
   color: hsl(var(--cube-glyph));
@@ -238,7 +240,10 @@
   background: linear-gradient(145deg, hsl(var(--cube-chassis-top)), hsl(var(--cube-chassis-bottom)));
   box-shadow: var(--cube-shadow);
 }
-.operations-module-cube svg { filter: drop-shadow(0 0 4px hsl(var(--module-accent) / 0.55)); }
+.cube-glyph-highlight { stop-color: hsl(var(--cube-glyph)); }
+.cube-glyph-vivid { stop-color: hsl(var(--cube-glyph-vivid)); }
+.cube-glyph-deep { stop-color: hsl(var(--cube-glyph-deep)); }
+.operations-module-cube svg { filter: drop-shadow(0 0 2px hsl(var(--cube-glyph) / 0.80)) drop-shadow(0 0 6px hsl(var(--cube-glyph-vivid) / 0.50)); }
 .operations-card-surface { box-shadow: var(--shadow-card); }
 .operations-page-header { background: hsl(var(--card)); box-shadow: var(--shadow-card); }
 .dark .theme-purple {

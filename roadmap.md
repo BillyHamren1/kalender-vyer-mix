@@ -4,6 +4,7 @@
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
 ## Pågående visuellt
+- [ ] Förstärk 2A-kubens ikon till elektrisk violett gradient och mjuk lila aura med Sales-lik ljusstyrka; verifiera i preview.
 - [x] Harmonisera Operations med neutrala solida primärknappar, neutrala arbetsytor och 2A-modulbricka; preview och berörda UI-/sidebar-tester verifierade. Hela sviten har separata fel; inloggade vyer ej åtkomliga via extern auth.
 
 ## Ekonomiöversikt
