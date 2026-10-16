@@ -56,3 +56,4 @@
 
 ## Booking-synk
 - [x] Komplett produktlista från Sales slår igenom utan antalsspärr; bilagor (PDF) kommer in även om synken stoppas; 2609-19 synkad.
+- [ ] Enhetlig bilage-/kartritningssynk för push och pull med filnamns-/bas-URL-deduplicering och automatiska regressionstester.
