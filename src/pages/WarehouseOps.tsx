@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Rows3,
 } from "lucide-react";
-import { addWeeks, endOfWeek, format, startOfWeek } from "date-fns";
+import { addDays, addWeeks, endOfWeek, format, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ import QuickAssignStaffPopover from "@/components/warehouse-ops/QuickAssignStaff
 import WarehouseJobSheet from "@/components/warehouse/WarehouseJobSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import WarehouseDayBoard from "@/components/warehouse-day/WarehouseDayBoard";
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
 const ACTIVE = new Set(["in_progress", "returning", "back", "started_back", "in_production"]);
@@ -60,6 +61,9 @@ const WarehouseOps = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
+  const [view, setView] = useState<"day" | "week">("day");
+  const dayKey = format(anchorDate, "yyyy-MM-dd");
+  const step = (dir: number) => setAnchorDate((date) => view === "day" ? addDays(date, dir) : addWeeks(date, dir));
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "week");
 
   useEffect(() => {
@@ -117,15 +121,23 @@ const WarehouseOps = () => {
             </div>
 
             <div className="flex h-8 items-center rounded-md border border-border/60 bg-card shrink-0">
-              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-r-none" title="Föregående vecka" onClick={() => setAnchorDate((date) => addWeeks(date, -1))}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-r-none" title="Föregående" onClick={() => step(-1)}>
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="min-w-[132px] px-2 text-center text-[11px] font-semibold tabular-nums">{weekLabel}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-l-none" title="Nästa vecka" onClick={() => setAnchorDate((date) => addWeeks(date, 1))}>
+              <span className="min-w-[132px] px-2 text-center text-[11px] font-semibold tabular-nums">{view === "day" ? format(anchorDate, "EEE d MMM", { locale: sv }) : weekLabel}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-l-none" title="Nästa" onClick={() => step(1)}>
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
             <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setAnchorDate(new Date())}>Idag</Button>
+            <div className="flex h-8 items-center rounded-md border border-border/60 bg-card p-0.5 shrink-0" role="tablist" aria-label="Vy">
+              {(["day", "week"] as const).map((v) => (
+                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
+                  className={cn("h-7 px-2.5 rounded text-[11px] font-semibold", view === v ? "bg-warehouse text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {v === "day" ? "Dag" : "Vecka"}
+                </button>
+              ))}
+            </div>
 
             <WarehouseBookingQuickOpen compact className="min-w-0 flex-1 max-w-[480px]" />
 
@@ -154,6 +166,11 @@ const WarehouseOps = () => {
 
         </header>
 
+        {view === "day" ? (
+          <main className="min-h-0 flex-1 overflow-hidden">
+            {isLoading || !data ? <Skeleton className="h-full rounded-lg" /> : <WarehouseDayBoard data={data} day={dayKey} onOpenJob={selectJob} />}
+          </main>
+        ) : (
         <main className="min-h-0 flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_350px] gap-2 overflow-hidden">
           {isLoading || !data ? (
             <>
@@ -169,6 +186,7 @@ const WarehouseOps = () => {
             </>
           )}
         </main>
+        )}
 
         <section className={cn(
           "shrink-0 rounded-lg border border-border/60 bg-card overflow-hidden transition-[height] duration-200",
