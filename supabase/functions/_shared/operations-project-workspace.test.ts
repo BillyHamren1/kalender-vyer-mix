@@ -53,3 +53,12 @@ describe('remaining canonical display actions',()=>{
  it('does not compare different currencies',()=>{expect(costSummaryDisplay({currency:'EUR',cost_currency:'SEK',summary:{revenue:100,costs:50,margin:50},products:[]})).toMatchObject({comparable:false});});
  it('reconciles only changed fields on exact matching Booking row, preserving unmatched rows',()=>{const products=[{id:'p',assembly_cost:10,handling_cost:5,purchase_cost:0}];const legacy=[{id:'same',product_id:'p',assembly_cost:10},{id:'changed',product_id:'p',assembly_cost:20},{id:'missing',product_id:'unknown',assembly_cost:2},{id:'other',product_id:'p',booking_id:'other',assembly_cost:99}];const out=legacyCostDifferences(legacy,products,'booking');expect(out.map(i=>i.row.id)).toEqual(['changed','missing']);expect(out[0]).toMatchObject({costs:{assembly_cost:20},expected:{assembly_cost:10}});expect(out[1].product).toBeUndefined();});
 });
+
+it('starts supplier enrichment while economy remains unresolved',async()=>{
+ const upstreamFetch=upstream();let release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve;});
+ const fetcher=vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{if(String(url).includes('type=product_costs'))await blocked;return upstreamFetch(url,init);});
+ const pending=loadOperationsProjectWorkspace(client({project_supplier_links:[{id:'link1',supplier_id:'supplier1',status:'pending'}]}),input,{fetcher,env});
+ try {await vi.waitFor(()=>expect(fetcher.mock.calls.some(([url])=>String(url).includes('supplier-registry'))).toBe(true));}
+ finally {release();}
+ const result=await pending;expect(result.planning.suppliers).toHaveLength(1);expect(result.sectionErrors).toEqual({});
+});
