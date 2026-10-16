@@ -50,7 +50,7 @@ export const SIDEBAR_SURFACE = {
   shadow:
     '2px 0 5px hsl(215 20% 30% / 0.05), 8px 0 20px hsl(215 20% 30% / 0.03)',
   /** Recessed work canvas to the right of the sidebar. */
-  canvas: 'hsl(210 20% 98%)',
+  canvas: 'hsl(200 20% 94.1176%)',
   sectionLabelColor: 'hsl(215 12% 46%)',
   labelColor: 'hsl(215 16% 27%)',
   iconColor: 'hsl(215 12% 46%)',

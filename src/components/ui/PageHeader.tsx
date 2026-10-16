@@ -2,6 +2,7 @@ import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ModuleIcon } from '@/components/ui/ModuleIcon';
 
 interface PageHeaderProps {
   icon: LucideIcon;
@@ -34,46 +35,20 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     return (
       <header
         className={cn(
-          'relative mb-4 min-h-[98px] lg:h-[98px] lg:min-h-[98px] overflow-hidden rounded-[18px] border px-[22px] py-[19px]',
+          'operations-page-header relative mb-4 min-h-[98px] lg:h-[98px] lg:min-h-[98px] border border-border rounded-xl px-[22px] py-[19px]',
           'flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between',
           className,
         )}
-        style={{
-          borderColor: 'hsl(var(--module-accent-base) / 0.20)',
-          background:
-            'radial-gradient(circle at 91% 0%, hsl(var(--module-accent-base) / 0.11), transparent 37%), linear-gradient(105deg, hsl(var(--card)) 0%, hsl(var(--card)) 66%, hsl(var(--module-accent-soft) / 0.46) 100%)',
-          boxShadow:
-            '0 16px 38px hsl(200 45% 15% / 0.09), inset 0 1px 0 hsl(0 0% 100% / 0.95)',
-        }}
       >
-        <div
-          className="absolute bottom-[17px] left-0 top-[17px] w-1 rounded-r-full"
-          style={{
-            background: 'linear-gradient(180deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))',
-            boxShadow: '0 0 16px hsl(var(--module-accent-base) / 0.34)',
-          }}
-        />
-
         <div className="flex min-w-0 items-center gap-4">
-          <div
-            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] text-white"
-            style={{
-              background:
-                'radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))',
-              boxShadow:
-                '0 13px 27px hsl(var(--module-accent) / 0.31), inset 0 1px 0 hsl(0 0% 100% / 0.22)',
-            }}
-          >
-            <Icon className="relative z-10 h-[30px] w-[30px]" strokeWidth={2} />
-            <span className="absolute -bottom-4 -right-2 h-[30px] w-[43px] -rotate-[13deg] rounded-full bg-white/[0.09]" />
-          </div>
+          <ModuleIcon icon={Icon} />
 
           <div className="min-w-0">
-            <h1 className="truncate text-[24px] font-bold leading-tight tracking-[-0.035em] text-[#172F3A]">
+            <h1 className="text-[24px] font-bold leading-tight text-foreground">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-1 truncate text-sm leading-none text-[#7B8D92]">
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {subtitle}
               </p>
             )}
@@ -83,7 +58,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center">
           {children}
           {action && (
-            <Button onClick={action.onClick} size="sm" className="h-10 rounded-xl px-4 font-semibold">
+            <Button onClick={action.onClick} size="sm" className="h-10 px-4 font-semibold">
               {action.icon && <action.icon className="mr-1.5 h-4 w-4" />}
               {action.label}
             </Button>
@@ -121,7 +96,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
               size="sm"
               className={cn(
                 'font-medium rounded-lg px-4 h-8',
-                isWarehouse && 'bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20',
               )}
             >
               {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}

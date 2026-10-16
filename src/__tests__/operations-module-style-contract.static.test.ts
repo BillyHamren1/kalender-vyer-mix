@@ -26,47 +26,24 @@ describe('Operations premium module contract', () => {
     expect(index).toContain('--gradient-page: hsl(200 20% 94.1176%)');
     expect(planning).toContain('--background: 200 20% 94.1176%');
     expect(planning).toContain('--gradient-page: hsl(200 20% 94.1176%)');
-    expect(auth).toContain("background: '#EDF1F3'");
+    expect(auth).toContain("theme-purple bg-background");
   });
 
-  it('uses one identical strong fill for icons and primary actions', () => {
-    const css = read('src/styles/planning.css');
-    expect(css).toContain('.operations-accent-gradient');
-    expect(css).toContain('linear-gradient(145deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)))');
-
+  it('keeps explicit gradient variants separate from neutral default actions', () => {
     const button = read('src/components/ui/button.tsx');
-    expect(button).toContain('default: "operations-accent-gradient');
+    expect(button).toContain('default: "operations-primary-action bg-action text-action-foreground hover:bg-action-hover');
+    expect(button).toContain('gradient: "operations-accent-gradient');
     expect(button).toContain('active: "border');
   });
 
-  it('gives primary buttons and active tabs the same icon-like luster and physical depth', () => {
-    const css = read('src/styles/planning.css');
-    const button = read('src/components/ui/button.tsx');
-    const tabs = read('src/components/ui/tabs.tsx');
-    const economy = read('src/components/economy/CompletedProjectsList.tsx');
-
-    expect(css).toContain('--control-luster-shadow:');
-    expect(css).toContain(".theme-purple .operations-tab-luster[data-state='active']");
-    expect(css).toContain('background-image: var(--gradient-icon)');
-    expect(css).toContain('transform: translateY(-1px)');
-    expect(css).toContain("@media (prefers-reduced-motion: no-preference)");
-    expect(css).toContain('.theme-purple .operations-button-depth:not(.operations-gradient-shadow)');
-    expect(button).toContain('operations-button-depth inline-flex');
-    expect(tabs).toContain('operations-tab-luster');
-    expect(economy).not.toContain('data-[state=active]:bg-primary data-[state=active]:text-primary-foreground');
-  });
-
-  it('locks the shared premium header geometry and larger icon', () => {
+  it('shares the 2A identity tile without repainting whole headers or tabs', () => {
     const header = read('src/components/ui/PageHeader.tsx');
-    expect(header).toContain("min-h-[98px] lg:h-[98px] lg:min-h-[98px]");
-    expect(header).toContain("h-14 w-14");
-    expect(header).toContain("h-[30px] w-[30px]");
-    expect(header).toContain("w-1 rounded-r-full");
-    expect(header).toContain("rounded-[14px]");
-    expect(header).toContain("text-[24px] font-bold leading-tight tracking-[-0.035em] text-[#172F3A]");
-    expect(header).toContain("text-sm leading-none text-[#7B8D92]");
-    expect(header).not.toContain("pl-[39px]");
-    expect(header).not.toContain('text-white leading-tight truncate');
+    const css = read('src/styles/planning.css');
+    expect(header).toContain('<ModuleIcon icon={Icon}');
+    expect(header).not.toContain('radial-gradient');
+    expect(css).toContain('.operations-module-cube');
+    expect(css).toContain(".theme-purple .operations-tab-luster[data-state='active']");
+    expect(css).toContain('background-image: none');
   });
 
   it('applies the canonical header to every primary Operations route family', () => {

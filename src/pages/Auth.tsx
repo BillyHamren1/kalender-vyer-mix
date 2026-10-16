@@ -157,8 +157,8 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 theme-purple" style={{ background: '#EDF1F3' }}>
-      <Card className="w-full max-w-md rounded-[18px] border-border/70 bg-white shadow-[0_18px_50px_hsl(215_20%_30%/0.10)]">
+    <div className="min-h-screen flex items-center justify-center p-4 theme-purple bg-background">
+      <Card className="w-full max-w-md border-border bg-card">
         <PageHeader
           icon={Calendar}
           title="EventFlow Operations"
