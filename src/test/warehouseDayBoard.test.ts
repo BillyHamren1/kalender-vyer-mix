@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildDayLanes, isTodoOnDay } from '@/lib/warehouse/warehouseDayBoard';
 
 const day = '2026-10-16';
-const job = (o: Partial<any>) => ({ id: 'j', direction: 'out', status: 'planning', anchorDate: null, startDate: null, endDate: null, assignedStaff: [], ...o });
+const job = (o: Partial<any>): any => ({ id: 'j', direction: 'out', status: 'planning', anchorDate: null, startDate: null, endDate: null, assignedStaff: [], ...o });
 const todo = (o: Partial<any>) => ({ id: 't', typeKey: 'warehouse_task', scheduledDate: day, planningStatus: 'needs_planning', ...o });
 
 describe('lagrets dagstavla', () => {
