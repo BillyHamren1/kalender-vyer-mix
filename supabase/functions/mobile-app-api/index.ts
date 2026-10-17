@@ -6,6 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 // import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
 
 import { MESSAGE_SCHEMA, MESSAGE_ACTIONS, authorizeInternalMessages, safeMessageId, validRequestId, parseMessageCursor, messagePage, sameMessageRequest } from '../_shared/internal-messages.ts'
+import { SYSTEM_NOTIFICATION_PARTNER, isSystemNotificationPartner, notificationPartner, systemNotificationFilter } from '../_shared/systemConversation.ts'
 
 import { canCompleteWarehouseTask, warehouseVisibleDate } from '../_shared/warehouseTaskAccess.ts'
 import { warehousePlanningDate, warehousePlanningBounds } from '../_shared/warehousePlanningTime.ts'
@@ -2064,7 +2065,7 @@ async function handleGetInboxAll(supabase: any, staffId: string, organizationId:
   const conversations = new Map<string, { partner_id: string; partner_name: string; last_message: any; unread_count: number; messages: any[]; archived: boolean }>()
   for (const msg of (dmResult.data || [])) {
     const isSender = myIds.has(msg.sender_id)
-    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerId = notificationPartner(msg, isSender ? msg.recipient_id : msg.sender_id)
     const partnerName = isSender ? msg.recipient_name : msg.sender_name
     if (myIds.has(partnerId)) continue // skip self-conversations
     if (!conversations.has(partnerId)) {
@@ -5111,7 +5112,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
 
   for (const msg of (data || [])) {
     const isSender = myIds.has(msg.sender_id)
-    const partnerId = isSender ? msg.recipient_id : msg.sender_id
+    const partnerId = notificationPartner(msg, isSender ? msg.recipient_id : msg.sender_id)
     const partnerName = isSender ? msg.recipient_name : msg.sender_name
 
     // Skip self-conversations across identities
@@ -5149,6 +5150,7 @@ async function handleGetDirectMessages(supabase: any, staffId: string, organizat
  * returned ASC; `before` paginates older.
  */
 async function resolveDMPartner(supabase: any, partnerId: string, organizationId: string): Promise<string[]> {
+  if (isSystemNotificationPartner(partnerId)) return [SYSTEM_NOTIFICATION_PARTNER]
   if (!safeMessageId(partnerId)) return []
   const { data: rows, error } = await supabase.from('staff_members').select('id, user_id')
     .eq('organization_id', organizationId).or(`id.eq.${partnerId},user_id.eq.${/^[0-9a-f-]{36}$/i.test(partnerId) ? partnerId : '00000000-0000-0000-0000-000000000000'}`).limit(2)
@@ -5164,7 +5166,7 @@ async function resolveDMPartner(supabase: any, partnerId: string, organizationId
 async function handleGetDMThread(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   const { partner_id, before, limit } = data || {}
-  if (!safeMessageId(partner_id)) return reply(400, { error: 'invalid_partner' })
+  if (!safeMessageId(partner_id) && !isSystemNotificationPartner(partner_id)) return reply(400, { error: 'invalid_partner' })
   const partners = await resolveDMPartner(supabase, partner_id, organizationId)
   if (!partners.length) return reply(403, { error: 'partner_not_available' })
   const ids = [...new Set([staffId, userId].filter(safeMessageId))]
@@ -5172,18 +5174,24 @@ async function handleGetDMThread(supabase: any, staffId: string, data: any, orga
   let cursor
   try { cursor = parseMessageCursor(before) } catch { return reply(400, { error: 'invalid_cursor' }) }
   const size = Math.min(Math.max(Number.parseInt(String(limit ?? 30), 10) || 30, 1), 100)
+  const systemThread = isSystemNotificationPartner(partner_id)
   let q = supabase.from('direct_messages').select('*').eq('organization_id', organizationId)
-    .or(`and(sender_id.in.(${ids.join(',')}),recipient_id.in.(${partners.join(',')})),and(sender_id.in.(${partners.join(',')}),recipient_id.in.(${ids.join(',')}))`)
+  q = systemThread ? q.in('recipient_id', ids).or(systemNotificationFilter())
+    : q.or(`and(sender_id.in.(${ids.join(',')}),recipient_id.in.(${partners.join(',')})),and(sender_id.in.(${partners.join(',')}),recipient_id.in.(${ids.join(',')}))`)
+  q = q
     .not('is_archived_by', 'ov', `{${ids.join(',')}}`)
     .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(size + 1)
   if (cursor) q = cursor.id ? q.or(`created_at.lt.${cursor.at},and(created_at.eq.${cursor.at},id.lt.${cursor.id})`) : q.lt('created_at', cursor.at)
   const { data: rows, error } = await q
   if (error) return reply(503, { error: 'thread_read_failed' })
-  return reply(200, { ...messagePage(rows || [], size), my_ids: ids, partner_ids: partners })
+  const page = messagePage(rows || [], size)
+  const pagePartners = systemThread ? [...new Set([SYSTEM_NOTIFICATION_PARTNER, ...page.messages.map((m: any) => m.sender_id)])] : partners
+  return reply(200, { ...page, my_ids: ids, partner_ids: pagePartners })
 }
 
 async function handleSendDirectMessage(supabase: any, staffId: string, data: any, organizationId: string, userId: string | null) {
   const { recipient_id, content, file_url, file_name, file_type, booking_id, request_id } = data || {}
+  if (isSystemNotificationPartner(recipient_id)) return new Response(JSON.stringify({ error: 'system_conversation_read_only' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   if (request_id !== undefined && !validRequestId(request_id)) return new Response(JSON.stringify({ error: "invalid_request_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } })
 
   const trimmed = typeof content === 'string' ? content.trim() : ''
@@ -5347,8 +5355,11 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   const ids = [...new Set([staffId, userId].filter(safeMessageId))]
   const partners = await resolveDMPartner(supabase, data?.sender_id, organizationId)
   if (!partners.length || !ids.length) return reply(403, { error: 'partner_not_available' })
+  const systemThread = isSystemNotificationPartner(data?.sender_id)
   let last = supabase.from('direct_messages').select('id, created_at').eq('organization_id', organizationId)
-    .in('recipient_id', ids).in('sender_id', partners).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1)
+    .in('recipient_id', ids)
+  last = systemThread ? last.or(systemNotificationFilter()) : last.in('sender_id', partners)
+  last = last.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1)
   if (data?.through_id) {
     if (!safeMessageId(data.through_id)) return reply(400, { error: 'invalid_read_boundary' })
     last = last.eq('id', data.through_id)
@@ -5357,8 +5368,10 @@ async function handleMarkDMRead(supabase: any, staffId: string, data: any, organ
   if (boundary.error) return reply(503, { error: 'read_boundary_unavailable' })
   if (!boundary.data) return reply(200, { success: true, updated: 0 })
   const { id, created_at: at } = boundary.data
-  const updated = await supabase.from('direct_messages').update({ is_read: true, read_at: new Date().toISOString() })
-    .eq('organization_id', organizationId).in('recipient_id', ids).in('sender_id', partners).is('read_at', null)
+  let update = supabase.from('direct_messages').update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('organization_id', organizationId).in('recipient_id', ids).is('read_at', null)
+  update = systemThread ? update.or(systemNotificationFilter()) : update.in('sender_id', partners)
+  const updated = await update
     .or(`created_at.lt.${at},and(created_at.eq.${at},id.lte.${id})`)
   if (updated.error) return reply(503, { error: 'mark_read_failed' })
   return reply(200, { success: true })
@@ -10338,7 +10351,7 @@ async function handleGetDMInboxGrouped(
 
     const isMe = myIdSet.has(m.sender_id)
     const rawPartnerId = isMe ? m.recipient_id : m.sender_id
-    const partnerId = aliases.get(rawPartnerId) || rawPartnerId
+    const partnerId = notificationPartner(m, aliases.get(rawPartnerId) || rawPartnerId)
     const partnerName = isMe ? m.recipient_name : m.sender_name
     if (myIdSet.has(partnerId)) continue
 

@@ -10,6 +10,7 @@
 // importerats. Kan också anropas manuellt för retroaktiv notifiering.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
+import { SYSTEM_NOTIFICATION_PARTNER, shortNoticeDedupeFilter } from '../_shared/systemConversation.ts';
 import {
   evaluateShortNotice,
   buildInAppMessage,
@@ -112,12 +113,11 @@ Deno.serve(async (req) => {
       }
 
       // Idempotens: undvik dubblettnotis om vi redan skickat för bokningen.
-      const dedupeKey = `short-notice:${b.id}`;
       const { data: existing } = await supabase
         .from('direct_messages')
         .select('id')
-        .eq('sender_id', dedupeKey)
         .eq('organization_id', b.organization_id)
+        .or(shortNoticeDedupeFilter(b.id))
         .limit(1);
 
       if (existing && existing.length > 0) {
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
 
       const inAppContent = buildInAppMessage(payload);
       const dmRows = userIds.map((uid) => ({
-        sender_id: dedupeKey,
+        sender_id: SYSTEM_NOTIFICATION_PARTNER,
         sender_name: 'Systemet',
         sender_type: 'system',
         recipient_id: uid,

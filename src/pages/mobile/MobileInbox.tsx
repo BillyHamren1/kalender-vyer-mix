@@ -15,6 +15,7 @@ import JobChatView from '@/components/mobile-app/messages/JobChatView';
 import SwipeableRow from '@/components/mobile-app/messages/SwipeableRow';
 import { ChatMessage } from '@/components/mobile-app/messages/MessageBubble';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { isSystemNotificationPartner } from '../../supabase/functions/_shared/systemConversation';
 
 type View = 'list' | 'dm' | 'job' | 'broadcast' | 'new';
 
@@ -230,7 +231,7 @@ const MobileInbox = () => {
                 {activeDMs.map(conv => (
                   <SwipeableRow
                     key={conv.partner_id}
-                    actions={[{ label: t('inbox.archive'), icon: <Archive className="w-4 h-4" />, variant: 'destructive', onAction: () => handleArchive(conv.partner_id) }]}
+                    actions={isSystemNotificationPartner(conv.partner_id) ? [] : [{ label: t('inbox.archive'), icon: <Archive className="w-4 h-4" />, variant: 'destructive', onAction: () => handleArchive(conv.partner_id) }]}
                   >
                     <ConversationRow
                       name={conv.partner_name}
