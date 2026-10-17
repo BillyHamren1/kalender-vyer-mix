@@ -21,27 +21,25 @@
 
 html[data-module='planning'],
 .theme-purple {
-  --module-accent: 254.867 50.673% 56.275%; /* #7357C8 */
-  --module-accent-base: 254.867 50.673% 56.275%;
-  --module-accent-dark: 255.897 47.368% 51.569%; /* #6849BE */
-  --module-accent-soft: 255 50% 95%;
-  --module-accent-border: 255 35% 84%;
-  --module-accent-foreground: 0 0% 100%;
-
-  --primary: var(--module-accent);
-  --primary-hover: var(--module-accent-dark);
-  --primary-dark: var(--module-accent-dark);
-  --primary-soft: var(--module-accent-soft);
-  --primary-soft-foreground: var(--module-accent-dark);
-  --ring: var(--module-accent);
-
-  --sidebar-primary: var(--module-accent);
-  --sidebar-accent: var(--module-accent-soft);
-  --sidebar-accent-foreground: var(--module-accent-dark);
-  --sidebar-ring: var(--module-accent);
-
-  --gradient-icon: radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(var(--module-accent)), hsl(var(--module-accent-dark)));
-  --gradient-teal: var(--gradient-icon);
+  /* Legacy module utilities remain neutral; ModuleIcon owns violet identity. */
+  --module-accent: var(--foreground);
+  --module-accent-base: var(--foreground);
+  --module-accent-dark: var(--foreground);
+  --module-accent-soft: var(--muted);
+  --module-accent-border: var(--border);
+  --module-accent-foreground: var(--card);
+  --primary: var(--action);
+  --primary-hover: var(--action-hover);
+  --primary-dark: var(--action-end);
+  --primary-soft: var(--muted);
+  --primary-soft-foreground: var(--foreground);
+  --ring: 217 23% 42%;
+  --sidebar-primary: var(--foreground);
+  --sidebar-accent: var(--muted);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-ring: var(--ring);
+  --gradient-icon: var(--gradient-action);
+  --gradient-teal: hsl(var(--card));
 }
 
 html[data-module='warehouse'] {

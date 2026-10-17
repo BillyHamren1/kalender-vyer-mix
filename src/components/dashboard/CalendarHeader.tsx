@@ -70,23 +70,23 @@ const CalendarHeader = ({
   const activeCount = activeCategories.length;
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary to-primary/80 gap-4">
+    <div className="flex items-center justify-between px-4 py-3 bg-card text-foreground border-b border-border gap-4">
       {/* Left: view mode tabs */}
-      <div className="flex items-center gap-1 bg-primary-foreground/10 rounded-lg p-0.5">
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
         {viewModes.map(mode => (
-          <button
+          <Button variant="ghost"
             key={mode.value}
             onClick={() => onViewModeChange(mode.value)}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150",
               viewMode === mode.value
-                ? "bg-primary-foreground text-primary shadow-sm"
-                : "text-primary-foreground/70 hover:text-primary-foreground"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <mode.icon className="w-3.5 h-3.5" />
             {mode.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -96,18 +96,18 @@ const CalendarHeader = ({
           variant="ghost"
           size="icon"
           onClick={onPrevious}
-          className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
+          className="h-8 w-8 text-primary-foreground hover:bg-muted border border-border/30 rounded-lg"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
-        <span className="text-primary-foreground font-semibold min-w-[90px] text-center text-sm">
+        <span className="text-foreground font-semibold min-w-[90px] text-center text-sm">
           {title}
         </span>
         <Button
           variant="ghost"
           size="icon"
           onClick={onNext}
-          className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
+          className="h-8 w-8 text-primary-foreground hover:bg-muted border border-border/30 rounded-lg"
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
@@ -115,13 +115,13 @@ const CalendarHeader = ({
 
       {/* Right: filter dropdown */}
       <div className="relative" ref={dropdownRef}>
-        <button
+        <Button variant="ghost"
           onClick={() => setDropdownOpen(prev => !prev)}
           className={cn(
             "flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium transition-all duration-150 border",
             dropdownOpen || !allActive
-              ? "bg-primary-foreground text-primary border-primary-foreground shadow-sm"
-              : "text-primary-foreground/70 hover:text-primary-foreground border-primary-foreground/30"
+              ? "bg-card text-foreground border-border shadow-sm"
+              : "text-muted-foreground hover:text-foreground border-border/30"
           )}
           title="Filtrera kategorier"
         >
@@ -129,12 +129,12 @@ const CalendarHeader = ({
           {!allActive && (
             <span className="text-xs font-bold">{activeCount}</span>
           )}
-        </button>
+        </Button>
 
         {dropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
             {/* Alla */}
-            <button
+            <Button variant="ghost"
               onClick={toggleAll}
               className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors"
             >
@@ -142,15 +142,15 @@ const CalendarHeader = ({
                 <LayoutGrid className="w-4 h-4 text-muted-foreground" />
                 Alla
               </span>
-              {allActive && <Check className="w-3.5 h-3.5 text-primary" />}
-            </button>
+              {allActive && <Check className="w-3.5 h-3.5 text-foreground" />}
+            </Button>
 
             <div className="h-px bg-border mx-2" />
 
             {categories.map(cat => {
               const isActive = activeCategories.includes(cat.value);
               return (
-                <button
+                <Button variant="ghost"
                   key={cat.value}
                   onClick={() => toggleCategory(cat.value)}
                   className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors"
@@ -162,8 +162,8 @@ const CalendarHeader = ({
                     <cat.icon className="w-4 h-4" />
                     {cat.label}
                   </span>
-                  {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
-                </button>
+                  {isActive && <Check className="w-3.5 h-3.5 text-foreground" />}
+                </Button>
               );
             })}
           </div>
