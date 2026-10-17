@@ -24,14 +24,15 @@ export interface DayTodoLike {
 
 const DONE = new Set(['completed', 'done', 'completed_in', 'completed_out']);
 
+/**
+ * Ett jobb hör till en dag endast om det är dess egen packnings-/returdag
+ * (anchorDate) eller om personal är bemannad på jobbet just den dagen.
+ * Bokningens hela spann (rigg→nedrigg) räknas INTE — då hamnade samma
+ * bokning i både packning och retur varje dag under eventet.
+ */
 export function isJobOnDay(job: DayJobLike, day: string): boolean {
   if (job.anchorDate === day) return true;
-  if (job.assignedStaff.some((a) => a.assignmentDate === day)) return true;
-  // Pågående flerdagsjobb som spänner över dagen.
-  if (!DONE.has(job.status) && job.startDate && job.startDate <= day && (!job.endDate || job.endDate >= day)) {
-    return job.direction !== 'internal' || job.startDate === day;
-  }
-  return false;
+  return !DONE.has(job.status) && job.assignedStaff.some((a) => a.assignmentDate === day);
 }
 
 export function laneForJob(job: DayJobLike): WarehouseLane {
