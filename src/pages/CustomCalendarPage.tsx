@@ -478,7 +478,7 @@ const CustomCalendarPage = () => {
           </div>
 
           {/* Task overlay toggle + Navigation */}
-          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-0.5">
+          <div className="operations-filter-zone flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 lg:px-8 py-2">
             <div className="flex-1">
               <WeekNavigation
                 currentWeekStart={currentWeekStart}
@@ -521,7 +521,7 @@ const CustomCalendarPage = () => {
           {/* "Att planera" är flyttat till projektsidan — planering sker enbart där. */}
 
           {/* Content - flex-1 to fill remaining space */}
-          <div className="flex-1 min-h-0 pt-4 px-4 pb-2 overflow-hidden bg-card rounded-2xl mx-2 mb-3 shadow-sm">
+          <div className="operations-workspace flex-1 min-h-0 pt-4 px-4 pb-2 overflow-hidden rounded-lg mx-2 mt-3 mb-3">
             {viewMode === 'weekly' ? (
               // Existing view — kept intact.
               isMobile ? (

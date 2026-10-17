@@ -69,7 +69,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
 
   return (
     <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-2">
-      <aside className="min-h-0 rounded-lg border border-border/60 bg-card flex flex-col">
+      <aside className="operations-resource-zone min-h-0 rounded-lg border flex flex-col">
         <div className="px-3 py-2 border-b border-border/55 flex items-center gap-2">
           <UserRound className="h-4 w-4 text-warehouse" />
           <span className="text-xs font-bold">Personal idag</span>
@@ -101,7 +101,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
           const lane = lanes[key];
           const count = lane.jobs.length + lane.todos.length;
           return (
-            <section key={key} className="min-h-[220px] rounded-lg border border-border/60 bg-card flex flex-col">
+            <section key={key} className="operations-lane min-h-[220px] rounded-lg border flex flex-col">
               <header className="px-3 py-2 border-b border-border/55 flex items-center gap-2">
                 <Icon className="h-4 w-4 text-warehouse" />
                 <span className="text-xs font-bold">{title}</span>
@@ -119,7 +119,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
                   const mine = !!selected && people.some((a) => a.staffId === selected);
                   return (
                     <button key={job.id} type="button" disabled={busy === job.id} onClick={() => toggleJob(job)}
-                      className={cn('w-full rounded-md border px-2 py-1.5 text-left text-xs transition-colors',
+                      className={cn('operations-work-card w-full rounded-md border px-2 py-1.5 text-left text-xs transition-colors',
                         mine ? 'border-warehouse bg-warehouse/10' : 'border-border/60 hover:border-warehouse/60',
                         busy === job.id && 'opacity-50')}>
                       <div className="flex items-center gap-1.5">
@@ -127,7 +127,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
                         {job.anchorTime && <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">{job.anchorTime.slice(0, 5)}</span>}
                       </div>
                       <div className="text-[11px] text-muted-foreground truncate">{job.client || job.name}</div>
-                      <div className={cn('mt-0.5 text-[10px] truncate', people.length ? 'text-foreground' : 'text-amber-700 font-semibold')}>
+                      <div className={cn('mt-0.5 text-[11px] truncate', people.length ? 'text-foreground' : 'operations-unassigned font-semibold')}>
                         {people.length ? people.map((p) => p.name).join(', ') : 'Obemannad'}
                       </div>
                     </button>
@@ -138,7 +138,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
                   const mine = !!selected && t.assignedStaffId === selected;
                   return (
                     <div key={t.id} role="button" tabIndex={0} onClick={() => toggleTodo(t)}
-                      className={cn('w-full rounded-md border px-2 py-1.5 text-xs flex items-start gap-1.5',
+                      className={cn('operations-work-card w-full rounded-md border px-2 py-1.5 text-xs flex items-start gap-1.5',
                         mine ? 'border-warehouse bg-warehouse/10' : 'border-border/60', selected && 'cursor-pointer hover:border-warehouse/60',
                         busy === t.id && 'opacity-50')}>
                       <button type="button" title={done ? 'Ångra klar' : 'Markera klar'}
@@ -151,7 +151,7 @@ export default function WarehouseDayBoard({ data, day, onOpenJob }: Props) {
                         <div className="flex items-center gap-1 text-[10px]">
                           {t.assignedStaffId
                             ? <span>{nameOf.get(t.assignedStaffId) || 'Tilldelad'}</span>
-                            : <span className="text-amber-700 font-semibold">Obemannad</span>}
+                            : <span className="operations-unassigned font-semibold">Obemannad</span>}
                           {!t.scheduledDate && <span className="text-muted-foreground">· i kön</span>}
                           {t.externalSource && <span className="ml-auto inline-flex items-center gap-0.5 text-muted-foreground"><Inbox className="h-3 w-3" />{t.externalSource}</span>}
                         </div>
