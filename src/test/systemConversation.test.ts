@@ -6,7 +6,7 @@ import { notificationPartner, isSystemNotificationPartner, shortNoticeDedupeFilt
 import * as systemContract from '../../supabase/functions/_shared/systemConversation';
 import * as messageContract from '../../supabase/functions/_shared/internal-messages';
 import { readFileSync } from 'node:fs';
-import { transpileModule, ModuleKind } from 'typescript';
+import { transpileModule, ModuleKind, ScriptTarget } from 'typescript';
 
 describe('Kortvarselregler', () => {
   const now = new Date('2026-10-17T12:10:00Z');
@@ -26,7 +26,7 @@ describe('Production system-thread handler scope', () => {
   function handler(name: string) {
     const start = source.indexOf(`async function ${name}(`);
     const end = source.indexOf('\nasync function ', start + 1);
-    const js = transpileModule(source.slice(start, end), { compilerOptions: { module: ModuleKind.CommonJS } }).outputText;
+    const js = transpileModule(source.slice(start, end), { compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 } }).outputText;
     const deps = { ...systemContract, ...messageContract, corsHeaders: {}, resolveDMPartner: async () => ['system-short-notice'] };
     return new Function(...Object.keys(deps), js + `\nreturn ${name}`)(...Object.values(deps));
   }
