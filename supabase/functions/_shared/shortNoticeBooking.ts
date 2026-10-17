@@ -9,6 +9,7 @@ export const SHORT_NOTICE_NOTIFY_ROLES = ['admin', 'projekt', 'forsaljning'] as 
 export type ShortNoticeRole = (typeof SHORT_NOTICE_NOTIFY_ROLES)[number];
 
 export interface ShortNoticeInput {
+  status?: string | null;
   /** ISO-datum (YYYY-MM-DD) eller null. Riggdagen är primärt fält. */
   rigdaydate?: string | null;
   /** Fallback om riggdag saknas. */
@@ -26,7 +27,7 @@ export interface ShortNoticeResult {
 /**
  * En bokning räknas som "kort varsel" om riggdagen (eller eventdate som
  * fallback) ligger inom SHORT_NOTICE_DAYS från idag, inklusive idag och
- * inklusive datum som redan passerat (då är varselet ännu kortare).
+ * endast bekräftade bokningar och aldrig passerade datum.
  */
 export function evaluateShortNotice(input: ShortNoticeInput): ShortNoticeResult {
   const now = input.now ?? new Date();
@@ -46,7 +47,7 @@ export function evaluateShortNotice(input: ShortNoticeInput): ShortNoticeResult 
   const days = Math.round(diffMs / (24 * 60 * 60 * 1000));
 
   return {
-    isShortNotice: days <= SHORT_NOTICE_DAYS,
+    isShortNotice: input.status === 'CONFIRMED' && days >= 0 && days <= SHORT_NOTICE_DAYS,
     daysUntilRig: days,
     effectiveDate: reference,
   };

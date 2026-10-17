@@ -15,7 +15,7 @@ import JobChatView from '@/components/mobile-app/messages/JobChatView';
 import SwipeableRow from '@/components/mobile-app/messages/SwipeableRow';
 import { ChatMessage } from '@/components/mobile-app/messages/MessageBubble';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { isSystemNotificationPartner } from '../../supabase/functions/_shared/systemConversation';
+import { isSystemNotificationPartner } from '../../../supabase/functions/_shared/systemConversation';
 
 type View = 'list' | 'dm' | 'job' | 'broadcast' | 'new';
 

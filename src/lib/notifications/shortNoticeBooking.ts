@@ -6,6 +6,7 @@ export const SHORT_NOTICE_NOTIFY_ROLES = ['admin', 'projekt', 'forsaljning'] as 
 export type ShortNoticeRole = (typeof SHORT_NOTICE_NOTIFY_ROLES)[number];
 
 export interface ShortNoticeInput {
+  status?: string | null;
   rigdaydate?: string | null;
   eventdate?: string | null;
   now?: Date;
@@ -26,7 +27,7 @@ export function evaluateShortNotice(input: ShortNoticeInput): ShortNoticeResult 
   const today = startOfDayUtc(now);
   const diffMs = target.getTime() - today.getTime();
   const days = Math.round(diffMs / (24 * 60 * 60 * 1000));
-  return { isShortNotice: days <= SHORT_NOTICE_DAYS, daysUntilRig: days, effectiveDate: reference };
+  return { isShortNotice: input.status === 'CONFIRMED' && days >= 0 && days <= SHORT_NOTICE_DAYS, daysUntilRig: days, effectiveDate: reference };
 }
 
 function parseDateOnly(value: string): Date | null {
