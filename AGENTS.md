@@ -1,5 +1,6 @@
 # Architecture rules
 - Default actions use dedicated semantic action tokens independently of module identity; the shared ModuleIcon renders the 2A identity tile so headers cannot drift from module symbols.
+- Operations work surfaces share operations-surfaces.css semantic layer/edge/label tokens and explicit zone classes; one style owner keeps calendars, dayboards and portalled detail panels consistent without changing their data behavior.
 
 - Booking import file projection uses `_shared/bookingFileSync.ts` for normal, unchanged, recovery and blocked paths; one tenant-scoped additive writer handles all payload aliases and both unique keys to prevent divergent push/pull behavior.
 
@@ -8,5 +9,6 @@
 
 - Sync circuit breaker for product/packing-row deletes applies only when Booking product source is not complete; a complete Booking list is authoritative and deletes in full, and attachments still sync when a sync is blocked, because Booking (Sales) is the source of truth.
 - Signed BRAIN routes take the canonical HUB subject as principal and resolve the local actor only via `resolve_hub_actor_v1` (auth.users id or immutable `hub_identity_links`), authorizing with per-org `user_roles`; never user_metadata or `profiles.organization_id`, because those are user-editable or last-used tenant.
+- Signed job-message actions validate a same-organization booking in the shared internal-messages contract before entering existing job-chat handlers; this closes the legacy planner shortcut without duplicating the message store or changing ordinary clients.
 - Operations owns operational status, lifecycle and status tabs in the security-invoker database view operations_project_states. Web and planning-mobile-read must consume its returned values through loadProjectStates; never calculate status from dates in either client or edge code. BRAIN only mirrors the Operations response. Phase-date display resolution remains in projectPhaseDates.ts.
 - Warehouse simple tasks/to-dos reuse `todos` with `calendar_scope='warehouse'` (types `warehouse_task`/`repair_care`); external intake goes only through signed `warehouse-todo-intake` (Brain HMAC + nonce + resolve_hub_actor, idempotent on external_source+external_ref), because one task store avoids duplicate flows.

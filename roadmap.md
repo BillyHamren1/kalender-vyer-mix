@@ -1,5 +1,10 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
+## Aktuellt uppdrag
+- [x] Lägg till signerade get_job_messages/send_job_message/mark_job_read med organisationsskydd; verkliga handlers verifierade lokalt (201/200/200), cross-org/HMAC/nonce/fel tester gröna; inga produktionsmeddelanden skickade.
+- [x] Lyft kontrast och skikt i planering, schema, tidslinje, dagstavla och sidopaneler; obsidianknappar/violett identitet bevarade; 122 berörda Vitest-tester gröna via isolerad Vitest 3 (ordinarie npm test har befintlig Vite-inkompatibilitet), preview build OK; schema/bemanning/panel verifierade med verkliga komponenter och syntetiska data utan runtimefel.
+- [ ] Extern verifieringsgrind: autentiserad produktionsresa mellan appar och live lager-/planeringsvyer (external_unmanaged auth; ingen användarimpersonation, inga produktionsskrivningar eller deploy utförda).
+
 ## Projektets orderrader
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 

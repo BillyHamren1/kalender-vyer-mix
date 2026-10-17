@@ -1,0 +1,78 @@
+/* Operations work hierarchy: canvas -> lanes -> cards; identity stays separate. */
+:root {
+  --ops-lane: 210 24% 94%;
+  --ops-row-alt: 210 25% 97%;
+  --ops-resource: 212 26% 89%;
+  --ops-edge: 213 20% 70%;
+  --ops-label: 217 23% 31%;
+  --ops-warning-text: 30 75% 28%;
+  --ops-depth: 0 1px 2px hsl(222 35% 12% / 0.12), 0 4px 10px hsl(222 35% 12% / 0.07);
+  --ops-panel-depth: -8px 0 28px hsl(222 35% 12% / 0.16);
+}
+.dark {
+  --ops-lane: 222 24% 13%;
+  --ops-row-alt: 222 22% 16%;
+  --ops-resource: 217 23% 20%;
+  --ops-edge: 215 16% 42%;
+  --ops-label: 210 25% 86%;
+  --ops-warning-text: 38 85% 76%;
+}
+.operations-filter-zone {
+  background: hsl(var(--ops-resource));
+  border-block: 1px solid hsl(var(--ops-edge));
+  box-shadow: inset 0 1px 0 hsl(var(--card)), 0 2px 3px hsl(var(--foreground) / 0.06);
+}
+.operations-workspace { background: hsl(var(--ops-lane)); border: 1px solid hsl(var(--ops-edge)); }
+.operations-resource-zone { background: hsl(var(--ops-resource)); border-color: hsl(var(--ops-edge)); }
+.operations-lane { background: hsl(var(--ops-lane)); border-color: hsl(var(--ops-edge)); }
+.operations-lane > header, .operations-resource-zone > div:first-child {
+  background: hsl(var(--ops-resource)); border-color: hsl(var(--ops-edge));
+}
+.operations-work-card { background: hsl(var(--card)); border-color: hsl(var(--ops-edge)); box-shadow: var(--ops-depth); }
+.operations-detail-panel { border-color: hsl(var(--ops-edge)); box-shadow: var(--ops-panel-depth) !important; }
+.operations-detail-heading { border-bottom: 1px solid hsl(var(--ops-edge)); padding-bottom: 1rem; }
+.operations-resource-zone .text-muted-foreground, .operations-lane .text-muted-foreground { color: hsl(var(--ops-label)); }
+.operations-unassigned { color: hsl(var(--ops-warning-text)); }
+
+/* Existing custom staff grid: opaque layers avoid white-on-white lanes. */
+.time-grid-with-staff-header .time-grid-fixed-header { background: hsl(var(--ops-resource)); border-bottom: 2px solid hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .time-grid-header-bg { background: hsl(var(--ops-resource)); border-radius: 0; }
+.time-grid-with-staff-header .day-title,
+.time-grid-with-staff-header .time-title { color: hsl(var(--foreground)); opacity: 1; text-shadow: none; letter-spacing: 0; }
+.time-grid-with-staff-header .time-column-header { border-right-color: hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .team-header-cell,
+.time-grid-with-staff-header .staff-assignment-header-row,
+.time-grid-with-staff-header .available-staff-header,
+.time-grid-with-staff-header .available-staff-column { background: hsl(var(--ops-resource)); border-color: hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .time-labels-column,
+.time-grid-with-staff-header .time-empty-cell,
+.time-grid-with-staff-header .staff-row-time-cell { background: hsl(var(--ops-resource)); border-color: hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .time-label-slot { color: hsl(var(--ops-label)); border-color: hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .time-slots-column { background: hsl(var(--ops-lane)); border-color: hsl(var(--ops-edge)); }
+.time-grid-with-staff-header .time-slot-cell { border-color: hsl(var(--ops-edge) / 0.65); }
+.time-grid-with-staff-header .time-slot-cell:nth-child(even) { background: hsl(var(--ops-row-alt)); }
+.time-grid-with-staff-header .time-slot-cell:hover { background: hsl(var(--module-accent-soft, var(--accent))); }
+.time-grid-with-staff-header .staff-count-info { color: hsl(var(--ops-label)); opacity: 1; }
+.time-grid-with-staff-header .booking-event,
+.time-grid-with-staff-header .calendar-event { border: 1px solid hsl(var(--ops-edge)); box-shadow: var(--ops-depth); }
+.time-grid-with-staff-header .event-booking-number { opacity: 1; }
+.day-card, .weekly-day-card { border-color: hsl(var(--ops-edge)); }
+
+/* Personnel timeline keeps actual phase colors while strengthening its lanes. */
+.operations-personnel-grid { border-color: hsl(var(--ops-edge)); }
+.operations-personnel-row { background: hsl(var(--ops-lane)); border-color: hsl(var(--ops-edge)); }
+.operations-personnel-row:nth-child(even) { background: hsl(var(--ops-row-alt)); }
+.operations-personnel-grid .operations-resource-zone { box-shadow: 2px 0 4px hsl(var(--foreground) / 0.08); }
+.operations-personnel-grid .operations-timeline-cell { border-color: hsl(var(--ops-edge)); }
+.operations-timeline-surface { background: hsl(var(--ops-lane)); border: 1px solid hsl(var(--ops-edge)); border-radius: 8px; }
+
+/* FullCalendar owner views: retain phase fills, define time and day boundaries. */
+.warehouse-work-calendar .fc-theme-standard td,
+.warehouse-work-calendar .fc-theme-standard th,
+.warehouse-work-calendar .fc-theme-standard .fc-scrollgrid { border-color: hsl(var(--ops-edge)); }
+.warehouse-work-calendar .fc-col-header-cell,
+.warehouse-work-calendar .fc-timegrid-slot-label { background: hsl(var(--ops-resource)); }
+.warehouse-work-calendar .fc-timegrid-slot-label-cushion { color: hsl(var(--ops-label)); font-size: 11px; }
+.warehouse-work-calendar .fc-timegrid-slot-lane { background: hsl(var(--ops-lane)) !important; }
+.warehouse-work-calendar .fc-timegrid-slot-lane:nth-child(even) { background: hsl(var(--ops-row-alt)) !important; }
+.warehouse-work-calendar .warehouse-fc-event { box-shadow: var(--ops-depth); }

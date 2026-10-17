@@ -2,6 +2,7 @@
 @import './styles/calendar.css';
 @import './styles/planning.css';
 @import './styles/module-accents.css';
+@import './styles/operations-surfaces.css';
 
 @tailwind base;
 @tailwind components;

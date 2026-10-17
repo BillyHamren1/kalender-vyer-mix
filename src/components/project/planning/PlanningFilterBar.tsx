@@ -248,7 +248,7 @@ const PlanningFilterBar = ({ tasks, filters, onFiltersChange, staffPool, filtere
     : undefined;
 
   return (
-    <div className="space-y-2">
+    <div className="operations-filter-zone space-y-2 px-3 py-3">
       {/* Quick filter chips */}
       <div className="flex flex-wrap items-center gap-1.5">
         <Filter className="h-3.5 w-3.5 text-muted-foreground mr-0.5" />
@@ -265,7 +265,7 @@ const PlanningFilterBar = ({ tasks, filters, onFiltersChange, staffPool, filtere
                 active
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "bg-card text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground",
-                count === 0 && !active && "opacity-50"
+                count === 0 && !active && "text-muted-foreground"
               )}
             >
               <Icon className="h-3 w-3" />

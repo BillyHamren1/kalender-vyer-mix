@@ -223,7 +223,7 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
   return (
     <div
       ref={scrollRef}
-      className={isCompact ? '' : 'overflow-y-auto'}
+      className={cn('operations-timeline-surface', !isCompact && 'overflow-y-auto')}
       style={isCompact ? undefined : { maxHeight: 'calc(100vh - 220px)' }}
     >
       <div className="relative" style={{ height: totalHeight }}>
@@ -234,10 +234,10 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
             className="absolute left-0 right-0 flex items-start"
             style={{ top: i * PX_PER_HOUR, height: PX_PER_HOUR }}
           >
-            <div className="w-12 shrink-0 pr-2 text-right text-[10px] font-mono text-muted-foreground/60 -translate-y-1.5">
+            <div className="w-12 shrink-0 pr-2 text-right text-[11px] font-mono text-muted-foreground -translate-y-1.5">
               {format(h, 'HH:mm')}
             </div>
-            <div className="flex-1 border-t border-border/50 h-full" />
+            <div className="flex-1 border-t border-input h-full" />
           </div>
         ))}
 
