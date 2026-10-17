@@ -55,13 +55,14 @@ Deno.serve(async (req) => {
     const details: any[] = [];
 
     for (const b of bookings || []) {
-      if (b.status && String(b.status).toUpperCase() === 'CANCELLED') {
+      if (b.status !== 'CONFIRMED') {
         skipped++;
-        details.push({ booking_id: b.id, skipped: 'cancelled' });
+        details.push({ booking_id: b.id, skipped: 'not_confirmed' });
         continue;
       }
 
       const evalRes = evaluateShortNotice({
+        status: b.status,
         rigdaydate: b.rigdaydate,
         eventdate: b.eventdate,
       });

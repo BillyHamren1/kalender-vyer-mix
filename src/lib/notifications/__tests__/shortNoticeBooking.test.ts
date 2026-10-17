@@ -18,31 +18,31 @@ describe('evaluateShortNotice', () => {
   });
 
   it('flaggar bokning med rigdag inom 7 dagar', () => {
-    const r = evaluateShortNotice({ rigdaydate: '2026-06-03', now: NOW });
+    const r = evaluateShortNotice({ status: 'CONFIRMED', rigdaydate: '2026-06-03', now: NOW });
     expect(r.isShortNotice).toBe(true);
     expect(r.daysUntilRig).toBe(6);
   });
 
   it('flaggar bokning med rigdag exakt på dag 7', () => {
-    const r = evaluateShortNotice({ rigdaydate: '2026-06-04', now: NOW });
+    const r = evaluateShortNotice({ status: 'CONFIRMED', rigdaydate: '2026-06-04', now: NOW });
     expect(r.isShortNotice).toBe(true);
     expect(r.daysUntilRig).toBe(SHORT_NOTICE_DAYS);
   });
 
   it('flaggar INTE bokning med rigdag dag 8', () => {
-    const r = evaluateShortNotice({ rigdaydate: '2026-06-05', now: NOW });
+    const r = evaluateShortNotice({ status: 'CONFIRMED', rigdaydate: '2026-06-05', now: NOW });
     expect(r.isShortNotice).toBe(false);
     expect(r.daysUntilRig).toBe(8);
   });
 
-  it('flaggar bokning som redan passerat (kort varsel i extrem grad)', () => {
-    const r = evaluateShortNotice({ rigdaydate: '2026-05-25', now: NOW });
-    expect(r.isShortNotice).toBe(true);
+  it('flaggar aldrig passerade bokningar', () => {
+    const r = evaluateShortNotice({ status: 'CONFIRMED', rigdaydate: '2026-05-25', now: NOW });
+    expect(r.isShortNotice).toBe(false);
     expect(r.daysUntilRig).toBe(-3);
   });
 
   it('faller tillbaka till eventdate när rigdaydate saknas', () => {
-    const r = evaluateShortNotice({ rigdaydate: null, eventdate: '2026-05-30', now: NOW });
+    const r = evaluateShortNotice({ status: 'CONFIRMED', rigdaydate: null, eventdate: '2026-05-30', now: NOW });
     expect(r.isShortNotice).toBe(true);
     expect(r.daysUntilRig).toBe(2);
   });
