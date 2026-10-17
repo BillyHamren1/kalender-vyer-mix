@@ -54,7 +54,7 @@ export async function authorizeInternalMessages(input: {
   // resolve_hub_actor_v1; membership = any existing per-org role (unchanged semantics),
   // never last-used profiles.organization_id or user-editable metadata.
   const actor = await authorizeHubActor(supabase, { hubSubject: body.actorUserId, organizationId: body.organizationId, roles: MESSAGE_MEMBER_ROLES })
-  if (!actor.ok) { logActorDenial('internal-messages', actor.reason, body.organizationId); return deny(actor.status, actor.error) }
+  if (actor.ok === false) { logActorDenial('internal-messages', actor.reason, body.organizationId); return deny(actor.status, actor.error) }
   const localUserId = actor.localUserId
   const staffRows = await supabase.from('staff_members').select('id, is_active').eq('user_id', localUserId).eq('organization_id', body.organizationId).limit(2)
   if (staffRows.error) return deny(503, 'actor_lookup_failed')
