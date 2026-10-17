@@ -291,9 +291,9 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
   }, [model, props.staffId, staffName, date, nowMs]);
 
   return (
-    <section className="space-y-3 rounded-lg border bg-card p-4">
+    <section className="operations-workspace space-y-3 rounded-lg p-4">
       {/* Header — clean, en rad */}
-      <header className="flex items-center justify-between gap-3">
+      <header className="operations-detail-heading flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-base font-semibold truncate">{staffName}</h3>
           <p className="text-xs text-muted-foreground">
