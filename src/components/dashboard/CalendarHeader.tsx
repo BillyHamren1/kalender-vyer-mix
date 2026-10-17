@@ -96,7 +96,7 @@ const CalendarHeader = ({
           variant="ghost"
           size="icon"
           onClick={onPrevious}
-          className="h-8 w-8 text-primary-foreground hover:bg-muted border border-border/30 rounded-lg"
+          className="h-8 w-8 text-foreground hover:bg-muted border border-border rounded-lg"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
@@ -107,7 +107,7 @@ const CalendarHeader = ({
           variant="ghost"
           size="icon"
           onClick={onNext}
-          className="h-8 w-8 text-primary-foreground hover:bg-muted border border-border/30 rounded-lg"
+          className="h-8 w-8 text-foreground hover:bg-muted border border-border rounded-lg"
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
