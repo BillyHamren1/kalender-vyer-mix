@@ -1,8 +1,9 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
 ## Aktuellt uppdrag
-- [ ] Endast CONFIRMED och 0–7 dagar för kortvarselnotiser; samla Systemet per organisation med bibehållet mottagarskydd, bevara historik och testa.
-- [ ] Diagnostisera långsam laddning och tiominuterscache; kontrollera om varje bokning hämtas.
+- [x] Kortvarsel endast CONFIRMED och 0–7 dagar; stabil Systemet-tråd med äldre historik per mottagare; 47 tester gröna via isolerad Vitest 3, preview build OK. Ingen manuell deploy.
+- [ ] Organisationsgemensam Systemet-historik: väntar på avgränsning av vilka som får läsa andra mottagares notiser; befintligt mottagarskydd behålls tills dess.
+- [x] Diagnostiserat packlistans N+1: ersatt bokningsanrop per packlista med deduplicerade org-batcher om max 200 ID; test 300 packlistor = 2 bokningsanrop. Inloggad laddningstid ej verifierbar (external_unmanaged).
 - [x] Lägg till signerade get_job_messages/send_job_message/mark_job_read med organisationsskydd; verkliga handlers verifierade lokalt (201/200/200), cross-org/HMAC/nonce/fel tester gröna; inga produktionsmeddelanden skickade.
 - [x] Lyft kontrast och skikt i planering, schema, tidslinje, dagstavla och sidopaneler; obsidianknappar/violett identitet bevarade; 122 berörda Vitest-tester gröna via isolerad Vitest 3 (ordinarie npm test har befintlig Vite-inkompatibilitet), preview build OK; schema/bemanning/panel verifierade med verkliga komponenter och syntetiska data utan runtimefel.
 - [ ] Extern verifieringsgrind: autentiserad produktionsresa mellan appar och live lager-/planeringsvyer (external_unmanaged auth; ingen användarimpersonation, inga produktionsskrivningar eller deploy utförda).
