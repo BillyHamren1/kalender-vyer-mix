@@ -34,6 +34,12 @@
 .operations-resource-zone .text-muted-foreground, .operations-lane .text-muted-foreground { color: hsl(var(--ops-label)); }
 .operations-unassigned { color: hsl(var(--ops-warning-text)); }
 
+/* Headings are content, never module identity (also covers portalled panels). */
+:is(html[data-module='planning'], html[data-module='warehouse'], .theme-purple) :is(h1, h2, h3, h4, h5, h6, .planning-section-title, .operations-detail-heading) {
+  color: hsl(var(--foreground));
+  letter-spacing: 0;
+}
+
 /* Existing custom staff grid: opaque layers avoid white-on-white lanes. */
 .time-grid-with-staff-header .time-grid-fixed-header { background: hsl(var(--ops-resource)); border-bottom: 2px solid hsl(var(--ops-edge)); }
 .time-grid-with-staff-header .time-grid-header-bg { background: hsl(var(--ops-resource)); border-radius: 0; }

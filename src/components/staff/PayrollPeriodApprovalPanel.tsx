@@ -56,13 +56,13 @@ export function PayrollPeriodApprovalPanel({ periodId, isLocked, approvedAt }: P
 
   if (isLocked) {
     return (
-      <Card className="p-4 border-violet-500/40 bg-violet-500/5 flex items-center justify-between gap-3">
+      <Card className="p-4 border-border bg-card flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Lock className="h-5 w-5 text-violet-600" />
+          <Lock className="h-5 w-5 text-foreground" />
           <div>
             <div className="font-semibold flex items-center gap-2">
               Godkänd för utbetalning
-              <Badge variant="outline" className="bg-violet-500/15 text-violet-600 border-violet-500/30">
+              <Badge variant="outline" className="bg-muted text-foreground border-border">
                 Låst
               </Badge>
             </div>

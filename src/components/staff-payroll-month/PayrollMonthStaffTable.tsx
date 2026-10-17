@@ -116,8 +116,8 @@ const PayrollMonthStaffTable: React.FC<Props> = ({ groups, onOpen, isLoading }) 
   if (!groups.length) {
     return (
       <div className="px-4 pb-10">
-        <Card className="border-dashed border-2 border-violet-500/20 bg-violet-500/[0.03] p-10 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-500/10 text-violet-600 mb-3">
+        <Card className="border-dashed border-2 border-border bg-card p-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-foreground mb-3">
             <Wallet className="h-6 w-6" />
           </div>
           <h3 className="text-base font-semibold">Ingen godkänd tid för vald månad.</h3>

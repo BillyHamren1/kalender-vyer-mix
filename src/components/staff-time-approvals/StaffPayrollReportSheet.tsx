@@ -112,7 +112,7 @@ export default function StaffPayrollReportSheet({ row, weekStart, weekEnd, onOpe
   return (
     <article className="payroll-sheet bg-card border border-border/60 rounded-2xl lg:rounded-3xl shadow-sm hover:shadow-md transition-shadow print:shadow-none print:border-neutral-300 print:rounded-none w-full mb-6 print:mb-0 overflow-hidden">
       {/* Header */}
-      <header className="px-5 sm:px-6 pt-5 pb-4 border-b border-border/60 bg-gradient-to-b from-violet-500/[0.04] to-transparent">
+      <header className="px-5 sm:px-6 pt-5 pb-4 border-b border-border/60 bg-muted">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground font-semibold">

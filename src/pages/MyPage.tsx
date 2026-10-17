@@ -17,21 +17,21 @@ const SHORTCUTS = [
     description: 'Projekt där du är tilldelad eller projektledare',
     url: '/my-page/projects',
     icon: FolderKanban,
-    accent: 'from-purple-500/15 to-fuchsia-500/10',
+    accent: 'bg-card',
   },
   {
     title: 'Min kalender',
     description: 'Dina pass, rig och eventdagar',
     url: '/my-page/calendar',
     icon: CalendarDays,
-    accent: 'from-indigo-500/15 to-purple-500/10',
+    accent: 'bg-card',
   },
   {
     title: 'Mina todos',
     description: 'Uppgifter tilldelade dig',
     url: '/my-page/todos',
     icon: ListChecks,
-    accent: 'from-emerald-500/15 to-teal-500/10',
+    accent: 'bg-card',
   },
 ];
 
@@ -101,7 +101,7 @@ const MyPage: React.FC = () => {
             onClick={() => navigate(s.url)}
             className={cn(
               'group relative text-left rounded-xl p-5 overflow-hidden',
-              'bg-gradient-to-br', s.accent,
+              s.accent,
               'border border-border hover:border-primary/40 transition-all',
               'hover:shadow-md',
             )}

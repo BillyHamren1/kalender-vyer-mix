@@ -6,7 +6,7 @@
 
    Reglerna här:
    - Speglar Booking-modulens premium-känsla (samma spacing, radius,
-     skuggor, cards) men byter ALLT som är teal mot canonical Operations-violett.
+     skuggor, cards) med neutrala rubriker och arbetsytor; violett reserveras för 2A-kuben.
    - Endast återanvändbara klasser. Hårdkoda inte färger per sida.
    - Booking-modulen påverkas inte — alla regler är scopade under
      `.theme-purple`.
@@ -14,11 +14,14 @@
 
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
-  /* Planning-identitet — canonical #7357C8, deep #6849BE */
-  --primary: 254.867 50.673% 56.275%; /* #7357C8 */
-  --primary-foreground: 0 0% 100%;
-  --primary-hover: 255.897 47.368% 51.569%; /* #6849BE */
-  --primary-dark: 255.897 47.368% 51.569%;
+  /* Actions and text are independent of the 2A identity. */
+  --foreground: 217 33% 18%;
+  --heading: var(--foreground);
+  --card-foreground: var(--foreground);
+  --primary: var(--action);
+  --primary-foreground: var(--action-foreground);
+  --primary-hover: var(--action-hover);
+  --primary-dark: var(--action-end);
 
   /* Secondary lila — för mjukare CTA-ytor */
   --secondary: 210 40% 96%;
@@ -32,14 +35,14 @@
   --gradient-teal-bg: hsl(200 20% 94.1176%);
 
   /* Accent / hover / focus-ring — lila */
-  --accent: 255 50% 95%;
-  --accent-foreground: 255.897 47.368% 51.569%;
-  --ring: 254.867 50.673% 56.275%;
+  --accent: 210 24% 94%;
+  --accent-foreground: var(--foreground);
+  --ring: 217 23% 42%;
   --muted-foreground: 240 6% 42%;
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
-  --gradient-icon: radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%), linear-gradient(145deg, hsl(254.867 50.673% 56.275%), hsl(255.897 47.368% 51.569%));
-  --gradient-teal: var(--gradient-icon);
+  --gradient-icon: var(--gradient-action);
+  --gradient-teal: hsl(var(--card));
 
   /* Skuggor — neutral grå, inte lila-tintad */
   --shadow-soft:
@@ -48,16 +51,16 @@
   --shadow-raised:
     0 1px 3px hsl(240 10% 20% / 0.06),
     0 3px 0 hsl(240 8% 88%);
-  --shadow-btn-primary: 0 3px 0 hsl(255.897 47.368% 42%);
+  --shadow-btn-primary: var(--shadow-action);
   --control-highlight: hsl(0 0% 100% / 0.28);
   --control-depth-edge: hsl(var(--module-accent-dark) / 0.92);
   --control-luster-shadow: 0 3px 0 var(--control-depth-edge), 0 7px 15px hsl(var(--module-accent-base) / 0.24), inset 0 1px 0 var(--control-highlight);
 
   /* Sidebar (när Planning-rot innehåller sidan) */
-  --sidebar-primary: 254.867 50.673% 56.275%;
-  --sidebar-accent: 255 50% 95%;
-  --sidebar-accent-foreground: 255.897 47.368% 51.569%;
-  --sidebar-ring: 254.867 50.673% 56.275%;
+  --sidebar-primary: var(--foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-ring: var(--ring);
 }
 
 
@@ -84,26 +87,26 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: hsl(var(--module-accent));
+  color: hsl(var(--foreground));
 }
 
 /* Mjuk lila bakgrundsyta (accent zone) */
 .theme-purple .planning-soft-bg {
-  background: hsl(var(--module-accent-soft) / 0.58);
-  border: 1px solid hsl(var(--module-accent-base) / 0.18);
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.75rem;
 }
 
 /* Aktivt tab/chip — ljus lila istället för teal */
 .theme-purple .planning-chip-active {
-  background: hsl(var(--module-accent-soft));
-  color: hsl(var(--module-accent));
-  border: 1px solid hsl(var(--module-accent-base) / 0.42);
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
 }
 .theme-purple .planning-chip {
-  background: hsl(0 0% 100%);
-  color: hsl(var(--module-accent));
-  border: 1px solid hsl(var(--module-accent-base) / 0.20);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
   padding: 0.25rem 0.625rem;
   font-size: 0.75rem;
@@ -111,22 +114,22 @@
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 .theme-purple .planning-chip:hover {
-  background: hsl(var(--module-accent-soft) / 0.58);
-  border-color: hsl(var(--module-accent-base) / 0.34);
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
 }
 
 /* Filter/input — samma "premium SaaS"-känsla som Booking men lila ring */
 .theme-purple .planning-input {
-  background: hsl(0 0% 100%);
-  border: 1px solid hsl(var(--module-accent-base) / 0.28);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 .theme-purple .planning-input:focus,
 .theme-purple .planning-input:focus-visible {
   outline: none;
-  border-color: hsl(var(--module-accent-base));
-  box-shadow: 0 0 0 3px hsl(var(--module-accent-base) / 0.15);
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.15);
 }
 
 /* Shared HUB obsidian/emerald finish; ghost controls inherit no luster. */
@@ -147,9 +150,9 @@
 .theme-purple .operations-tab-luster[data-state='active'] {
   background: hsl(var(--card));
   background-image: none;
-  color: hsl(var(--module-accent-dark));
-  border-color: hsl(var(--module-accent-border));
-  box-shadow: inset 0 -2px 0 hsl(var(--module-accent)), var(--shadow-card);
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+  box-shadow: inset 0 -2px 0 hsl(var(--foreground)), var(--shadow-card);
 }
 @media (prefers-reduced-motion: no-preference) {
   .operations-primary-action { transition: background-color 140ms ease, box-shadow 140ms ease; }
@@ -168,7 +171,7 @@
   border-bottom: none;
 }
 .theme-purple .planning-row:hover {
-  background: hsl(var(--module-accent-soft) / 0.42);
+  background: hsl(var(--muted));
 }
 
 /* Badge — neutral lila, samma form som Booking */
@@ -181,9 +184,9 @@
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  background: hsl(var(--module-accent-soft));
-  color: hsl(var(--module-accent));
-  border: 1px solid hsl(var(--module-accent-base) / 0.30);
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
 }
 
 /* Mjukt radial-overlay för Operations hero/page-toppar */
@@ -194,17 +197,17 @@
    ska samma utility automatiskt visa lila. Detta är en säker fallback
    för komponenter som inte själva använder semantiska tokens. */
 .theme-purple [data-premium-surface="teal"] {
-  background: hsl(var(--module-accent-soft) / 0.42) !important;
-  border-color: hsl(255 25% 86%) !important;
+  background: hsl(var(--muted)) !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 /* Dark mode — bevara läsbarhet utan att blandas med teal */
 .dark .theme-purple {
-  --gradient-page: linear-gradient(180deg, hsl(255 25% 10%) 0%, hsl(256 20% 8%) 100%);
-  --gradient-teal-bg: hsl(255 20% 12%);
-  --accent: 255 25% 22%;
-  --accent-foreground: 255 30% 90%;
-  --ring: 255 60% 70%;
+  --gradient-page: hsl(var(--background));
+  --gradient-teal-bg: hsl(var(--background));
+  --accent: 217 25% 18%;
+  --accent-foreground: 210 40% 98%;
+  --ring: 215 20% 65%;
 }
 
 
@@ -252,6 +255,7 @@
 .operations-card-surface { box-shadow: var(--shadow-card); }
 .operations-page-header { background: hsl(var(--card)); box-shadow: var(--shadow-card); }
 .dark .theme-purple {
+  --foreground: 210 40% 98%;
   --background: 222 30% 9%;
   --secondary: 217 25% 18%;
   --secondary-foreground: 210 40% 98%;

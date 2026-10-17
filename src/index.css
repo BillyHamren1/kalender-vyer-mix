@@ -30,13 +30,13 @@
     --primary-soft: 184 50% 95%;        /* Mjuk teal-tint för cards/active states */
     --primary-soft-foreground: 184 45% 22%;
     /* === OPERATIONS (internal module key remains planning) === */
-    --planner: 254.867 50.673% 56.275%; /* #7357C8 */
+    --planner: var(--foreground);
     --planner-foreground: 0 0% 100%;
-    --planner-soft: 255 50% 95%;
-    --planner-soft-foreground: 255.897 47.368% 51.569%;
-    --planner-deep: 255.897 47.368% 51.569%; /* #6849BE */
-    --gradient-planner: var(--gradient-icon);
-    --shadow-planner: 0 13px 27px hsl(var(--planner-deep) / 0.27);
+    --planner-soft: var(--muted);
+    --planner-soft-foreground: var(--foreground);
+    --planner-deep: var(--foreground);
+    --gradient-planner: hsl(var(--card));
+    --shadow-planner: var(--shadow-card);
 
 
 

@@ -31,7 +31,7 @@ const TONE: Record<CardDef["tone"], string> = {
   emerald: "bg-emerald-500/5 border-emerald-500/30",
   amber: "bg-amber-500/5 border-amber-500/30",
   sky: "bg-sky-500/5 border-sky-500/30",
-  violet: "bg-violet-500/5 border-violet-500/30",
+  violet: "bg-card border-border",
 };
 
 const ICON_TONE: Record<CardDef["tone"], string> = {
@@ -39,7 +39,7 @@ const ICON_TONE: Record<CardDef["tone"], string> = {
   emerald: "text-emerald-600",
   amber: "text-amber-600",
   sky: "text-sky-600",
-  violet: "text-violet-600",
+  violet: "text-foreground",
 };
 
 const PayrollMonthSummaryCards: React.FC<Props> = ({ data }) => {
