@@ -6,6 +6,7 @@ import {
   fetchEconomyType,
   type EconomyDataType,
 } from './economy-fetch.ts';
+import { readEconomyCache, refreshEconomyCache } from '../_shared/economyCache.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -169,10 +170,16 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Cost changes may originate in Booking, so a local ten-minute cache
-      // cannot establish freshness. Read the canonical economy on each request.
-      const freshData = await fetchInChunks(efUrl, planningApiKey, bookingIds, organizationId);
-      Object.assign(responseData, freshData);
+      // Lagrad ekonomi: hämtas EN gång per bokning och hålls aktuell av
+      // import-bookings (Booking-ändring) + Planning-skrivningar nedan.
+      // Endast bokningar som saknas i lagret hämtas från Booking.
+      const cached = await readEconomyCache(serviceClient, organizationId, bookingIds);
+      Object.assign(responseData, cached);
+      const missing = bookingIds.filter((id) => !cached[id]);
+      if (missing.length > 0) {
+        const fresh = await refreshEconomyCache(serviceClient, efUrl, planningApiKey, organizationId, missing, CHUNK_SIZE);
+        Object.assign(responseData, fresh);
+      }
 
       return new Response(JSON.stringify(responseData), {
         status: 200,
@@ -226,6 +233,15 @@ Deno.serve(async (req) => {
 
     const response = await fetch(targetUrl, fetchOptions);
     const responseData = await response.json();
+
+    // Planning ändrade ekonomi i Booking → uppdatera lagrad ekonomi direkt.
+    const writtenBookingId = params.booking_id || params.data?.booking_id;
+    if (response.ok && method !== 'GET' && typeof writtenBookingId === 'string') {
+      const job = refreshEconomyCache(serviceClient, efUrl, planningApiKey, organizationId, [writtenBookingId])
+        .catch((e) => console.warn('[economy-cache] refresh after write failed', e));
+      // @ts-ignore
+      if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job);
+    }
 
     // Log close_project response for debugging
     if (type === 'close_project' || type === 'reopen_project') {

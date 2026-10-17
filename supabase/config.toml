@@ -238,3 +238,6 @@ verify_jwt = false
 # HMAC, nonce, live actor role and tenant checks are enforced in the handler.
 [functions.planning-mobile-workspace-command]
 verify_jwt = false
+
+[functions.refresh-economy-cache]
+verify_jwt = false

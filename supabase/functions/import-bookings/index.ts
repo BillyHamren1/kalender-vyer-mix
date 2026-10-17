@@ -5009,6 +5009,24 @@ serve(async (req) => {
       }
     }
 
+    // Booking ändrade bokningar → uppdatera lagrad ekonomi i bakgrunden
+    // så att ekonomisidan är korrekt nästa gång den öppnas.
+    if (organizationId && !isDryRun) {
+      const economyIds = [...new Set([
+        ...results.new_bookings, ...results.updated_bookings, ...results.products_updated_bookings,
+        ...(normalizedSingleBookingId ? [normalizedSingleBookingId] : []),
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0))].slice(0, 200)
+      if (economyIds.length > 0) {
+        const job = fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/refresh-economy-cache`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+          body: JSON.stringify({ organization_id: organizationId, booking_ids: economyIds }),
+        }).catch((err) => console.warn('[import-bookings] economy refresh dispatch failed', err))
+        // @ts-ignore
+        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') EdgeRuntime.waitUntil(job)
+      }
+    }
+
 
 
     // ── Kort-varsel-notiser för nya bokningar (fire-and-forget) ──────────
