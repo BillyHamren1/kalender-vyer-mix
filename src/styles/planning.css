@@ -135,6 +135,7 @@
   background: hsl(var(--action));
   background-image: var(--gradient-action);
   color: hsl(var(--action-foreground));
+  border: 1px solid hsl(var(--action-foreground) / 0.10);
   box-shadow: var(--shadow-action);
 }
 .operations-primary-action:hover,
