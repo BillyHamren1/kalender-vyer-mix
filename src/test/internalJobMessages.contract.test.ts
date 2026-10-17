@@ -11,13 +11,15 @@ const bookingId = '30000000-0000-4000-8000-000000000003'
 const secret = 'synthetic-test-only-signing-key-at-least-32-characters'
 const actions = ['get_job_messages', 'send_job_message', 'mark_job_read'] as const
 type Options = { foreignBooking?: boolean; bookingError?: boolean; noRole?: boolean; replay?: boolean }
+type Row = Record<string, unknown>
+type QueryResult = { data: unknown; error: unknown }
 function fakeDatabase(options: Options = {}) {
-  const calls: { table: string; filters: Record<string, unknown>; operation: string; payload?: any }[] = []
-  const rpcCalls: { name: string; args: any }[] = []
-  const stored: any[] = []
+  const calls: { table: string; filters: Row; operation: string; payload?: Row }[] = []
+  const rpcCalls: { name: string; args: Row }[] = []
+  const stored: Row[] = []
   return {
     calls, rpcCalls, stored,
-    async rpc(name: string, args: any) {
+    async rpc(name: string, args: Row) {
       rpcCalls.push({ name, args })
       if (name === 'consume_planning_brain_read_nonce') return { data: !options.replay, error: null }
       if (name === 'resolve_hub_actor_v1') return { data: { status: 'ok', mode: 'direct', localUserId: actor }, error: null }
@@ -26,7 +28,7 @@ function fakeDatabase(options: Options = {}) {
       throw new Error(`Unexpected RPC ${name}`)
     },
     from(table: string) {
-      const call = { table, filters: {} as Record<string, unknown>, operation: 'read', payload: undefined as any }
+      const call = { table, filters: {} as Row, operation: 'read', payload: undefined as Row | undefined }
       calls.push(call)
       function result() {
         if (table === 'user_roles') return { data: options.noRole ? [] : [{ role: 'projekt', organization_id: org }], error: null }
@@ -36,19 +38,19 @@ function fakeDatabase(options: Options = {}) {
         if (table === 'jobs' || table === 'booking_staff_assignments') return { data: [], error: null }
         throw new Error(`Unexpected table ${table}`)
       }
-      const chain: any = {
+      const chain = {
         select() { return chain }, eq(key: string, value: unknown) { call.filters[key] = value; return chain },
         in() { return chain }, limit() { return chain }, order() { return chain }, lt() { return chain },
-        insert(payload: any) { call.operation = 'insert'; call.payload = payload; stored.push({ ...payload, id: 'message-1', created_at: '2026-10-17T00:00:00Z' }); return chain },
+        insert(payload: Row) { call.operation = 'insert'; call.payload = payload; stored.push({ ...payload, id: 'message-1', created_at: '2026-10-17T00:00:00Z' }); return chain },
         async maybeSingle() { return result() },
         async single() { return { data: table === 'staff_members' ? { name: 'Synthetic actor' } : stored[0], error: null } },
-        then(resolve: (value: any) => unknown) { return Promise.resolve(result()).then(resolve) },
+        then(resolve: (value: QueryResult) => unknown) { return Promise.resolve(result()).then(resolve) },
       }
       return chain
     },
   }
 }
-async function signed(action: string, data: any, options: Options = {}, wrongKey = false) {
+async function signed(action: string, data: unknown, options: Options = {}, wrongKey = false) {
   const db = fakeDatabase(options)
   const body = { schema: MESSAGE_SCHEMA, actorUserId: actor, organizationId: org, action, data }
   const rawBody = JSON.stringify(body), timestamp = String(Date.now()), nonce = crypto.randomUUID()

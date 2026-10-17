@@ -1,5 +1,15 @@
 # Brain ↔ Time internal messages
 
+## Signed job chat extension
+
+`eventflow.internal-messages.v1` also allows `get_job_messages`, `send_job_message` and `mark_job_read` through the existing `mobile-app-api` dispatcher. Authorization still requires the domain-separated HMAC, fresh nonce, protected HUB actor mapping and per-organization membership. The shared contract checks that `booking_id` exists in the signed organization before dispatch; existing job-chat assignment/planner authorization still applies. No additional message table, grant or client-selected sender is introduced.
+
+- `get_job_messages`: `data: { booking_id, before?: ISO timestamp, limit?: integer 1..100 }`.
+- `send_job_message`: `data: { booking_id, content: nonempty text, maximum 10000 characters }`. Signed v1 sends text only; attachments and sender/organization overrides are rejected. This retains the existing job-message send behavior, not the DM retry-ID guarantee.
+- `mark_job_read`: `data: { booking_id }`. Existing atomic `mark_job_thread_read` receives only server-resolved actor IDs and signed organization.
+
+Local verification executes the actual authorization and existing production handlers against a synthetic database: send 201, read 200, read receipt 200; cross-tenant targets, malformed input, replay, forged signature and lookup failure are rejected. No production messages are sent. The new suite belongs to `scripts/test-messaging.sh` and `src/test/messaging.manifest.ts`. Live cross-app activation and push delivery are not established by local tests.
+
 Canonical data stays in Time/Operations `direct_messages`. Brain calls `brain-internal-messages` with the real user JWT; that function checks the canonical active organization claim and membership, signs a narrowly allowed request, and calls `mobile-app-api`. Operations checks HMAC freshness, one-use nonce, same-organization profile and role, and an unambiguous active staff link. A planner without a staff row keeps their verified auth ID. The existing send handler writes the message and invokes the existing push path.
 
 The two projects need a new identical server-only `BRAIN_INTERNAL_MESSAGES_SIGNING_SECRET` (at least 32 characters). Never reuse `PLANNING_BRAIN_READ_SIGNING_SECRET`. Brain also needs `BRAIN_INTERNAL_MESSAGES_URL=https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mobile-app-api`. No secret belongs in Git or a VITE variable. Missing configuration fails closed.
