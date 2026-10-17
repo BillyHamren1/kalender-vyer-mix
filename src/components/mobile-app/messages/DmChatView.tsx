@@ -9,6 +9,7 @@ import ChatInput from './ChatInput';
 import { ChatMessage } from './MessageBubble';
 import { useChatPagination } from './useChatPagination';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { isSystemNotificationPartner, isSystemNotificationMessage } from '../../../../supabase/functions/_shared/systemConversation';
 
 interface Props {
   partnerId: string;
@@ -25,6 +26,7 @@ interface PendingMessage extends ChatMessage {
 
 /** iMessage-style 1:1 DM view with cursor pagination + realtime + retry. */
 export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, onMessagesChanged }: Props) => {
+  const systemThread = isSystemNotificationPartner(partnerId);
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const [myIds, setMyIds] = useState<Set<string>>(new Set([staff?.id || '']));
@@ -64,10 +66,11 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
   // Mark partner messages as read on open and whenever a NEW partner message arrives.
   // We trigger only on changes to the count of messages from the partner — sending
   // our own messages should never round-trip a mark_read.
-  const partnerMsgCount = messages.filter((m) => partnerIds.has(m.sender_id)).length;
+  const fromPartner = (m: ChatMessage) => partnerIds.has(m.sender_id) || (systemThread && isSystemNotificationMessage(m));
+  const partnerMsgCount = messages.filter(fromPartner).length;
   useEffect(() => {
     if (partnerMsgCount === 0) return;
-    mobileApi.markDMRead(partnerId, messages.filter(m => partnerIds.has(m.sender_id)).at(-1)?.id).catch(() => { /* ignore */ });
+    mobileApi.markDMRead(partnerId, messages.filter(fromPartner).at(-1)?.id).catch(() => { /* ignore */ });
   }, [partnerId, partnerMsgCount, partnerIds]);
 
   // Realtime: append/update only — never trigger a full refetch.
@@ -81,7 +84,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
         { event: 'INSERT', schema: 'public', table: 'direct_messages' },
         (payload) => {
           const m = payload.new as ChatMessage;
-          const fromPartner = partnerIds.has(m.sender_id) && myIds.has((m as any).recipient_id);
+          const fromPartner = (partnerIds.has(m.sender_id) || (systemThread && isSystemNotificationMessage(m))) && myIds.has((m as any).recipient_id);
           const fromMe = myIds.has(m.sender_id) && partnerIds.has((m as any).recipient_id);
           if (!fromPartner && !fromMe) return;
           setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
@@ -103,7 +106,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [partnerId, staff?.id, myIds, partnerIds, setMessages]);
+  }, [partnerId, staff?.id, myIds, partnerIds, systemThread, setMessages]);
 
   const performSend = useCallback(async (
     optimisticId: string,
@@ -242,7 +245,7 @@ export const DmChatView = ({ partnerId, partnerName, initialMessages, onBack, on
         />
       )}
 
-      <ChatInput onSend={handleSend} />
+      {!systemThread && <ChatInput onSend={handleSend} />}
     </div>
   );
 };

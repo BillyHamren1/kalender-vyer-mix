@@ -14,6 +14,7 @@ import { Send, X, MessageCircle, Zap, Paperclip, Image, FileText, Tag, Loader2 }
 import { Skeleton } from '@/components/ui/skeleton';
 import { OpsTimelineAssignment } from '@/services/opsControlService';
 import { CHAT_UPLOAD_ACCEPT_ATTR, validateChatAttachment, isPreviewableType } from '@/lib/chat/uploadPolicy';
+import { isSystemNotificationPartner } from '../../../supabase/functions/_shared/systemConversation';
 
 const QUICK_MESSAGES = [
   'Försenad?',
@@ -35,6 +36,7 @@ interface Props {
 const isImageType = (type: string) => isPreviewableType(type);
 
 const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: Props) => {
+  const systemThread = isSystemNotificationPartner(staffId);
   const { primaryId, displayName, allIds } = useMyIdentity();
   const myId = primaryId || 'admin';
   const myName = displayName;
@@ -260,7 +262,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       </div>
 
       {/* Job tag + file preview bar */}
-      {(taggedBooking || pendingFile) && (
+      {!systemThread && (taggedBooking || pendingFile) && (
         <div className="shrink-0 border-t border-border px-3 py-1.5 space-y-1">
           {taggedBooking && (
             <div className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary rounded px-2 py-0.5">
@@ -292,7 +294,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       )}
 
       {/* Job picker dropdown */}
-      {showJobPicker && staffAssignments.length > 0 && (
+      {!systemThread && showJobPicker && staffAssignments.length > 0 && (
         <div className="shrink-0 border-t border-border px-3 py-1.5 max-h-28 overflow-y-auto">
           <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Tagga jobb</div>
           {staffAssignments.map((a) => (
@@ -318,7 +320,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
       )}
 
       {/* Quick shortcuts */}
-      <div className="shrink-0 border-t border-border px-3 pt-1.5 pb-0.5">
+      {!systemThread && <div className="shrink-0 border-t border-border px-3 pt-1.5 pb-0.5">
         <div className="flex items-center gap-1 mb-1">
           <Zap className="w-2.5 h-2.5 text-primary" />
           <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Snabbmeddelanden</span>
@@ -335,10 +337,10 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border px-3 py-2">
+      {!systemThread && <div className="shrink-0 border-t border-border px-3 py-2">
         <div className="flex gap-1.5 items-end">
           {/* File & Tag buttons */}
           <div className="flex flex-col gap-0.5">
@@ -381,7 +383,7 @@ const OpsDirectChat = ({ staffId, staffName, onClose, staffAssignments = [] }: P
             {(sending || uploading) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 };
