@@ -28,7 +28,7 @@ interface Props {
 
 /** One detail surface; ids select existing owner records, never a copied job. */
 export default function WarehouseJobSheet({ target, open, onOpenChange, onSaved }: Props) {
-  const { organizationId } = useCurrentOrg();
+  const { organizationId, isLoading: orgLoading } = useCurrentOrg();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedEvent, setSelectedEvent] = useState<{ owner: string; id: string } | null>(null);
@@ -107,7 +107,7 @@ export default function WarehouseJobSheet({ target, open, onOpenChange, onSaved 
         <SheetTitle>{data?.event?.title || data?.packing?.name || target?.title || 'Lagerjobb'}</SheetTitle>
         <SheetDescription>Planering och bemanning för detta jobb.</SheetDescription>
       </SheetHeader>
-      {query.isPending ? <p className="py-6" role="status">Hämtar jobbet…</p> : query.isError ? <div className="py-6 space-y-3" role="alert"><p>Kunde inte hämta jobbet. Ingen planering har ändrats.</p><Button onClick={() => query.refetch()}>Försök igen</Button></div> : data && <div className="mt-6 space-y-6">
+      {!orgLoading && !organizationId ? <p className="py-6" role="alert">Kunde inte avgöra din organisation. Logga in igen.</p> : query.isLoading || orgLoading ? <p className="py-6" role="status">Hämtar jobbet…</p> : query.isError ? <div className="py-6 space-y-3" role="alert"><p>Kunde inte hämta jobbet. Ingen planering har ändrats.</p><Button onClick={() => query.refetch()}>Försök igen</Button></div> : data && <div className="mt-6 space-y-6">
         {data.relatedEvents.length > 0 && <section className="space-y-2"><h3 className="font-semibold">Arbetsmoment</h3><p className="text-sm text-muted-foreground">Välj det moment du vill planera och bemanna.</p>{data.relatedEvents.map(event => <Button key={event.id} variant={event.id === eventId ? 'default' : 'outline'} className="w-full justify-start h-auto min-h-11 whitespace-normal text-left" disabled={saving} onClick={() => setSelectedEvent({ owner: ownerKey, id: event.id })}>{event.event_type === 'packing' ? 'Packning' : event.event_type === 'return' ? 'Retur' : event.title} · {warehouseDateOf(event.start_time)} {warehouseTimeOf(event.start_time)}</Button>)}</section>}
         {data.event && <section className="space-y-3">
           <h3 className="font-semibold">Planerad tid</h3>

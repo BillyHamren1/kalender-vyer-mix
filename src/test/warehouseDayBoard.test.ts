@@ -15,6 +15,19 @@ describe('lagrets dagstavla', () => {
     const l = buildDayLanes([job({ anchorDate: '2026-10-17' })], [], day);
     expect(l.packing.jobs).toHaveLength(0);
   });
+  it('lägger inte en bokning i packning och retur bara för att dagen ligger mellan rigg och nedrigg', () => {
+    const span = { startDate: '2026-10-14', endDate: '2026-10-22' };
+    const l = buildDayLanes([
+      job({ id: 'ut', anchorDate: '2026-10-13', ...span }),
+      job({ id: 'in', direction: 'in', anchorDate: '2026-10-22', ...span }),
+    ], [], '2026-10-17');
+    expect(l.packing.jobs).toHaveLength(0);
+    expect(l.returns.jobs).toHaveLength(0);
+  });
+  it('visar jobbet en dag där personal är bemannad', () => {
+    const l = buildDayLanes([job({ anchorDate: '2026-10-13', assignedStaff: [{ assignmentDate: day }] })], [], day);
+    expect(l.packing.jobs).toHaveLength(1);
+  });
   it('lägger reparation & vård i eget fack och övriga to-dos i interna', () => {
     const l = buildDayLanes([], [todo({ id: 'r', typeKey: 'repair_care' }), todo({ id: 'i' })], day);
     expect(l.repairs.todos.map((t) => t.id)).toEqual(['r']);
