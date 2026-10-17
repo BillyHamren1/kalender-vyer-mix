@@ -20,8 +20,8 @@ export default function StaffPayrollPeriods() {
         subtitle="Lås och godkänn period för utbetalning. Detta är underlag – inte slutgiltig löneexport."
       />
 
-      <Card className="mb-4 p-3 flex flex-wrap items-center gap-3 border-purple-500/20 bg-purple-500/5">
-        <FileText className="h-4 w-4 text-purple-600 shrink-0" />
+      <Card className="mb-4 p-3 flex flex-wrap items-center gap-3 border-border bg-card">
+        <FileText className="h-4 w-4 text-foreground shrink-0" />
         <div className="text-sm">
           <div className="font-medium">Vill du se månadsrapport baserad på godkänd tid?</div>
           <div className="text-xs text-muted-foreground">

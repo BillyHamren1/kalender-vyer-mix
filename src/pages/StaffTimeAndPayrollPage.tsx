@@ -4,6 +4,7 @@ import { CalendarClock, RefreshCw, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { PageContainer } from "@/components/ui/PageContainer";
+import { ModuleIcon } from "@/components/ui/ModuleIcon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import StaffTimeWeeklyGpsReportContent from "@/components/staff-time/StaffTimeWeeklyGpsReportContent";
@@ -34,11 +35,9 @@ const StaffTimeAndPayrollPage: React.FC = () => {
   return (
     <PageContainer theme="purple" className="p-0">
       {/* Premium page header */}
-      <div className="px-4 pt-4 pb-3 bg-gradient-to-b from-violet-500/5 via-transparent to-transparent">
+      <div className="px-4 pt-4 pb-3">
         <div className="rounded-2xl border border-border/60 bg-card shadow-sm px-4 sm:px-5 py-4 flex flex-wrap items-center gap-4">
-          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-md shadow-violet-500/20 shrink-0">
-            <CalendarClock className="h-5 w-5 text-white" strokeWidth={2} />
-          </div>
+          <ModuleIcon icon={CalendarClock} />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight tracking-tight text-foreground">
               Tid &amp; Lön
@@ -85,13 +84,13 @@ const StaffTimeAndPayrollPage: React.FC = () => {
           <TabsList className="h-11 bg-muted/60 p-1 rounded-xl border border-border/60 shadow-sm">
             <TabsTrigger
               value="tid"
-              className="h-9 px-5 text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 rounded-lg transition-colors"
+              className="h-9 px-5 text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground rounded-lg transition-colors"
             >
               Tid
             </TabsTrigger>
             <TabsTrigger
               value="lon"
-              className="h-9 px-5 text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 rounded-lg transition-colors"
+              className="h-9 px-5 text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground rounded-lg transition-colors"
             >
               Lön
             </TabsTrigger>
