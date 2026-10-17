@@ -40,7 +40,7 @@ describe('Production system-thread handler scope', () => {
       then(resolve: (v: unknown) => unknown) { return Promise.resolve({ data: [], error: null }).then(resolve); },
     };
     const response = await handler('handleGetDMThread')({ from: () => query }, 'staff-a', { partner_id: 'short-notice:booking-a', limit: 30 }, 'org-a', 'user-a');
-    expect(response.status).toBe(200);
+    expect({ status: response.status, body: await response.json() }).toMatchObject({ status: 200 });
     expect(filters.organization_id).toBe('org-a');
     expect(filters.recipient_id).toEqual(['staff-a', 'user-a']);
     expect(filters.or).toContain('sender_type.eq.system');
