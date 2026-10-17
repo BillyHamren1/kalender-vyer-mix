@@ -1,5 +1,9 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
+## Aktuellt uppdrag
+- [ ] Lägg till signerade get_job_messages/send_job_message/mark_job_read med organisationsskydd och automatiska tester.
+- [ ] Lyft kontrast och skikt i planering, schema, tidslinje, dagstavla och sidopaneler; behåll obsidianknappar och elektrisk violett identitet; verifiera preview och tester.
+
 ## Projektets orderrader
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
