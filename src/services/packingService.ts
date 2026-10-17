@@ -11,22 +11,34 @@ export const fetchPackings = async (): Promise<PackingWithBooking[]> => {
 
   if (error) throw error;
 
-  // Fetch booking info for each packing that has a booking_id
-  const packingsWithBookings: PackingWithBooking[] = await Promise.all(
-    (packings || []).map(async (packing) => {
-      if (packing.booking_id) {
-        const { data: booking } = await supabase
-          .from('bookings')
+  // Bounded batches per tenant, not one round-trip per packing.
+  const groups = new Map<string, Set<string>>();
+  for (const packing of packings || []) {
+    if (!packing.booking_id || !packing.organization_id) continue;
+    const ids = groups.get(packing.organization_id) ?? new Set<string>();
+    ids.add(packing.booking_id);
+    groups.set(packing.organization_id, ids);
+  }
+  const bookings = new Map<string, unknown>();
+  await Promise.all([...groups].flatMap(([org, ids]) => {
+    const values = [...ids];
+    const batches = [];
+    for (let offset = 0; offset < values.length; offset += 200) {
+      const batch = values.slice(offset, offset + 200);
+      batches.push((async () => {
+        const { data, error: bookingError } = await supabase.from('bookings')
           .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, contact_name, contact_phone, contact_email, booking_number, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
-          .eq('id', packing.booking_id)
-          .single();
-        return { ...packing, booking } as PackingWithBooking;
-      }
-      return packing as PackingWithBooking;
-    })
-  );
-
-  return packingsWithBookings;
+          .eq('organization_id', org).in('id', batch);
+        if (bookingError) throw bookingError;
+        for (const booking of data || []) bookings.set(`${org}:${booking.id}`, booking);
+      })());
+    }
+    return batches;
+  }));
+  return (packings || []).map(packing => ({
+    ...packing,
+    ...(packing.booking_id ? { booking: bookings.get(`${packing.organization_id}:${packing.booking_id}`) ?? null } : {}),
+  })) as PackingWithBooking[];
 };
 
 // Fetch a single packing by ID

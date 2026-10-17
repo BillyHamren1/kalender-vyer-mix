@@ -1,5 +1,6 @@
 # Architecture rules
 - System short-notice notifications use one stable DM partner; read projections include legacy booking-specific senders with tenant/recipient predicates, so history stays intact without a data rewrite.
+- Packing list booking summaries are fetched in deduplicated tenant-scoped batches capped at 200 IDs, because one query per packing slows the initial load.
 - Default actions use dedicated semantic action tokens independently of module identity; the shared ModuleIcon renders the 2A identity tile so headers cannot drift from module symbols.
 - Operations work surfaces share operations-surfaces.css semantic layer/edge/label tokens and explicit zone classes; one style owner keeps calendars, dayboards and portalled detail panels consistent without changing their data behavior.
 - Operations heading and surface tokens are independent of ModuleIcon identity; shared heading rules cover portalled panels so legacy accent utilities cannot recolor titles.
