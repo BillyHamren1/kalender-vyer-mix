@@ -268,7 +268,6 @@
   font-size: 10px;
   color: hsl(var(--muted-foreground));
 }
-.warehouse-work-calendar--week .fc-timegrid-col-events:has(.fc-timegrid-more-link) .fc-timegrid-event { margin-right: 30px !important; }
 .warehouse-work-calendar .fc-timegrid-more-link .warehouse-more-caption {
   display: block;
   font-size: 9px;
