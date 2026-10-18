@@ -80,10 +80,8 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
     queryKey,
     enabled: !!organizationId,
     staleTime: 30_000,
-    // Realtime is primary. Polling stays as a fallback for interrupted
-    // subscriptions so a manager's side-by-side view self-heals.
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       // Fetch overlapping source events first: assignments may only store clock times,
       // so their assignment_date alone cannot discover a job continuing into this range.

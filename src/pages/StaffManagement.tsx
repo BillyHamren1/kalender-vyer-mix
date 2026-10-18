@@ -114,12 +114,11 @@ const StaffManagement: React.FC = () => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['staffMembers'],
+    queryKey: ['staffMembers', 'includeInactive'],
     queryFn: () => fetchStaffMembers({ includeInactive: true }),
-    // Personalöversikten måste spegla verkligheten direkt efter en ändring.
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    // Cachen återanvänds; egna ändringar invaliderar via refreshStaffEverywhere.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // Reuse the same key as StaffAccountsPanel so we share cache.
@@ -132,9 +131,8 @@ const StaffManagement: React.FC = () => {
       if (error) throw error;
       return data as { id: string; staff_id: string; username: string; created_at: string }[];
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const refreshStaffEverywhere = async () => {

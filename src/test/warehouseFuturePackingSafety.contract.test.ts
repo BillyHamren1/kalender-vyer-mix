@@ -50,9 +50,9 @@ describe('active and future warehouse packing safety', () => {
     expect(repairEdge).toContain('source: result.source');
   });
 
-  it('keeps realtime invalidation plus polling fallback for staffing', () => {
+  it('keeps realtime invalidation without dataset polling for staffing', () => {
     const hook = readFileSync(resolve(process.cwd(), 'src/hooks/useWarehousePersonnelWeek.ts'), 'utf8');
     expect(hook).toContain('useRealtimeInvalidation({');
-    expect(hook).toContain('refetchInterval: 10_000');
+    expect(hook).not.toContain('refetchInterval: 10_000'); // realtime ersätter polling
   });
 });

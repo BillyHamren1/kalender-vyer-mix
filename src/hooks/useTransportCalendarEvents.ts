@@ -28,7 +28,7 @@ interface TransportCalendarData {
   } | null;
 }
 
-export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'week' | 'month' = 'week') => {
+export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'week' | 'month' = 'week', enabled = true) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { organizationId, isLoading: organizationLoading } = useCurrentOrg();
@@ -44,6 +44,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
   const endStr = format(dateRange.end, 'yyyy-MM-dd');
 
   const fetchTransports = useCallback(async () => {
+    if (!enabled) return;
     if (!organizationId) {
       setEvents([]);
       return;
@@ -122,7 +123,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
     } finally {
       setIsLoading(false);
     }
-  }, [endStr, organizationId, startStr]);
+  }, [enabled, endStr, organizationId, startStr]);
 
   useEffect(() => {
     if (!organizationId) return;
