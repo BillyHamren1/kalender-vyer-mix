@@ -5,7 +5,7 @@
 |---|---|
 | Bounded overview reads, pagination, bounded concurrency, no polling, org+actor cache, calendar/personnel gating, staff key split | **Done in code** |
 | Client delta engine (cursor, paging, merge of affected packings only, retention reset, bootstrap race, fallback) | **Done in code + tests** |
-| Server changefeed (`docs/performance/wms-changefeed.sql`) | **APPLIED 2026-10-18** to the connected project `pihrhltinhewhoxefjxv` via migrations `20261018225802` (feed) and `20261018225911` (grant hardening). Source of truth: `supabase/migrations/`; the docs SQL file is superseded |
+| Server changefeed (`docs/performance/wms-changefeed.sql`) | **APPLIED 2026-10-18** to the connected project `pihrhltinhewhoxefjxv` via migrations `20261018225802` (feed), `20261018225911` (grant hardening) and a follow-up rebinding `wms_feed_allocations` to the dedicated `wms_record_allocation_change()`. Source of truth: `supabase/migrations/`; the docs SQL file is superseded |
 | Server-side progress aggregate | Not done — progress is recomputed client-side with canonical `computePackingProgress`, only for reloaded packings |
 
 Until the SQL is applied, `wms_changes_since` returns PGRST202 (verified), the client marks the feed `unsupported` and uses the previous behaviour: coalesced realtime signal → re-read of the selected window. Once applied, no code change is needed.
@@ -39,7 +39,8 @@ Until the SQL is applied, `wms_changes_since` returns PGRST202 (verified), the c
 ## Applied design (corrections vs. the earlier draft)
 - Draft bugs fixed: `entity_id`/`booking_id` were `uuid` but `bookings.id`, `staff_members.id`, `booking_id` are `text` — the cast would have broken production writes. Now `text`.
 - Draft per-org cursor row lock (UPDATE ... RETURNING) dropped: it serialized all WMS writes per org and could introduce deadlocks with bulk imports. Replaced by a lock-free **transaction-id watermark**: each event stores `txid`; the RPC only returns transactions with `txid < pg_snapshot_xmin(current snapshot)` (all finished), so a later commit can never land behind the cursor. `seq` in the response = txid, `head` = xmin-1, pages contain whole transactions.
-- Allocations resolve `packing_id` via their item; on cascade deletes the allocation's own `organization_id` is used.
+- Allocations use a dedicated narrow writer `wms_record_allocation_change()` (catalog-verified trigger target). Org = allocation's own `organization_id` (fallback parent item/parcel); packing = parent item, else `packing_parcels.packing_id` via `parcel_id` (survives cascade delete of the item). If both are gone (whole packing deleted), the packing/item DELETE events in the same transaction carry the packing id. Old/new `packing_list_item_id`/`parcel_id` are stored in the window.
+- Status 2026-10-18 23:0x UTC: 0 events in the feed yet (no WMS writes since apply); no synthetic business write was made to test it.
 - Booking/staff triggers fire only when watched columns actually change (`IS DISTINCT FROM`).
 - Realtime wake-up subscribes to INSERTs on `wms_change_events` (RLS-filtered); the client adds a one-shot 3 s follow-up catch-up for commits briefly held back by an older open transaction.
 - Retention: `wms_prune_changes(interval)` (service_role) advances `wms_change_cursors.retained_from_seq` then deletes; client resets the period if its cursor is older. **Not yet scheduled** (no cron job created) — log grows until a scheduler is added.
