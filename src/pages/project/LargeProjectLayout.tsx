@@ -354,7 +354,7 @@ const LargeProjectLayout = () => {
   };
 
   return (
-    <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+    <div className="theme-purple planning-project-surface h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div
@@ -503,20 +503,13 @@ const LargeProjectLayout = () => {
                 <Link
                   key={item.key}
                   to={`${basePath}${item.path}`}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                    "planning-project-selection flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "text-primary-foreground shadow-lg"
+                      ? "text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   )}
-                  style={
-                    isActive
-                      ? {
-                          background: "var(--gradient-icon)",
-                          boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
-                        }
-                      : undefined
-                  }
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{item.label}</span>
