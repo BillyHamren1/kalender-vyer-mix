@@ -37,6 +37,7 @@ cd "$ROOT"
 
 FRONTEND_TESTS=(
   "src/test/internalJobMessages.contract.test.ts"
+  "src/test/pushTokenRegistration.contract.test.ts"
   "src/test/messagingProduct.contract.test.ts"
   "src/test/chatFlow.test.ts"
   "src/services/__tests__/mobileApiService.chat.test.ts"
