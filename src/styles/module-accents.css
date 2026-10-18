@@ -76,3 +76,28 @@ html[data-module='warehouse'] {
   --warehouse-muted: 32 80% 92%;
   --warehouse-accent: 32 71% 46%;
 }
+
+/* Warehouse selected controls: filled canonical warm amber (#C77922) with white text. */
+html[data-module='warehouse'] {
+  --warehouse-selection: 32 71% 46%;
+  --warehouse-selection-deep: 30 76% 34%;
+  --warehouse-selection-hover: 36 85% 95%;
+  --border: 214 32% 91%;
+}
+html[data-module='warehouse'] [role='tablist'] [data-state='active'],
+html[data-module='warehouse'] .operations-tab-luster[data-state='active'],
+html[data-module='warehouse'] [data-radix-toggle-group-item][data-state='on'] {
+  background: hsl(var(--warehouse-selection));
+  background-image: linear-gradient(180deg, hsl(var(--warehouse-selection)), hsl(var(--warehouse-selection-deep)));
+  color: hsl(0 0% 100%);
+  border-color: hsl(var(--warehouse-selection-deep));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.18), 0 2px 6px hsl(var(--warehouse-selection-deep) / 0.28);
+}
+html[data-module='warehouse'] [role='tablist'] [role='tab'][data-state='inactive']:hover {
+  background: hsl(var(--warehouse-selection-hover));
+}
+html[data-module='warehouse'] .rounded-lg.border.bg-card,
+html[data-module='warehouse'] .rounded-xl.border.bg-card {
+  border-color: hsl(var(--border));
+  box-shadow: var(--shadow-card);
+}
