@@ -70,7 +70,7 @@ export interface SidebarAccent {
   ring: string;
 }
 
-/** Operations — internal key planning, canonical violet (#9672BE / #5E428B). */
+/** Operations — internal key planning, shared HUB teal accent (#1F747A, standard 2026-10-18). */
 export const PLANNING_ACCENT: SidebarAccent = {
   base: 'hsl(var(--planning-selection))',
   soft: 'var(--planning-selection-soft)',
@@ -79,7 +79,7 @@ export const PLANNING_ACCENT: SidebarAccent = {
   ring: 'hsl(var(--planning-selection))',
 };
 
-/** Lager & Logistik — canonical HUB warm orange (#C77922). */
+/** Lager & Logistik — shared HUB teal accent (#1F747A, standard 2026-10-18). */
 export const WAREHOUSE_ACCENT: SidebarAccent = {
   base: MODULE_PALETTE.warehouse.base,
   soft: MODULE_PALETTE.warehouse.soft,
