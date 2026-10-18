@@ -58,8 +58,8 @@ describe("simple project workspace", () => {
     expect(page).toContain("data-[state=active]:bg-[image:var(--gradient-icon)] data-[state=active]:text-primary-foreground");
     expect(mediumLayout).toContain('background: "var(--gradient-planner)"');
     expect(largeLayout).toContain('background: "var(--gradient-planner)"');
-    expect(tokens).toContain("--planner: 254.867 50.673% 56.275%");
-    expect(tokens).toContain("--gradient-planner: var(--gradient-icon)");
+    expect(tokens).toContain("--planner: var(--foreground)");
+    expect(tokens).toContain("--gradient-planner: hsl(var(--card))");
     expect(tokens).not.toContain("linear-gradient(135deg, hsl(270 55% 60%) 0%, hsl(285 55% 45%) 100%)");
     expect(mediumLayout).not.toContain("hsl(270 45% 60%)");
     expect(largeLayout).not.toContain("hsl(270 45% 60%)");

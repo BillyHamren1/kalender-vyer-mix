@@ -86,9 +86,9 @@ describe('Operations premium module contract', () => {
     expect(routing).toContain("return pathname === '/warehouse'");
   });
 
-  it('does not change warehouse or semantic status palettes', () => {
+  it('uses the shared teal accent in warehouse too and keeps semantic status palettes', () => {
     const css = read('src/styles/module-accents.css');
-    expect(css).toContain("--module-accent: 32 71% 46%");
+    expect(css).toContain("--module-accent: 184 59% 30%");
     expect(css).not.toMatch(/--destructive|--success|--warning/);
   });
 });
