@@ -9,9 +9,10 @@ import { type LucideIcon,
   Wrench,
   ChevronDown,
   TrendingUp,
-   ChevronsLeft,
+  ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useWarehouseNotificationCount } from "@/hooks/useWarehouseNotificationCount";
 import {
   SIDEBAR_CONTRACT,
@@ -115,25 +116,6 @@ export function WarehouseSidebar3D() {
             paddingRight: SIDEBAR_CONTRACT.railPaddingPx,
           }}
         >
-
-          {/* Toggle button – circular with primary border */}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn(
-              "absolute top-4 -right-3 z-50 flex items-center justify-center",
-              "w-6 h-6 rounded-full transition-colors shadow-sm hover:shadow-md",
-              SIDEBAR_FOCUS_CLASS
-            )}
-            style={{
-              background: SIDEBAR_SURFACE.background,
-              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
-              color: ACCENT,
-              outlineColor: ACCENT_THEME.ring,
-            }}
-            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
-          >
-            <ChevronsLeft size={14} className={cn("transition-transform", isCollapsed && "rotate-180")} />
-          </button>
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-0.5">
@@ -290,9 +272,20 @@ export function WarehouseSidebar3D() {
 
           {/* ── Bottom ── */}
           <div
-            className="pt-3"
+            className="pt-3 space-y-1"
             style={{ borderTop: `1px solid ${SIDEBAR_SURFACE.divider}` }}
           >
+            <Button
+              variant="ghost"
+              onClick={() => setIsCollapsed(previous => !previous)}
+              className="h-10 w-full justify-center gap-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title={isCollapsed ? "Visa meny" : "Dölj meny"}
+              aria-label={isCollapsed ? "Visa meny" : "Dölj meny"}
+              aria-expanded={!isCollapsed}
+            >
+              <ChevronsLeft className={cn("h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none", isCollapsed && "rotate-180")} />
+              {!isCollapsed && <span>Dölj meny</span>}
+            </Button>
             <div
               className={cn(
                 "flex items-center gap-2.5 px-2 py-1.5",

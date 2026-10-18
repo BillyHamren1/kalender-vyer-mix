@@ -57,11 +57,13 @@ html[data-module='warehouse'] {
   --module-accent-border: 32 55% 84%;
   --module-accent-foreground: 0 0% 100%;
 
-  --primary: var(--module-accent);
-  --primary-hover: var(--module-accent-dark);
-  --primary-dark: var(--module-accent-dark);
-  --primary-soft: var(--module-accent-soft);
-  --primary-soft-foreground: var(--module-accent-dark);
+  /* Default actions keep the shared deep petrol; the amber module accent is
+     reserved for active tabs, active rows and statuses. */
+  --primary: var(--action);
+  --primary-hover: var(--action-hover);
+  --primary-dark: var(--action-end);
+  --primary-soft: var(--muted);
+  --primary-soft-foreground: var(--foreground);
   --ring: var(--module-accent);
 
   --sidebar-primary: var(--module-accent);
