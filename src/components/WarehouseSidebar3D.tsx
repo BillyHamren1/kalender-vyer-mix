@@ -116,25 +116,6 @@ export function WarehouseSidebar3D() {
           }}
         >
 
-          {/* Toggle button – circular with primary border */}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn(
-              "absolute top-4 -right-3 z-50 flex items-center justify-center",
-              "w-6 h-6 rounded-full transition-colors shadow-sm hover:shadow-md",
-              SIDEBAR_FOCUS_CLASS
-            )}
-            style={{
-              background: SIDEBAR_SURFACE.background,
-              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
-              color: ACCENT,
-              outlineColor: ACCENT_THEME.ring,
-            }}
-            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
-          >
-            <ChevronsLeft size={14} className={cn("transition-transform", isCollapsed && "rotate-180")} />
-          </button>
-
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-0.5">
             {!isCollapsed && (
