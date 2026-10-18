@@ -64,7 +64,7 @@ const PersonalkalendernInner: React.FC = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-dvh overflow-hidden bg-background flex flex-col">
         {/* Header */}
         <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-30">
           <div className="px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -137,7 +137,7 @@ const PersonalkalendernInner: React.FC = () => {
 
 
         {/* Kalender */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 min-h-0 overflow-hidden">
           <div className="h-full w-full">
             <CustomCalendar
               events={mergedEvents}
