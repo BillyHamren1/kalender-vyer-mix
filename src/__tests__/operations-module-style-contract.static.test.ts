@@ -9,12 +9,12 @@ describe('Operations premium module contract', () => {
   it('locks the exact approved shared teal palette (standard 2026-10-18)', () => {
     expect(MODULE_PALETTE.planning.baseHex).toBe('#1F747A');
     expect(MODULE_PALETTE.planning.darkHex).toBe('#156065');
-    expect(MODULE_PALETTE.planning.base).toBe('hsl(184 59% 30%)');
-    expect(MODULE_PALETTE.planning.dark).toBe('hsl(184 66% 24%)');
+    expect(MODULE_PALETTE.planning.base).toBe('hsl(183.956 59.4771% 30%)');
+    expect(MODULE_PALETTE.planning.dark).toBe('hsl(183.75 65.5738% 23.9216%)');
 
     const css = read('src/styles/module-accents.css');
-    expect(css).toContain('--planning-selection: 184 59% 30%; /* #1F747A */');
-    expect(css).toContain('--planning-selection-deep: 184 66% 24%; /* #156065 */');
+    expect(css).toContain('--planning-selection: 183.956 59.4771% 30%; /* #1F747A */');
+    expect(css).toContain('--planning-selection-deep: 183.75 65.5738% 23.9216%; /* #156065 */');
   });
 
   it('locks the identical neutral canvas on app pages and authentication', () => {
@@ -88,7 +88,7 @@ describe('Operations premium module contract', () => {
 
   it('uses the shared teal accent in warehouse too and keeps semantic status palettes', () => {
     const css = read('src/styles/module-accents.css');
-    expect(css).toContain("--module-accent: 184 59% 30%");
+    expect(css).toContain("--module-accent: 183.956 59.4771% 30%");
     expect(css).not.toMatch(/--destructive|--success|--warning/);
   });
 });

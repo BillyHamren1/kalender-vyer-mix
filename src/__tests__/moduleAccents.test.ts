@@ -10,8 +10,8 @@ describe('canonical EventFlow module palette', () => {
     for (const key of ['planning', 'warehouse'] as const) {
       expect(MODULE_PALETTE[key].baseHex).toBe('#1F747A');
       expect(MODULE_PALETTE[key].darkHex).toBe('#156065');
-      expect(MODULE_PALETTE[key].base).toBe('hsl(184 59% 30%)');
-      expect(MODULE_PALETTE[key].dark).toBe('hsl(184 66% 24%)');
+      expect(MODULE_PALETTE[key].base).toBe('hsl(183.956 59.4771% 30%)');
+      expect(MODULE_PALETTE[key].dark).toBe('hsl(183.75 65.5738% 23.9216%)');
     }
   });
 
@@ -37,8 +37,8 @@ describe('canonical EventFlow module palette', () => {
     const css = read('src/styles/module-accents.css');
     expect(css).toContain("html[data-module='planning']");
     expect(css).toContain("html[data-module='warehouse']");
-    expect(css).toContain('184 59% 30%');
-    expect(css).toContain('184 66% 24%');
+    expect(css).toContain('183.956 59.4771% 30%');
+    expect(css).toContain('183.75 65.5738% 23.9216%');
     expect(read('src/index.css')).toContain('module-accents.css');
   });
 
