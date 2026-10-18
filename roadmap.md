@@ -12,6 +12,7 @@
 - [x] Visa exakt Bookings aktuella orderrader, antal och ordning i Projektinfo utan lokala WMS-dubletter.
 
 ## Pågående visuellt
+- [ ] Sales-stil i Planning: vit sidomeny med integrerad bottenkollaps, lila aktiva markeringar/flikar, tydliga projektkort/tabeller och neutral saknad summa; tester och previewkontroll.
 - [x] Neutralisera rubriker och modulbaserade ytor samt kalenderhuvud/banners; 2A-kuben bevarad. Verkliga komponenter verifierade i preview med exempeldata i ljust/mörkt läge; inloggad produktionsvy ej tillgänglig.
 - [x] Ge standardknappar Hubbens obsidian-/smaragdfinish med topphighlight; preview och hover verifierade, kontrast minst 16,3:1, build grön och 25 kontraktstester gröna via Bun; npm test blockeras av befintligt Vitest/Vite-startfel.
 - [x] Förstärk 2A-kubens ikon till elektrisk violett gradient och mjuk lila aura; verifierat visuellt i preview, 28 berörda tester och build gröna.
