@@ -29,14 +29,14 @@ const LegacyProjectRedirect = () => {
 
 
 // Main system pages — eager (used immediately after login)
-import PlanningDashboard from "./pages/PlanningDashboard";
-import MyPage from "./pages/MyPage";
-import MyPageProjects from "./pages/MyPageProjects";
-import MyPageCalendar from "./pages/MyPageCalendar";
-import MyPageTodos from "./pages/MyPageTodos";
+const PlanningDashboard = lazyWithRecovery(() => import("./pages/PlanningDashboard"));
+const MyPage = lazyWithRecovery(() => import("./pages/MyPage"));
+const MyPageProjects = lazyWithRecovery(() => import("./pages/MyPageProjects"));
+const MyPageCalendar = lazyWithRecovery(() => import("./pages/MyPageCalendar"));
+const MyPageTodos = lazyWithRecovery(() => import("./pages/MyPageTodos"));
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
-import SidebarShellPreview from "./pages/dev/SidebarShellPreview";
+const SidebarShellPreview = lazyWithRecovery(() => import("./pages/dev/SidebarShellPreview"));
 const TimeV2ModulePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ModulePage"));
 const TimeV2FlagFixturePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2FlagFixturePage"));
 const TimeV2ReviewQueuePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ReviewQueuePage"));
@@ -108,12 +108,12 @@ const SuppliersPage = lazyWithRecovery(() => import("./pages/SuppliersPage"));
 const LogisticsHub = lazyWithRecovery(() => import("./pages/LogisticsHub"));
 
 // Layouts — eager
-import MainSystemLayout from "@/components/layouts/MainSystemLayout";
-import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
+const MainSystemLayout = lazyWithRecovery(() => import("@/components/layouts/MainSystemLayout"));
+const WarehouseSystemLayout = lazyWithRecovery(() => import("@/components/layouts/WarehouseSystemLayout"));
 
 // ── App Shells (native-mode wrappers) ──────────────────────────────
-import TimeAppShell from "@/shells/TimeAppShell";
-import ScannerAppShell from "@/shells/ScannerAppShell";
+const TimeAppShell = lazyWithRecovery(() => import("@/shells/TimeAppShell"));
+const ScannerAppShell = lazyWithRecovery(() => import("@/shells/ScannerAppShell"));
 
 // Warehouse system pages — lazy
 const WarehouseOps = lazyWithRecovery(() => import("./pages/WarehouseOps"));
@@ -132,7 +132,7 @@ const WarehouseServicePlaceholder = lazyWithRecovery(() => import("./pages/Wareh
 // Mobile staff app pages (web mode only — native uses shells)
 import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
 import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
-import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
+const MobileAppLayout = lazyWithRecovery(() => import("@/components/mobile-app/MobileAppLayout"));
 import PlannerOnlyRoute from "@/components/mobile-app/PlannerOnlyRoute";
 const MobileLogin = lazyWithRecovery(() => import("./pages/mobile/MobileLogin"));
 const MobileJobs = lazyWithRecovery(() => import("./pages/mobile/MobileJobs"));
@@ -300,7 +300,7 @@ const AppContent = () => {
               <Toaster />
               {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
               <BrowserRouter>
-                <ShellEntry />
+                <Suspense fallback={null}><ShellEntry /></Suspense>
                 <PreviewModuleToggle />
               </BrowserRouter>
             </TooltipProvider>
@@ -311,7 +311,7 @@ const AppContent = () => {
               <Toaster />
               {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
               <BrowserRouter>
-                <ShellEntry />
+                <Suspense fallback={null}><ShellEntry /></Suspense>
                 <PreviewModuleToggle />
               </BrowserRouter>
             </TooltipProvider>
