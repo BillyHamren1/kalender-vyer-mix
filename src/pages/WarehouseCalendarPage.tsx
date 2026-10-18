@@ -170,10 +170,11 @@ const WarehouseCalendarPage = () => {
     loading: warehouseLoading,
     error: warehouseError,
     refetch: refreshWarehouseEvents,
-  } = useWarehouseCalendarEvents({ currentDate: selectedDate, view: dataView });
+  } = useWarehouseCalendarEvents({ currentDate: selectedDate, view: dataView, enabled: planningMode === 'calendar' });
   const { transportEvents, isLoading: transportLoading } = useTransportCalendarEvents(
     selectedDate,
     dataView,
+    planningMode === 'calendar',
   );
 
   const filteredWarehouseEvents = useMemo(
@@ -184,16 +185,18 @@ const WarehouseCalendarPage = () => {
     [eventTypeFilters, warehouseEvents],
   );
 
+  // Personalläget har egen läsmodell — kortmetadata hämtas bara i kalenderläget.
+  const calendarActive = planningMode === 'calendar';
   const bookingIds = useMemo(
     () =>
-      filteredWarehouseEvents
+      !calendarActive ? [] : filteredWarehouseEvents
         .map((event) => event.bookingId)
         .filter((id): id is string => !!id),
-    [filteredWarehouseEvents],
+    [calendarActive, filteredWarehouseEvents],
   );
   const eventIds = useMemo(
-    () => filteredWarehouseEvents.map((event) => event.id).filter(Boolean),
-    [filteredWarehouseEvents],
+    () => (!calendarActive ? [] : filteredWarehouseEvents.map((event) => event.id).filter(Boolean)),
+    [calendarActive, filteredWarehouseEvents],
   );
   const { data: packingStats } = useWarehousePackingStats(bookingIds);
   const { data: bookingTitles } = useWarehouseBookingTitles(bookingIds);

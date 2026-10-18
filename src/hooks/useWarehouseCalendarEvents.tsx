@@ -34,12 +34,14 @@ export interface WarehouseEvent {
 interface UseWarehouseCalendarEventsProps {
   currentDate: Date;
   view: 'day' | 'week' | 'month';
+  /** false = vyn är dold (t.ex. personalläge); ingen hämtning. */
+  enabled?: boolean;
 }
 
 /** Modul-lokal cache per datumintervall så vyn inte spinnar vid varje öppning. */
 const warehouseEventsCache = new Map<string, WarehouseEvent[]>();
 
-export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCalendarEventsProps) {
+export function useWarehouseCalendarEvents({ currentDate, view, enabled = true }: UseWarehouseCalendarEventsProps) {
   const [events, setEvents] = useState<WarehouseEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -78,6 +80,10 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
   // Fetch events
   const fetchEvents = useCallback(async () => {
     const { start, end } = getDateRange();
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     if (!organizationId) {
       setEvents([]);
       setLoading(organizationLoading);
@@ -122,7 +128,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
     } finally {
       setLoading(false);
     }
-  }, [getDateRange, organizationId, organizationLoading, toast]);
+  }, [enabled, getDateRange, organizationId, organizationLoading, toast]);
 
 
   // Acknowledge a change

@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { computePackingProgress } from "@/lib/packing/progress";
+import { useCurrentOrg } from "@/hooks/useCurrentOrg";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { OPS_DONE_STATUSES, OPS_OPEN_STATUSES, isOpsWindowCandidate, readAllPages, readInChunks } from "@/lib/warehouse/opsRangeWindow";
 import {
   startOfDay,
   endOfDay,
@@ -139,11 +142,28 @@ function getRange(anchorDate: Date, mode: OpsMode): { start: Date; end: Date } {
 }
 
 export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
+  const { organizationId, userId } = useCurrentOrg();
+  // Realtime-signal (debouncad) invaliderar bara denna organisations nycklar.
+  // Ingen polling: cachen återanvänds vid återbesök och fokus.
+  useRealtimeInvalidation({
+    channelName: `warehouse-ops-range-${organizationId || "none"}`,
+    tables: [
+      { table: "packing_projects", events: ["*"] },
+      { table: "warehouse_assignments", events: ["*"] },
+      { table: "packing_list_item_allocations", events: ["INSERT", "DELETE"] },
+    ],
+    queryKeys: [["warehouse-ops-range", organizationId || "none"]],
+    debounceMs: 2000,
+    pause: () => typeof document !== "undefined" && document.visibilityState === "hidden",
+  });
   return useQuery<OpsRangeData>({
-    queryKey: ["warehouse-ops-range", format(anchorDate, "yyyy-MM-dd"), mode],
-    refetchInterval: 30_000,
-    staleTime: 25_000,
-    retry: false,
+    queryKey: ["warehouse-ops-range", organizationId || "none", userId || "none", format(anchorDate, "yyyy-MM-dd"), mode],
+    enabled: !!organizationId && !!userId,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
+    retry: 1,
     queryFn: async () => {
 
       const { start, end } = getRange(anchorDate, mode);
@@ -151,137 +171,98 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
       const endISO = end.toISOString();
       const startDay = format(start, "yyyy-MM-dd");
       const endDay = format(end, "yyyy-MM-dd");
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const orgId = organizationId!;
+      const PROJ_COLS =
+        "id,name,status,client_name,booking_id,warehouse_project_id,large_project_id,start_date,end_date,signed_at,signed_by,signed_by_staff_id,updated_at";
 
-      // 1. Hämta packings (alla relevanta statusar) för intervall-matchning
-      const ACTIVE = [
-        "planning",
-        "in_progress",
-        "packed",
-        "delivered",
-        "back",
-        "returning",
-        "started_back",
-        "in_production",
-        "completed_out",
-        "completed_in",
-        "completed",
-        "done",
-      ];
-      const { data: projects, error: projErr } = await supabase
-        .from("packing_projects")
-        .select(
-          "id,name,status,client_name,booking_id,warehouse_project_id,large_project_id,start_date,end_date,signed_at,signed_by,signed_by_staff_id,updated_at"
-        )
-        .in("status", ACTIVE)
-        .limit(2000);
-      if (projErr) throw projErr;
-      const list = (projects || []) as any[];
+      // 1. Kandidater: öppna packningar + avslutade som är förankrade i valt intervall.
+      //    Avslutad historik utanför intervallet läses aldrig.
+      const [openList, windowBookings, doneInternal] = await Promise.all([
+        readAllPages<any>((f, t) =>
+          supabase.from("packing_projects").select(PROJ_COLS)
+            .eq("organization_id", orgId).in("status", [...OPS_OPEN_STATUSES]).order("id").range(f, t)),
+        readAllPages<any>((f, t) =>
+          supabase.from("bookings").select("id")
+            .eq("organization_id", orgId)
+            .or(`and(rigdaydate.gte.${startDay},rigdaydate.lte.${endDay}),and(rigdowndate.gte.${startDay},rigdowndate.lte.${endDay})`)
+            .order("id").range(f, t)),
+        readAllPages<any>((f, t) =>
+          supabase.from("packing_projects").select(PROJ_COLS)
+            .eq("organization_id", orgId).in("status", [...OPS_DONE_STATUSES]).is("booking_id", null)
+            .or(`and(start_date.gte.${startDay},start_date.lte.${endDay}),and(end_date.gte.${startDay},end_date.lte.${endDay})`)
+            .order("id").range(f, t)),
+      ]);
+      const doneBooked = await readInChunks(windowBookings.map((b) => b.id), (chunk) =>
+        readAllPages<any>((f, t) =>
+          supabase.from("packing_projects").select(PROJ_COLS)
+            .eq("organization_id", orgId).in("status", [...OPS_DONE_STATUSES]).in("booking_id", chunk)
+            .order("id").range(f, t)));
+      const allCandidates = [...new Map([...openList, ...doneBooked, ...doneInternal].map((p) => [p.id, p])).values()];
 
-      const bookingIds = [...new Set(list.map((p) => p.booking_id).filter(Boolean))] as string[];
-      let bookingMap = new Map<string, any>();
-      if (bookingIds.length > 0) {
-        const { data: bks } = await supabase
-          .from("bookings")
-          .select(
-            "id,client,booking_number,rigdaydate,rigdowndate,rig_start_time,rigdown_start_time"
-          )
-          .in("id", bookingIds);
-        bookingMap = new Map((bks || []).map((b: any) => [b.id, b]));
-      }
+      const bookingIds = [...new Set(allCandidates.map((p) => p.booking_id).filter(Boolean))] as string[];
+      const bks = await readInChunks(bookingIds, async (chunk) => {
+        const { data, error } = await supabase.from("bookings")
+          .select("id,client,booking_number,rigdaydate,rigdowndate,rig_start_time,rigdown_start_time")
+          .in("id", chunk);
+        if (error) throw error;
+        return data || [];
+      });
+      const bookingMap = new Map<string, any>(bks.map((b: any) => [b.id, b]));
 
-
-      // 2. Items för progress
+      // Datumfilter FÖRE tunga läsningar av rader/scans.
+      const list = allCandidates.filter((p) => {
+        const b = p.booking_id ? bookingMap.get(p.booking_id) : null;
+        return isOpsWindowCandidate({ ...p, rigdaydate: b?.rigdaydate, rigdowndate: b?.rigdowndate }, startDay, endDay, todayStr);
+      });
       const ids = list.map((p) => p.id);
-      let items: any[] = [];
-      if (ids.length > 0) {
-        const itemsRes = await supabase
-          .from("packing_list_items")
-          .select(
-            "id,packing_id,excluded,is_packable,quantity_to_pack,quantity_packed,booking_product_id,booking_products(id,parent_product_id)"
-          )
-          .in("packing_id", ids)
-          .limit(20000);
-        if (itemsRes.error) throw itemsRes.error;
-        items = itemsRes.data || [];
-      }
+      const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 
-      // 3. Allokeringar för workers + scan-events i intervallet (eller senaste 7 dgr för "lastActivityAt")
-      const itemIds = items.map((i) => i.id);
+      // 2–4. Rader, scans och planerad personal parallellt, utan radtak.
+      const [items, plannedAssignments, lagerBookings] = await Promise.all([
+        readInChunks(ids, (chunk) => readAllPages<any>((f, t) =>
+          supabase.from("packing_list_items")
+            .select("id,packing_id,excluded,is_packable,quantity_to_pack,quantity_packed,booking_product_id,booking_products(id,parent_product_id)")
+            .in("packing_id", chunk).order("id").range(f, t))),
+        readInChunks(ids, (chunk) => readAllPages<any>((f, t) =>
+          supabase.from("warehouse_assignments")
+            .select("id,packing_id,staff_id,assignment_date,start_time,end_time,status")
+            .in("packing_id", chunk).gte("assignment_date", startDay).lte("assignment_date", endDay)
+            .neq("status", "cancelled").order("id").range(f, t))).catch((err) => {
+          console.warn("[warehouse-ops-range] could not load warehouse_assignments", err);
+          return [] as any[];
+        }),
+        readAllPages<any>((f, t) =>
+          supabase.from("bookings").select("id").eq("organization_id", orgId).eq("is_internal", true).order("id").range(f, t)),
+      ]);
       const itemToProject = new Map<string, string>();
       for (const it of items) itemToProject.set(it.id, it.packing_id);
 
-      const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-      let allocations: any[] = [];
-      if (itemIds.length > 0) {
-        const chunkSize = 200;
-        for (let i = 0; i < itemIds.length; i += chunkSize) {
-          const slice = itemIds.slice(i, i + chunkSize);
-          const { data: allocs, error: allocErr } = await supabase
-            .from("packing_list_item_allocations")
-            .select("packing_list_item_id,scanned_by_staff_id,scanned_by,created_at")
-            .in("packing_list_item_id", slice)
-            .gte("created_at", since7d)
-            .limit(5000);
-          if (allocErr) throw allocErr;
-          allocations = allocations.concat(allocs || []);
-        }
-      }
+      const lagerBookingIds = lagerBookings.map((b: any) => b.id);
+      const [allocations, shiftRows] = await Promise.all([
+        readInChunks(items.map((i) => i.id), (chunk) => readAllPages<any>((f, t) =>
+          supabase.from("packing_list_item_allocations")
+            .select("id,packing_list_item_id,scanned_by_staff_id,scanned_by,created_at")
+            .in("packing_list_item_id", chunk).gte("created_at", since7d).order("id").range(f, t))),
+        readInChunks(lagerBookingIds, (chunk) => readAllPages<any>((f, t) =>
+          supabase.from("time_reports")
+            .select("id,staff_id,booking_id,report_date,start_time,end_time,hours_worked")
+            .in("booking_id", chunk).gte("report_date", startDay).lte("report_date", endDay)
+            .order("id").range(f, t))),
+      ]);
 
-      // 4. Planerad lagerpersonal för packningarna i valt intervall.
-      // warehouse_assignments är den konkreta operativa kopplingen mellan en packning, dag och person.
-      let plannedAssignments: any[] = [];
-      if (ids.length > 0) {
-        const { data: assignedRows, error: assignedErr } = await supabase
-          .from("warehouse_assignments")
-          .select("packing_id,staff_id,assignment_date,start_time,end_time,status")
-          .in("packing_id", ids)
-          .gte("assignment_date", startDay)
-          .lte("assignment_date", endDay)
-          .neq("status", "cancelled")
-          .limit(10000);
-        if (assignedErr) {
-          // Översikten ska fortfarande fungera även om äldre miljö saknar/har begränsad vy.
-          console.warn("[warehouse-ops-range] could not load warehouse_assignments", assignedErr);
-        } else {
-          plannedAssignments = assignedRows || [];
-        }
-      }
-
-      // 5. Staff-namn (för planerad personal + workers + scans + shifts senare)
+      // 5. Staff-namn
       const staffIds = new Set<string>();
       list.forEach((p) => p.signed_by_staff_id && staffIds.add(p.signed_by_staff_id));
       allocations.forEach((a) => a.scanned_by_staff_id && staffIds.add(a.scanned_by_staff_id));
       plannedAssignments.forEach((a) => a.staff_id && staffIds.add(a.staff_id));
-
-      // 6. Shifts (time_reports) för intervallet — kopplade till internt Lager-bokningsled (is_internal)
-      const { data: lagerBookings } = await supabase
-        .from("bookings")
-        .select("id")
-        .eq("is_internal", true);
-      const lagerBookingIds = (lagerBookings || []).map((b: any) => b.id);
-
-      let shiftRows: any[] = [];
-      if (lagerBookingIds.length > 0) {
-        const { data: trs, error: trErr } = await supabase
-          .from("time_reports")
-          .select("staff_id,booking_id,report_date,start_time,end_time,hours_worked")
-          .in("booking_id", lagerBookingIds)
-          .gte("report_date", startDay)
-          .lte("report_date", endDay)
-          .limit(2000);
-        if (trErr) throw trErr;
-        shiftRows = trs || [];
-      }
       shiftRows.forEach((r) => r.staff_id && staffIds.add(r.staff_id));
-
-      let staffMap = new Map<string, string>();
-      if (staffIds.size > 0) {
-        const { data: staff } = await supabase
-          .from("staff_members")
-          .select("id,name")
-          .in("id", [...staffIds]);
-        staffMap = new Map((staff || []).map((s: any) => [s.id, s.name]));
-      }
+      const staff = await readInChunks([...staffIds], async (chunk) => {
+        const { data, error } = await supabase.from("staff_members").select("id,name").in("id", chunk);
+        if (error) throw error;
+        return data || [];
+      });
+      const staffMap = new Map<string, string>(staff.map((s: any) => [s.id, s.name]));
 
       // 7. Bygg OpsJob[]
       const itemsByProject = new Map<string, any[]>();
@@ -449,7 +430,6 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
       const isCurrentlyActive = (j: OpsJob) =>
         j.status === "in_progress" || j.status === "returning" || j.status === "back";
       const DONE = new Set(["completed_out", "completed_in", "completed", "done"]);
-      const todayStr = format(new Date(), "yyyy-MM-dd");
       // En packning räknas som "kommande" så länge den inte är klar och rigdown (eller anchor) ligger idag/framåt
       const isUpcoming = (j: OpsJob) => {
         if (DONE.has(j.status)) return false;
