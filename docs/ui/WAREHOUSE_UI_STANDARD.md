@@ -1,5 +1,7 @@
 # EventFlow Lager (Warehouse) UI Standard v1.0
 
+> ERSATT 2026-10-18: docs/design/EVENTFLOW-DESIGN-STANDARD.md gäller vid konflikt (gemensam teal-accent, inga egna modulfärger).
+
 Status: BINDANDE
 Canonical platform owner: EventFlow HUB
 Module accent: shared teal #1F747A (base), #156065 (dark text/action) — standard 2026-10-18

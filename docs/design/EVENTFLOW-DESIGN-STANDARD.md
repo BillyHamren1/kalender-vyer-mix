@@ -25,6 +25,13 @@ Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — 
 - Skilj dem från canvas `#EDF1F3` med diskret kant; behåll tydlig teal fokusmarkering.
 - Bevara semantiska statusmarkeringar, validering samt läsbara disabled/read-only- och dark-mode-tillstånd.
 
+## Mobila barer (Time, Scanner, WMS-mobil, Brain-appen)
+
+- Topp- och bottenbarer i mobila skal är samma svarta bar som HUB:s globala modulbar: solid nära-svart `hsl(210 6% 8%)`, ingen gradient, ingen blur, ingen egen teal-topp.
+- Aktiva ikoner/etiketter: vitt `#FFFFFF`. Inaktiva: ljusgrå `hsl(215 10% 72%)` med bibehållen läsbarhet (≥ 4.5:1 på svart).
+- Innehåll och formulärfält förblir vita; varnings-/statusfärger (t.ex. oläst-badge) och dark mode bevaras.
+- Delade tokens: `src/lib/layout/mobileBars.ts` (`MOBILE_BAR`, `mobileTopBarStyle`, `mobileBottomBarStyle`) — låst av `src/__tests__/mobileBars.test.ts`.
+
 ## Typografi
 
 - Sammanfattningsetiketter cirka 12–13 px, normal bokstavstäthet; huvudvärden cirka 22–24 px semibold. Sidrubrik cirka 26–28 px; vanlig information cirka 14–16 px.
