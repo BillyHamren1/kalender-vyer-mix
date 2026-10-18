@@ -123,7 +123,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
     } finally {
       setIsLoading(false);
     }
-  }, [endStr, organizationId, startStr]);
+  }, [enabled, endStr, organizationId, startStr]);
 
   useEffect(() => {
     if (!organizationId) return;
