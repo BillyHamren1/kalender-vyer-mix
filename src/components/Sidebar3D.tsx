@@ -449,12 +449,12 @@ export function Sidebar3D() {
             variant="ghost"
             onClick={() => setIsCollapsed(previous => !previous)}
             className="h-10 w-full justify-center gap-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            title={isCollapsed ? "Expandera sidomeny" : "Fäll ihop sidomeny"}
-            aria-label={isCollapsed ? "Expandera sidomeny" : "Fäll ihop sidomeny"}
+            title={isCollapsed ? "Visa meny" : "Dölj meny"}
+            aria-label={isCollapsed ? "Visa meny" : "Dölj meny"}
             aria-expanded={!isCollapsed}
           >
             <ChevronsLeft className={cn("h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none", isCollapsed && "rotate-180")} />
-            {!isCollapsed && <span>Fäll ihop</span>}
+            {!isCollapsed && <span>Dölj meny</span>}
           </Button>
         </div>
       </aside>
