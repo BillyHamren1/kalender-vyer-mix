@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { MOBILE_BAR, mobileTopBarStyle } from '@/lib/layout/mobileBars';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
