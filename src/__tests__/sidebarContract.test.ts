@@ -165,7 +165,8 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(titles).not.toContain('Ekonomiöversikt');
 
     // Remaining top-level items still present
-    expect(titles).toContain('Dashboard');
+    expect(titles).toContain('Översikt');
+    expect(titles).not.toContain('Dashboard');
     expect(titles).toContain('Projekt');
     expect(titles).toContain('Planeringskalender');
     expect(titles).toContain('Personal');
