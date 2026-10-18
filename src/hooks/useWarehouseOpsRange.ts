@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { computePackingProgress } from "@/lib/packing/progress";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
-import { OPS_DONE_STATUSES, OPS_OPEN_STATUSES, isOpsWindowCandidate, readAllPages, readInChunks } from "@/lib/warehouse/opsRangeWindow";
+import { OPS_ACTIVE_NOW_STATUSES, isOpsWindowCandidate, readAllPages, readInChunks } from "@/lib/warehouse/opsRangeWindow";
 import {
   startOfDay,
   endOfDay,
@@ -164,41 +164,57 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     retry: 1,
-    queryFn: async () => {
+    queryFn: () => fetchOpsRange(organizationId!, anchorDate, mode),
+  });
+}
 
+/**
+ * Läser översiktens jobb för ett intervall. Med onlyPackingIds läses bara de
+ * packningarna (delta-merge från ändringsflödet), annars hela fönstret.
+ */
+export async function fetchOpsRange(
+  orgId: string,
+  anchorDate: Date,
+  mode: OpsMode,
+  onlyPackingIds?: string[],
+): Promise<OpsRangeData> {
       const { start, end } = getRange(anchorDate, mode);
       const startISO = start.toISOString();
       const endISO = end.toISOString();
       const startDay = format(start, "yyyy-MM-dd");
       const endDay = format(end, "yyyy-MM-dd");
       const todayStr = format(new Date(), "yyyy-MM-dd");
-      const orgId = organizationId!;
+      const cutoff = todayStr < startDay ? todayStr : startDay;
       const PROJ_COLS =
         "id,name,status,client_name,booking_id,warehouse_project_id,large_project_id,start_date,end_date,signed_at,signed_by,signed_by_staff_id,updated_at";
 
-      // 1. Kandidater: öppna packningar + avslutade som är förankrade i valt intervall.
-      //    Avslutad historik utanför intervallet läses aldrig.
-      const [openList, windowBookings, doneInternal] = await Promise.all([
-        readAllPages<any>((f, t) =>
+      // 1. Kandidater, begränsade till valt/aktivt/kommande: bokningar vars rigg/riv
+      //    ligger på eller efter fönstrets start, interna uppgifter efter samma gräns,
+      //    samt pågående jobb. Gammal historik och inaktuella öppna jobb läses aldrig.
+      let allCandidates: any[];
+      if (onlyPackingIds) {
+        allCandidates = await readInChunks(onlyPackingIds, (chunk) => readAllPages<any>((f, t) =>
           supabase.from("packing_projects").select(PROJ_COLS)
-            .eq("organization_id", orgId).in("status", [...OPS_OPEN_STATUSES]).order("id").range(f, t)),
-        readAllPages<any>((f, t) =>
-          supabase.from("bookings").select("id")
-            .eq("organization_id", orgId)
-            .or(`and(rigdaydate.gte.${startDay},rigdaydate.lte.${endDay}),and(rigdowndate.gte.${startDay},rigdowndate.lte.${endDay})`)
-            .order("id").range(f, t)),
-        readAllPages<any>((f, t) =>
-          supabase.from("packing_projects").select(PROJ_COLS)
-            .eq("organization_id", orgId).in("status", [...OPS_DONE_STATUSES]).is("booking_id", null)
-            .or(`and(start_date.gte.${startDay},start_date.lte.${endDay}),and(end_date.gte.${startDay},end_date.lte.${endDay})`)
-            .order("id").range(f, t)),
-      ]);
-      const doneBooked = await readInChunks(windowBookings.map((b) => b.id), (chunk) =>
-        readAllPages<any>((f, t) =>
-          supabase.from("packing_projects").select(PROJ_COLS)
-            .eq("organization_id", orgId).in("status", [...OPS_DONE_STATUSES]).in("booking_id", chunk)
-            .order("id").range(f, t)));
-      const allCandidates = [...new Map([...openList, ...doneBooked, ...doneInternal].map((p) => [p.id, p])).values()];
+            .eq("organization_id", orgId).in("id", chunk).order("id").range(f, t)));
+      } else {
+        const [relevantBookings, internal, activeNow] = await Promise.all([
+          readAllPages<any>((f, t) =>
+            supabase.from("bookings").select("id").eq("organization_id", orgId)
+              .or(`rigdowndate.gte.${cutoff},rigdaydate.gte.${cutoff}`).order("id").range(f, t)),
+          readAllPages<any>((f, t) =>
+            supabase.from("packing_projects").select(PROJ_COLS).eq("organization_id", orgId)
+              .is("booking_id", null).or(`end_date.gte.${cutoff},start_date.gte.${cutoff}`)
+              .order("id").range(f, t)),
+          readAllPages<any>((f, t) =>
+            supabase.from("packing_projects").select(PROJ_COLS).eq("organization_id", orgId)
+              .in("status", [...OPS_ACTIVE_NOW_STATUSES]).order("id").range(f, t)),
+        ]);
+        const booked = await readInChunks(relevantBookings.map((b) => b.id), (chunk) =>
+          readAllPages<any>((f, t) =>
+            supabase.from("packing_projects").select(PROJ_COLS).eq("organization_id", orgId)
+              .in("booking_id", chunk).order("id").range(f, t)));
+        allCandidates = [...new Map([...booked, ...internal, ...activeNow].map((p) => [p.id, p])).values()];
+      }
 
       const bookingIds = [...new Set(allCandidates.map((p) => p.booking_id).filter(Boolean))] as string[];
       const bks = await readInChunks(bookingIds, async (chunk) => {
@@ -506,8 +522,6 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           lastScanAt,
         },
       };
-    },
-  });
 }
 
 export function computeAttention(

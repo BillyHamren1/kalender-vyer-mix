@@ -22,7 +22,8 @@ export const OPS_OPEN_STATUSES = [
   "completed_out",
 ] as const;
 
-const ACTIVE_NOW = new Set(["in_progress", "returning", "back"]);
+export const OPS_ACTIVE_NOW_STATUSES = ["in_progress", "returning", "back"] as const;
+const ACTIVE_NOW = new Set<string>(OPS_ACTIVE_NOW_STATUSES);
 const NOT_UPCOMING = new Set(["completed_out", "completed_in", "completed", "done"]);
 
 export interface OpsCandidateInput {
