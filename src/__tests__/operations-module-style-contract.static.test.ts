@@ -6,15 +6,15 @@ import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
 const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
 
 describe('Operations premium module contract', () => {
-  it('locks the exact approved Operations palette', () => {
-    expect(MODULE_PALETTE.planning.baseHex).toBe('#7357C8');
-    expect(MODULE_PALETTE.planning.darkHex).toBe('#6849BE');
-    expect(MODULE_PALETTE.planning.base).toBe('hsl(254.867 50.673% 56.275%)');
-    expect(MODULE_PALETTE.planning.dark).toBe('hsl(255.897 47.368% 51.569%)');
+  it('locks the exact approved shared teal palette (standard 2026-10-18)', () => {
+    expect(MODULE_PALETTE.planning.baseHex).toBe('#1F747A');
+    expect(MODULE_PALETTE.planning.darkHex).toBe('#156065');
+    expect(MODULE_PALETTE.planning.base).toBe('hsl(184 59% 30%)');
+    expect(MODULE_PALETTE.planning.dark).toBe('hsl(184 66% 24%)');
 
     const css = read('src/styles/module-accents.css');
-    expect(css).toContain('--planning-selection: 254.867 50.673% 56.275%; /* #7357C8 */');
-    expect(css).toContain('--planning-selection-deep: 255.897 47.368% 51.569%; /* #6849BE */');
+    expect(css).toContain('--planning-selection: 184 59% 30%; /* #1F747A */');
+    expect(css).toContain('--planning-selection-deep: 184 66% 24%; /* #156065 */');
   });
 
   it('locks the identical neutral canvas on app pages and authentication', () => {

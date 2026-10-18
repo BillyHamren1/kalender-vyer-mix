@@ -6,21 +6,22 @@ import { MODULE_PALETTE, resolveModuleFromPath } from '@/lib/layout/moduleAccent
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
 
 describe('canonical EventFlow module palette', () => {
-  it('locks the HUB hex values', () => {
-    expect(MODULE_PALETTE.planning.baseHex).toBe('#7357C8');
-    expect(MODULE_PALETTE.planning.darkHex).toBe('#6849BE');
-    expect(MODULE_PALETTE.warehouse.baseHex).toBe('#C77922');
-    expect(MODULE_PALETTE.warehouse.darkHex).toBe('#9A5715');
+  it('locks the shared HUB teal accent (standard 2026-10-18)', () => {
+    for (const key of ['planning', 'warehouse'] as const) {
+      expect(MODULE_PALETTE[key].baseHex).toBe('#1F747A');
+      expect(MODULE_PALETTE[key].darkHex).toBe('#156065');
+      expect(MODULE_PALETTE[key].base).toBe('hsl(184 59% 30%)');
+      expect(MODULE_PALETTE[key].dark).toBe('hsl(184 66% 24%)');
+    }
   });
 
-  it('keeps Operations violet and warehouse warm orange', () => {
-    expect(MODULE_PALETTE.planning.base).toBe('hsl(254.867 50.673% 56.275%)');
-    expect(MODULE_PALETTE.warehouse.base).toBe('hsl(32 71% 46%)');
-    // no teal (≈184) anywhere in the module identity palette
+  it('uses one shared teal accent in all modules — no per-module colours', () => {
+    expect(MODULE_PALETTE.planning).toEqual(MODULE_PALETTE.warehouse);
+    // no violet (≈255) or orange (≈32) anywhere in the module identity palette
     for (const p of Object.values(MODULE_PALETTE)) {
       for (const v of [p.base, p.dark, p.soft, p.border, p.hover, p.ring]) {
         const hue = Number(/hsl\((\d+)/.exec(v)?.[1]);
-        expect(hue >= 160 && hue <= 210).toBe(false);
+        expect(hue >= 170 && hue <= 200).toBe(true);
       }
     }
   });
@@ -36,8 +37,8 @@ describe('canonical EventFlow module palette', () => {
     const css = read('src/styles/module-accents.css');
     expect(css).toContain("html[data-module='planning']");
     expect(css).toContain("html[data-module='warehouse']");
-    expect(css).toContain('254.867 50.673% 56.275%');
-    expect(css).toContain('32 71% 46%');
+    expect(css).toContain('184 59% 30%');
+    expect(css).toContain('184 66% 24%');
     expect(read('src/index.css')).toContain('module-accents.css');
   });
 
