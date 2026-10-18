@@ -1,6 +1,6 @@
 # EventFlow gemensam designstandard — beslutad 2026-10-18
 
-Status: BINDANDE för EventFlow-produktens interna moduler och appytor (Sales, Operations/Planning, WMS, Time, Scanner). Gäller inte kundhemsidor eller separata produkter (NEXXTSHIFT/SamFam).
+Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — Sales, Operations/Planning, WMS, Inventory, Finance, Catering, HUB, Time, Scanner och Brain webb/native-app (utrullning uttryckligen godkänd av Billy 2026-10-18). Gäller inte kundhemsidor eller separata produkter (NEXXTSHIFT/SamFam). Detta dokument ersätter äldre modulspecifika UI-standarder (docs/ui/PLANNING_UI_STANDARD.md, docs/ui/WAREHOUSE_UI_STANDARD.md) där de strider mot denna standard.
 
 ## Färger
 
