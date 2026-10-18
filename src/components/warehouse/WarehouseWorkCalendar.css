@@ -274,3 +274,23 @@
   font-size: 9px;
   font-weight: 500;
 }
+
+/* Samtidiga jobb visas sida vid sida i stället för att döljas bakom "+N".
+   Smala kort blir kompakta (typ + namn + tid) via container query. */
+.warehouse-work-calendar .fc-timegrid-event .warehouse-fc-event { container-type: inline-size; }
+.warehouse-work-calendar--week .fc-timegrid-col-events:has(.fc-timegrid-more-link) .fc-timegrid-event { margin-right: 0 !important; }
+@container (max-width: 110px) {
+  .warehouse-fc-event__topline > :last-child:not(:nth-child(2)),
+  .warehouse-fc-event__phase,
+  .warehouse-fc-event__progress,
+  .warehouse-fc-event__summary,
+  .warehouse-fc-event__crew,
+  .warehouse-fc-event__warning { display: none !important; }
+  .warehouse-fc-event__topline { font-size: 10px; gap: 3px; }
+  .warehouse-fc-event__title { font-size: 11px !important; line-height: 1.2; overflow-wrap: anywhere; }
+  .warehouse-fc-event__meta { font-size: 10px !important; }
+}
+@container (max-width: 64px) {
+  .warehouse-fc-event__topline > .truncate,
+  .warehouse-fc-event__meta { display: none !important; }
+}
