@@ -8,6 +8,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { mobileApi, getToken } from '@/services/mobileApiService';
 import type { TranslationKey } from '@/i18n/translations';
+import { MOBILE_BAR, mobileBottomBarStyle } from '@/lib/layout/mobileBars';
 
 type Tab = { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean };
 
@@ -52,10 +53,10 @@ const MobileBottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-card/85 backdrop-blur-xl border-t border-border/40"
+      className="fixed bottom-0 left-0 right-0 z-50"
       style={{
+        ...mobileBottomBarStyle(),
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        boxShadow: '0 -1px 0 hsl(var(--border) / 0.4), 0 -8px 24px hsl(184 30% 15% / 0.04)',
       }}
     >
       <div className="flex items-stretch h-[64px] max-w-lg mx-auto px-2">
@@ -72,11 +73,14 @@ const MobileBottomNav = () => {
                 "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none focus:outline-none focus-visible:outline-none",
                 active ? "text-primary" : "text-muted-foreground/70 active:text-foreground"
               )}
+              style={{
+                color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive,
+              }}
             >
-              <div className={cn(
-                "relative flex items-center justify-center w-12 h-8 rounded-full transition-all duration-200",
-                active && "bg-primary/10"
-              )}>
+              <div
+                className="relative flex items-center justify-center w-12 h-8 rounded-full transition-all duration-200"
+                style={active ? { background: MOBILE_BAR.activeTint } : undefined}
+              >
                 <tab.icon
                   className={cn(
                     "w-[22px] h-[22px] transition-all",
@@ -84,15 +88,21 @@ const MobileBottomNav = () => {
                   )}
                 />
                 {badge && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1 ring-2 ring-card">
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1"
+                    style={{ boxShadow: `0 0 0 2px ${MOBILE_BAR.background}` }}
+                  >
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </div>
-              <span className={cn(
-                "text-[10px] leading-none tracking-tight transition-all",
-                active ? "font-semibold text-primary" : "font-medium"
-              )}>
+              <span
+                className={cn(
+                  "text-[10px] leading-none tracking-tight transition-all",
+                  active ? "font-semibold" : "font-medium"
+                )}
+                style={{ color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive }}
+              >
                 {t(tab.labelKey)}
               </span>
             </button>

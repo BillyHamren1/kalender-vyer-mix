@@ -1,9 +1,9 @@
 /**
  * Canonical EventFlow sidebar contract.
  *
- * These values are LOCKED by src/__tests__/sidebarContract.test.ts so the
- * module sidebar always lines up with the EventFlow HUB topbar brand column
- * (264px) and forms one continuous L-shaped shell.
+ * These values are LOCKED by src/__tests__/sidebarContract.test.ts so every
+ * module sidebar follows the EventFlow design standard 2026-10-18
+ * (240px expanded / 64px collapsed / 44px rows, white surface).
  *
  * Only visual/layout tokens live here — no navigation, auth or business logic.
  */
@@ -11,12 +11,12 @@
 import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
 
 export const SIDEBAR_CONTRACT = {
-  /** Desktop sidebar width — must match HUB brand column exactly. */
-  widthPx: 264,
-  /** Icon-only (collapsed) width — existing behaviour preserved. */
-  collapsedWidthPx: 60,
-  /** Standard menu row height. */
-  rowHeightPx: 40,
+  /** Desktop sidebar width — design standard 2026-10-18 (240px expanded). */
+  widthPx: 240,
+  /** Icon-only (collapsed) width — design standard 2026-10-18 (64px). */
+  collapsedWidthPx: 64,
+  /** Standard menu row height — design standard 2026-10-18 (44px). */
+  rowHeightPx: 44,
   /** Outline icon size. */
   iconSizePx: 18,
   /** Section heading typography. */

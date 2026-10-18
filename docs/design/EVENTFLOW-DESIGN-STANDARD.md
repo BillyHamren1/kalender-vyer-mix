@@ -1,6 +1,6 @@
 # EventFlow gemensam designstandard — beslutad 2026-10-18
 
-Status: BINDANDE för EventFlow-produktens interna moduler och appytor (Sales, Operations/Planning, WMS, Time, Scanner). Gäller inte kundhemsidor eller separata produkter (NEXXTSHIFT/SamFam).
+Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — Sales, Operations/Planning, WMS, Inventory, Finance, Catering, HUB, Time, Scanner och Brain webb/native-app (utrullning uttryckligen godkänd av Billy 2026-10-18). Gäller inte kundhemsidor eller separata produkter (NEXXTSHIFT/SamFam). Detta dokument ersätter äldre modulspecifika UI-standarder (docs/ui/PLANNING_UI_STANDARD.md, docs/ui/WAREHOUSE_UI_STANDARD.md) där de strider mot denna standard.
 
 ## Färger
 
@@ -24,6 +24,13 @@ Status: BINDANDE för EventFlow-produktens interna moduler och appytor (Sales, O
 - Skrivfält och formulärytor i ljust läge är helt vita `#FFFFFF`: textfält, textarea, sökfält, numeriska inmatningar, redigerbara tabellceller och select-triggers. Redigerings-/formulärpaneler är vita, inte gråtonade.
 - Skilj dem från canvas `#EDF1F3` med diskret kant; behåll tydlig teal fokusmarkering.
 - Bevara semantiska statusmarkeringar, validering samt läsbara disabled/read-only- och dark-mode-tillstånd.
+
+## Mobila barer (Time, Scanner, WMS-mobil, Brain-appen)
+
+- Topp- och bottenbarer i mobila skal är samma svarta bar som HUB:s globala modulbar: solid nära-svart `hsl(210 6% 8%)`, ingen gradient, ingen blur, ingen egen teal-topp.
+- Aktiva ikoner/etiketter: vitt `#FFFFFF`. Inaktiva: ljusgrå `hsl(215 10% 72%)` med bibehållen läsbarhet (≥ 4.5:1 på svart).
+- Innehåll och formulärfält förblir vita; varnings-/statusfärger (t.ex. oläst-badge) och dark mode bevaras.
+- Delade tokens: `src/lib/layout/mobileBars.ts` (`MOBILE_BAR`, `mobileTopBarStyle`, `mobileBottomBarStyle`) — låst av `src/__tests__/mobileBars.test.ts`.
 
 ## Typografi
 

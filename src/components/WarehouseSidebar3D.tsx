@@ -27,6 +27,7 @@ import {
   sidebarNestedRowStyle,
   resolveActiveNavIndex,
 } from "@/lib/layout/sidebarContract";
+import { MOBILE_BAR, mobileBottomBarStyle } from "@/lib/layout/mobileBars";
 
 interface NavItem {
   title: string;
@@ -37,7 +38,7 @@ interface NavItem {
 }
 
 const navigationItems: NavItem[] = [
-  { title: "Lager OPS", url: "/warehouse", icon: LayoutDashboard, exact: true },
+  { title: "Översikt", url: "/warehouse", icon: LayoutDashboard, exact: true },
   { title: "Lagerplanering", url: "/warehouse/calendar", icon: Calendar },
 
   { title: "Personal", url: "/staff-management", icon: Users },
@@ -315,17 +316,10 @@ export function WarehouseSidebar3D() {
         </div>
       </aside>
 
-      {/* ── Mobile Bottom Nav ── */}
+      {/* ── Mobile Bottom Nav — shared black EventFlow mobile bar ── */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
-        style={{
-          background: "hsl(var(--sidebar-background) / 0.90)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          borderTop: "1px solid hsl(var(--border) / 0.50)",
-          boxShadow:
-            "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(184 30% 15% / 0.08)",
-        }}
+        style={mobileBottomBarStyle()}
       >
         <div className="flex items-center justify-around py-2 px-1 overflow-x-auto">
           {navigationItems.map((item) => {
@@ -341,19 +335,19 @@ export function WarehouseSidebar3D() {
                 {active && (
                   <div
                     className="absolute inset-0 rounded-xl"
-                    style={{ background: ACCENT_BG }}
+                    style={{ background: MOBILE_BAR.activeTint }}
                   />
                 )}
                 <item.icon
                   size={20}
                   className="relative z-10"
-                  color={active ? ACCENT : "hsl(var(--muted-foreground))"}
+                  color={active ? MOBILE_BAR.active : MOBILE_BAR.inactive}
                 />
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"
                   style={{
                     fontSize: 10,
-                    color: active ? ACCENT : "hsl(var(--muted-foreground))",
+                    color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive,
                   }}
                 >
                   {item.title}
