@@ -8,6 +8,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { mobileApi, getToken } from '@/services/mobileApiService';
 import type { TranslationKey } from '@/i18n/translations';
+import { MOBILE_BAR, mobileBottomBarStyle } from '@/lib/layout/mobileBars';
 
 type Tab = { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean };
 
@@ -92,10 +93,13 @@ const MobileBottomNav = () => {
                   </span>
                 )}
               </div>
-              <span className={cn(
-                "text-[10px] leading-none tracking-tight transition-all",
-                active ? "font-semibold text-primary" : "font-medium"
-              )}>
+              <span
+                className={cn(
+                  "text-[10px] leading-none tracking-tight transition-all",
+                  active ? "font-semibold" : "font-medium"
+                )}
+                style={{ color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive }}
+              >
                 {t(tab.labelKey)}
               </span>
             </button>
