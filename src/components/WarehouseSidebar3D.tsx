@@ -27,6 +27,7 @@ import {
   sidebarNestedRowStyle,
   resolveActiveNavIndex,
 } from "@/lib/layout/sidebarContract";
+import { MOBILE_BAR, mobileBottomBarStyle } from "@/lib/layout/mobileBars";
 
 interface NavItem {
   title: string;
@@ -334,19 +335,19 @@ export function WarehouseSidebar3D() {
                 {active && (
                   <div
                     className="absolute inset-0 rounded-xl"
-                    style={{ background: ACCENT_BG }}
+                    style={{ background: MOBILE_BAR.activeTint }}
                   />
                 )}
                 <item.icon
                   size={20}
                   className="relative z-10"
-                  color={active ? ACCENT : "hsl(var(--muted-foreground))"}
+                  color={active ? MOBILE_BAR.active : MOBILE_BAR.inactive}
                 />
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"
                   style={{
                     fontSize: 10,
-                    color: active ? ACCENT : "hsl(var(--muted-foreground))",
+                    color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive,
                   }}
                 >
                   {item.title}
