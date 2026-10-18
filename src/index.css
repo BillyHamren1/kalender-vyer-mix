@@ -47,7 +47,7 @@
 
     /* === ACCENT (insjunken yta) === */
     --accent: 200 14% 93%;
-    --accent-foreground: 184 25% 12%;
+    --accent-foreground: var(--foreground);
 
     /* === TEXT (standard 2026-10-18: neutralt nära svart #202223, sekundärt #62666A) === */
     --foreground: 200 4.4776% 13.1373%;           /* #202223 */
@@ -89,7 +89,7 @@
     --sidebar-primary: var(--action);
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 184 30% 92%;
-    --sidebar-accent-foreground: 184 25% 12%;
+    --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: 200 10% 88%;
     --sidebar-ring: var(--action);
 
