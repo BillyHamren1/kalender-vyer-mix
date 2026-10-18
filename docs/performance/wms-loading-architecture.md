@@ -43,6 +43,6 @@ Until the SQL is applied, `wms_changes_since` returns PGRST202 (verified), the c
 - Status 2026-10-18 23:0x UTC: 0 events in the feed yet (no WMS writes since apply); no synthetic business write was made to test it.
 - Booking/staff triggers fire only when watched columns actually change (`IS DISTINCT FROM`).
 - Realtime wake-up subscribes to INSERTs on `wms_change_events` (RLS-filtered); the client adds a one-shot 3 s follow-up catch-up for commits briefly held back by an older open transaction.
-- Retention: `wms_prune_changes(interval)` (service_role) advances `wms_change_cursors.retained_from_seq` then deletes; client resets the period if its cursor is older. **Not yet scheduled** (no cron job created) — log grows until a scheduler is added.
+- Retention: `wms_prune_changes(interval)` (service_role) advances `wms_change_cursors.retained_from_seq` then deletes; client resets the period if its cursor is older. Scheduled via pg_cron job `wms-prune-changes-daily` (jobid 23, `15 3 * * *` UTC, runs `SELECT public.wms_prune_changes(interval '7 days');` as `postgres`). Only this feed is pruned; no other cleanup is scheduled. Max retention ≈ 8 days; a client offline longer gets a full period reset.
 - Shifts (time_reports) in the overview are not in the feed; they refresh on full snapshot.
 - Personnel week is re-read (org-scoped, small) on assignment changes rather than merged per record.
