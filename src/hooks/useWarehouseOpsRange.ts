@@ -171,9 +171,12 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
     retry: 1,
     queryFn: () => fetchOpsRange(organizationId!, anchorDate, mode),
   });
-  // Manuell uppdatering = hämta ändringar, inte hela perioden (när flödet finns).
-  const refetch = (deltaReady ? (() => changeSync.catchUp().then(() => query.refetch({ cancelRefetch: false }).catch(() => query))) : query.refetch) as typeof query.refetch;
-  return { ...query, refetch: deltaReady ? (async () => { await changeSync.catchUp(); return query; }) as unknown as typeof query.refetch : refetch, syncState: changeSync.state };
+  // Manuell uppdatering = hämta bara ändringar när flödet finns; annars full omläsning.
+  const deltaRefetch = (async () => {
+    await changeSync.catchUp();
+    return query;
+  }) as unknown as typeof query.refetch;
+  return { ...query, refetch: deltaReady ? deltaRefetch : query.refetch, syncState: changeSync.state };
 }
 
 /**
