@@ -26,14 +26,15 @@ html[data-module='planning'],
   --planning-selection-deep: 255.897 47.368% 51.569%; /* #6849BE */
   --planning-selection-foreground: 0 0% 100%;
   --planning-selection-soft: hsl(var(--planning-selection) / 0.07);
+  --planning-selection-hover: 255 60% 96%;
   --gradient-planning-selection: linear-gradient(180deg, hsl(var(--planning-selection)), hsl(var(--planning-selection-deep)));
-  --shadow-planning-selection: inset 0 1px 0 hsl(var(--planning-selection-foreground) / 0.18), 0 2px 4px hsl(var(--planning-selection-deep) / 0.18);
-  --module-accent: var(--foreground);
-  --module-accent-base: var(--foreground);
-  --module-accent-dark: var(--foreground);
-  --module-accent-soft: var(--muted);
-  --module-accent-border: var(--border);
-  --module-accent-foreground: var(--card);
+  --shadow-planning-selection: inset 0 1px 0 hsl(var(--planning-selection-foreground) / 0.18), 0 2px 6px hsl(var(--planning-selection-deep) / 0.28);
+  --module-accent: 254.867 50.673% 56.275%;
+  --module-accent-base: 254.867 50.673% 56.275%;
+  --module-accent-dark: 255.897 47.368% 51.569%;
+  --module-accent-soft: 255 60% 96%;
+  --module-accent-border: 255 35% 84%;
+  --module-accent-foreground: 0 0% 100%;
   --primary: var(--action);
   --primary-hover: var(--action-hover);
   --primary-dark: var(--action-end);

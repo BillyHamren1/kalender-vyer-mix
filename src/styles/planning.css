@@ -45,12 +45,14 @@
   --gradient-teal: hsl(var(--card));
 
   /* Skuggor — neutral grå, inte lila-tintad */
+  --border: 214 32% 91%; /* #E2E8F0 crisp card edge */
+  --shadow-card: 0 1px 2px hsl(215 25% 20% / 0.08), 0 4px 12px hsl(215 25% 20% / 0.06);
   --shadow-soft:
     0 1px 2px hsl(240 10% 20% / 0.06),
     0 1px 4px hsl(240 10% 20% / 0.04);
   --shadow-raised:
-    0 1px 3px hsl(240 10% 20% / 0.06),
-    0 3px 0 hsl(240 8% 88%);
+    0 1px 2px hsl(215 25% 20% / 0.08),
+    0 6px 16px hsl(215 25% 20% / 0.08);
   --shadow-btn-primary: var(--shadow-action);
   --control-highlight: hsl(0 0% 100% / 0.28);
   --control-depth-edge: hsl(var(--module-accent-dark) / 0.92);
@@ -99,9 +101,7 @@
 
 /* Aktivt tab/chip — ljus lila istället för teal */
 .theme-purple .planning-chip-active {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-  border: 1px solid hsl(var(--border));
+  border: 1px solid hsl(var(--planning-selection-deep));
 }
 .theme-purple .planning-chip {
   background: hsl(var(--card));
@@ -147,12 +147,29 @@
   background-image: var(--gradient-action-hover);
 }
 
-.theme-purple .operations-tab-luster[data-state='active'] {
-  background: hsl(var(--card));
-  background-image: none;
+/* Filled Planning violet for every selected tab/chip/toggle (Sales pattern, violet). */
+.theme-purple .operations-tab-luster[data-state='active'],
+html[data-module='planning'] .operations-tab-luster[data-state='active'],
+html[data-module='planning'] [role='tablist'] [data-state='active'],
+html[data-module='planning'] [data-radix-toggle-group-item][data-state='on'],
+html[data-module='planning'] .planning-chip-active,
+.theme-purple .planning-chip-active {
+  background: hsl(var(--planning-selection));
+  background-image: var(--gradient-planning-selection);
+  color: hsl(var(--planning-selection-foreground));
+  border-color: hsl(var(--planning-selection-deep));
+  box-shadow: var(--shadow-planning-selection);
+}
+html[data-module='planning'] [role='tablist'] [role='tab'][data-state='inactive']:hover,
+.theme-purple .planning-chip:hover {
+  background: hsl(var(--planning-selection-hover));
   color: hsl(var(--foreground));
+}
+/* Legacy neutral reset kept for non-selected luster: background-image: none */
+html[data-module='planning'] .theme-purple .rounded-lg.border.bg-card,
+html[data-module='planning'] .theme-purple .rounded-xl.border.bg-card {
   border-color: hsl(var(--border));
-  box-shadow: inset 0 -2px 0 hsl(var(--foreground)), var(--shadow-card);
+  box-shadow: var(--shadow-card);
 }
 @media (prefers-reduced-motion: no-preference) {
   .operations-primary-action { transition: background-color 140ms ease, box-shadow 140ms ease; }
