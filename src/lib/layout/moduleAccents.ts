@@ -36,12 +36,12 @@ export interface ModulePalette {
 const SHARED_TEAL: ModulePalette = {
   baseHex: '#1F747A',
   darkHex: '#156065',
-  base: 'hsl(184 59% 30%)',
-  dark: 'hsl(184 66% 24%)',
+  base: 'hsl(183.956 59.4771% 30%)',
+  dark: 'hsl(183.75 65.5738% 23.9216%)',
   soft: 'hsl(184 45% 94%)',
   border: 'hsl(184 30% 82%)',
   hover: 'hsl(184 40% 96%)',
-  ring: 'hsl(184 59% 30%)',
+  ring: 'hsl(183.956 59.4771% 30%)',
 };
 
 export const MODULE_PALETTE: Record<ModuleKey, ModulePalette> = {

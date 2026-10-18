@@ -11,8 +11,8 @@
 @layer base {
   :root {
     /* Delad EventFlow-accent (standard 2026-10-18) — #1F747A → #156065 */
-    --action: 184 59% 30%; /* #1F747A */
-    --action-end: 184 66% 24%; /* #156065 */
+    --action: 183.956 59.4771% 30%; /* #1F747A */
+    --action-end: 183.75 65.5738% 23.9216%; /* #156065 */
     --action-hover: 184 58% 33%; /* ljusare teal vid hover, AA-säker */
     --action-foreground: 0 0% 100%;
     --gradient-action: linear-gradient(180deg, hsl(var(--action)) 0%, hsl(var(--action-end)) 100%);
@@ -23,10 +23,10 @@
     --surface-active: 200 14% 93%;      /* L2 — aktiva kontroller, header */
 
     /* === PRIMARY TEAL (EventFlow Design System) === */
-    --primary: 184 55% 38%;
+    --primary: var(--action);           /* #1F747A — samma som huvudåtgärd */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 184 55% 32%;
-    --primary-dark: 184 60% 26%;        /* 3D-kant på knappar */
+    --primary-hover: var(--action-hover);
+    --primary-dark: var(--action-end);  /* #156065 */
     --primary-soft: 184 50% 95%;        /* Mjuk teal-tint för cards/active states */
     --primary-soft-foreground: 184 45% 22%;
     /* === OPERATIONS (internal module key remains planning) === */
@@ -50,17 +50,17 @@
     --accent-foreground: 184 25% 12%;
 
     /* === TEXT (standard 2026-10-18: neutralt nära svart #202223, sekundärt #62666A) === */
-    --foreground: 210 5% 13%;           /* #202223 */
-    --heading: 210 5% 13%;              /* #202223 */
+    --foreground: 200 4.4776% 13.1373%;           /* #202223 */
+    --heading: 200 4.4776% 13.1373%;              /* #202223 */
     --card: 0 0% 100%;
-    --card-foreground: 210 5% 13%;
+    --card-foreground: 200 4.4776% 13.1373%;
     --muted: 200 14% 93%;
-    --muted-foreground: 210 4% 40%;     /* #62666A */
-    --ring: 184 55% 38%;
+    --muted-foreground: 210 3.9216% 40%;     /* #62666A */
+    --ring: var(--action);              /* teal fokus #1F747A */
 
 
     --popover: 0 0% 100%;
-    --popover-foreground: 184 15% 30%;
+    --popover-foreground: var(--foreground); /* #202223 */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -74,10 +74,10 @@
     /* === SHADOWS (Premium Enterprise) === */
     --shadow-soft: 0 1px 2px hsl(184 30% 15% / 0.08), 0 1px 4px hsl(184 30% 15% / 0.05);
     --shadow-raised: 0 1px 3px hsl(184 30% 15% / 0.07), 0 3px 0 hsl(200 18% 82%);
-    --shadow-btn-primary: 0 3px 0 hsl(184 60% 26%);
+    --shadow-btn-primary: 0 1px 2px hsl(var(--foreground) / 0.12); /* ingen 3D-kant */
 
     /* === GRADIENTS (behåller för kompatibilitet) === */
-    --gradient-icon: linear-gradient(135deg, hsl(184 55% 45%) 0%, hsl(184 60% 35%) 100%);
+    --gradient-icon: linear-gradient(180deg, hsl(var(--action)) 0%, hsl(var(--action-end)) 100%);
     --gradient-card: hsl(0 0% 100%);
     --gradient-teal: linear-gradient(135deg, hsl(184 55% 42%) 0%, hsl(184 60% 36%) 100%);
     --gradient-teal-bg: hsl(200 20% 94.1176%); /* #EDF1F3 */
@@ -85,7 +85,7 @@
 
     /* === SIDEBAR (standard 2026-10-18: exakt vit, nära-svart text) === */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 210 5% 13%;
+    --sidebar-foreground: 200 4.4776% 13.1373%;
     --sidebar-primary: 184 60% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 184 30% 92%;

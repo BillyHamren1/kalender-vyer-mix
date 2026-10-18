@@ -119,7 +119,7 @@ interface RowStyleArgs {
 }
 
 /**
- * Standard menu row — 40px high, 8px radius, 3px accent left line when active.
+ * Standard menu row — 44px high, 8px radius, 3px accent left line when active.
  * Rows NEVER render a border/outline/ring — only background tint changes.
  */
 export function sidebarRowStyle({
@@ -176,7 +176,7 @@ export function sidebarNestedContainerStyle(): React.CSSProperties {
   };
 }
 
-/** Nested row — same 40px interaction height, no border. */
+/** Nested row — same 44px interaction height, no border. */
 export function sidebarNestedRowStyle({
   active,
   hovered,
