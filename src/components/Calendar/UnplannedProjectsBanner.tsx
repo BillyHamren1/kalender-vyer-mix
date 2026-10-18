@@ -29,18 +29,18 @@ export const UnplannedProjectsBanner: React.FC = () => {
     <>
       <UnplannedTodosBanner />
       {showProjects && (
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm mx-2 mb-2">
-        <div className="px-4 py-2 border-b border-border bg-muted flex items-center justify-between">
+      <div className="rounded-xl border border-primary/30 bg-card overflow-hidden shadow-sm mx-2 mb-2">
+        <div className="px-4 py-2 border-b border-primary/20 bg-primary/10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-card">
-              <ClipboardList className="h-4 w-4 text-foreground" />
+            <div className="p-1.5 rounded-lg bg-primary/20">
+              <ClipboardList className="h-4 w-4 text-primary" />
             </div>
             <h3 className="font-semibold text-sm text-foreground">Att planera</h3>
             <span className="text-[11px] text-muted-foreground">
               Sätt tider och team innan jobben hamnar i kalendern
             </span>
           </div>
-          <Badge className="h-5 px-2 text-xs font-medium bg-card text-foreground border border-border">
+          <Badge className="h-5 px-2 text-xs font-medium bg-primary/20 text-primary border-0">
             {projects.length}
           </Badge>
         </div>
