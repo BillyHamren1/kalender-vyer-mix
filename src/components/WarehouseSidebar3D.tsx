@@ -338,6 +338,14 @@ export function WarehouseSidebar3D() {
                     style={{ background: MOBILE_BAR.activeTint }}
                   />
                 )}
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    data-mobile-active-marker
+                    className="absolute top-0 left-1/2 -translate-x-1/2 h-[3px] w-8 rounded-b-full z-10"
+                    style={{ background: MOBILE_BAR.activeMarker }}
+                  />
+                )}
                 <item.icon
                   size={20}
                   className="relative z-10"
