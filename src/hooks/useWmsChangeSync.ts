@@ -95,9 +95,16 @@ export function useWmsChangeSync(orgId: string | null, userId: string | null) {
     setState(cursors.has(key) ? 'ready' : 'unknown');
     void sync();
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const wake = () => { if (!timer) timer = setTimeout(() => { timer = null; void sync(); }, 300); };
-    const channel = supabase.channel(`wms-cursor-${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wms_change_cursors', filter: `organization_id=eq.${orgId}` }, wake)
+    let followUp: ReturnType<typeof setTimeout> | null = null;
+    // Server only releases transactions below the snapshot xmin; a second, one-shot
+    // catch-up picks up a commit that was briefly held back by an older open transaction.
+    const wake = () => {
+      if (!timer) timer = setTimeout(() => { timer = null; void sync(); }, 300);
+      if (followUp) clearTimeout(followUp);
+      followUp = setTimeout(() => { followUp = null; void sync(); }, 3000);
+    };
+    const channel = supabase.channel(`wms-feed-${orgId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wms_change_events', filter: `organization_id=eq.${orgId}` }, wake)
       .subscribe((status) => { if (status === 'SUBSCRIBED') wake(); }); // includes reconnects
     const onVisible = () => { if (document.visibilityState === 'visible' && again.current) wake(); };
     document.addEventListener('visibilitychange', onVisible);
