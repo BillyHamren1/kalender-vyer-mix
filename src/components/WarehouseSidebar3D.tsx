@@ -330,7 +330,7 @@ export function WarehouseSidebar3D() {
               <NavLink
                 key={item.url}
                 to={targetUrl}
-                className="relative flex flex-col items-center gap-1 py-2 px-1 min-w-0 flex-1 rounded-xl transition-all duration-150"
+                className="relative flex flex-col items-center gap-1 py-2 px-1 min-w-0 flex-1 rounded-xl transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/90"
               >
                 {active && (
                   <div
