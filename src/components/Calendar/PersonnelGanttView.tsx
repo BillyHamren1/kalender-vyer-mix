@@ -120,8 +120,8 @@ const PersonnelGanttView: React.FC<PersonnelGanttViewProps> = ({
   const timelineWidth = days.length * CELL_WIDTH;
 
   return (
-    <div className="operations-personnel-grid flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
-      <div className="operations-filter-zone flex flex-wrap items-center gap-3 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <UsersRound className="h-4 w-4 text-primary" />
@@ -163,7 +163,7 @@ const PersonnelGanttView: React.FC<PersonnelGanttViewProps> = ({
         <div style={{ minWidth: NAME_WIDTH + timelineWidth }}>
           <div className="sticky top-0 z-30 flex border-b border-border bg-card shadow-sm">
             <div
-              className="operations-resource-zone sticky left-0 z-40 flex shrink-0 items-center gap-2 border-r px-4 py-2 text-xs font-semibold text-foreground"
+              className="sticky left-0 z-40 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               style={{ width: NAME_WIDTH }}
             >
               <UserRound className="h-4 w-4" /> Personal
@@ -198,9 +198,9 @@ const PersonnelGanttView: React.FC<PersonnelGanttViewProps> = ({
             const laneCount = Math.max(1, ...staffItems.map(item => item.lane + 1));
             const rowHeight = Math.max(54, laneCount * 32 + 10);
             return (
-              <div key={member.id} className="operations-personnel-row flex border-b" style={{ minHeight: rowHeight }}>
+              <div key={member.id} className="flex border-b border-border" style={{ minHeight: rowHeight }}>
                 <div
-                  className="operations-resource-zone sticky left-0 z-20 flex shrink-0 items-center gap-3 border-r px-4"
+                  className="sticky left-0 z-20 flex shrink-0 items-center gap-3 border-r border-border bg-card px-4"
                   style={{ width: NAME_WIDTH, minHeight: rowHeight }}
                 >
                   <span
@@ -222,7 +222,7 @@ const PersonnelGanttView: React.FC<PersonnelGanttViewProps> = ({
                           setSelectedTeam('');
                         }}
                         className={cn(
-                          'operations-timeline-cell border-r transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+                          'border-r border-border transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
                           [0, 6].includes(day.getDay()) && 'bg-muted/25',
                           isToday(day) && 'bg-primary/[0.06]',
                         )}
@@ -254,7 +254,7 @@ const PersonnelGanttView: React.FC<PersonnelGanttViewProps> = ({
                       >
                         <span className="block truncate text-[11px] font-semibold leading-3.5">{item.title}</span>
                         {item.endIndex > item.startIndex && (
-                          <span className="block truncate text-[10px]">{item.subtitle}</span>
+                          <span className="block truncate text-[9px] opacity-70">{item.subtitle}</span>
                         )}
                       </button>
                     ))}
