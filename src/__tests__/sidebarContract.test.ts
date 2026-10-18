@@ -20,8 +20,9 @@ const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf
 
 describe('canonical EventFlow sidebar contract', () => {
   it('locks the exact contract values', () => {
-    expect(SIDEBAR_CONTRACT.widthPx).toBe(264);
-    expect(SIDEBAR_CONTRACT.rowHeightPx).toBe(40);
+    expect(SIDEBAR_CONTRACT.widthPx).toBe(240);
+    expect(SIDEBAR_CONTRACT.collapsedWidthPx).toBe(64);
+    expect(SIDEBAR_CONTRACT.rowHeightPx).toBe(44);
     expect(SIDEBAR_CONTRACT.iconSizePx).toBe(18);
     expect(SIDEBAR_CONTRACT.labelSizePx).toBe(14);
     expect(SIDEBAR_CONTRACT.rowGapPx).toBe(2);
@@ -31,7 +32,7 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(SIDEBAR_CONTRACT.activeLeftBarPx).toBe(3);
   });
 
-  it('renders 40px rows with 8px radius and NO border in any state', () => {
+  it('renders 44px rows with 8px radius and NO border in any state', () => {
     const states = [
       sidebarRowStyle({ active: true, accent: PLANNING_ACCENT }),
       sidebarRowStyle({ active: false, accent: PLANNING_ACCENT }),
@@ -39,8 +40,8 @@ describe('canonical EventFlow sidebar contract', () => {
       sidebarRowStyle({ active: true, collapsed: true, accent: WAREHOUSE_ACCENT }),
     ];
     for (const s of states) {
-      expect(s.height).toBe(40);
-      expect(s.minHeight).toBe(40);
+      expect(s.height).toBe(44);
+      expect(s.minHeight).toBe(44);
       expect(s.borderRadius).toBe(8);
       expect(s.border).toBe('none');
       expect(s.outline).toBe('none');
@@ -76,12 +77,12 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(s.letterSpacing).toBe('0.08em');
   });
 
-  it('keeps nested rows at 40px with no border', () => {
+  it('keeps nested rows at 44px with no border', () => {
     for (const nested of [
       sidebarNestedRowStyle({ active: false, accent: PLANNING_ACCENT }),
       sidebarNestedRowStyle({ active: true, accent: PLANNING_ACCENT }),
     ]) {
-      expect(nested.height).toBe(40);
+      expect(nested.height).toBe(44);
       expect(nested.borderRadius).toBe(8);
       expect(nested.border).toBe('none');
       expect(nested.outline).toBe('none');
@@ -147,10 +148,13 @@ describe('canonical EventFlow sidebar contract', () => {
   });
 
 
-  it('keeps module accents separate (purple planning, orange warehouse)', () => {
-    expect(PLANNING_ACCENT.base).not.toBe(WAREHOUSE_ACCENT.base);
+  it('uses the shared teal accent in both modules (standard 2026-10-18)', () => {
+    // Planning resolves through its selection token, warehouse through the
+    // shared palette — both are the same canonical teal (#1F747A).
     expect(PLANNING_ACCENT.base).toBe('hsl(var(--planning-selection))');
     expect(WAREHOUSE_ACCENT.base).toBe(MODULE_PALETTE.warehouse.base);
+    expect(MODULE_PALETTE.warehouse.baseHex).toBe('#1F747A');
+    expect(MODULE_PALETTE.planning.baseHex).toBe('#1F747A');
   });
 
   it('hides requested planning menu items from the sidebar', () => {
