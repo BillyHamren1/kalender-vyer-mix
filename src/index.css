@@ -10,10 +10,10 @@
 
 @layer base {
   :root {
-    /* Djup mörk teal (Hubbens toppbar) — #143F46 → #0D2A2F, hover #1A4F57 */
-    --action: 188 54% 17%; /* #143F46 */
-    --action-end: 189 57% 11%; /* #0D2A2F */
-    --action-hover: 187 55% 22%; /* #1A4F57 */
+    /* Delad EventFlow-accent (standard 2026-10-18) — #1F747A → #156065 */
+    --action: 184 59% 30%; /* #1F747A */
+    --action-end: 184 66% 24%; /* #156065 */
+    --action-hover: 184 58% 33%; /* ljusare teal vid hover, AA-säker */
     --action-foreground: 0 0% 100%;
     --gradient-action: linear-gradient(180deg, hsl(var(--action)) 0%, hsl(var(--action-end)) 100%);
     --gradient-action-hover: linear-gradient(180deg, hsl(var(--action-hover)) 0%, hsl(var(--action-end)) 100%);
@@ -49,13 +49,13 @@
     --accent: 200 14% 93%;
     --accent-foreground: 184 25% 12%;
 
-    /* === TEXT (standard 2026-10-18: rubriker #173436, brödtext #244042) === */
-    --foreground: 187 31% 20%;          /* #244042 */
-    --heading: 185 40% 15%;             /* #173436 */
+    /* === TEXT (standard 2026-10-18: neutralt nära svart #202223, sekundärt #62666A) === */
+    --foreground: 210 5% 13%;           /* #202223 */
+    --heading: 210 5% 13%;              /* #202223 */
     --card: 0 0% 100%;
-    --card-foreground: 184 35% 16%;
+    --card-foreground: 210 5% 13%;
     --muted: 200 14% 93%;
-    --muted-foreground: 184 14% 38%;
+    --muted-foreground: 210 4% 40%;     /* #62666A */
     --ring: 184 55% 38%;
 
 
@@ -83,9 +83,9 @@
     --gradient-teal-bg: hsl(200 20% 94.1176%); /* #EDF1F3 */
     --gradient-page: hsl(200 20% 94.1176%); /* #EDF1F3 */
 
-    /* === SIDEBAR (Premium Enterprise) === */
-    --sidebar-background: 210 17% 98%;
-    --sidebar-foreground: 184 25% 18%;
+    /* === SIDEBAR (standard 2026-10-18: exakt vit, nära-svart text) === */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 210 5% 13%;
     --sidebar-primary: 184 60% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 184 30% 92%;

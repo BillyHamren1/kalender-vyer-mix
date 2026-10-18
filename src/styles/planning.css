@@ -15,9 +15,9 @@
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
   /* Actions and text are independent of the module identity.
-     Standard 2026-10-18: rubriker #173436, brödtext #244042. */
-  --foreground: 187 31% 20%; /* #244042 */
-  --heading: 185 40% 15%; /* #173436 */
+     Standard 2026-10-18: neutralt nära svart #202223, sekundärt #62666A. */
+  --foreground: 210 5% 13%; /* #202223 */
+  --heading: 210 5% 13%; /* #202223 */
   --card-foreground: var(--foreground);
   --primary: var(--action);
   --primary-foreground: var(--action-foreground);
@@ -39,7 +39,7 @@
   --accent: 210 24% 94%;
   --accent-foreground: var(--foreground);
   --ring: 184 59% 30%;
-  --muted-foreground: 240 6% 42%;
+  --muted-foreground: 210 4% 40%; /* #62666A */
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
   --gradient-icon: var(--gradient-action);
@@ -231,9 +231,7 @@ html[data-module='planning'] .theme-purple .rounded-xl.border.bg-card {
 
 /* ── Canonical strong fill shared by Operations icons and primary actions ── */
 .operations-accent-gradient {
-  background-image:
-    radial-gradient(circle at 28% 18%, hsl(0 0% 100% / 0.20), transparent 35%),
-    linear-gradient(145deg, hsl(var(--module-accent-base)), hsl(var(--module-accent)));
+  background-image: linear-gradient(180deg, hsl(var(--module-accent-base)), hsl(var(--module-accent-dark)));
 }
 
 .operations-gradient-shadow {
@@ -248,28 +246,28 @@ html[data-module='planning'] .theme-purple .rounded-xl.border.bg-card {
     inset 0 1px 0 hsl(0 0% 100% / 0.22);
 }
 
-/* Module identity tile: dark neutral chassis, luminous shared teal glyph. */
+/* Module identity tile: enkel konsekvent linjeikon på diskret teal-platta.
+   Standard 2026-10-18: ingen glow, ingen leksakslik 3D, ingen kraftig luster. */
 :root {
-  --cube-chassis-top: 200 14% 20%;
-  --cube-chassis-bottom: 200 18% 8%;
-  --cube-edge: 200 12% 30%;
-  --cube-glyph: 184 55% 68%; /* ljus teal-glöd */
-  --cube-glyph-vivid: 184 59% 30%; /* #1F747A */
-  --cube-glyph-deep: 184 66% 24%; /* #156065 */
+  --cube-chassis-top: 184 59% 30%; /* #1F747A */
+  --cube-chassis-bottom: 184 66% 24%; /* #156065 */
+  --cube-edge: 184 66% 24%;
+  --cube-glyph: 0 0% 100%;
+  --cube-glyph-vivid: 0 0% 100%;
+  --cube-glyph-deep: 184 45% 88%;
   --cube-highlight: 0 0% 100%;
   --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.07), 0 3px 7px hsl(222 47% 11% / 0.04);
-  --cube-shadow: 0 2px 0 hsl(var(--cube-chassis-bottom)), 0 5px 16px hsl(var(--cube-glyph-vivid) / 0.30), inset 0 1px 0 hsl(var(--cube-highlight) / 0.22);
+  --cube-shadow: 0 1px 2px hsl(184 66% 24% / 0.25);
 }
 .operations-module-cube {
   color: hsl(var(--cube-glyph));
   border: 1px solid hsl(var(--cube-edge));
-  background: linear-gradient(145deg, hsl(var(--cube-chassis-top)), hsl(var(--cube-chassis-bottom)));
+  background: linear-gradient(180deg, hsl(var(--cube-chassis-top)), hsl(var(--cube-chassis-bottom)));
   box-shadow: var(--cube-shadow);
 }
 .cube-glyph-highlight { stop-color: hsl(var(--cube-glyph)); }
 .cube-glyph-vivid { stop-color: hsl(var(--cube-glyph-vivid)); }
 .cube-glyph-deep { stop-color: hsl(var(--cube-glyph-deep)); }
-.operations-module-cube svg { filter: drop-shadow(0 0 2px hsl(var(--cube-glyph) / 0.80)) drop-shadow(0 0 6px hsl(var(--cube-glyph-vivid) / 0.50)); }
 .operations-card-surface { box-shadow: var(--shadow-card); }
 .operations-page-header { background: hsl(var(--card)); box-shadow: var(--shadow-card); }
 .planning-project-surface .rounded-lg.border.bg-card,
@@ -292,7 +290,7 @@ html[data-module='planning'] .theme-purple .rounded-xl.border.bg-card {
 }
 .planning-sidebar {
   --sidebar-background: 0 0% 100%;
-  --sidebar-foreground: 217 33% 18%;
+  --sidebar-foreground: 210 5% 13%; /* #202223 */
   --shadow-sidebar: 2px 0 5px hsl(215 20% 30% / 0.05), 8px 0 20px hsl(215 20% 30% / 0.03);
 }
 .planning-sidebar-footer { border-top: 1px solid hsl(var(--border)); }
