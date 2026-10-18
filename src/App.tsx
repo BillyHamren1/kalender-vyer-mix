@@ -37,6 +37,7 @@ const MyPageTodos = lazyWithRecovery(() => import("./pages/MyPageTodos"));
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 const SidebarShellPreview = lazyWithRecovery(() => import("./pages/dev/SidebarShellPreview"));
+const WarehouseCalendarFixture = lazyWithRecovery(() => import("./pages/dev/WarehouseCalendarFixture"));
 const TimeV2ModulePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ModulePage"));
 const TimeV2FlagFixturePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2FlagFixturePage"));
 const TimeV2ReviewQueuePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ReviewQueuePage"));
@@ -372,6 +373,9 @@ const WebRoutes: React.FC = () => {
       {/* DEV-ONLY visual shell preview (never exposed in production builds) */}
       {import.meta.env.DEV && (
         <Route path="/dev/sidebar-preview" element={<SidebarShellPreview />} />
+      )}
+      {import.meta.env.DEV && (
+        <Route path="/dev/warehouse-calendar-fixture" element={<WarehouseCalendarFixture />} />
       )}
 
       {/* Public transport partner response page - no auth */}

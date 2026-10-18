@@ -70,7 +70,7 @@ const MobileBottomNav = () => {
               onPointerEnter={tab.path === '/m/overview' ? prefetchOverview : undefined}
               onTouchStart={tab.path === '/m/overview' ? prefetchOverview : undefined}
               className={cn(
-                "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none focus:outline-none focus-visible:outline-none",
+                "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/90 rounded-lg",
                 active ? "font-semibold" : ""
               )}
               style={{

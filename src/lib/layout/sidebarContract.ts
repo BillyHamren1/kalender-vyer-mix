@@ -51,9 +51,11 @@ export const SIDEBAR_SURFACE = {
     '2px 0 5px hsl(215 20% 30% / 0.05), 8px 0 20px hsl(215 20% 30% / 0.03)',
   /** Recessed work canvas to the right of the sidebar. */
   canvas: 'hsl(200 20% 94.1176%)',
-  sectionLabelColor: 'hsl(215 12% 46%)',
-  labelColor: 'hsl(215 16% 27%)',
-  iconColor: 'hsl(215 12% 46%)',
+  sectionLabelColor: 'hsl(var(--muted-foreground))',
+  /** Menu labels: neutral near-black #202223 via semantic token (dark mode safe). */
+  labelColor: 'hsl(var(--sidebar-foreground))',
+  /** Inactive icons: same neutral token; teal only on the active icon/marker. */
+  iconColor: 'hsl(var(--sidebar-foreground))',
   nestedGuide: 'hsl(214 15% 90%)',
 } as const;
 
@@ -148,7 +150,7 @@ export function sidebarRowStyle({
     fontSize: SIDEBAR_CONTRACT.labelSizePx,
     fontWeight: active ? 600 : 500,
     background: active ? accent.soft : hovered ? accent.hover : 'transparent',
-    color: accent === PLANNING_ACCENT ? 'hsl(var(--sidebar-foreground))' : active ? accent.base : SIDEBAR_SURFACE.labelColor,
+    color: SIDEBAR_SURFACE.labelColor,
     transition: 'background 150ms ease, color 150ms ease',
     cursor: 'pointer',
   };
@@ -198,7 +200,7 @@ export function sidebarNestedRowStyle({
     boxShadow: 'none',
     fontSize: 13,
     fontWeight: active ? 600 : 500,
-    color: accent === PLANNING_ACCENT ? 'hsl(var(--sidebar-foreground))' : active ? accent.base : SIDEBAR_SURFACE.labelColor,
+    color: SIDEBAR_SURFACE.labelColor,
     background: active ? accent.soft : hovered ? accent.hover : 'transparent',
     transition: 'background 150ms ease',
   };
