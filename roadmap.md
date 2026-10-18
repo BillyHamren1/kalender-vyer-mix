@@ -1,7 +1,8 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
 ## Aktuellt uppdrag
-- [ ] Mät alla sidors tillgängliga laddning och optimera gemensamma flaskhalsar; verifiera tester/preview. Inloggade dataladdningar kräver tillgänglig behörig session (external_unmanaged).
+- [x] Mätt 76 fasta adresser före/efter; gemensam previewstart median 1418→657 ms, sekundära moduler läses på begäran och ekonomins datum/batch parallellt. 33 tester gröna i isolerad Vitest 3, preview build OK; resultat i docs/performance-audit-20261018.md. Ingen deploy/publicering.
+- [ ] Mät/rangordna inloggad dataladdning på alla sidor och parameteriserade detaljer: blockerad av external_unmanaged utan tillgänglig behörig session. 74/76 kontroller landar på inloggning, inte verkligt sidinnehåll.
 - [x] Kortvarsel endast CONFIRMED och 0–7 dagar; stabil Systemet-tråd med äldre historik per mottagare; 47 tester gröna via isolerad Vitest 3, preview build OK. Ingen manuell deploy.
 - [ ] Organisationsgemensam Systemet-historik: väntar på avgränsning av vilka som får läsa andra mottagares notiser; befintligt mottagarskydd behålls tills dess.
 - [x] Diagnostiserat packlistans N+1: ersatt bokningsanrop per packlista med deduplicerade org-batcher om max 200 ID; test 300 packlistor = 2 bokningsanrop. Inloggad laddningstid ej verifierbar (external_unmanaged).
