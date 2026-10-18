@@ -88,7 +88,10 @@ const MobileBottomNav = () => {
                   )}
                 />
                 {badge && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1 ring-2 ring-card">
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1"
+                    style={{ boxShadow: `0 0 0 2px ${MOBILE_BAR.background}` }}
+                  >
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
