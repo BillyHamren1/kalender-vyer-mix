@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import MobileBottomNav from '@/components/mobile-app/MobileBottomNav';
 import MobileGlobalOverlays from '@/components/mobile-app/MobileGlobalOverlays';
 import { GeofencingProvider } from '@/contexts/GeofencingContext';
+import { MOBILE_BAR, mobileTopBarStyle } from '@/lib/layout/mobileBars';
 
 interface TimeAppLayoutProps {
   children: React.ReactNode;
@@ -32,8 +33,8 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
     const prevHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
     const prevBodyOverscroll = document.body.style.overscrollBehaviorY;
 
-    document.documentElement.style.backgroundColor = 'hsl(var(--primary))';
-    document.body.style.backgroundColor = 'hsl(var(--primary))';
+    document.documentElement.style.backgroundColor = MOBILE_BAR.background;
+    document.body.style.backgroundColor = MOBILE_BAR.background;
     document.documentElement.style.overscrollBehaviorY = 'none';
     document.body.style.overscrollBehaviorY = 'none';
 
@@ -47,7 +48,10 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
 
   return (
     <GeofencingProvider>
-      <div className="time-app fixed inset-0 overflow-hidden bg-primary">
+      <div
+        className="time-app fixed inset-0 overflow-hidden"
+        style={mobileTopBarStyle()}
+      >
         <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
           {/* Header slot — headers portal in here so they sit OUTSIDE the scroll container.
               This avoids the iOS WKWebView bug where position: sticky inside a momentum-scrolling
@@ -57,8 +61,8 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
               on pages that don't render their own MobileHeader. */}
           <div
             id="mobile-header-slot"
-            className="shrink-0 bg-primary z-[60]"
-            style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+            className="shrink-0 z-[60]"
+            style={{ ...mobileTopBarStyle(), paddingTop: 'env(safe-area-inset-top, 0px)' }}
           />
           <div
             ref={scrollRef}

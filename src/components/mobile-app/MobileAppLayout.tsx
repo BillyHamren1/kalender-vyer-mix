@@ -4,6 +4,7 @@ import MobileGlobalOverlays from './MobileGlobalOverlays';
 import { ViewAsBanner } from './ViewAsPicker';
 import { GeofencingProvider } from '@/contexts/GeofencingContext';
 import { useAppHealthReporter } from '@/hooks/useAppHealthReporter';
+import { MOBILE_BAR, mobileTopBarStyle } from '@/lib/layout/mobileBars';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
