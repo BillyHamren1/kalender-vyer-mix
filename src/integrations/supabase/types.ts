@@ -10688,6 +10688,63 @@ export type Database = {
           },
         ]
       }
+      wms_change_cursors: {
+        Row: {
+          organization_id: string
+          retained_from_seq: number
+        }
+        Insert: {
+          organization_id: string
+          retained_from_seq?: number
+        }
+        Update: {
+          organization_id?: string
+          retained_from_seq?: number
+        }
+        Relationships: []
+      }
+      wms_change_events: {
+        Row: {
+          booking_id: string | null
+          committed_at: string
+          entity_id: string
+          id: number
+          new_window: Json | null
+          old_window: Json | null
+          op: string
+          organization_id: string
+          packing_id: string | null
+          table_name: string
+          txid: number
+        }
+        Insert: {
+          booking_id?: string | null
+          committed_at?: string
+          entity_id: string
+          id?: number
+          new_window?: Json | null
+          old_window?: Json | null
+          op: string
+          organization_id: string
+          packing_id?: string | null
+          table_name: string
+          txid: number
+        }
+        Update: {
+          booking_id?: string | null
+          committed_at?: string
+          entity_id?: string
+          id?: number
+          new_window?: Json | null
+          old_window?: Json | null
+          op?: string
+          organization_id?: string
+          packing_id?: string | null
+          table_name?: string
+          txid?: number
+        }
+        Relationships: []
+      }
       wms_reservation_allocations: {
         Row: {
           allocated_at: string
@@ -11674,6 +11731,11 @@ export type Database = {
         Args: { p_candidate: string }
         Returns: boolean
       }
+      wms_changes_since: {
+        Args: { p_after: number; p_limit?: number }
+        Returns: Json
+      }
+      wms_prune_changes: { Args: { p_keep?: string }; Returns: undefined }
     }
     Enums: {
       anomaly_classification: "break" | "work"
