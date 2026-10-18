@@ -108,7 +108,7 @@ export function useEconomyDashboard(
   externalProjects?: ProjectWithEconomy[],
 ): UseEconomyDashboardResult {
   // If external projects are provided (legacy), use them; otherwise fetch our own
-  const query = useEconomyOverviewData();
+  const query = useEconomyOverviewData(externalProjects === undefined);
   const rawProjects = externalProjects ?? query.data;
   const isLoading = externalProjects ? false : query.isLoading;
   const error = externalProjects ? null : (query.error as Error | null);

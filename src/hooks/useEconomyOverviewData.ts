@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
+import { useCurrentOrg } from './useCurrentOrg';
+import { loadOverviewSources } from '@/lib/economy/loadOverviewSources';
 
 export type ProjectSize = 'small' | 'medium' | 'large';
 
@@ -128,23 +130,29 @@ const emptySummary: EconomySummary = {
   totalDeviationPercent: 0,
 };
 
-export const useEconomyOverviewData = () => {
+export const useEconomyOverviewData = (enabled = true) => {
+  const { organizationId } = useCurrentOrg();
   return useQuery({
-    queryKey: ['economy-overview'],
+    queryKey: ['economy-overview', organizationId],
+    enabled: enabled && !!organizationId,
     queryFn: async (): Promise<ProjectWithEconomy[]> => {
+      if (!organizationId) return [];
       // Fetch all three project types in parallel
       const [projectsRes, jobsRes, largeRes] = await Promise.all([
         supabase
           .from('projects')
           .select('id, name, status, booking_id')
+          .eq('organization_id', organizationId)
           .order('created_at', { ascending: false }),
         supabase
           .from('jobs')
           .select('id, name, status, booking_id')
+          .eq('organization_id', organizationId)
           .order('created_at', { ascending: false }),
         supabase
           .from('large_projects')
           .select('id, name, status, large_project_bookings(booking_id)')
+          .eq('organization_id', organizationId)
           .order('created_at', { ascending: false }),
       ]);
 
@@ -211,30 +219,39 @@ export const useEconomyOverviewData = () => {
       let rigdayMap: Record<string, string | null> = {};
       let rigdownMap: Record<string, string | null> = {};
       let createdAtMap: Record<string, string | null> = {};
-      if (allBookingIds.length > 0) {
-        const { data: bookings } = await supabase
-          .from('bookings')
-          .select('id, eventdate, rigdaydate, rigdowndate, created_at')
-          .in('id', allBookingIds);
-        if (bookings) {
+      const [bookings, multiBatchData] = await loadOverviewSources(
+        async () => {
+          const chunks = [];
+          for (let i = 0; i < allBookingIds.length; i += 200) {
+            chunks.push(allBookingIds.slice(i, i + 200));
+          }
+          const results = await Promise.all(chunks.map(async ids => {
+            const { data, error } = await supabase
+              .from('bookings')
+              .select('id, eventdate, rigdaydate, rigdowndate, created_at')
+              .eq('organization_id', organizationId)
+              .in('id', ids);
+            if (error) throw error;
+            return data ?? [];
+          }));
+          return results.flat();
+        },
+        async (): Promise<Record<string, BatchEconomyData>> => {
+          if (!allBookingIds.length) return {};
+          try {
+            return await fetchAllEconomyDataMulti(allBookingIds);
+          } catch (err) {
+            console.error('Failed to fetch multi-batch economy data:', err);
+            return {};
+          }
+        },
+      );
           bookings.forEach(b => {
             eventdateMap[b.id] = b.eventdate;
             rigdayMap[b.id] = (b as any).rigdaydate ?? null;
             rigdownMap[b.id] = (b as any).rigdowndate ?? null;
             createdAtMap[b.id] = b.created_at;
           });
-        }
-      }
-
-      // Fetch ALL economy data in a single edge function call
-      let multiBatchData: Record<string, BatchEconomyData> = {};
-      if (allBookingIds.length > 0) {
-        try {
-          multiBatchData = await fetchAllEconomyDataMulti(allBookingIds);
-        } catch (err) {
-          console.error('Failed to fetch multi-batch economy data:', err);
-        }
-      }
 
       return entries.map((entry) => {
         // For projects with a single booking
@@ -327,7 +344,9 @@ export const useEconomyOverviewData = () => {
           }
 
           // Single booking project
-          const { summary, timeReports, economyClosed } = processEconomyBatchData(multiBatchData[primaryBookingId!]);
+          const singleBatch = primaryBookingId ? multiBatchData[primaryBookingId] : undefined;
+          if (!singleBatch) throw new Error('Missing Booking economy');
+          const { summary, timeReports, economyClosed } = processEconomyBatchData(singleBatch);
           return {
             id: entry.id,
             name: entry.name,
@@ -342,7 +361,7 @@ export const useEconomyOverviewData = () => {
             economyClosed: economyClosed || entry.status === 'completed',
             projectSize: entry.projectSize,
             navigateTo: entry.navigateTo,
-            revenueAvailable: multiBatchData[primaryBookingId!]?.product_costs != null && !multiBatchData[primaryBookingId!]?._errors?.product_costs,
+            revenueAvailable: singleBatch.product_costs != null && !singleBatch._errors?.product_costs,
           };
         } catch (err) {
           console.error(`Failed to process economy for project ${entry.name}:`, err);
@@ -367,7 +386,6 @@ export const useEconomyOverviewData = () => {
     },
     staleTime: 10 * 60 * 1000, // 10 min — matches server cache TTL
     gcTime: 30 * 60 * 1000, // 30 min — keep in memory across navigations
-    placeholderData: (prev) => prev, // Show stale data instantly while refreshing
     retry: 2,
     retryDelay: 2000,
   });

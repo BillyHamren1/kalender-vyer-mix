@@ -1,4 +1,6 @@
 # Architecture rules
+- Secondary pages, module layouts and native shells load on demand with lazyWithRecovery; unrelated module trees must not block initial app rendering.
+- Economy overview uses a tenant-keyed query and parallel independent Booking date/economy reads; date failures propagate and external-project consumers disable redundant overview fetching.
 - System short-notice notifications use one stable DM partner; read projections include legacy booking-specific senders with tenant/recipient predicates, so history stays intact without a data rewrite.
 - Packing list booking summaries are fetched in deduplicated tenant-scoped batches capped at 200 IDs, because one query per packing slows the initial load.
 - Default actions use dedicated semantic action tokens independently of module identity; the shared ModuleIcon renders the 2A identity tile so headers cannot drift from module symbols.
