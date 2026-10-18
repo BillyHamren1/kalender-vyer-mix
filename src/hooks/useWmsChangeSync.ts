@@ -110,6 +110,7 @@ export function useWmsChangeSync(orgId: string | null, userId: string | null) {
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       if (timer) clearTimeout(timer);
+      if (followUp) clearTimeout(followUp);
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
