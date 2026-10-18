@@ -130,7 +130,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       if (error) throw error;
 
       // ── Optimistic cache update so the row disappears from the active filter immediately ──
-      queryClient.setQueryData<any[]>(['economy-overview'], (prev) => {
+      queryClient.setQueriesData<any[]>({ queryKey: ['economy-overview'] }, (prev) => {
         if (!Array.isArray(prev)) return prev;
         return prev.map((row: any) =>
           row?.id === p.id ? { ...row, status: dbStatus } : row,
