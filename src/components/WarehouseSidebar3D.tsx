@@ -146,7 +146,7 @@ export function WarehouseSidebar3D() {
                 lineHeight: 1,
                 letterSpacing: "-0.005em",
                 fontWeight: active ? 600 : 500,
-                color: active ? ACCENT : SIDEBAR_SURFACE.labelColor,
+                color: SIDEBAR_SURFACE.labelColor,
                 flex: 1,
               };
 
