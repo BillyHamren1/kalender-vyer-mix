@@ -349,7 +349,7 @@ export function WarehouseSidebar3D() {
                 <item.icon
                   size={20}
                   className="relative z-10"
-                  color={active ? MOBILE_BAR.active : MOBILE_BAR.inactive}
+                  color={active ? MOBILE_BAR.activeMarker : MOBILE_BAR.inactive}
                 />
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"

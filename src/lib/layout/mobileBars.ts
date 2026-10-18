@@ -17,7 +17,7 @@ export const MOBILE_BAR = {
   background: 'hsl(210 6% 8%)',
   /** Discreet hairline separating the bar from content. */
   divider: 'hsl(0 0% 100% / 0.10)',
-  /** Active icon/label — pure white for maximum contrast on black. */
+  /** Active label — pure white for readable small text on black. */
   active: 'hsl(0 0% 100%)',
   /** Inactive icon/label — light gray, still readable on black (>= 4.5:1). */
   inactive: 'hsl(215 10% 72%)',
