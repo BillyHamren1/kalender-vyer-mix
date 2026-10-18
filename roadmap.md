@@ -1,6 +1,7 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
 ## Aktuellt uppdrag
+- [ ] Mät alla sidors tillgängliga laddning och optimera gemensamma flaskhalsar; verifiera tester/preview. Inloggade dataladdningar kräver tillgänglig behörig session (external_unmanaged).
 - [x] Kortvarsel endast CONFIRMED och 0–7 dagar; stabil Systemet-tråd med äldre historik per mottagare; 47 tester gröna via isolerad Vitest 3, preview build OK. Ingen manuell deploy.
 - [ ] Organisationsgemensam Systemet-historik: väntar på avgränsning av vilka som får läsa andra mottagares notiser; befintligt mottagarskydd behålls tills dess.
 - [x] Diagnostiserat packlistans N+1: ersatt bokningsanrop per packlista med deduplicerade org-batcher om max 200 ID; test 300 packlistor = 2 bokningsanrop. Inloggad laddningstid ej verifierbar (external_unmanaged).
