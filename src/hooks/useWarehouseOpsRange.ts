@@ -430,7 +430,6 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
       const isCurrentlyActive = (j: OpsJob) =>
         j.status === "in_progress" || j.status === "returning" || j.status === "back";
       const DONE = new Set(["completed_out", "completed_in", "completed", "done"]);
-      const todayStr = format(new Date(), "yyyy-MM-dd");
       // En packning räknas som "kommande" så länge den inte är klar och rigdown (eller anchor) ligger idag/framåt
       const isUpcoming = (j: OpsJob) => {
         if (DONE.has(j.status)) return false;
