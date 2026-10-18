@@ -26,8 +26,7 @@ describe('lagerpersonalens dagsvy', () => {
     expect(hook).toContain('useRealtimeInvalidation({');
     expect(hook).toContain("{ table: 'warehouse_assignments', events: ['*'] }");
     expect(hook).toContain("{ table: 'warehouse_calendar_events', events: ['*'] }");
-    expect(hook).toContain('refetchInterval: 10_000');
-    expect(hook).toContain('refetchIntervalInBackground: false');
+    expect(hook).not.toContain('refetchInterval: 10_000'); // realtime ersätter polling
     expect(hook).not.toContain("from('staff_assignments')");
   });
 });
