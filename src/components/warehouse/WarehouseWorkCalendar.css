@@ -296,3 +296,10 @@
 @container (max-width: 110px) {
   .warehouse-work-calendar--week .warehouse-fc-event__title { white-space: normal !important; text-overflow: clip !important; -webkit-line-clamp: 3; }
 }
+/* Reserve a lane for "+N" so it never covers the last visible card. */
+.warehouse-work-calendar .fc-timegrid-col-events:has(.fc-timegrid-more-link) { margin-right: 38px; }
+.warehouse-work-calendar .fc-timegrid-col-events .fc-timegrid-more-link {
+  left: auto !important;
+  right: -36px !important;
+  width: 34px;
+}
