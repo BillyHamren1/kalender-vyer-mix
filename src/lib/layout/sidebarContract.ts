@@ -72,11 +72,11 @@ export interface SidebarAccent {
 
 /** Operations — internal key planning, canonical violet (#9672BE / #5E428B). */
 export const PLANNING_ACCENT: SidebarAccent = {
-  base: MODULE_PALETTE.planning.base,
-  soft: MODULE_PALETTE.planning.soft,
-  border: MODULE_PALETTE.planning.border,
-  hover: MODULE_PALETTE.planning.hover,
-  ring: MODULE_PALETTE.planning.ring,
+  base: 'hsl(var(--planning-selection))',
+  soft: 'var(--planning-selection-soft)',
+  border: 'hsl(var(--border))',
+  hover: 'hsl(var(--planning-selection) / 0.04)',
+  ring: 'hsl(var(--planning-selection))',
 };
 
 /** Lager & Logistik — canonical HUB warm orange (#C77922). */
@@ -148,7 +148,7 @@ export function sidebarRowStyle({
     fontSize: SIDEBAR_CONTRACT.labelSizePx,
     fontWeight: active ? 600 : 500,
     background: active ? accent.soft : hovered ? accent.hover : 'transparent',
-    color: active ? accent.base : SIDEBAR_SURFACE.labelColor,
+    color: accent === PLANNING_ACCENT ? 'hsl(var(--sidebar-foreground))' : active ? accent.base : SIDEBAR_SURFACE.labelColor,
     transition: 'background 150ms ease, color 150ms ease',
     cursor: 'pointer',
   };
@@ -198,7 +198,7 @@ export function sidebarNestedRowStyle({
     boxShadow: 'none',
     fontSize: 13,
     fontWeight: active ? 600 : 500,
-    color: active ? accent.base : SIDEBAR_SURFACE.labelColor,
+    color: accent === PLANNING_ACCENT ? 'hsl(var(--sidebar-foreground))' : active ? accent.base : SIDEBAR_SURFACE.labelColor,
     background: active ? accent.soft : hovered ? accent.hover : 'transparent',
     transition: 'background 150ms ease',
   };

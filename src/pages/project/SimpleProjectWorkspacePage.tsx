@@ -151,7 +151,7 @@ export default function SimpleProjectWorkspacePage() {
   };
 
   return (
-    <div className="theme-purple min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+    <div className="theme-purple planning-project-surface min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
         <header
           className="rounded-xl border border-border bg-card p-6 text-foreground shadow-sm"

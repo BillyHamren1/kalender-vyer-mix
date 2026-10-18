@@ -21,7 +21,13 @@
 
 html[data-module='planning'],
 .theme-purple {
-  /* Legacy module utilities remain neutral; ModuleIcon owns violet identity. */
+  /* Identity controls are violet; headings/surfaces and default actions stay neutral. */
+  --planning-selection: 254.867 50.673% 56.275%; /* #7357C8 */
+  --planning-selection-deep: 255.897 47.368% 51.569%; /* #6849BE */
+  --planning-selection-foreground: 0 0% 100%;
+  --planning-selection-soft: hsl(var(--planning-selection) / 0.07);
+  --gradient-planning-selection: linear-gradient(180deg, hsl(var(--planning-selection)), hsl(var(--planning-selection-deep)));
+  --shadow-planning-selection: inset 0 1px 0 hsl(var(--planning-selection-foreground) / 0.18), 0 2px 4px hsl(var(--planning-selection-deep) / 0.18);
   --module-accent: var(--foreground);
   --module-accent-base: var(--foreground);
   --module-accent-dark: var(--foreground);

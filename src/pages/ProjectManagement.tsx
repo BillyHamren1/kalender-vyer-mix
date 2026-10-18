@@ -156,7 +156,7 @@ const ProjectManagement = () => {
   };
 
   return (
-    <PageContainer theme="purple">
+    <PageContainer theme="purple" className="planning-project-surface">
         <PageHeader
           icon={FolderKanban}
           title="Projekthantering"
@@ -211,9 +211,9 @@ const ProjectManagement = () => {
             onValueChange={(v) => v && setTypeFilter(v as ProjectTypeFilter)}
             className="bg-muted/40 rounded-lg p-0.5"
           >
-            <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
-            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Enskild bokning</ToggleGroupItem>
-            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Flera bokningar</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="planning-project-selection h-8 px-3 text-xs rounded-md">Alla</ToggleGroupItem>
+            <ToggleGroupItem value="medium" className="planning-project-selection h-8 px-3 text-xs rounded-md">Enskild bokning</ToggleGroupItem>
+            <ToggleGroupItem value="large" className="planning-project-selection h-8 px-3 text-xs rounded-md">Flera bokningar</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
