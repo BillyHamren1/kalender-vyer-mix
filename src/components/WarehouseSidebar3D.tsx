@@ -9,9 +9,10 @@ import { type LucideIcon,
   Wrench,
   ChevronDown,
   TrendingUp,
-   ChevronsLeft,
+  ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useWarehouseNotificationCount } from "@/hooks/useWarehouseNotificationCount";
 import {
   SIDEBAR_CONTRACT,
