@@ -1,6 +1,5 @@
--- WMS durable changefeed — REVIEWED, NOT APPLIED.
--- Only Supabase target connected to this repo is production (pihrhltinhewhoxefjxv),
--- so this additive migration is pending application through the normal migration path.
+-- SUPERSEDED: applied (corrected) version lives in supabase/migrations/20261018225802_* and 20261018225911_*.
+-- Kept for history only; do not apply.
 -- Additive only: new tables, triggers, one invoker RPC. No business rows touched.
 
 -- 1. Per-org cursor: the UPDATE ... RETURNING row lock is held until commit, so two
