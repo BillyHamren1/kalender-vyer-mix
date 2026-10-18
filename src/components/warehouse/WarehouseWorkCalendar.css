@@ -275,10 +275,10 @@
   font-weight: 500;
 }
 
-/* Samtidiga jobb visas sida vid sida i stället för att döljas bakom "+N".
+/* Samtidiga jobb visas sida vid sida (vecka max 3, dag max 8; fixture-verifierat
+   att korten då förblir läsbara). Resten nås via +N-popovern.
    Smala kort blir kompakta (typ + namn + tid) via container query. */
 .warehouse-work-calendar .fc-timegrid-event .warehouse-fc-event { container-type: inline-size; }
-.warehouse-work-calendar--week .fc-timegrid-col-events:has(.fc-timegrid-more-link) .fc-timegrid-event { margin-right: 0 !important; }
 @container (max-width: 110px) {
   .warehouse-fc-event__topline > :last-child:not(:nth-child(2)),
   .warehouse-fc-event__phase,
