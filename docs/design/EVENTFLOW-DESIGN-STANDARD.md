@@ -4,9 +4,9 @@ Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — 
 
 ## Färger
 
-- EN gemensam accent i alla moduler: teal `#1F747A` (`hsl(184 59% 30%)`); djup teal `#156065` (`hsl(184 66% 24%)`) för mörkare tillstånd och diskret primärknappsgradient.
+- EN gemensam accent i alla moduler: teal `#1F747A` (`hsl(183.956 59.4771% 30%)`); djup teal `#156065` (`hsl(183.75 65.5738% 23.9216%)`) för mörkare tillstånd och diskret primärknappsgradient.
 - Sales blå och Operations lila är inte längre egna modulaccenter. Modulidentifiering sker med namn, enkla konsekventa linjeikoner och aktiv navigationsmarkering.
-- Rubriker och huvudtext: neutralt nära svart `#202223` (`hsl(210 5% 13%)`). Sekundärtext/metadata: mörkgrå `#62666A` (`hsl(210 4% 40%)`). Ljusare grå endast för placeholder/inaktivt innehåll med bibehållen läsbarhet. Teal är accent, aldrig generell textfärg.
+- Rubriker och huvudtext: neutralt nära svart `#202223` (`hsl(200 4.4776% 13.1373%)`). Sekundärtext/metadata: mörkgrå `#62666A` (`hsl(210 3.9216% 40%)`). Ljusare grå endast för placeholder/inaktivt innehåll med bibehållen läsbarhet. Teal är accent, aldrig generell textfärg.
 - Sval ljus bakgrund (canvas): `#EDF1F3`. Vita arbetsytor: `#FFFFFF`.
 - Primäråtgärd: `--action` = `#1F747A`, `--action-end` = `#156065`, subtil vertikal gradient endast på huvudåtgärd. Ingen glow, ingen leksakslik 3D, inga kraftiga skuggor eller metalliska effekter.
 - Statusfärger (fel/varning/klart) hålls semantiskt åtskilda från accenten och konsekventa över moduler. Meningsbärande diagramserier och kalenderfärger (fas-/status-/resursfärger) bevaras — inga blinda färgersättningar.

@@ -7,20 +7,20 @@ const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf
 describe('EventFlow shared design standard 2026-10-18', () => {
   it('locks the shared teal action tokens (#1F747A / #156065)', () => {
     const css = read('src/index.css');
-    expect(css).toContain('--action: 184 59% 30%'); /* #1F747A */
-    expect(css).toContain('--action-end: 184 66% 24%'); /* #156065 */
+    expect(css).toContain('--action: 183.956 59.4771% 30%'); /* #1F747A */
+    expect(css).toContain('--action-end: 183.75 65.5738% 23.9216%'); /* #156065 */
     expect(css).not.toContain('188 54% 17%'); /* gammal petrol #143F46 */
     expect(css).not.toContain('189 57% 11%'); /* gammal petrol #0D2A2F */
   });
 
   it('locks neutral near-black text and grey secondary text', () => {
     const css = read('src/index.css');
-    expect(css).toContain('--foreground: 210 5% 13%'); /* #202223 */
-    expect(css).toContain('--heading: 210 5% 13%');
-    expect(css).toContain('--muted-foreground: 210 4% 40%'); /* #62666A */
+    expect(css).toContain('--foreground: 200 4.4776% 13.1373%'); /* #202223 */
+    expect(css).toContain('--heading: 200 4.4776% 13.1373%');
+    expect(css).toContain('--muted-foreground: 210 3.9216% 40%'); /* #62666A */
     const planning = read('src/styles/planning.css');
-    expect(planning).toContain('--foreground: 210 5% 13%');
-    expect(planning).toContain('--muted-foreground: 210 4% 40%');
+    expect(planning).toContain('--foreground: 200 4.4776% 13.1373%');
+    expect(planning).toContain('--muted-foreground: 210 3.9216% 40%');
   });
 
   it('locks the exact white sidebar and light canvas', () => {
