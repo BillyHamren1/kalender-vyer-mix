@@ -52,7 +52,7 @@ describe('canonical EventFlow sidebar contract', () => {
   it('gives inactive rows a fully transparent background and no tint box', () => {
     const idle = sidebarRowStyle({ active: false, accent: PLANNING_ACCENT });
     expect(idle.background).toBe('transparent');
-    expect(idle.color).toBe(SIDEBAR_SURFACE.labelColor);
+    expect(idle.color).toBe('hsl(var(--sidebar-foreground))');
 
     const hovered = sidebarRowStyle({ active: false, hovered: true, accent: WAREHOUSE_ACCENT });
     expect(hovered.background).toBe(WAREHOUSE_ACCENT.hover);
@@ -60,7 +60,7 @@ describe('canonical EventFlow sidebar contract', () => {
 
     const active = sidebarRowStyle({ active: true, accent: PLANNING_ACCENT });
     expect(active.background).toBe(PLANNING_ACCENT.soft);
-    expect(active.color).toBe(PLANNING_ACCENT.base);
+    expect(active.color).toBe(idle.color);
   });
 
   it('renders a 3px accent left line on active rows', () => {
@@ -149,7 +149,7 @@ describe('canonical EventFlow sidebar contract', () => {
 
   it('keeps module accents separate (purple planning, orange warehouse)', () => {
     expect(PLANNING_ACCENT.base).not.toBe(WAREHOUSE_ACCENT.base);
-    expect(PLANNING_ACCENT.base).toBe(MODULE_PALETTE.planning.base);
+    expect(PLANNING_ACCENT.base).toBe('hsl(var(--planning-selection))');
     expect(WAREHOUSE_ACCENT.base).toBe(MODULE_PALETTE.warehouse.base);
   });
 

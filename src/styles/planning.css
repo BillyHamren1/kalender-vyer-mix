@@ -254,6 +254,30 @@
 .operations-module-cube svg { filter: drop-shadow(0 0 2px hsl(var(--cube-glyph) / 0.80)) drop-shadow(0 0 6px hsl(var(--cube-glyph-vivid) / 0.50)); }
 .operations-card-surface { box-shadow: var(--shadow-card); }
 .operations-page-header { background: hsl(var(--card)); box-shadow: var(--shadow-card); }
+.planning-project-surface .rounded-lg.border.bg-card,
+.planning-project-surface .rounded-xl.border.bg-card,
+.planning-project-surface .rounded-2xl.border.bg-card,
+.planning-project-surface .operations-card-surface {
+  border-color: hsl(var(--border));
+  box-shadow: var(--shadow-card);
+}
+.planning-project-surface thead { background: hsl(var(--muted)); }
+.planning-project-surface tbody tr { border-bottom-color: hsl(var(--border)); }
+.planning-project-surface .operations-tab-luster[data-state='active'],
+.planning-project-surface .planning-project-selection[data-state='on'],
+.planning-project-surface .planning-project-selection[aria-current='page'] {
+  background: hsl(var(--planning-selection));
+  background-image: var(--gradient-planning-selection);
+  color: hsl(var(--planning-selection-foreground));
+  border-color: hsl(var(--planning-selection-deep));
+  box-shadow: var(--shadow-planning-selection);
+}
+.planning-sidebar {
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 217 33% 18%;
+  --shadow-sidebar: 2px 0 5px hsl(215 20% 30% / 0.05), 8px 0 20px hsl(215 20% 30% / 0.03);
+}
+.planning-sidebar-footer { border-top: 1px solid hsl(var(--border)); }
 .dark .theme-purple {
   --foreground: 210 40% 98%;
   --background: 222 30% 9%;

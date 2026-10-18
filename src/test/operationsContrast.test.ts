@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 const css = readFileSync('src/styles/operations-surfaces.css', 'utf8')
 const actions = readFileSync('src/index.css', 'utf8')
 const planning = readFileSync('src/styles/planning.css', 'utf8')
+const selections = readFileSync('src/styles/module-accents.css', 'utf8')
 function rgbHsl(hsl: string) {
   const [h, s, l] = hsl.match(/[\d.]+/g)?.map(Number) ?? []
   if (h === undefined || s === undefined || l === undefined) throw new Error('Invalid HSL')
@@ -28,6 +29,11 @@ function contrast(a: number[], b: number[]) {
   return (high + 0.05) / (low + 0.05)
 }
 describe('Operations text accessibility', () => {
+  for (const state of ['planning-selection', 'planning-selection-deep']) {
+    it(`white selected project tab text meets WCAG AA at ${state}`, () => {
+      expect(contrast(token(selections, 'planning-selection-foreground'), token(selections, state))).toBeGreaterThanOrEqual(4.5)
+    })
+  }
   it('neutral Operations heading text meets AA on white cards', () => {
     const theme = planning.slice(planning.indexOf('.theme-purple {')).split('}')[0]
     expect(contrast(token(theme, 'foreground'), token(actions, 'card'))).toBeGreaterThanOrEqual(4.5)

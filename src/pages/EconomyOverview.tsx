@@ -100,7 +100,7 @@ const ProjectEconomyDashboard: React.FC = () => {
 
 const EconomyOverview: React.FC = () => {
   return (
-    <PageContainer theme="purple">
+    <PageContainer theme="purple" className="planning-project-surface">
       <PageHeader
         icon={Banknote}
         variant="purple"

@@ -267,7 +267,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
 
   return (
     <>
-      <Card className="border-border/60">
+      <Card className="border-border operations-card-surface">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
@@ -470,7 +470,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                         </TableCell>
                         <TableCell className="py-5 align-middle text-right tabular-nums font-semibold text-sm pr-6">
                           {p.revenueAvailable ? formatCurrency(p.quotedAmount) : (
-                            <span className="text-xs font-medium text-destructive">Summan kunde inte hämtas</span>
+                            <span className="text-muted-foreground font-normal" title="Summan kunde inte hämtas" aria-label="Summan är inte tillgänglig">—</span>
                           )}
                         </TableCell>
                       </TableRow>

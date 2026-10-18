@@ -15,6 +15,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
 import { useProjectMessagesCount } from "@/hooks/useProjectMessagesCount";
 
@@ -183,43 +184,19 @@ export function Sidebar3D() {
       <aside
         className={cn(
           "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-300 ease-out",
-          "hidden lg:flex theme-purple relative"
+          "hidden lg:flex theme-purple planning-sidebar relative"
         )}
         style={{
           ...sidebarSurfaceStyle(),
+          background: 'hsl(var(--sidebar-background))',
+          borderRight: '1px solid hsl(var(--border))',
+          boxShadow: 'var(--shadow-sidebar)',
           width: isCollapsed
             ? SIDEBAR_CONTRACT.collapsedWidthPx
             : SIDEBAR_CONTRACT.widthPx,
         }}
       >
         {/* ── Collapse control (no extra header band — sidebar surface is continuous) ── */}
-        <div className="relative shrink-0 h-3">
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn(
-              "absolute -right-3 top-4 z-50 flex items-center justify-center",
-              "w-6 h-6 rounded-full transition-all duration-200",
-              "shadow-sm hover:shadow-md",
-              SIDEBAR_FOCUS_CLASS
-            )}
-            style={{
-              background: SIDEBAR_SURFACE.background,
-              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
-              color: ACCENT.base,
-              outlineColor: ACCENT.ring,
-            }}
-            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
-            aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
-          >
-            <ChevronsLeft
-              className={cn(
-                "w-3.5 h-3.5 transition-transform duration-300",
-                isCollapsed && "rotate-180"
-              )}
-              strokeWidth={2.2}
-            />
-          </button>
-        </div>
 
         {/* Navigation */}
         <nav
@@ -262,9 +239,7 @@ export function Sidebar3D() {
               >
                 <item.icon
                   size={SIDEBAR_CONTRACT.iconSizePx}
-                  color={
-                    active || hasActiveChild ? ACCENT.base : SIDEBAR_SURFACE.iconColor
-                  }
+                  className="text-foreground"
                   strokeWidth={active ? 2 : 1.75}
                 />
               </div>
@@ -275,7 +250,7 @@ export function Sidebar3D() {
                 className="text-[14px] leading-none truncate flex-1 transition-colors"
                 style={{
                   fontWeight: active ? 600 : 500,
-                  color: active ? ACCENT.base : SIDEBAR_SURFACE.labelColor,
+                  color: 'hsl(var(--sidebar-foreground))',
                 }}
               >
                 {item.title}
@@ -312,7 +287,7 @@ export function Sidebar3D() {
               outlineColor: ACCENT.ring,
             };
 
-            const activeBarEl = active && !isCollapsed ? (
+            const activeBarEl = active ? (
               <span aria-hidden style={sidebarActiveBarStyle(ACCENT)} />
             ) : null;
 
@@ -469,23 +444,18 @@ export function Sidebar3D() {
         </nav>
 
         {/* ── Bottom subtle footer ── */}
-        <div
-          className="shrink-0 px-3 py-2.5"
-          style={{ borderTop: `1px solid ${SIDEBAR_SURFACE.divider}` }}
-        >
-          {!isCollapsed ? (
-            <div
-              className="text-[10px] font-medium tracking-wide"
-              style={{ color: "hsl(240 6% 55%)" }}
-            >
-              v2 · Planning
-            </div>
-          ) : (
-            <div
-              className="h-1.5 w-1.5 rounded-full mx-auto"
-              style={{ background: "hsl(var(--primary) / 0.4)" }}
-            />
-          )}
+        <div className="planning-sidebar-footer shrink-0 p-2">
+          <Button
+            variant="ghost"
+            onClick={() => setIsCollapsed(previous => !previous)}
+            className="h-10 w-full justify-center gap-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title={isCollapsed ? "Expandera sidomeny" : "Fäll ihop sidomeny"}
+            aria-label={isCollapsed ? "Expandera sidomeny" : "Fäll ihop sidomeny"}
+            aria-expanded={!isCollapsed}
+          >
+            <ChevronsLeft className={cn("h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none", isCollapsed && "rotate-180")} />
+            {!isCollapsed && <span>Fäll ihop</span>}
+          </Button>
         </div>
       </aside>
 
