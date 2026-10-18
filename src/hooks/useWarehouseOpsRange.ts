@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { computePackingProgress } from "@/lib/packing/progress";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { useWmsChangeSync } from "@/hooks/useWmsChangeSync";
 import { OPS_ACTIVE_NOW_STATUSES, isOpsWindowCandidate, readAllPages, readInChunks } from "@/lib/warehouse/opsRangeWindow";
 import {
   startOfDay,
@@ -143,6 +144,9 @@ function getRange(anchorDate: Date, mode: OpsMode): { start: Date; end: Date } {
 
 export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
   const { organizationId, userId } = useCurrentOrg();
+  // Varaktig deltasynk (ändringsflöde). Fallback till signal+omläsning om flödet saknas.
+  const changeSync = useWmsChangeSync(organizationId, userId);
+  const deltaReady = changeSync.state === "ready";
   // Realtime-signal (debouncad) invaliderar bara denna organisations nycklar.
   // Ingen polling: cachen återanvänds vid återbesök och fokus.
   useRealtimeInvalidation({
@@ -154,18 +158,22 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
     ],
     queryKeys: [["warehouse-ops-range", organizationId || "none"]],
     debounceMs: 2000,
-    pause: () => typeof document !== "undefined" && document.visibilityState === "hidden",
+    pause: () => deltaReady || (typeof document !== "undefined" && document.visibilityState === "hidden"),
   });
-  return useQuery<OpsRangeData>({
+  const query = useQuery<OpsRangeData>({
     queryKey: ["warehouse-ops-range", organizationId || "none", userId || "none", format(anchorDate, "yyyy-MM-dd"), mode],
-    enabled: !!organizationId && !!userId,
-    staleTime: 5 * 60_000,
+    // Vänta tills huvudmarkören lästs, så skrivningar under första hämtningen spelas upp.
+    enabled: !!organizationId && !!userId && changeSync.state !== "unknown",
+    staleTime: deltaReady ? Infinity : 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     retry: 1,
     queryFn: () => fetchOpsRange(organizationId!, anchorDate, mode),
   });
+  // Manuell uppdatering = hämta ändringar, inte hela perioden (när flödet finns).
+  const refetch = (deltaReady ? (() => changeSync.catchUp().then(() => query.refetch({ cancelRefetch: false }).catch(() => query))) : query.refetch) as typeof query.refetch;
+  return { ...query, refetch: deltaReady ? (async () => { await changeSync.catchUp(); return query; }) as unknown as typeof query.refetch : refetch, syncState: changeSync.state };
 }
 
 /**
