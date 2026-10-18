@@ -28,7 +28,7 @@ Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — 
 ## Mobila barer (Time, Scanner, WMS-mobil, Brain-appen)
 
 - Topp- och bottenbarer i mobila skal är samma svarta bar som HUB:s globala modulbar: solid nära-svart `hsl(210 6% 8%)`, ingen gradient, ingen blur, ingen egen teal-topp.
-- Aktiva ikoner/etiketter: vitt `#FFFFFF`. Inaktiva: ljusgrå `hsl(215 10% 72%)` med bibehållen läsbarhet (≥ 4.5:1 på svart).
+- Aktiva etiketter: vitt `#FFFFFF`. Aktiv ikon och indikator: exakt teal `#1F747A` (endast grafik, inte liten text på svart). Inaktiva: ljusgrå `hsl(215 10% 72%)` med bibehållen läsbarhet (≥ 4.5:1 på svart).
 - Innehåll och formulärfält förblir vita; varnings-/statusfärger (t.ex. oläst-badge) och dark mode bevaras.
 - Delade tokens: `src/lib/layout/mobileBars.ts` (`MOBILE_BAR`, `mobileTopBarStyle`, `mobileBottomBarStyle`) — låst av `src/__tests__/mobileBars.test.ts`.
 
@@ -46,4 +46,4 @@ Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — 
 
 ## Utrullning
 
-Stegvis i uttryckligen begärd modul: Sales är påbörjad; Operations/Planning är godkänd batch. Att spara denna standard är inte ett uppdrag att samtidigt ändra alla andra moduler.
+Billy har uttryckligen godkänt utrullning i alla interna EventFlow-moduler, inklusive Time, Scanner och Brain-appen. Implementera gemensamma tokens och komponenter i respektive kanoniskt Git-repo. Lovable behövs endast för preview eller publicering när det är relevant. En webbpublicering uppdaterar inte en redan installerad app med bundlad webbversion; den kräver ett nytt native-bygge. Ändra inte Time-produktionsappens aktivering eller datakälla i en designbatch.

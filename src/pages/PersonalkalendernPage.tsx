@@ -66,7 +66,7 @@ const PersonalkalendernInner: React.FC = () => {
     <TooltipProvider>
       <div className="h-dvh overflow-hidden bg-background flex flex-col">
         {/* Header */}
-        <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-30">
+        <header className="shrink-0 border-b border-border bg-card sticky top-0 z-30">
           <div className="px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-2 mr-2">
               <CalendarIcon className="h-5 w-5 text-primary" />
@@ -111,7 +111,7 @@ const PersonalkalendernInner: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/projects')}
-            className="mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors px-3 py-2 text-left"
+            className="shrink-0 mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors px-3 py-2 text-left"
           >
             <Inbox className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-medium text-foreground">
@@ -123,7 +123,7 @@ const PersonalkalendernInner: React.FC = () => {
 
         {/* Hämtningsfel ska ALDRIG förväxlas med "inga bokningar denna vecka" */}
         {loadError && (
-          <div className="mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+          <div className="shrink-0 mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
             <span className="text-sm text-foreground">
               Kalendern kunde inte laddas — visad vy kan vara ofullständig. ({loadError})

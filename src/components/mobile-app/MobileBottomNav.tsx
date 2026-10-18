@@ -91,6 +91,7 @@ const MobileBottomNav = () => {
                 style={active ? { background: MOBILE_BAR.activeTint } : undefined}
               >
                 <tab.icon
+                  color={active ? MOBILE_BAR.activeMarker : MOBILE_BAR.inactive}
                   className={cn(
                     "w-[22px] h-[22px] transition-all",
                     active ? "stroke-[2.25]" : "stroke-[1.75]"
