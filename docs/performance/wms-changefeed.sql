@@ -1,4 +1,4 @@
--- SUPERSEDED: applied (corrected) version lives in supabase/migrations/20261018225802_f43039a2-eaa6-4a33-abfb-a8877aa1076b.sql, 20261018225911_da1c6dd7-ad94-4379-98c5-b4b0fac13872.sql and 20261018230103_654b4911-850c-49c6-adf9-2dcfc1e8f5d0.sql (allocation writer). Retention cron: wms-prune-changes-daily.
+-- SUPERSEDED: applied (corrected) version lives in supabase/migrations/20261018225802_f43039a2-eaa6-4a33-abfb-a8877aa1076b.sql, 20261018225911_da1c6dd7-ad94-4379-98c5-b4b0fac13872.sql and 20261018230103_654b4911-850c-49c6-adf9-2dcfc1e8f5d0.sql (allocation writer), 20261018230756_ec8102f8-4586-458f-a1d5-b6deda52f078.sql (safe pruning). Retention cron: wms-prune-changes-daily.
 -- Kept for history only; do not apply.
 -- Additive only: new tables, triggers, one invoker RPC. No business rows touched.
 
