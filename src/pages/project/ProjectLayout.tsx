@@ -266,7 +266,7 @@ const ProjectLayout = () => {
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header — mirrors LargeProjectLayout */}
         <div
-          className="px-6 py-5 rounded-2xl text-white mb-5"
+          className="operations-card-surface px-6 py-5 rounded-lg border border-border bg-card text-foreground mb-5"
           style={{ background: "var(--gradient-planner)", boxShadow: "var(--shadow-planner)" }}
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -275,24 +275,24 @@ const ProjectLayout = () => {
                 variant="ghost"
                 size="icon"
                 onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/projects"))}
-                className="rounded-lg h-8 w-8 -ml-1 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                className="rounded-lg h-8 w-8 -ml-1 text-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Tillbaka"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary-foreground/15 shrink-0">
-                <FolderKanban className="text-primary-foreground" style={{ width: 18, height: 18 }} />
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-muted shrink-0">
+                <FolderKanban className="text-foreground" style={{ width: 18, height: 18 }} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1
-                    className="text-xl font-bold tracking-tight leading-none text-primary-foreground"
+                    className="text-xl font-bold tracking-tight leading-none text-foreground"
                   >
                     {project.name}
                   </h1>
-                  <Badge variant="outline" className="border-primary-foreground/30 text-primary-foreground text-xs">Enskild bokning</Badge>
+                  <Badge variant="outline" className="border-border text-foreground text-xs">Enskild bokning</Badge>
                 </div>
-                <div className="text-xs text-primary-foreground/75 flex items-center gap-1.5 mt-1 leading-none">
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none">
                   {isEditingSubtitle ? (
                     <Input
                       ref={subtitleInputRef}
@@ -312,7 +312,7 @@ const ProjectLayout = () => {
                       onClick={handleStartEditSubtitle}
                       className={cn(
                         "hover:text-foreground transition-colors text-left truncate max-w-[400px] inline-flex items-center gap-1 group",
-                        !((project as any).description) && "italic text-primary-foreground/65"
+                        !((project as any).description) && "italic text-muted-foreground"
                       )}
                       title="Klicka för att ändra rubrik"
                     >
@@ -322,7 +322,7 @@ const ProjectLayout = () => {
                   )}
                 </div>
                 {booking && (
-                  <div className="text-xs text-primary-foreground/75 flex items-center gap-1.5 mt-0.5 leading-none">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
                     <span>{booking.client}</span>
                     <span>·</span>
                     <span>{booking.booking_number || booking.id}</span>
@@ -348,7 +348,7 @@ const ProjectLayout = () => {
           </div>
 
           {/* Datumkort i headern — samma layout som stora projekt */}
-          <div className="mt-4 pt-4 border-t border-primary-foreground/25">
+          <div className="mt-4 pt-4 border-t border-border">
             <LargeProjectScheduleEditable
               startDates={rigDate ? [rigDate] : []}
               eventDates={eventDate ? [eventDate] : []}
