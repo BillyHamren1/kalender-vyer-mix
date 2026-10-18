@@ -339,7 +339,7 @@ const WarehouseWorkCalendar: React.FC<Props> = ({
         eventDurationEditable
         eventStartEditable
         slotEventOverlap={false}
-        eventMaxStack={viewMode === 'weekly' ? 3 : 8}
+        eventMaxStack={viewMode === 'weekly' ? 2 : 8}
         moreLinkText={(count) => `+${count} fler jobb`}
         moreLinkContent={(info) => <span title={`Visa ${info.num} fler jobb`}>+{info.num}<span className="warehouse-more-caption"> jobb</span></span>}
         eventDrop={handleDrop}
