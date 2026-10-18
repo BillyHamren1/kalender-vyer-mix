@@ -1,8 +1,10 @@
 /* ================================================================
    EventFlow module accents — canonical HUB palette
    ================================================================
-   Planning  #7357C8 (base) / HUB text variant for small labels
-   Lager     #C77922 (base) / #9A5715 (dark text/action)
+   Design standard 2026-10-18: ONE shared accent in all modules —
+   teal #1F747A (base) / deep teal #156065 (darker states).
+   Module identification happens via name, consistent line icons and
+   active navigation marking — never via per-module colours.
 
    Scope is route/context aware: `data-module` is set on <html> by
    src/hooks/useModuleTheme.ts. Only MODULE IDENTITY tokens are
@@ -11,36 +13,36 @@
    ================================================================ */
 
 :root {
-  --module-accent: 254.867 50.673% 56.275%;
-  --module-accent-base: 254.867 50.673% 56.275%;
-  --module-accent-dark: 255.897 47.368% 51.569%;
-  --module-accent-soft: 255 50% 95%;
-  --module-accent-border: 255 35% 84%;
+  --module-accent: 184 59% 30%;
+  --module-accent-base: 184 59% 30%;
+  --module-accent-dark: 184 66% 24%;
+  --module-accent-soft: 184 45% 94%;
+  --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
 }
 
 html[data-module='planning'],
 .theme-purple {
-  /* Identity controls are violet; headings/surfaces and default actions stay neutral. */
-  --planning-selection: 254.867 50.673% 56.275%; /* #7357C8 */
-  --planning-selection-deep: 255.897 47.368% 51.569%; /* #6849BE */
+  /* Identity controls are teal; headings/surfaces and default actions stay neutral. */
+  --planning-selection: 184 59% 30%; /* #1F747A */
+  --planning-selection-deep: 184 66% 24%; /* #156065 */
   --planning-selection-foreground: 0 0% 100%;
   --planning-selection-soft: hsl(var(--planning-selection) / 0.07);
-  --planning-selection-hover: 255 60% 96%;
+  --planning-selection-hover: 184 40% 96%;
   --gradient-planning-selection: linear-gradient(180deg, hsl(var(--planning-selection)), hsl(var(--planning-selection-deep)));
   --shadow-planning-selection: inset 0 1px 0 hsl(var(--planning-selection-foreground) / 0.18), 0 2px 6px hsl(var(--planning-selection-deep) / 0.28);
-  --module-accent: 254.867 50.673% 56.275%;
-  --module-accent-base: 254.867 50.673% 56.275%;
-  --module-accent-dark: 255.897 47.368% 51.569%;
-  --module-accent-soft: 255 60% 96%;
-  --module-accent-border: 255 35% 84%;
+  --module-accent: 184 59% 30%;
+  --module-accent-base: 184 59% 30%;
+  --module-accent-dark: 184 66% 24%;
+  --module-accent-soft: 184 45% 94%;
+  --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
   --primary: var(--action);
   --primary-hover: var(--action-hover);
   --primary-dark: var(--action-end);
   --primary-soft: var(--muted);
   --primary-soft-foreground: var(--foreground);
-  --ring: 217 23% 42%;
+  --ring: 184 59% 30%;
   --sidebar-primary: var(--foreground);
   --sidebar-accent: var(--muted);
   --sidebar-accent-foreground: var(--foreground);
@@ -50,14 +52,14 @@ html[data-module='planning'],
 }
 
 html[data-module='warehouse'] {
-  --module-accent: 32 71% 46%;         /* #C77922 */
-  --module-accent-base: 32 71% 46%;
-  --module-accent-dark: 30 76% 34%;    /* #9A5715 */
-  --module-accent-soft: 32 80% 96%;
-  --module-accent-border: 32 55% 84%;
+  --module-accent: 184 59% 30%;         /* #1F747A — shared teal accent */
+  --module-accent-base: 184 59% 30%;
+  --module-accent-dark: 184 66% 24%;    /* #156065 */
+  --module-accent-soft: 184 45% 94%;
+  --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
 
-  /* Default actions keep the shared deep petrol; the amber module accent is
+  /* Default actions keep the shared deep petrol; the teal module accent is
      reserved for active tabs, active rows and statuses. */
   --primary: var(--action);
   --primary-hover: var(--action-hover);
@@ -71,19 +73,19 @@ html[data-module='warehouse'] {
   --sidebar-accent-foreground: var(--module-accent-dark);
   --sidebar-ring: var(--module-accent);
 
-  /* Warm orange warehouse family aligned to the canonical HUB values. */
-  --warehouse: 32 71% 46%;
-  --warehouse-hover: 30 76% 34%;
-  --warehouse-dark: 30 76% 34%;
-  --warehouse-muted: 32 80% 92%;
-  --warehouse-accent: 32 71% 46%;
+  /* Warehouse family aligned to the shared teal accent. */
+  --warehouse: 184 59% 30%;
+  --warehouse-hover: 184 66% 24%;
+  --warehouse-dark: 184 66% 24%;
+  --warehouse-muted: 184 45% 92%;
+  --warehouse-accent: 184 59% 30%;
 }
 
-/* Warehouse selected controls: filled canonical warm amber (#C77922) with white text. */
+/* Warehouse selected controls: filled shared teal (#1F747A) with white text. */
 html[data-module='warehouse'] {
-  --warehouse-selection: 32 71% 46%;
-  --warehouse-selection-deep: 30 76% 34%;
-  --warehouse-selection-hover: 36 85% 95%;
+  --warehouse-selection: 184 59% 30%;
+  --warehouse-selection-deep: 184 66% 24%;
+  --warehouse-selection-hover: 184 40% 96%;
   --border: 214 32% 91%;
 }
 html[data-module='warehouse'] [role='tablist'] [data-state='active'],
