@@ -74,4 +74,17 @@ describe('exact EventFlow colours resolve to the specified RGB', () => {
     expect(read('src/components/Sidebar3D.tsx')).toMatch(/title: "Översikt",\s*url: "\/projects"/);
     expect(read('src/components/WarehouseSidebar3D.tsx')).toContain('{ title: "Översikt", url: "/warehouse"');
   });
+
+  it('menu labels/icons are neutral tokens; mobile navs keep visible keyboard focus', async () => {
+    const { SIDEBAR_SURFACE } = await import('@/lib/layout/sidebarContract');
+    expect(SIDEBAR_SURFACE.labelColor).toBe('hsl(var(--sidebar-foreground))');
+    expect(SIDEBAR_SURFACE.iconColor).toBe('hsl(var(--sidebar-foreground))');
+    expect(hslToHex(token(index, '--sidebar-foreground'))).toBe('#202223');
+    expect(read('src/components/WarehouseSidebar3D.tsx')).not.toContain('color: active ? ACCENT : SIDEBAR_SURFACE.labelColor');
+    for (const f of ['src/components/mobile-app/MobileBottomNav.tsx', 'src/components/WarehouseSidebar3D.tsx']) {
+      const src = read(f);
+      expect(src, f).not.toContain('focus-visible:outline-none');
+      expect(src, f).toContain('focus-visible:ring-2');
+    }
+  });
 });
