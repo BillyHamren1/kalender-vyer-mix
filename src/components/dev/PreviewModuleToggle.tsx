@@ -23,8 +23,8 @@ const isPreviewHost = (): boolean => {
   );
 };
 
-const PLANNING_PURPLE = '#7357C8';
-const WAREHOUSE_ORANGE = '#C77922';
+const PLANNING_TEAL = '#1F747A';
+const WAREHOUSE_TEAL = '#1F747A';
 
 const PreviewModuleToggle: React.FC = () => {
   const navigate = useNavigate();
@@ -68,9 +68,9 @@ const PreviewModuleToggle: React.FC = () => {
         onClick={() => navigate('/projects')}
         style={{
           ...baseStyle,
-          background: !isWarehouse ? PLANNING_PURPLE : baseStyle.background,
-          color: !isWarehouse ? '#fff' : PLANNING_PURPLE,
-          borderColor: !isWarehouse ? PLANNING_PURPLE : baseStyle.border as string,
+          background: !isWarehouse ? PLANNING_TEAL : baseStyle.background,
+          color: !isWarehouse ? '#fff' : PLANNING_TEAL,
+          borderColor: !isWarehouse ? PLANNING_TEAL : baseStyle.border as string,
         }}
       >
         Planning
@@ -80,9 +80,9 @@ const PreviewModuleToggle: React.FC = () => {
         onClick={() => navigate('/warehouse')}
         style={{
           ...baseStyle,
-          background: isWarehouse ? WAREHOUSE_ORANGE : baseStyle.background,
-          color: isWarehouse ? '#fff' : WAREHOUSE_ORANGE,
-          borderColor: isWarehouse ? WAREHOUSE_ORANGE : baseStyle.border as string,
+          background: isWarehouse ? WAREHOUSE_TEAL : baseStyle.background,
+          color: isWarehouse ? '#fff' : WAREHOUSE_TEAL,
+          borderColor: isWarehouse ? WAREHOUSE_TEAL : baseStyle.border as string,
         }}
       >
         Lager

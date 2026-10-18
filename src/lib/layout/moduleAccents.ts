@@ -1,8 +1,10 @@
 /**
  * Canonical EventFlow module palette (owned by EventFlow HUB).
  *
- * Planning (internal key: planning)  base #7357C8 / deep #6849BE
- * Lager     base #C77922 / dark #9A5715
+ * Design standard 2026-10-18: ONE shared accent in all modules —
+ * teal #1F747A (base) / deep teal #156065 (darker states).
+ * Module identification happens via name, consistent line icons and
+ * active navigation marking — never via per-module colours.
  *
  * These values control MODULE IDENTITY only — active navigation, brand/icon,
  * focus ring and the primary module action. Neutral surfaces and semantic
@@ -31,27 +33,20 @@ export interface ModulePalette {
   ring: string;
 }
 
+const SHARED_TEAL: ModulePalette = {
+  baseHex: '#1F747A',
+  darkHex: '#156065',
+  base: 'hsl(184 59% 30%)',
+  dark: 'hsl(184 66% 24%)',
+  soft: 'hsl(184 45% 94%)',
+  border: 'hsl(184 30% 82%)',
+  hover: 'hsl(184 40% 96%)',
+  ring: 'hsl(184 59% 30%)',
+};
+
 export const MODULE_PALETTE: Record<ModuleKey, ModulePalette> = {
-  planning: {
-    baseHex: '#7357C8',
-    darkHex: '#6849BE',
-    base: 'hsl(254.867 50.673% 56.275%)',
-    dark: 'hsl(255.897 47.368% 51.569%)',
-    soft: 'hsl(255 50% 95%)',
-    border: 'hsl(255 35% 84%)',
-    hover: 'hsl(255 42% 97%)',
-    ring: 'hsl(254.867 50.673% 56.275%)',
-  },
-  warehouse: {
-    baseHex: '#C77922',
-    darkHex: '#9A5715',
-    base: 'hsl(32 71% 46%)',
-    dark: 'hsl(30 76% 34%)',
-    soft: 'hsl(32 80% 96%)',
-    border: 'hsl(32 55% 84%)',
-    hover: 'hsl(32 70% 97%)',
-    ring: 'hsl(32 71% 46%)',
-  },
+  planning: SHARED_TEAL,
+  warehouse: SHARED_TEAL,
 };
 
 /**

@@ -49,9 +49,9 @@
     --accent: 200 14% 93%;
     --accent-foreground: 184 25% 12%;
 
-    /* === TEXT === */
-    --foreground: 184 35% 16%;          /* Mörkare teal-text */
-    --heading: 184 25% 12%;
+    /* === TEXT (standard 2026-10-18: rubriker #173436, brödtext #244042) === */
+    --foreground: 187 31% 20%;          /* #244042 */
+    --heading: 185 40% 15%;             /* #173436 */
     --card: 0 0% 100%;
     --card-foreground: 184 35% 16%;
     --muted: 200 14% 93%;
