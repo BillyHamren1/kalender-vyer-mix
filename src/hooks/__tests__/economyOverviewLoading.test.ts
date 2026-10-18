@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   bookingCount: 401,
   datesError: null as Error | null,
 }));
-const economy = vi.hoisted(() => vi.fn(async () => ({})));
+const economy = vi.hoisted(() => vi.fn(async (_bookingIds: string[]) => ({})));
 vi.mock('@tanstack/react-query', () => ({ useQuery: (options: unknown) => options }));
 vi.mock('../useCurrentOrg', () => ({ useCurrentOrg: () => ({ organizationId: state.org }) }));
 vi.mock('@/services/planningApiService', () => ({ fetchAllEconomyDataMulti: economy }));
