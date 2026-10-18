@@ -64,7 +64,7 @@ interface NavItem {
 
 export const baseNavigationItems: NavItem[] = [
   {
-    title: "Dashboard",
+    title: "Översikt",
     url: "/projects",
     icon: LayoutDashboard,
   },

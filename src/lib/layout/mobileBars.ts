@@ -23,6 +23,12 @@ export const MOBILE_BAR = {
   inactive: 'hsl(215 10% 72%)',
   /** Soft white tint behind the active icon. */
   activeTint: 'hsl(0 0% 100% / 0.12)',
+  /**
+   * Active marker — exact shared teal #1F747A. Only used as a non-text
+   * indicator (≈3.8:1 on the black bar, above the 3:1 non-text minimum);
+   * labels stay white/light grey so small text is never teal on black.
+   */
+  activeMarker: '#1F747A',
 } as const;
 
 /** Shared bottom-bar container style (solid black, hairline top divider). */

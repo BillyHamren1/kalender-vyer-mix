@@ -13,9 +13,9 @@
    ================================================================ */
 
 :root {
-  --module-accent: 184 59% 30%;
-  --module-accent-base: 184 59% 30%;
-  --module-accent-dark: 184 66% 24%;
+  --module-accent: 183.956 59.4771% 30%;
+  --module-accent-base: 183.956 59.4771% 30%;
+  --module-accent-dark: 183.75 65.5738% 23.9216%;
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
@@ -24,16 +24,16 @@
 html[data-module='planning'],
 .theme-purple {
   /* Identity controls are teal; headings/surfaces and default actions stay neutral. */
-  --planning-selection: 184 59% 30%; /* #1F747A */
-  --planning-selection-deep: 184 66% 24%; /* #156065 */
+  --planning-selection: 183.956 59.4771% 30%; /* #1F747A */
+  --planning-selection-deep: 183.75 65.5738% 23.9216%; /* #156065 */
   --planning-selection-foreground: 0 0% 100%;
   --planning-selection-soft: hsl(var(--planning-selection) / 0.07);
   --planning-selection-hover: 184 40% 96%;
   --gradient-planning-selection: linear-gradient(180deg, hsl(var(--planning-selection)), hsl(var(--planning-selection-deep)));
   --shadow-planning-selection: inset 0 1px 0 hsl(var(--planning-selection-foreground) / 0.18), 0 2px 6px hsl(var(--planning-selection-deep) / 0.28);
-  --module-accent: 184 59% 30%;
-  --module-accent-base: 184 59% 30%;
-  --module-accent-dark: 184 66% 24%;
+  --module-accent: 183.956 59.4771% 30%;
+  --module-accent-base: 183.956 59.4771% 30%;
+  --module-accent-dark: 183.75 65.5738% 23.9216%;
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
@@ -42,7 +42,7 @@ html[data-module='planning'],
   --primary-dark: var(--action-end);
   --primary-soft: var(--muted);
   --primary-soft-foreground: var(--foreground);
-  --ring: 184 59% 30%;
+  --ring: 183.956 59.4771% 30%;
   --sidebar-primary: var(--foreground);
   --sidebar-accent: var(--muted);
   --sidebar-accent-foreground: var(--foreground);
@@ -52,9 +52,9 @@ html[data-module='planning'],
 }
 
 html[data-module='warehouse'] {
-  --module-accent: 184 59% 30%;         /* #1F747A — shared teal accent */
-  --module-accent-base: 184 59% 30%;
-  --module-accent-dark: 184 66% 24%;    /* #156065 */
+  --module-accent: 183.956 59.4771% 30%;         /* #1F747A — shared teal accent */
+  --module-accent-base: 183.956 59.4771% 30%;
+  --module-accent-dark: 183.75 65.5738% 23.9216%;    /* #156065 */
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
@@ -74,17 +74,17 @@ html[data-module='warehouse'] {
   --sidebar-ring: var(--module-accent);
 
   /* Warehouse family aligned to the shared teal accent. */
-  --warehouse: 184 59% 30%;
-  --warehouse-hover: 184 66% 24%;
-  --warehouse-dark: 184 66% 24%;
+  --warehouse: 183.956 59.4771% 30%;
+  --warehouse-hover: 183.75 65.5738% 23.9216%;
+  --warehouse-dark: 183.75 65.5738% 23.9216%;
   --warehouse-muted: 184 45% 92%;
-  --warehouse-accent: 184 59% 30%;
+  --warehouse-accent: 183.956 59.4771% 30%;
 }
 
 /* Warehouse selected controls: filled shared teal (#1F747A) with white text. */
 html[data-module='warehouse'] {
-  --warehouse-selection: 184 59% 30%;
-  --warehouse-selection-deep: 184 66% 24%;
+  --warehouse-selection: 183.956 59.4771% 30%;
+  --warehouse-selection-deep: 183.75 65.5738% 23.9216%;
   --warehouse-selection-hover: 184 40% 96%;
   --border: 214 32% 91%;
 }

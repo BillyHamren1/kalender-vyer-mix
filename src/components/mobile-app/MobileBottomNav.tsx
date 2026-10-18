@@ -71,12 +71,21 @@ const MobileBottomNav = () => {
               onTouchStart={tab.path === '/m/overview' ? prefetchOverview : undefined}
               className={cn(
                 "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none focus:outline-none focus-visible:outline-none",
-                active ? "text-primary" : "text-muted-foreground/70 active:text-foreground"
+                active ? "font-semibold" : ""
               )}
               style={{
                 color: active ? MOBILE_BAR.active : MOBILE_BAR.inactive,
               }}
+              aria-current={active ? 'page' : undefined}
             >
+              {active && (
+                <span
+                  aria-hidden="true"
+                  data-mobile-active-marker
+                  className="absolute top-0 left-1/2 -translate-x-1/2 h-[3px] w-8 rounded-b-full"
+                  style={{ background: MOBILE_BAR.activeMarker }}
+                />
+              )}
               <div
                 className="relative flex items-center justify-center w-12 h-8 rounded-full transition-all duration-200"
                 style={active ? { background: MOBILE_BAR.activeTint } : undefined}
