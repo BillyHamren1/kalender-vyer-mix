@@ -4,7 +4,7 @@ import { authorizeHubActor, logActorDenial } from './hub-actor.ts'
 export const MESSAGE_MEMBER_ROLES = ['admin', 'forsaljning', 'projekt', 'lager'] as const
 /** Shared messaging identity, cursor and retry rules. No authentication is inferred from input. */
 export const MESSAGE_SCHEMA = 'eventflow.internal-messages.v1'
-export const MESSAGE_ACTIONS = ['get_contacts', 'get_dm_inbox_grouped', 'get_dm_thread', 'get_unread_dm_count', 'send_direct_message', 'mark_dm_read', 'archive_dm', 'get_job_messages', 'send_job_message', 'mark_job_read'] as const
+export const MESSAGE_ACTIONS = ['get_contacts', 'get_dm_inbox_grouped', 'get_dm_thread', 'get_unread_dm_count', 'send_direct_message', 'mark_dm_read', 'archive_dm', 'get_job_messages', 'send_job_message', 'mark_job_read', 'register_push_token', 'unregister_push_token'] as const
 export const safeMessageId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
 export const validRequestId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 

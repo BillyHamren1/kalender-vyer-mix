@@ -25,6 +25,7 @@ export const MESSAGING_QUALITY_GATE = {
    */
   frontend: [
     'src/test/internalJobMessages.contract.test.ts',
+    'src/test/pushTokenRegistration.contract.test.ts',
     // Samlad produktnivå-svit (DM, job chat, broadcasts, inbox-totaler,
     // attachments, contacts/identities). Primär kontraktssvit.
     'src/test/messagingProduct.contract.test.ts',
