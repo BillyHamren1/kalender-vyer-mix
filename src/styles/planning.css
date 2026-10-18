@@ -14,9 +14,10 @@
 
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
-  /* Actions and text are independent of the 2A identity. */
-  --foreground: 217 33% 18%;
-  --heading: var(--foreground);
+  /* Actions and text are independent of the module identity.
+     Standard 2026-10-18: rubriker #173436, brödtext #244042. */
+  --foreground: 187 31% 20%; /* #244042 */
+  --heading: 185 40% 15%; /* #173436 */
   --card-foreground: var(--foreground);
   --primary: var(--action);
   --primary-foreground: var(--action-foreground);
@@ -34,10 +35,10 @@
   --gradient-page: hsl(200 20% 94.1176%);
   --gradient-teal-bg: hsl(200 20% 94.1176%);
 
-  /* Accent / hover / focus-ring — lila */
+  /* Accent / hover / focus-ring — delad teal */
   --accent: 210 24% 94%;
   --accent-foreground: var(--foreground);
-  --ring: 217 23% 42%;
+  --ring: 184 59% 30%;
   --muted-foreground: 240 6% 42%;
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
@@ -247,14 +248,14 @@ html[data-module='planning'] .theme-purple .rounded-xl.border.bg-card {
     inset 0 1px 0 hsl(0 0% 100% / 0.22);
 }
 
-/* 2A identity: dark metallic chassis, luminous module glyph, restrained aura. */
+/* Module identity tile: dark neutral chassis, luminous shared teal glyph. */
 :root {
-  --cube-chassis-top: 255 18% 22%;
-  --cube-chassis-bottom: 252 24% 8%;
-  --cube-edge: 255 18% 32%;
-  --cube-glyph: 270 95% 75%; /* #C084FC */
-  --cube-glyph-vivid: 271 91% 65%; /* #A855F7 */
-  --cube-glyph-deep: 271 81% 56%; /* #9333EA */
+  --cube-chassis-top: 200 14% 20%;
+  --cube-chassis-bottom: 200 18% 8%;
+  --cube-edge: 200 12% 30%;
+  --cube-glyph: 184 55% 68%; /* ljus teal-glöd */
+  --cube-glyph-vivid: 184 59% 30%; /* #1F747A */
+  --cube-glyph-deep: 184 66% 24%; /* #156065 */
   --cube-highlight: 0 0% 100%;
   --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.07), 0 3px 7px hsl(222 47% 11% / 0.04);
   --cube-shadow: 0 2px 0 hsl(var(--cube-chassis-bottom)), 0 5px 16px hsl(var(--cube-glyph-vivid) / 0.30), inset 0 1px 0 hsl(var(--cube-highlight) / 0.22);
