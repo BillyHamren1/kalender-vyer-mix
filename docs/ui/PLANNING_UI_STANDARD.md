@@ -2,7 +2,7 @@
 
 Status: BINDANDE
 Canonical platform owner: EventFlow HUB
-Module accent: #7357C8 (base), #6849BE (dark text/action)
+Module accent: shared teal #1F747A (base), #156065 (dark text/action) — standard 2026-10-18
 
 ## Mandatory platform foundation
 - Brand mark: #4AA0B5
@@ -20,7 +20,7 @@ Module accent: #7357C8 (base), #6849BE (dark text/action)
 - Loading, empty, error, offline/stale and disabled states must be explicit and honest
 
 ## Module-specific rule
-Planning uses the canonical HUB violet family only as module identity: active navigation, module icon/brand, focus/ring and the primary module action. Base #7357C8, dark text/action #6849BE. Teal must not be used as a local fallback for Planning identity. Its sidebar must be 264 px, not a locally invented width. Calendars and project workspaces use the full available canvas. Purple must not replace semantic warning, success or error colors. Planning remains the owner of desktop Time administration.
+Planning uses the shared HUB teal family only as module identity: active navigation, module icon/brand, focus/ring and the primary module action. Base #1F747A, dark text/action #156065. Per-module colours (violet/orange) must not be used as local fallbacks — one shared accent in all modules. Its sidebar must be 264 px, not a locally invented width. Calendars and project workspaces use the full available canvas. The teal accent must not replace semantic warning, success or error colors. Planning remains the owner of desktop Time administration.
 
 ## Implementation order
 1. Align tokens without changing behavior.
