@@ -1,9 +1,9 @@
 /**
  * Canonical EventFlow sidebar contract.
  *
- * These values are LOCKED by src/__tests__/sidebarContract.test.ts so the
- * module sidebar always lines up with the EventFlow HUB topbar brand column
- * (264px) and forms one continuous L-shaped shell.
+ * These values are LOCKED by src/__tests__/sidebarContract.test.ts so every
+ * module sidebar follows the EventFlow design standard 2026-10-18
+ * (240px expanded / 64px collapsed / 44px rows, white surface).
  *
  * Only visual/layout tokens live here — no navigation, auth or business logic.
  */
