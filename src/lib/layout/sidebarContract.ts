@@ -11,12 +11,12 @@
 import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
 
 export const SIDEBAR_CONTRACT = {
-  /** Desktop sidebar width — must match HUB brand column exactly. */
-  widthPx: 264,
-  /** Icon-only (collapsed) width — existing behaviour preserved. */
-  collapsedWidthPx: 60,
-  /** Standard menu row height. */
-  rowHeightPx: 40,
+  /** Desktop sidebar width — design standard 2026-10-18 (240px expanded). */
+  widthPx: 240,
+  /** Icon-only (collapsed) width — design standard 2026-10-18 (64px). */
+  collapsedWidthPx: 64,
+  /** Standard menu row height — design standard 2026-10-18 (44px). */
+  rowHeightPx: 44,
   /** Outline icon size. */
   iconSizePx: 18,
   /** Section heading typography. */
