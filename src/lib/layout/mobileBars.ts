@@ -19,16 +19,25 @@ export const MOBILE_BAR = {
   divider: 'hsl(0 0% 100% / 0.10)',
   /** Active label — pure white for readable small text on black. */
   active: 'hsl(0 0% 100%)',
-  /** Inactive icon/label — light gray, still readable on black (>= 4.5:1). */
-  inactive: 'hsl(215 10% 72%)',
+  /**
+   * Inactive icon/label — crisp near-white on black (≈14:1), matching the
+   * HUB top bar fix (commit abab70a) so inactive items stay readable.
+   */
+  inactive: 'hsl(210 10% 88%)',
   /** Soft white tint behind the active icon. */
   activeTint: 'hsl(0 0% 100% / 0.12)',
   /**
-   * Active marker — exact shared teal #1F747A. Only used as a non-text
-   * indicator (≈3.8:1 on the black bar, above the 3:1 non-text minimum);
-   * labels stay white/light grey so small text is never teal on black.
+   * Bright teal for dark surfaces (HUB --ef-teal-bright, 184 55% 55% ≈
+   * #4DC3CB). ≈9:1 on the black bar — icons, buttons and the active
+   * indicator stay visible instead of disappearing like the base teal
+   * #1F747A (≈3.8:1) did. Light-canvas surfaces keep the base teal.
    */
-  activeMarker: '#1F747A',
+  bright: '#4DC3CB',
+  /**
+   * Active marker/indicator on the black bar — the bright teal variant.
+   * Labels stay white/near-white so small text is never teal on black.
+    */
+  activeMarker: '#4DC3CB',
 } as const;
 
 /** Shared bottom-bar container style (solid black, hairline top divider). */

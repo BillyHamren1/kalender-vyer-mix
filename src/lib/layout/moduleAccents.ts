@@ -20,6 +20,8 @@ export interface ModulePalette {
   baseHex: string;
   /** Canonical HUB hex — dark text/action variant. */
   darkHex: string;
+  /** Bright teal for dark surfaces (HUB --ef-teal-bright, ≈9:1 on black). */
+  brightHex: string;
   /** Same colours expressed as CSS hsl() for token usage. */
   base: string;
   dark: string;
@@ -36,6 +38,7 @@ export interface ModulePalette {
 const SHARED_TEAL: ModulePalette = {
   baseHex: '#1F747A',
   darkHex: '#156065',
+  brightHex: '#4DC3CB',
   base: 'hsl(183.956 59.4771% 30%)',
   dark: 'hsl(183.75 65.5738% 23.9216%)',
   soft: 'hsl(184 45% 94%)',

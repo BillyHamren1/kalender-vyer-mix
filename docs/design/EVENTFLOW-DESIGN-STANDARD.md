@@ -28,7 +28,8 @@ Status: BINDANDE för ALLA EventFlow-produktens interna moduler och appytor — 
 ## Mobila barer (Time, Scanner, WMS-mobil, Brain-appen)
 
 - Topp- och bottenbarer i mobila skal är samma svarta bar som HUB:s globala modulbar: solid nära-svart `hsl(210 6% 8%)`, ingen gradient, ingen blur, ingen egen teal-topp.
-- Aktiva etiketter: vitt `#FFFFFF`. Aktiv ikon och indikator: exakt teal `#1F747A` (endast grafik, inte liten text på svart). Inaktiva: ljusgrå `hsl(215 10% 72%)` med bibehållen läsbarhet (≥ 4.5:1 på svart).
+- Aktiva etiketter: vitt `#FFFFFF`. Aktiv ikon och indikator: ljusare teal `#4DC3CB` (`hsl(184 55% 55%)`, HUB `--ef-teal-bright` / `--module-bright`) — bastealen `#1F747A` når bara ≈3,8:1 på svart och försvinner; den ljusare varianten når ≈9:1 (HUB-rättning abab70a). Teal används endast som grafik/indikator på svart, aldrig liten text. Inaktiva: krispigt nära-vitt `hsl(210 10% 88%)` (HUB `--ef-topbar-muted`, ≈14:1 på svart).
+- Ljusa ytor påverkas inte: primärknappar och element på ljus canvas behåller bastealen `#1F747A` / `#156065` och formulärfälten förblir helvita `#FFFFFF`.
 - Innehåll och formulärfält förblir vita; varnings-/statusfärger (t.ex. oläst-badge) och dark mode bevaras.
 - Delade tokens: `src/lib/layout/mobileBars.ts` (`MOBILE_BAR`, `mobileTopBarStyle`, `mobileBottomBarStyle`) — låst av `src/__tests__/mobileBars.test.ts`.
 

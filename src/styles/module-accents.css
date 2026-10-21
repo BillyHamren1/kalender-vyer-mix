@@ -19,6 +19,13 @@
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
+  /* HUB dark-surface fix (commit abab70a): brighter teal for icons,
+     buttons and active indicators on black/dark surfaces so they reach
+     well above the 3:1 non-text minimum instead of disappearing. */
+  --module-bright: 184 55% 55%;        /* ≈ #4DC3CB, ≈9:1 on the black bar */
+  --ef-teal-bright: 184 55% 55%;       /* HUB alias, same value */
+  /* Crisp near-white for inactive/secondary text on dark surfaces. */
+  --ef-topbar-muted: 210 10% 88%;      /* ≈ #DDE0E3, ≈14:1 on black */
 }
 
 html[data-module='planning'],
@@ -37,6 +44,9 @@ html[data-module='planning'],
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
+  --module-bright: 184 55% 55%;
+  --ef-teal-bright: 184 55% 55%;
+  --ef-topbar-muted: 210 10% 88%;
   --primary: var(--action);
   --primary-hover: var(--action-hover);
   --primary-dark: var(--action-end);
@@ -58,6 +68,9 @@ html[data-module='warehouse'] {
   --module-accent-soft: 184 45% 94%;
   --module-accent-border: 184 30% 82%;
   --module-accent-foreground: 0 0% 100%;
+  --module-bright: 184 55% 55%;                /* bright teal for dark surfaces */
+  --ef-teal-bright: 184 55% 55%;
+  --ef-topbar-muted: 210 10% 88%;              /* near-white inactive text on dark */
 
   /* Default actions keep the shared deep petrol; the teal module accent is
      reserved for active tabs, active rows and statuses. */
