@@ -36,15 +36,33 @@ export async function claimEconomyCacheRefresh(db: Db, organizationId: string, b
     p_organization_id: organizationId,
     p_booking_ids: uniqueIds,
   });
-  if (error) throw error;
+  if (error) {
+    await invalidateEconomyCache(db, organizationId, uniqueIds);
+    throw error;
+  }
   const generations: Record<string, number> = {};
   for (const row of data ?? []) {
     if (uniqueIds.includes(row.booking_id)) generations[row.booking_id] = Number(row.generation);
   }
   if (Object.keys(generations).length !== uniqueIds.length) {
+    await invalidateEconomyCache(db, organizationId, uniqueIds);
     throw new Error('Failed to claim every economy cache refresh');
   }
   return generations;
+}
+
+/**
+ * Fail-safe: if the atomic claim RPC is unavailable, remove only this
+ * organization's affected rows so a successful source write cannot leave a
+ * known stale amount available to readers.
+ */
+export async function invalidateEconomyCache(db: Db, organizationId: string, bookingIds: string[]) {
+  const uniqueIds = [...new Set(bookingIds)];
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const { error } = await db.from('economy_cache').delete()
+      .eq('organization_id', organizationId).in('booking_id', uniqueIds.slice(i, i + 100));
+    if (error) throw error;
+  }
 }
 
 /** Save only if this refresh still owns the latest per-booking generation. */
