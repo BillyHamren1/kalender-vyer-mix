@@ -30,8 +30,20 @@ Deno.test('claimar unika bokningar med organisation och returnerar generationer'
   ]]);
 });
 
-Deno.test('claim-fel avbryter så att cache aldrig läses som uppdaterad', async () => {
-  const db = { rpc: async () => ({ data: null, error: new Error('database unavailable') }) };
+Deno.test('claim-fel rensar bara cacheposter i samma organisation innan felet kastas', async () => {
+  const calls: unknown[] = [];
+  const query: any = {
+    delete: () => query,
+    eq: (column: string, value: string) => { calls.push(['eq', column, value]); return query; },
+    in: async (column: string, values: string[]) => {
+      calls.push(['in', column, values]);
+      return { error: null };
+    },
+  };
+  const db = {
+    rpc: async () => ({ data: null, error: new Error('database unavailable') }),
+    from: (table: string) => { calls.push(['from', table]); return query; },
+  };
   let threw = false;
   try {
     await claimEconomyCacheRefresh(db, 'org-1', ['booking-a']);
@@ -39,6 +51,11 @@ Deno.test('claim-fel avbryter så att cache aldrig läses som uppdaterad', async
     threw = true;
   }
   assertEquals(threw, true);
+  assertEquals(calls, [
+    ['from', 'economy_cache'],
+    ['eq', 'organization_id', 'org-1'],
+    ['in', 'booking_id', ['booking-a']],
+  ]);
 });
 
 Deno.test('en långsam äldre refresh kan inte skriva över en senare uppdatering', async () => {
