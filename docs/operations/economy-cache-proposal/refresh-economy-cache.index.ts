@@ -6,8 +6,8 @@ import { refreshEconomyCache } from './economyCache.ts';
 const UUID = /^[0-9a-f-]{36}$/i;
 
 Deno.serve(async (req) => {
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  if (req.headers.get('Authorization') !== `Bearer ${serviceKey}`) {
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!serviceKey || req.headers.get('Authorization') !== `Bearer ${serviceKey}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
   const efUrl = Deno.env.get('EF_SUPABASE_URL');
@@ -21,11 +21,17 @@ Deno.serve(async (req) => {
     : [];
   if (!orgId || ids.length === 0) return new Response(JSON.stringify({ error: 'invalid' }), { status: 400 });
 
-  const db = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
+  const url = Deno.env.get('SUPABASE_URL');
+  if (!url) return new Response(JSON.stringify({error:'config'}),{status:500});
+  const db = createClient(url, serviceKey);
   // Tenant-scope: bara bokningar som tillhör organisationen.
-  const { data, error } = await db.from('bookings').select('id').eq('organization_id', orgId).in('id', ids);
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  const allowed = (data ?? []).map((b: { id: string }) => b.id);
+  const allowed: string[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await db.from('bookings').select('id').eq('organization_id', orgId).in('id', ids.slice(i,i+200));
+    if (error) return new Response(JSON.stringify({error:error.message,retryable:true}),{status:503});
+    allowed.push(...(data ?? []).map((b:{id:string})=>b.id));
+  }
+  if (allowed.length !== ids.length) return new Response(JSON.stringify({error:'booking_unavailable'}),{status:404});
   let fresh;
   try { fresh = await refreshEconomyCache(db, efUrl, apiKey, orgId, allowed); }
   catch (error) { return new Response(JSON.stringify({ error: String(error), retryable: true }), { status: 503, headers: { 'Content-Type': 'application/json' } }); }

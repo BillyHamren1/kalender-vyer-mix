@@ -47,4 +47,27 @@ describe('scoped incremental economy projections', () => {
     client.setQueryData(economyBookingKey('org-b','secret'), batch(1));
     expect([...knownEconomyBookingIds(client,'org-a')]).toEqual(['a']);
   });
+  it('keeps a failed sibling stale and retains successful sibling changes until recovery', () => {
+    const client = new QueryClient();
+    client.setQueryData(['economy-overview','org-a'], [row('large',['a','b'],{a:batch(10),b:batch(20)})]);
+    applyEconomyChanges(client,'org-a',{},['a']);
+    applyEconomyChanges(client,'org-a',{b:batch(50)});
+    const stale = client.getQueryData<Array<ReturnType<typeof row> & {economyError?:string}>>(['economy-overview','org-a']);
+    expect(stale?.[0].economyError).toBeTruthy();
+    expect(stale?.[0].economyBatches.b.purchases[0].amount).toBe(50);
+    applyEconomyChanges(client,'org-a',{a:batch(35)});
+    const recovered = client.getQueryData<Array<ReturnType<typeof row> & {economyError?:string}>>(['economy-overview','org-a']);
+    expect(recovered?.[0].summary.purchasesTotal).toBe(85);
+    expect(recovered?.[0].economyError).toBeUndefined();
+  });
+  it('preserves canonical positive budget-minus-actual deviation in large summaries', () => {
+    const source = {...batch(20),budget:{budgeted_hours:1,hourly_rate:100},quotes:[{id:'q',quoted_amount:30}],invoices:[{quote_id:'q',invoiced_amount:40}]};
+    const single = summarizeEconomyBatches([source]).summary;
+    const large = summarizeEconomyBatches([source,source]).summary;
+    expect(large.totalDeviation).toBe(single.totalDeviation*2);
+    expect(large.invoiceDeviation).toBe(20);
+    expect(large.staffDeviationPercent).toBe(single.staffDeviationPercent);
+    expect(large.totalDeviationPercent).toBe(single.totalDeviationPercent);
+    expect(summarizeEconomyBatches([]).summary.totalActual).toBe(0);
+  });
 });
