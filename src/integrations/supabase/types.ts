@@ -2076,6 +2076,24 @@ export type Database = {
         }
         Relationships: []
       }
+      economy_cache_refresh_state: {
+        Row: {
+          booking_id: string
+          generation: number
+          organization_id: string
+        }
+        Insert: {
+          booking_id: string
+          generation?: number
+          organization_id: string
+        }
+        Update: {
+          booking_id?: string
+          generation?: number
+          organization_id?: string
+        }
+        Relationships: []
+      }
       establishment_subtasks: {
         Row: {
           assigned_to: string | null
@@ -11377,6 +11395,13 @@ export type Database = {
         Args: { p_booking_id: string }
         Returns: string
       }
+      claim_economy_cache_refresh: {
+        Args: { p_booking_ids: string[]; p_organization_id: string }
+        Returns: {
+          booking_id: string
+          generation: number
+        }[]
+      }
       claim_sync_jobs:
         | {
             Args: { batch_limit?: number }
@@ -11736,6 +11761,15 @@ export type Database = {
         Returns: Json
       }
       wms_prune_changes: { Args: { p_keep?: string }; Returns: undefined }
+      write_economy_cache_if_current: {
+        Args: {
+          p_booking_id: string
+          p_data: Json
+          p_generation: number
+          p_organization_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       anomaly_classification: "break" | "work"
