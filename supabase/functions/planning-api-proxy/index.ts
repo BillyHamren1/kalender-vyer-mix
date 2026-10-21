@@ -7,6 +7,7 @@ import {
   type EconomyDataType,
 } from './economy-fetch.ts';
 import { readEconomyCache, refreshEconomyCache } from '../_shared/economyCache.ts';
+import { economyCacheRefreshBookingId } from '../_shared/economyCacheEvents.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -234,13 +235,25 @@ Deno.serve(async (req) => {
     const response = await fetch(targetUrl, fetchOptions);
     const responseData = await response.json();
 
-    // Planning ändrade ekonomi i Booking → uppdatera lagrad ekonomi direkt.
-    const writtenBookingId = params.booking_id || params.data?.booking_id;
-    if (response.ok && method !== 'GET' && typeof writtenBookingId === 'string') {
-      const job = refreshEconomyCache(serviceClient, efUrl, planningApiKey, organizationId, [writtenBookingId])
-        .catch((e) => console.warn('[economy-cache] refresh after write failed', e));
-      // @ts-ignore
-      if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job);
+    // Refresh only the booking whose economic source row changed. ID-only
+    // update/delete requests carry booking_id from their project context; some
+    // source endpoints also return it on the changed row.
+    const writtenBookingId = economyCacheRefreshBookingId({
+      type,
+      method,
+      ok: response.ok,
+      params,
+      responseData,
+    });
+    if (writtenBookingId) {
+      // Finish the single-booking refresh before returning success. The row is
+      // invalidated first, so a concurrent overview read cannot reuse a known
+      // stale value while the source response is being fetched.
+      try {
+        await refreshEconomyCache(serviceClient, efUrl, planningApiKey, organizationId, [writtenBookingId]);
+      } catch (e) {
+        console.warn('[economy-cache] refresh after write failed', e);
+      }
     }
 
     // Log close_project response for debugging

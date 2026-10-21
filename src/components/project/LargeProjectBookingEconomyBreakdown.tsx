@@ -79,8 +79,9 @@ function extractProducts(data: BatchEconomyData): any[] {
 }
 
 /* ─── Inline editable purchase row ─── */
-function EditablePurchaseRow({ purchase, onSaved, onDeleted }: {
+function EditablePurchaseRow({ purchase, bookingId, onSaved, onDeleted }: {
   purchase: any;
+  bookingId: string;
   onSaved: () => void;
   onDeleted: () => void;
 }) {
@@ -93,7 +94,7 @@ function EditablePurchaseRow({ purchase, onSaved, onDeleted }: {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePurchase(purchase.id, { description: desc, supplier: supplier || null, amount: parseFloat(amount) || 0 });
+      await updatePurchase(purchase.id, { description: desc, supplier: supplier || null, amount: parseFloat(amount) || 0 }, bookingId);
       toast.success('Inköp uppdaterat');
       setEditing(false);
       onSaved();
@@ -104,7 +105,7 @@ function EditablePurchaseRow({ purchase, onSaved, onDeleted }: {
   const handleDelete = async () => {
     setSaving(true);
     try {
-      await deletePurchase(purchase.id);
+      await deletePurchase(purchase.id, bookingId);
       toast.success('Inköp borttaget');
       onDeleted();
     } catch { toast.error('Kunde inte ta bort'); }
@@ -432,7 +433,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                       </TableHeader>
                                       <TableBody>
                                         {purchases.map((p: any) => (
-                                          <EditablePurchaseRow key={p.id} purchase={p} onSaved={invalidate} onDeleted={invalidate} />
+                                          <EditablePurchaseRow key={p.id} purchase={p} bookingId={bookingId} onSaved={invalidate} onDeleted={invalidate} />
                                         ))}
                                         <AddPurchaseRow bookingId={bookingId} onAdded={invalidate} />
                                       </TableBody>

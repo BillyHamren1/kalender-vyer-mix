@@ -316,7 +316,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   const updatePurchaseMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectPurchase> }) => {
       if (hasBooking) {
-        return updateRemotePurchase(id, updates as Record<string, any>);
+        return updateRemotePurchase(id, updates as Record<string, any>, bookingId!);
       }
       return updateLocalProjectPurchase(id, updates);
     },
@@ -343,7 +343,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   const removePurchaseMutation = useMutation({
     mutationFn: (id: string) => {
       if (hasBooking) {
-        return deletePurchase(id);
+        return deletePurchase(id, bookingId!);
       }
       return deleteLocalProjectPurchase(id);
     },
@@ -397,7 +397,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const updateQuoteMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectQuote> }) =>
-      updateQuote(id, updates),
+      updateQuote(id, updates, bookingId!),
     ...updateQuoteOptimistic,
     onSuccess: () => { toast.success('Offert uppdaterad'); },
     onError: updateQuoteOptimistic.onError,
@@ -413,7 +413,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const removeQuoteMutation = useMutation({
-    mutationFn: deleteQuote,
+    mutationFn: (id: string) => deleteQuote(id, bookingId!),
     ...removeQuoteOptimistic,
     onSuccess: () => { toast.success('Offert borttagen'); },
     onError: removeQuoteOptimistic.onError,
@@ -456,7 +456,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const updateInvoiceMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectInvoice> }) =>
-      updateInvoice(id, updates),
+      updateInvoice(id, updates, bookingId!),
     ...updateInvoiceOptimistic,
     onSuccess: () => { toast.success('Faktura uppdaterad'); },
     onError: updateInvoiceOptimistic.onError,
@@ -472,7 +472,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const removeInvoiceMutation = useMutation({
-    mutationFn: deleteInvoice,
+    mutationFn: (id: string) => deleteInvoice(id, bookingId!),
     ...removeInvoiceOptimistic,
     onSuccess: () => { toast.success('Faktura borttagen'); },
     onError: removeInvoiceOptimistic.onError,
@@ -482,7 +482,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Supplier invoice linking
   const linkSupplierInvoiceMutation = useMutation({
     mutationFn: ({ id, linked_cost_type, linked_cost_id, is_final_link }: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) =>
-      updateSupplierInvoiceLink(id, { linked_cost_type, linked_cost_id, is_final_link }),
+      updateSupplierInvoiceLink(id, { linked_cost_type, linked_cost_id, is_final_link }, bookingId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoices', bookingId] });
       toast.success('Koppling sparad');

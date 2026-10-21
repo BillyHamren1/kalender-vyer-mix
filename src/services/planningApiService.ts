@@ -41,11 +41,11 @@ export const fetchPurchases = (bookingId: string) =>
 export const createPurchase = (data: Record<string, any>) =>
   callPlanningApi({ type: 'purchases', method: 'POST', data });
 
-export const updatePurchase = (id: string, updates: Record<string, any>) =>
-  callPlanningApi({ type: 'purchases', method: 'PUT', id, data: updates });
+export const updatePurchase = (id: string, updates: Record<string, any>, bookingId?: string) =>
+  callPlanningApi({ type: 'purchases', method: 'PUT', id, booking_id: bookingId, data: updates });
 
-export const deletePurchase = (id: string) =>
-  callPlanningApi({ type: 'purchases', method: 'DELETE', id });
+export const deletePurchase = (id: string, bookingId?: string) =>
+  callPlanningApi({ type: 'purchases', method: 'DELETE', id, booking_id: bookingId });
 
 // ===== Quotes =====
 
@@ -55,11 +55,11 @@ export const fetchQuotes = (bookingId: string) =>
 export const createQuote = (data: Record<string, any>) =>
   callPlanningApi({ type: 'quotes', method: 'POST', data });
 
-export const updateQuote = (id: string, data: Record<string, any>) =>
-  callPlanningApi({ type: 'quotes', method: 'PUT', id, data });
+export const updateQuote = (id: string, data: Record<string, any>, bookingId?: string) =>
+  callPlanningApi({ type: 'quotes', method: 'PUT', id, booking_id: bookingId, data });
 
-export const deleteQuote = (id: string) =>
-  callPlanningApi({ type: 'quotes', method: 'DELETE', id });
+export const deleteQuote = (id: string, bookingId?: string) =>
+  callPlanningApi({ type: 'quotes', method: 'DELETE', id, booking_id: bookingId });
 
 // ===== Invoices =====
 
@@ -69,11 +69,11 @@ export const fetchInvoices = (bookingId: string) =>
 export const createInvoice = (data: Record<string, any>) =>
   callPlanningApi({ type: 'invoices', method: 'POST', data });
 
-export const updateInvoice = (id: string, data: Record<string, any>) =>
-  callPlanningApi({ type: 'invoices', method: 'PUT', id, data });
+export const updateInvoice = (id: string, data: Record<string, any>, bookingId?: string) =>
+  callPlanningApi({ type: 'invoices', method: 'PUT', id, booking_id: bookingId, data });
 
-export const deleteInvoice = (id: string) =>
-  callPlanningApi({ type: 'invoices', method: 'DELETE', id });
+export const deleteInvoice = (id: string, bookingId?: string) =>
+  callPlanningApi({ type: 'invoices', method: 'DELETE', id, booking_id: bookingId });
 
 // ===== Time Reports =====
 
@@ -91,8 +91,8 @@ export const fetchSupplierInvoices = (bookingId: string) =>
   callPlanningApi({ type: 'supplier_invoices', method: 'GET', booking_id: bookingId })
     .catch(() => [] as any[]);
 
-export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: string | null; linked_cost_id: string | null; is_final_link?: boolean }) =>
-  callPlanningApi({ type: 'supplier_invoices', method: 'PUT', id, data });
+export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: string | null; linked_cost_id: string | null; is_final_link?: boolean }, bookingId?: string) =>
+  callPlanningApi({ type: 'supplier_invoices', method: 'PUT', id, booking_id: bookingId, data });
 
 // ===== Close Project (signal invoicing) =====
 
