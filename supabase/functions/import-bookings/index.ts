@@ -4,7 +4,6 @@ import { syncWarehouseEventsForBooking } from '../_shared/warehouseImportEvents.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { dispatchEconomyCacheRefresh, economyRefreshBookingIds } from '../_shared/economyCacheRefreshDispatch.ts'
-import { dispatchEconomyCacheRefresh } from '../_shared/economyCacheRefreshDispatch.ts'
 import { recordCancellationNotice } from '../_shared/cancellation-notice.ts'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
 import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
