@@ -1,5 +1,11 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
+## Riktad ekonomi-cache­rättning (ingen deploy/migration)
+- [ ] Gemensamma cacheläsningar och tenant-avgränsade uppdateringar av öppna ekonomivyer utan historiska omläsningar.
+- [ ] Synliga källfel och riktad chunkning; regressionsprov i isolerad miljö/preview.
+- [ ] Testade serverändringsförslag utanför deploy-katalogen: generationsrace, importens tidiga avslut och HTTP/retry/chunkning.
+- [ ] Redovisa aktiveringsgrindar, exakta filer, tester och previewrevision.
+
 ## Aktuellt uppdrag
 - [x] Mätt 76 fasta adresser före/efter; gemensam previewstart median 1418→657 ms, sekundära moduler läses på begäran och ekonomins datum/batch parallellt. 33 tester gröna i isolerad Vitest 3, preview build OK; resultat i docs/performance-audit-20261018.md. Ingen deploy/publicering.
 - [ ] Mät/rangordna inloggad dataladdning på alla sidor och parameteriserade detaljer: blockerad av external_unmanaged utan tillgänglig behörig session. 74/76 kontroller landar på inloggning, inte verkligt sidinnehåll.

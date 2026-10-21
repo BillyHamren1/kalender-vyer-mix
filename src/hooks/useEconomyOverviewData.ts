@@ -1,3 +1,4 @@
+import { summarizeEconomyBatches } from '@/lib/economy/batchSummary';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/planningApiService';
@@ -23,112 +24,10 @@ export interface ProjectWithEconomy {
   projectSize: ProjectSize;
   navigateTo: string;
   revenueAvailable: boolean;
+  booking_ids?: string[];
+  economyBatches?: Record<string, BatchEconomyData>;
+  economyError?: string;
 }
-
-/**
- * Processes batch economy data for a single booking.
- * Returns summary + timeReports mapped to the standard StaffTimeReport shape.
- */
-function processEconomyBatchData(batchData: BatchEconomyData) {
-  const budget = batchData.budget ?? null;
-  const timeReportsRaw = batchData.time_reports ?? [];
-  const purchases = batchData.purchases ?? [];
-  const quotes = batchData.quotes ?? [];
-  const invoices = batchData.invoices ?? [];
-  const productCosts = batchData.product_costs ?? null;
-  const supplierInvoices = Array.isArray(batchData.supplier_invoices) ? batchData.supplier_invoices : [];
-
-  // Map time reports from external format to StaffTimeReport[]
-  const staffMap = new Map<string, StaffTimeReport>();
-  const reports = Array.isArray(timeReportsRaw) ? timeReportsRaw : [];
-
-  reports.forEach((r: any) => {
-    const staffId = r.staff_id || r.id || 'unknown';
-    const staffName = r.staff_name || r.name || 'Okänd';
-    const hours = Number(r.hours_worked) || Number(r.hours) || 0;
-    const overtime = Number(r.overtime_hours) || 0;
-    const rate = Number(r.hourly_rate) || 0;
-    const overtimeRate = Number(r.overtime_rate) || rate * 1.5;
-
-    const existing = staffMap.get(staffId);
-    if (existing) {
-      existing.total_hours += hours;
-      existing.overtime_hours += overtime;
-      existing.total_cost = existing.total_hours * existing.hourly_rate +
-        existing.overtime_hours * existing.overtime_rate;
-    } else {
-      staffMap.set(staffId, {
-        staff_id: staffId,
-        staff_name: staffName,
-        total_hours: hours,
-        overtime_hours: overtime,
-        hourly_rate: rate,
-        overtime_rate: overtimeRate,
-        total_cost: hours * rate + overtime * overtimeRate,
-        approved: r.approved !== false,
-        report_ids: [],
-        detailed_reports: [],
-      });
-    }
-  });
-
-  const timeReports = Array.from(staffMap.values());
-
-  // Map purchases to the expected shape
-  const purchasesMapped = (Array.isArray(purchases) ? purchases : []).map((p: any) => ({
-    ...p,
-    amount: Number(p.amount) || 0,
-  }));
-
-  // Map quotes
-  const quotesMapped = (Array.isArray(quotes) ? quotes : []).map((q: any) => ({
-    ...q,
-    quoted_amount: Number(q.quoted_amount) || 0,
-  }));
-
-  // Map invoices
-  const invoicesMapped = (Array.isArray(invoices) ? invoices : []).map((i: any) => ({
-    ...i,
-    invoiced_amount: Number(i.invoiced_amount) || 0,
-  }));
-
-  const summary = calculateEconomySummary(
-    budget,
-    timeReports,
-    purchasesMapped,
-    quotesMapped,
-    invoicesMapped,
-    productCosts,
-    Array.isArray(supplierInvoices) ? supplierInvoices : [],
-  );
-
-  // Economy is closed when all supplier invoices are final-linked (and at least one exists)
-  const siList = Array.isArray(supplierInvoices) ? supplierInvoices : [];
-  const economyClosed = siList.length > 0 && siList.every((si: any) => si.is_final_link === true);
-
-  return { summary, timeReports, economyClosed };
-}
-
-const emptySummary: EconomySummary = {
-  budgetedHours: 0,
-  actualHours: 0,
-  hourlyRate: 0,
-  staffBudget: 0,
-  staffActual: 0,
-  staffDeviation: 0,
-  staffDeviationPercent: 0,
-  purchasesTotal: 0,
-  quotesTotal: 0,
-  invoicesTotal: 0,
-  invoiceDeviation: 0,
-  supplierInvoicesTotal: 0,
-  productCostBudget: 0,
-  productRevenue: 0,
-  totalBudget: 0,
-  totalActual: 0,
-  totalDeviation: 0,
-  totalDeviationPercent: 0,
-};
 
 export const useEconomyOverviewData = (enabled = true) => {
   const { organizationId } = useCurrentOrg();
@@ -238,12 +137,7 @@ export const useEconomyOverviewData = (enabled = true) => {
         },
         async (): Promise<Record<string, BatchEconomyData>> => {
           if (!allBookingIds.length) return {};
-          try {
-            return await fetchAllEconomyDataMulti(allBookingIds);
-          } catch (err) {
-            console.error('Failed to fetch multi-batch economy data:', err);
-            return {};
-          }
+          return fetchAllEconomyDataMulti(allBookingIds);
         },
       );
           bookings.forEach(b => {
@@ -272,116 +166,17 @@ export const useEconomyOverviewData = (enabled = true) => {
           ? rigdownCandidates.reduce((max, v) => (v > max ? v : max))
           : null;
 
-        if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
-          return {
-            id: entry.id,
-            name: entry.name,
-            status: entry.status,
-            booking_id: primaryBookingId,
-            eventdate,
-            rigdaydate,
-            rigdowndate,
-            bookingCreatedAt,
-            summary: emptySummary,
-            timeReports: [] as StaffTimeReport[],
-            economyClosed: entry.status === 'completed',
-            projectSize: entry.projectSize,
-            navigateTo: entry.navigateTo,
-            revenueAvailable: false,
-          };
-        }
-
-        try {
-          // For large projects with multiple bookings, aggregate summaries
-          if (entry.booking_ids.length > 1) {
-            const summaries = entry.booking_ids
-              .filter(id => multiBatchData[id])
-              .map(id => processEconomyBatchData(multiBatchData[id]));
-
-            const aggregated: EconomySummary = { ...emptySummary };
-            let allTimeReports: StaffTimeReport[] = [];
-            let allClosed = summaries.length > 0;
-
-            summaries.forEach(s => {
-              aggregated.budgetedHours += s.summary.budgetedHours;
-              aggregated.actualHours += s.summary.actualHours;
-              aggregated.staffBudget += s.summary.staffBudget;
-              aggregated.staffActual += s.summary.staffActual;
-              aggregated.purchasesTotal += s.summary.purchasesTotal;
-              aggregated.quotesTotal += s.summary.quotesTotal;
-              aggregated.invoicesTotal += s.summary.invoicesTotal;
-              aggregated.supplierInvoicesTotal += s.summary.supplierInvoicesTotal;
-              aggregated.productCostBudget += s.summary.productCostBudget;
-              aggregated.productRevenue += s.summary.productRevenue;
-              aggregated.totalBudget += s.summary.totalBudget;
-              aggregated.totalActual += s.summary.totalActual;
-              allTimeReports = [...allTimeReports, ...s.timeReports];
-              if (!s.economyClosed) allClosed = false;
-            });
-
-            aggregated.staffDeviation = aggregated.staffActual - aggregated.staffBudget;
-            aggregated.staffDeviationPercent = aggregated.staffBudget > 0 ? (aggregated.staffActual / aggregated.staffBudget) * 100 : 0;
-            aggregated.invoiceDeviation = aggregated.invoicesTotal - aggregated.quotesTotal;
-            aggregated.totalDeviation = aggregated.totalActual - aggregated.totalBudget;
-            aggregated.totalDeviationPercent = aggregated.totalBudget > 0 ? (aggregated.totalActual / aggregated.totalBudget) * 100 : 0;
-
-            return {
-              id: entry.id,
-              name: entry.name,
-              status: entry.status,
-              booking_id: primaryBookingId,
-              eventdate,
-              rigdaydate,
-              rigdowndate,
-              bookingCreatedAt,
-              summary: aggregated,
-              timeReports: allTimeReports,
-              economyClosed: allClosed || entry.status === 'completed',
-              projectSize: entry.projectSize,
-              navigateTo: entry.navigateTo,
-              revenueAvailable: entry.booking_ids.every(id => multiBatchData[id]?.product_costs != null && !multiBatchData[id]?._errors?.product_costs),
-            };
-          }
-
-          // Single booking project
-          const singleBatch = primaryBookingId ? multiBatchData[primaryBookingId] : undefined;
-          if (!singleBatch) throw new Error('Missing Booking economy');
-          const { summary, timeReports, economyClosed } = processEconomyBatchData(singleBatch);
-          return {
-            id: entry.id,
-            name: entry.name,
-            status: entry.status,
-            booking_id: primaryBookingId,
-            eventdate,
-            rigdaydate,
-            rigdowndate,
-            bookingCreatedAt,
-            summary,
-            timeReports,
-            economyClosed: economyClosed || entry.status === 'completed',
-            projectSize: entry.projectSize,
-            navigateTo: entry.navigateTo,
-            revenueAvailable: singleBatch.product_costs != null && !singleBatch._errors?.product_costs,
-          };
-        } catch (err) {
-          console.error(`Failed to process economy for project ${entry.name}:`, err);
-          return {
-            id: entry.id,
-            name: entry.name,
-            status: entry.status,
-            booking_id: primaryBookingId,
-            eventdate,
-            rigdaydate,
-            rigdowndate,
-            bookingCreatedAt,
-            summary: emptySummary,
-            timeReports: [] as StaffTimeReport[],
-            economyClosed: entry.status === 'completed',
-            projectSize: entry.projectSize,
-            navigateTo: entry.navigateTo,
-            revenueAvailable: false,
-          };
-        }
+        const batches = entry.booking_ids.map(id => multiBatchData[id]);
+        const result = summarizeEconomyBatches(batches);
+        return {
+          id: entry.id, name: entry.name, status: entry.status,
+          booking_id: primaryBookingId, booking_ids: entry.booking_ids,
+          eventdate, rigdaydate, rigdowndate, bookingCreatedAt,
+          ...result, economyClosed: result.economyClosed || entry.status === 'completed',
+          projectSize: entry.projectSize, navigateTo: entry.navigateTo,
+          economyBatches: Object.fromEntries(entry.booking_ids.map(id => [id, multiBatchData[id]])),
+          revenueAvailable: entry.booking_ids.length > 0,
+        };
       });
     },
     staleTime: 10 * 60 * 1000, // 10 min — matches server cache TTL

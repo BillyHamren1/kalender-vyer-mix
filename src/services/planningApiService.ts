@@ -1,3 +1,4 @@
+import { assertCompleteEconomy, currentEconomyScope, emitEconomyChanged } from '@/lib/economy/cacheContract';
 import { supabase } from '@/integrations/supabase/client';
 import {
   updateBookingFieldsViaSource,
@@ -16,12 +17,19 @@ async function callPlanningApi<T = any>(params: {
   id?: string;
   data?: Record<string, any>;
 }): Promise<T> {
+  const actorScope = currentEconomyScope();
   const { data, error } = await supabase.functions.invoke('planning-api-proxy', {
     body: params,
   });
 
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
+  if (params.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(params.method.toUpperCase())) {
+    const id = params.booking_id ?? params.data?.booking_id ?? data?.booking_id;
+    if (actorScope && typeof id === 'string' && ['budget','time_reports','purchases','quotes','invoices','product_costs','extra_costs','supplier_invoices'].includes(params.type)) {
+      emitEconomyChanged(actorScope.organizationId, id, data?._economy_cache?.status === 'stale');
+    }
+  }
   return data as T;
 }
 
@@ -88,8 +96,7 @@ export const fetchProductCostsRemote = (bookingId: string) =>
 // ===== Supplier Invoices (Fortnox) =====
 
 export const fetchSupplierInvoices = (bookingId: string) =>
-  callPlanningApi({ type: 'supplier_invoices', method: 'GET', booking_id: bookingId })
-    .catch(() => [] as any[]);
+  callPlanningApi({ type: 'supplier_invoices', method: 'GET', booking_id: bookingId });
 
 export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: string | null; linked_cost_id: string | null; is_final_link?: boolean }, bookingId?: string) =>
   callPlanningApi({ type: 'supplier_invoices', method: 'PUT', id, booking_id: bookingId, data });
@@ -115,13 +122,24 @@ export interface BatchEconomyData {
   _errors?: Record<string, { code: string; status?: number }>;
 }
 
-export const fetchAllEconomyData = (bookingId: string): Promise<BatchEconomyData> =>
-  callPlanningApi<BatchEconomyData>({ type: 'batch', booking_id: bookingId });
+export const fetchAllEconomyData = async (bookingId: string): Promise<BatchEconomyData> => {
+  const batches = await fetchAllEconomyDataMulti([bookingId]);
+  const batch = batches[bookingId];
+  assertCompleteEconomy(batch);
+  return batch;
+};
 
-// ===== Multi-Batch (all economy data for multiple bookings in one call) =====
-
-export const fetchAllEconomyDataMulti = (bookingIds: string[]): Promise<Record<string, BatchEconomyData>> =>
-  callPlanningApi<Record<string, BatchEconomyData>>({ type: 'multi_batch', booking_ids: bookingIds } as any);
+// Chunk requests to the existing cache contract; never silently lose IDs at the server limit.
+export const fetchAllEconomyDataMulti = async (bookingIds: string[]): Promise<Record<string, BatchEconomyData>> => {
+  const ids = [...new Set(bookingIds)];
+  const result: Record<string, BatchEconomyData> = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const batches = await callPlanningApi<Record<string, BatchEconomyData>>({ type: 'multi_batch', booking_ids: chunk } as any);
+    for (const id of chunk) { assertCompleteEconomy(batches[id]); result[id] = batches[id]; }
+  }
+  return result;
+};
 
 // =============================================================================
 // ===== BOOKING WRITE OPERATIONS (Source of Truth: Booking system) ============

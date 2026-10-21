@@ -73,6 +73,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     invoices,
     productCosts,
     productCostsError,
+    economyError,
+    refetchEconomy,
     supplierInvoices,
     bookingEconomics,
     summary,
@@ -216,6 +218,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     } catch { toast.error('Kunde inte exportera'); }
   };
 
+  if (economyError) return <div role="alert" className="border border-destructive/40 p-4 text-sm">Ekonomin kunde inte uppdateras. Tidigare belopp kan vara inaktuella. <Button variant="outline" size="sm" onClick={() => refetchEconomy()}>Försök igen</Button></div>;
   if (isLoading) {
     return (
       <div className="space-y-6">
