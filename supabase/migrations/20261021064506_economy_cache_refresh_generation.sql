@@ -23,8 +23,8 @@ AS $$
   WITH requested AS (
     SELECT DISTINCT unnest(coalesce(p_booking_ids, ARRAY[]::text[])) AS booking_id
   ), claimed AS (
-    INSERT INTO public.economy_cache_refresh_state AS state (organization_id, booking_id)
-    SELECT p_organization_id, requested.booking_id
+    INSERT INTO public.economy_cache_refresh_state AS state (organization_id, booking_id, generation)
+    SELECT p_organization_id, requested.booking_id, 1
     FROM requested
     WHERE requested.booking_id IS NOT NULL AND requested.booking_id <> ''
     ON CONFLICT (organization_id, booking_id)
