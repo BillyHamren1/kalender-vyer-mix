@@ -17,16 +17,19 @@ Deno.test('claimar unika bokningar med organisation och returnerar generationer'
   const db = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push([fn, args]);
-      return { data: [{ booking_id: 'booking-a', generation: 4 }], error: null };
+      return { data: [
+        { booking_id: 'booking-a', generation: 4 },
+        { booking_id: 'booking-b', generation: 8 },
+      ], error: null };
     },
   };
 
-  const generations = await claimEconomyCacheRefresh(db, 'org-1', ['booking-a', 'booking-a']);
+  const generations = await claimEconomyCacheRefresh(db, 'org-1', ['booking-b', 'booking-a', 'booking-b']);
 
-  assertEquals(generations, { 'booking-a': 4 });
+  assertEquals(generations, { 'booking-a': 4, 'booking-b': 8 });
   assertEquals(calls, [[
     'claim_economy_cache_refresh',
-    { p_organization_id: 'org-1', p_booking_ids: ['booking-a'] },
+    { p_organization_id: 'org-1', p_booking_ids: ['booking-a', 'booking-b'] },
   ]]);
 });
 
