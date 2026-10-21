@@ -1,10 +1,12 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
 ## Riktad ekonomi-cache­rättning (ingen deploy/migration)
-- [ ] Gemensamma cacheläsningar och tenant-avgränsade uppdateringar av öppna ekonomivyer utan historiska omläsningar.
-- [ ] Synliga källfel och riktad chunkning; regressionsprov i isolerad miljö/preview.
-- [ ] Testade serverändringsförslag utanför deploy-katalogen: generationsrace, importens tidiga avslut och HTTP/retry/chunkning.
-- [ ] Redovisa aktiveringsgrindar, exakta filer, tester och previewrevision.
+- [x] Gemensamt Booking-cachekontrakt och riktade org-avgränsade previewuppdateringar utan historiska omläsningar; separata Planning-källor bevarade.
+- [x] Synliga källfel/stale och riktad chunkning; 50 Vitest + 9 Deno-tester gröna, syntetisk renderad previewresa utan runtimefel.
+- [x] Testade serverändringsförslag utanför deploy-katalogen: generationsrace, importens tidiga avslut och HTTP/retry/chunkning; inte aktiverade.
+- [x] Exakta filer, kommandon, bevis och begränsningar i docs/operations/economy-cache-proposal/README.md.
+- [ ] Aktivera serverförslag och economy_cache realtime: blockerat av uttryckligt deploy-/migrationsförbud; tabellen är verifierat inte realtime-publicerad.
+- [ ] Full autentiserad ekonomiacceptans och korskälla-harmonisering: blockerad av external_unmanaged utan testsession; Planning-tid och fristående underlag är inte bevisat identiska med Booking-cache.
 
 ## Aktuellt uppdrag
 - [x] Mätt 76 fasta adresser före/efter; gemensam previewstart median 1418→657 ms, sekundära moduler läses på begäran och ekonomins datum/batch parallellt. 33 tester gröna i isolerad Vitest 3, preview build OK; resultat i docs/performance-audit-20261018.md. Ingen deploy/publicering.
