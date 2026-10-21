@@ -1,3 +1,4 @@
+import { useCurrentOrg } from './useCurrentOrg';
 import { extraCostsTotal, extraCostsRevenue } from "@/lib/economy/bookingCosts";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -49,6 +50,8 @@ export const useLargeProjectEconomy = (
   bookingIds: string[]
 ) => {
   const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
+  const staleAggregate = useQuery({ queryKey: ['economy-aggregate-stale', organizationId, largeProjectId], queryFn: () => false, enabled: false });
 
   // Budget
   const { data: budget, isLoading: budgetLoading } = useQuery({
@@ -65,10 +68,14 @@ export const useLargeProjectEconomy = (
   });
 
   // Aggregated booking economy data (from linked bookings via planning-api)
-  const { data: bookingEconomyData, isLoading: bookingEconomyLoading } = useQuery({
-    queryKey: ['large-project-booking-economy', largeProjectId, bookingIds],
-    queryFn: () => fetchAllEconomyDataMulti(bookingIds),
-    enabled: bookingIds.length > 0,
+  const { data: bookingEconomyData, isLoading: bookingEconomyLoading, error: economyError, refetch: refetchEconomy } = useQuery({
+    queryKey: ['large-project-booking-economy', organizationId, largeProjectId, bookingIds.slice().sort()],
+    queryFn: async ({ signal }) => {
+      const batches = await fetchAllEconomyDataMulti(bookingIds);
+      if (!signal.aborted) queryClient.setQueryData<boolean>(['economy-aggregate-stale', organizationId, largeProjectId], false);
+      return batches;
+    },
+    enabled: !!organizationId && bookingIds.length > 0,
   });
 
   // Compatibility view model only: every product value is read from Booking.
@@ -330,6 +337,8 @@ export const useLargeProjectEconomy = (
     reportedStaffCostFromTimeEngine: approvedStaffCost,
     staffCostsByPerson: approvedStaffByPerson,
     hoursSource,
+    economyError: economyError ?? (staleAggregate.data ? new Error('Ekonomin är inaktuell') : null),
+    refetchEconomy,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,

@@ -1,3 +1,4 @@
+import { useEconomyCacheSync } from '@/hooks/useEconomyCacheSync';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar3D } from '@/components/Sidebar3D';
@@ -16,6 +17,7 @@ interface MainSystemLayoutProps {
  * för "Spara som tabb" och behåll snabblänkar mellan sidor.
  */
 const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
+  useEconomyCacheSync();
   return (
     <PinnedTabsProvider>
       <div className="h-screen flex overflow-hidden">

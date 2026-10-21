@@ -1,3 +1,5 @@
+import { useBookingEconomyBatch } from './useBookingEconomyBatch';
+import { useCurrentOrg } from './useCurrentOrg';
 import { useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -58,14 +60,14 @@ import { createOptimisticCallbacks } from './useOptimisticMutation';
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
   const queryClient = useQueryClient();
   const hasBooking = !!bookingId;
+  const { organizationId } = useCurrentOrg();
+  const economyBatch = useBookingEconomyBatch(bookingId);
 
   // ===== Remote data (via planning-api-proxy, needs bookingId) =====
 
-  const { data: remoteBudget, isLoading: remoteBudgetLoading, error: remoteBudgetError } = useQuery({
-    queryKey: ['project-budget', bookingId],
-    queryFn: () => fetchBudget(bookingId!),
-    enabled: hasBooking,
-  });
+  const remoteBudget = economyBatch.data?.budget;
+  const remoteBudgetLoading = economyBatch.isLoading;
+  const remoteBudgetError = economyBatch.error;
 
   // Time Engine-cache: FÖRSLAG/PROGNOS för projektets timmar. Får INTE
   // användas som faktisk kostnad — bara visas som "föreslaget".
@@ -78,7 +80,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // FAKTISK godkänd personalkostnad — byggs av admin-attesten från
   // staff_day_submissions och lagras i project_staff_time_cost_lines.
   const { data: approvedStaffCostSummary } = useQuery({
-    queryKey: ['project-approved-staff-cost', bookingId, projectId],
+    queryKey: ['project-approved-staff-cost', organizationId, bookingId, projectId],
     queryFn: () => fetchApprovedProjectStaffTimeCostSummary({
       booking_id: bookingId ?? null,
       project_id: projectId ?? null,
@@ -95,40 +97,32 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
-    queryKey: ['project-time-reports', bookingId],
+    queryKey: ['project-time-reports', organizationId, bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
     enabled: hasBooking,
   });
 
-  const { data: remotePurchases = [], isLoading: remotePurchasesLoading, error: remotePurchasesError } = useQuery({
-    queryKey: ['project-purchases', bookingId],
-    queryFn: () => fetchPurchases(bookingId!),
-    enabled: hasBooking,
-  });
+  const remotePurchases = economyBatch.data?.purchases ?? [];
+  const remotePurchasesLoading = economyBatch.isLoading;
+  const remotePurchasesError = economyBatch.error;
 
-  const { data: quotes = [], isLoading: quotesLoading, error: quotesError } = useQuery({
-    queryKey: ['project-quotes', bookingId],
-    queryFn: () => fetchQuotes(bookingId!),
-    enabled: hasBooking,
-  });
+  const quotes = economyBatch.data?.quotes ?? [];
+  const quotesLoading = economyBatch.isLoading;
+  const quotesError = economyBatch.error;
 
-  const { data: invoices = [], isLoading: invoicesLoading, error: invoicesError } = useQuery({
-    queryKey: ['project-invoices', bookingId],
-    queryFn: () => fetchInvoices(bookingId!),
-    enabled: hasBooking,
-  });
+  const invoices = economyBatch.data?.invoices ?? [];
+  const invoicesLoading = economyBatch.isLoading;
+  const invoicesError = economyBatch.error;
 
-  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts, error: productCostsError } = useQuery({
-    queryKey: ['product-costs', bookingId],
-    queryFn: () => fetchProductCostsRemote(bookingId!),
-    enabled: hasBooking,
-  });
+  const productCosts = economyBatch.data?.product_costs;
+  const productCostsLoading = economyBatch.isLoading;
+  const productCostsError = economyBatch.error;
+  const refetchProductCosts = economyBatch.refetch;
 
-  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices, error: supplierInvoicesError } = useQuery({
-    queryKey: ['supplier-invoices', bookingId],
-    queryFn: () => fetchSupplierInvoices(bookingId!),
-    enabled: hasBooking,
-  });
+  const supplierInvoices = economyBatch.data?.supplier_invoices ?? [];
+  const supplierInvoicesLoading = economyBatch.isLoading;
+  const supplierInvoicesError = economyBatch.error;
+  const refetchSupplierInvoices = economyBatch.refetch;
 
   const { data: bookingEconomics } = useQuery({
     queryKey: ['booking-economics', bookingId],
@@ -507,7 +501,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-costs', bookingId] });
-      queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
+
       toast.success('Kostnaden sparad på bokningen');
     },
     onError: () => { toast.error('Kunde inte spara. Uppdatera och kontrollera om kostnaden ändrats.'); },
@@ -525,6 +519,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     invoices,
     productCosts: mergedProductCosts,
     productCostsError,
+    economyError: economyBatch.error,
+    refetchEconomy: economyBatch.refetch,
     costOverrides,
     supplierInvoices,
     bookingEconomics,

@@ -28,7 +28,9 @@ const ProjectEconomyDashboard: React.FC = () => {
 
   const {
     isLoading,
+    error,
     projectInsights,
+    rawProjects,
   } = useEconomyDashboard();
 
   const handleCloseProject = async () => {
@@ -55,6 +57,7 @@ const ProjectEconomyDashboard: React.FC = () => {
     }
   };
 
+  if (error) return <div role="alert" className="border border-destructive/40 p-4 text-sm">Ekonomin kunde inte uppdateras. Tidigare belopp kan vara inaktuella. {error.message}</div>;
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -71,6 +74,7 @@ const ProjectEconomyDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {rawProjects?.some(p => p.economyError) && <div role="alert" className="border border-destructive/40 p-4 text-sm">Ekonomin kunde inte uppdateras för en eller flera bokningar. Tidigare belopp är inaktuella.</div>}
       {/* Project list with phase tabs */}
       <CompletedProjectsList projectInsights={projectInsights} />
 

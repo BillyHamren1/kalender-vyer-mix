@@ -6,11 +6,13 @@ const state = vi.hoisted(() => ({
   bookingCount: 401,
   datesError: null as Error | null,
 }));
-const economy = vi.hoisted(() => vi.fn(async (_bookingIds: string[]) => ({})));
+const economy = vi.hoisted(() => vi.fn(async (ids: string[]) => Object.fromEntries(ids.map(id => [id, {
+  budget: null, time_reports: [], purchases: [], quotes: [], invoices: [], supplier_invoices: [], product_costs: { summary: { costs: 10, revenue: 20 } },
+}]))));
 vi.mock('@tanstack/react-query', () => ({ useQuery: (options: unknown) => options }));
 vi.mock('../useCurrentOrg', () => ({ useCurrentOrg: () => ({ organizationId: state.org }) }));
 vi.mock('@/services/planningApiService', () => ({ fetchAllEconomyDataMulti: economy }));
-vi.mock('@/services/projectEconomyService', () => ({ calculateEconomySummary: vi.fn() }));
+vi.mock('@/services/projectEconomyService', () => ({ calculateEconomySummary: vi.fn(() => ({ totalActual: 0, totalBudget: 10 })) }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: { from: (table: string) => {
     const read = { table, filters: [] as [string, unknown][], ids: [] as string[] };
@@ -68,5 +70,9 @@ describe('economy overview loading', () => {
   it('fails truthfully when Booking dates cannot be read', async () => {
     state.datesError = new Error('dates unavailable');
     await expect(options().queryFn()).rejects.toThrow('dates unavailable');
+  });
+  it('propagates economy failures instead of substituting zero amounts', async () => {
+    economy.mockRejectedValueOnce(new Error('economy unavailable'));
+    await expect(options().queryFn()).rejects.toThrow('economy unavailable');
   });
 });

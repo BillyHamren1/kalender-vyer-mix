@@ -25,7 +25,7 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
+    summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking, economyError, refetchEconomy,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
   const {
@@ -35,6 +35,7 @@ const LargeProjectEconomyPage = () => {
   const [costBreakdownOpen, setCostBreakdownOpen] = useState(false);
 
   if (!project) return null;
+  if (economyError) return <div role="alert" className="border border-destructive/40 p-4 text-sm">Ekonomin kunde inte uppdateras; summeringen visas inte med ofullständiga belopp. <Button variant="outline" size="sm" onClick={() => refetchEconomy()}>Försök igen</Button></div>;
 
   if (isLoading || linesLoading) {
     return (

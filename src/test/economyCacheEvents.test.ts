@@ -4,6 +4,11 @@ import { economyCacheRefreshBookingId } from '../../supabase/functions/_shared/e
 const bookingId = '8e16aa4d-d865-4b02-b648-f43cbe2b1a5a';
 
 describe('economy cache write events', () => {
+  it.each(['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'extra_costs', 'supplier_invoices'].flatMap(type =>
+    ['POST', 'PUT', 'DELETE'].map(method => ({ type, method }))))('binds successful $method $type to exactly one affected booking', ({type, method}) => {
+    expect(economyCacheRefreshBookingId({type,method,ok:true,params:{booking_id:bookingId}})).toBe(bookingId);
+    expect(economyCacheRefreshBookingId({type,method,ok:false,params:{booking_id:bookingId}})).toBeNull();
+  });
   it.each(['budget', 'purchases', 'quotes', 'invoices', 'time_reports', 'product_costs', 'extra_costs', 'supplier_invoices'])(
     'refreshes only the affected booking for successful %s writes',
     (type) => {
