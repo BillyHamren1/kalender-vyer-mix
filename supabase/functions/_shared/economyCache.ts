@@ -29,13 +29,26 @@ export async function writeEconomyCache(db: Db, organizationId: string, rows: Re
   if (error) console.warn('[economy-cache] write failed', error.message);
 }
 
+/** Remove only the affected tenant's entries before a source refresh. */
+export async function invalidateEconomyCache(db: Db, organizationId: string, bookingIds: string[]) {
+  const uniqueIds = [...new Set(bookingIds)];
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const { error } = await db.from('economy_cache').delete()
+      .eq('organization_id', organizationId).in('booking_id', uniqueIds.slice(i, i + 100));
+    if (error) throw error;
+  }
+}
+
 /** Hämtar färsk ekonomi från Booking för givna bokningar och sparar den. */
 export async function refreshEconomyCache(
   db: Db, efUrl: string, apiKey: string, organizationId: string, bookingIds: string[], parallel = 10,
 ) {
+  const affectedIds = [...new Set(bookingIds)];
+  if (affectedIds.length === 0) return {};
+  await invalidateEconomyCache(db, organizationId, affectedIds);
   const fresh: Record<string, Record<string, unknown>> = {};
-  for (let i = 0; i < bookingIds.length; i += parallel) {
-    const chunk = bookingIds.slice(i, i + parallel);
+  for (let i = 0; i < affectedIds.length; i += parallel) {
+    const chunk = affectedIds.slice(i, i + parallel);
     const res = await Promise.all(chunk.map((id) => fetchEconomyBatch(fetch, efUrl, apiKey, id, organizationId)));
     chunk.forEach((id, k) => { fresh[id] = res[k]; });
   }
