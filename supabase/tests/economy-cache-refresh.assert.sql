@@ -13,6 +13,13 @@ BEGIN
     (booking_a, org_a, '{"product_costs":{"total_cost":10}}'),
     (booking_b, org_b, '{"product_costs":{"total_cost":20}}');
 
+  IF EXISTS (SELECT 1 FROM public.claim_economy_cache_refresh(org_a, ARRAY[]::text[])) THEN
+    RAISE EXCEPTION 'empty refresh claim should not return work';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.economy_cache WHERE booking_id = booking_a AND organization_id = org_a) THEN
+    RAISE EXCEPTION 'empty refresh claim invalidated cache';
+  END IF;
+
   SELECT generation INTO old_generation
   FROM public.claim_economy_cache_refresh(org_a, ARRAY[booking_a]);
   IF old_generation <> 1 THEN RAISE EXCEPTION 'first generation should be 1'; END IF;
