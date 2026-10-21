@@ -111,12 +111,11 @@ export function summarizeEconomyBatches(batches: BatchEconomyData[]) {
   const results = batches.map(processEconomyBatchData);
   if (results.length === 1) return results[0];
   const summary = { ...emptySummary };
-  const additive = ['budgetedHours','actualHours','staffBudget','staffActual','purchasesTotal','quotesTotal','invoicesTotal','supplierInvoicesTotal','productCostBudget','productRevenue','totalBudget','totalActual'] as const;
+  const additive = ['budgetedHours','actualHours','staffBudget','staffActual','purchasesTotal','quotesTotal','invoicesTotal','invoiceDeviation','supplierInvoicesTotal','productCostBudget','productRevenue','totalBudget','totalActual'] as const;
   for (const result of results) for (const field of additive) summary[field] += result.summary[field];
-  summary.staffDeviation = summary.staffActual - summary.staffBudget;
-  summary.staffDeviationPercent = summary.staffBudget > 0 ? summary.staffDeviation / summary.staffBudget * 100 : 0;
-  summary.invoiceDeviation = summary.invoicesTotal - summary.quotesTotal;
-  summary.totalDeviation = summary.totalActual - summary.totalBudget;
-  summary.totalDeviationPercent = summary.totalBudget > 0 ? summary.totalActual / summary.totalBudget * 100 : 0;
+  summary.staffDeviation = summary.staffBudget - summary.staffActual;
+  summary.staffDeviationPercent = summary.staffBudget > 0 ? summary.staffDeviation / summary.staffBudget * 100 : (summary.staffActual > 0 ? -100 : 0);
+  summary.totalDeviation = summary.totalBudget - summary.totalActual;
+  summary.totalDeviationPercent = summary.totalBudget > 0 ? summary.totalDeviation / summary.totalBudget * 100 : (summary.totalActual > 0 ? -100 : 0);
   return { summary, timeReports: results.flatMap(r => r.timeReports), economyClosed: results.length > 0 && results.every(r => r.economyClosed) };
 }

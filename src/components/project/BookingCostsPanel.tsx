@@ -4,6 +4,9 @@ import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
 import { extraCostAmount } from "@/lib/economy/bookingCosts";
 export { extraCostAmount } from "@/lib/economy/bookingCosts";
 import { useState } from 'react';
+import { useBookingEconomyBatch } from '@/hooks/useBookingEconomyBatch';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { emitEconomyChanged } from '@/lib/economy/cacheContract';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -18,11 +21,11 @@ const fields = ['assembly_cost', 'handling_cost', 'purchase_cost'] as const;
 const fmt = (n: number) => n.toLocaleString('sv-SE');
 function useCostRefresh(bookingId: string) {
   const client = useQueryClient();
-  return () => Promise.all([
-    client.invalidateQueries({ queryKey: ['product-costs', bookingId] }),
-    client.invalidateQueries({ queryKey: ['booking-extra-costs', bookingId] }),
-    client.invalidateQueries({ queryKey: ['large-project-booking-economy'] }),
-  ]);
+  const { organizationId } = useCurrentOrg();
+  return () => {
+    if (organizationId) emitEconomyChanged(organizationId, bookingId);
+    return client.invalidateQueries({ queryKey: ['booking-extra-costs', organizationId, bookingId] });
+  };
 }
 export function LegacyBookingCostsNotice({ projectId }: { projectId: string }) {
   const { data: legacy = [], error } = useQuery({ queryKey: ['product-cost-overrides', projectId], queryFn: () => fetchProductCostOverrides(projectId) });
@@ -32,7 +35,8 @@ export function LegacyBookingCostsNotice({ projectId }: { projectId: string }) {
 }
 export function BookingCostReconciliation({ bookingId, projectId }: { bookingId: string; projectId: string }) {
   const { data: legacy = [], error } = useQuery({ queryKey: ['product-cost-overrides', projectId], queryFn: () => fetchProductCostOverrides(projectId) });
-  const { data } = useQuery<ProductCostSummary>({ queryKey: ['product-costs', bookingId], queryFn: () => fetchProductCostsRemote(bookingId) });
+  const batch = useBookingEconomyBatch(bookingId);
+  const data: ProductCostSummary | undefined = batch.data?.product_costs;
   const [saving, setSaving] = useState(false);
   const refresh = useCostRefresh(bookingId);
   const currency = data?.cost_currency || 'SEK';
@@ -55,7 +59,8 @@ export function BookingCostReconciliation({ bookingId, projectId }: { bookingId:
 }
 
 export function BookingExtraCostsCard({ bookingId }: { bookingId: string }) {
-  const query = useQuery({ queryKey: ['booking-extra-costs', bookingId], queryFn: () => fetchBookingExtraCosts(bookingId) });
+  const { organizationId } = useCurrentOrg();
+  const query = useQuery({ queryKey: ['booking-extra-costs', organizationId, bookingId], queryFn: () => fetchBookingExtraCosts(bookingId), enabled: !!organizationId });
   const [draft, setDraft] = useState<BookingExtraCost[] | null>(null);
   const [expected, setExpected] = useState<BookingExtraCost[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -86,7 +91,8 @@ export function BookingExtraCostsCard({ bookingId }: { bookingId: string }) {
   </CardContent></Card>;
 }
 export function BookingCostsPanel({ bookingId, projectId }: { bookingId: string; projectId?: string }) {
-  const query = useQuery<ProductCostSummary>({ queryKey: ['product-costs', bookingId], queryFn: () => fetchProductCostsRemote(bookingId) });
+  const batch = useBookingEconomyBatch(bookingId);
+  const query = { ...batch, data: batch.data?.product_costs as ProductCostSummary | undefined };
   const refresh = useCostRefresh(bookingId);
   return <div className="space-y-4">
     {query.error && <p role="alert">Kunde inte läsa produktkostnader. <Button onClick={() => query.refetch()}>Försök igen</Button></p>}

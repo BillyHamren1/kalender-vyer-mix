@@ -31,7 +31,7 @@ export function applyEconomyChanges(client: QueryClient, org: string, batches: R
     if (!ids.some(id => changed.has(id))) return row;
     const merged = { ...row.economyBatches, ...Object.fromEntries(ids.filter(id => batches[id]).map(id => [id, batches[id]])) };
     if (ids.some(id => staleIds.includes(id)) || ids.some(id => !merged[id])) {
-      return { ...row, economyError: 'Ekonomin kunde inte uppdateras; tidigare belopp är inaktuella.', revenueAvailable: false };
+      return { ...row, economyBatches: merged, economyError: 'Ekonomin kunde inte uppdateras; tidigare belopp är inaktuella.', revenueAvailable: false };
     }
     return { ...row, ...summarizeEconomyBatches(ids.map(id => merged[id])), economyClosed: row.status === 'completed' || summarizeEconomyBatches(ids.map(id => merged[id])).economyClosed,
       economyBatches: merged, economyError: undefined, revenueAvailable: true };

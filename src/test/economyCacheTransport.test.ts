@@ -11,7 +11,9 @@ describe('authoritative cache transport', () => {
     expect(invoke).toHaveBeenCalledWith('planning-api-proxy', { body: { type: 'multi_batch', booking_ids: ['a'] } });
   });
   it('chunks all 501 affected bookings without silently dropping any', async () => {
-    invoke.mockImplementation((_name, { body }) => Promise.resolve({ data: Object.fromEntries(body.booking_ids.map((id: string) => [id,batch])), error: null }));
+    for (const [start, end] of [[0,200],[200,400],[400,501]]) {
+      invoke.mockResolvedValueOnce({ data: Object.fromEntries(Array.from({length:end-start},(_,i) => [`b-${start+i}`,batch])), error: null });
+    }
     const result = await fetchAllEconomyDataMulti(Array.from({length:501},(_,i) => `b-${i}`));
     expect(Object.keys(result)).toHaveLength(501);
     expect(invoke.mock.calls.map(c => c[1].body.booking_ids.length)).toEqual([200,200,101]);
