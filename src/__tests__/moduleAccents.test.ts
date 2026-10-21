@@ -10,6 +10,7 @@ describe('canonical EventFlow module palette', () => {
     for (const key of ['planning', 'warehouse'] as const) {
       expect(MODULE_PALETTE[key].baseHex).toBe('#1F747A');
       expect(MODULE_PALETTE[key].darkHex).toBe('#156065');
+      expect(MODULE_PALETTE[key].brightHex).toBe('#4DC3CB'); // HUB dark-surface fix (abab70a)
       expect(MODULE_PALETTE[key].base).toBe('hsl(183.956 59.4771% 30%)');
       expect(MODULE_PALETTE[key].dark).toBe('hsl(183.75 65.5738% 23.9216%)');
     }
