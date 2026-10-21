@@ -30,7 +30,7 @@ export async function readEconomyCache(db: Db, organizationId: string, bookingId
  * fetch still in flight.
  */
 export async function claimEconomyCacheRefresh(db: Db, organizationId: string, bookingIds: string[]) {
-  const uniqueIds = [...new Set(bookingIds)];
+  const uniqueIds = [...new Set(bookingIds)].sort();
   if (uniqueIds.length === 0) return {};
   const { data, error } = await db.rpc('claim_economy_cache_refresh', {
     p_organization_id: organizationId,
