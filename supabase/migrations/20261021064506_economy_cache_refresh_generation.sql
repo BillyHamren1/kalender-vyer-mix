@@ -27,6 +27,7 @@ AS $$
     SELECT p_organization_id, requested.booking_id, 1
     FROM requested
     WHERE requested.booking_id IS NOT NULL AND requested.booking_id <> ''
+    ORDER BY requested.booking_id
     ON CONFLICT (organization_id, booking_id)
     DO UPDATE SET generation = state.generation + 1
     RETURNING state.booking_id, state.generation
