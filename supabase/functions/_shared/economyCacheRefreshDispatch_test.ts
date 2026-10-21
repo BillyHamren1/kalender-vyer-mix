@@ -1,4 +1,4 @@
-import { dispatchEconomyCacheRefresh } from './economyCacheRefreshDispatch.ts';
+import { dispatchEconomyCacheRefresh, economyRefreshBookingIds } from './economyCacheRefreshDispatch.ts';
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -8,6 +8,26 @@ function assertEquals(actual: unknown, expected: unknown) {
 
 const BOOKING_A = '8e16aa4d-d865-4b02-b648-f43cbe2b1a5a';
 const BOOKING_B = '4a31f877-227c-40e2-b222-f171e401d23a';
+
+Deno.test('refreshes the single booking when its source revision is already current', () => {
+  // The importer has no changed booking rows in this path; the source economics
+  // may still have changed independently (for example a corrected invoice).
+  assertEquals(economyRefreshBookingIds({
+    organizationId: 'org-1',
+    isDryRun: false,
+    singleBookingId: BOOKING_A,
+    changedBookingIds: [],
+  }), [BOOKING_A]);
+});
+
+Deno.test('does not refresh during dry runs or without an organization', () => {
+  assertEquals(economyRefreshBookingIds({
+    organizationId: 'org-1', isDryRun: true, singleBookingId: BOOKING_A,
+  }), []);
+  assertEquals(economyRefreshBookingIds({
+    organizationId: null, isDryRun: false, singleBookingId: BOOKING_A,
+  }), []);
+});
 
 Deno.test('dispatches only the affected tenant booking once', async () => {
   const calls: unknown[] = [];
