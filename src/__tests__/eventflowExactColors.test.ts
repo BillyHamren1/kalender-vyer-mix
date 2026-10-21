@@ -59,14 +59,25 @@ describe('exact EventFlow colours resolve to the specified RGB', () => {
     expect(index).toMatch(/--ring: var\(--action\)/);
   });
 
-  it('meets contrast: text on canvas/white, white on teal, teal marker on black bar', () => {
+  it('meets contrast: text on canvas/white, white on teal, bright teal marker on black bar', () => {
     expect(contrast('#202223', '#EDF1F3')).toBeGreaterThan(12);
     expect(contrast('#62666A', '#FFFFFF')).toBeGreaterThan(4.5);
     expect(contrast('#FFFFFF', '#1F747A')).toBeGreaterThan(4.5);
     const bar = hslToHex(MOBILE_BAR.background.replace(/hsl\(|\)/g, ''));
-    expect(contrast(MOBILE_BAR.activeMarker, bar)).toBeGreaterThanOrEqual(3); // non-text marker
-    expect(contrast(MOBILE_BAR.activeMarker, bar)).toBeLessThan(4.5); // therefore never used for small labels
+    // HUB dark-surface fix (abab70a): bright teal marker must clear the 3:1
+    // non-text minimum with margin; base teal only reached ≈3.8:1.
+    expect(contrast(MOBILE_BAR.activeMarker, bar)).toBeGreaterThanOrEqual(3);
+    expect(contrast(MOBILE_BAR.activeMarker, bar)).toBeGreaterThan(contrast('#1F747A', bar));
+    // small labels are never teal on black — they stay white/near-white
     expect(contrast(hslToHex(MOBILE_BAR.inactive.replace(/hsl\(|\)/g, '')), bar)).toBeGreaterThan(4.5);
+  });
+
+  it('ships the HUB bright-teal and topbar-muted css aliases', () => {
+    const accents = read('src/styles/module-accents.css');
+    expect(accents).toContain('--module-bright: 184 55% 55%');
+    expect(accents).toContain('--ef-teal-bright: 184 55% 55%');
+    expect(accents).toContain('--ef-topbar-muted: 210 10% 88%');
+    expect(hslToHex(token(accents, '--module-bright'))).toBe('#4DC3CB');
   });
 
   it('sidebar contract is 240/64/44 and both modules start with Översikt', () => {

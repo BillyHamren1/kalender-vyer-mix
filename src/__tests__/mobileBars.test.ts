@@ -9,7 +9,15 @@ describe('canonical EventFlow mobile bars (standard 2026-10-18)', () => {
   it('locks the shared black bar tokens', () => {
     expect(MOBILE_BAR.background).toBe('hsl(210 6% 8%)');
     expect(MOBILE_BAR.active).toBe('hsl(0 0% 100%)');
-    expect(MOBILE_BAR.inactive).toBe('hsl(215 10% 72%)');
+    expect(MOBILE_BAR.inactive).toBe('hsl(210 10% 88%)');
+  });
+
+  it('locks the HUB dark-surface fix: bright teal marker, near-white inactive text', () => {
+    // HUB commit abab70a: base teal #1F747A disappears on black — the
+    // active marker/indicator uses the bright variant instead.
+    expect(MOBILE_BAR.bright).toBe('#4DC3CB');
+    expect(MOBILE_BAR.activeMarker).toBe(MOBILE_BAR.bright);
+    expect(MOBILE_BAR.activeMarker).not.toBe('#1F747A');
   });
 
   it('renders a solid black bar without blur or gradient', () => {
