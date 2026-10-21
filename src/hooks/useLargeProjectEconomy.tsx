@@ -70,9 +70,9 @@ export const useLargeProjectEconomy = (
   // Aggregated booking economy data (from linked bookings via planning-api)
   const { data: bookingEconomyData, isLoading: bookingEconomyLoading, error: economyError, refetch: refetchEconomy } = useQuery({
     queryKey: ['large-project-booking-economy', organizationId, largeProjectId, bookingIds.slice().sort()],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const batches = await fetchAllEconomyDataMulti(bookingIds);
-      queryClient.setQueryData<boolean>(['economy-aggregate-stale', organizationId, largeProjectId], false);
+      if (!signal.aborted) queryClient.setQueryData<boolean>(['economy-aggregate-stale', organizationId, largeProjectId], false);
       return batches;
     },
     enabled: !!organizationId && bookingIds.length > 0,

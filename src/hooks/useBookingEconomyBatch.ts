@@ -9,10 +9,10 @@ export function useBookingEconomyBatch(bookingId: string | null | undefined) {
   const stale = useQuery({ queryKey: ['economy-stale', organizationId, bookingId], queryFn: () => false, enabled: false });
   const query = useQuery({
     queryKey: economyBookingKey(organizationId, bookingId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!bookingId || !organizationId) throw new Error('Bokning eller organisation saknas');
       const batch = await fetchAllEconomyData(bookingId);
-      client.setQueryData(['economy-stale', organizationId, bookingId], false);
+      if (!signal.aborted) client.setQueryData<boolean>(['economy-stale', organizationId, bookingId], false);
       return batch;
     },
     enabled: !!organizationId && !!bookingId,

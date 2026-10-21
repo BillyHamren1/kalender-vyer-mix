@@ -16,7 +16,6 @@ import { getLargeProjectBookingLabel } from '@/lib/largeProjectBookingLabel';
 import { toast } from 'sonner';
 import type { BatchEconomyData } from '@/services/planningApiService';
 import { createPurchase, updatePurchase, deletePurchase } from '@/services/planningApiService';
-import { useQueryClient } from '@tanstack/react-query';
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
@@ -193,7 +192,6 @@ function AddPurchaseRow({ bookingId, onAdded }: { bookingId: string; onAdded: ()
 
 export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookings, largeProjectId, localProducts = [] }: Props) => {
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
-  const queryClient = useQueryClient();
 
   const toggleBooking = (id: string) => {
     setExpandedBookings(prev => {
@@ -219,8 +217,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
   };
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['large-project-booking-economy'] });
-    queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
+    // Successful source writes emit the common affected-booking event.
+    // Do not reload all sibling bookings or obsolete local product projections.
   };
 
   // Aggregate all costs across all bookings into category buckets

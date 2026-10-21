@@ -21,6 +21,7 @@ export function useEconomyCacheSync() {
       running = true;
       while (pending.size && !disposed) {
         const ids = [...pending]; pending.clear();
+        await client.cancelQueries({ queryKey: ['economy-overview', org], exact: true });
         await Promise.all(ids.map(id => client.cancelQueries({ queryKey: economyBookingKey(org, id), exact: true })));
         await client.cancelQueries({ predicate: query => query.queryKey[0] === 'large-project-booking-economy'
           && query.queryKey[1] === org && Array.isArray(query.queryKey[3]) && query.queryKey[3].some(id => ids.includes(id)) });
@@ -48,7 +49,8 @@ export function useEconomyCacheSync() {
       if (detail.stale) {
         applyEconomyChanges(client, org, {}, [detail.bookingId]);
         client.setQueryData<boolean>(['economy-stale', org, detail.bookingId], true);
-      } else wake(detail.bookingId);
+      }
+      wake(detail.bookingId);
     };
     const channel = supabase.channel(`economy-cache:${org}:${userId}`).on('postgres_changes', {
       event: '*', schema: 'public', table: 'economy_cache', filter: `organization_id=eq.${org}`,

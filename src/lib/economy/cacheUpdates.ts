@@ -26,11 +26,13 @@ export function applyEconomyChanges(client: QueryClient, org: string, batches: R
     client.setQueryData(economyBookingKey(org, id), batch);
     client.setQueryData<boolean>(['economy-stale', org, id], false);
   }
+  staleIds.forEach(id => client.setQueryData<boolean>(['economy-stale', org, id], true));
+  const isStale = (id: string) => client.getQueryData<boolean>(['economy-stale', org, id]) === true;
   client.setQueryData<ProjectWithEconomy[]>(['economy-overview', org], rows => rows?.map(row => {
     const ids = rowIds(row);
     if (!ids.some(id => changed.has(id))) return row;
     const merged = { ...row.economyBatches, ...Object.fromEntries(ids.filter(id => batches[id]).map(id => [id, batches[id]])) };
-    if (ids.some(id => staleIds.includes(id)) || ids.some(id => !merged[id])) {
+    if (ids.some(isStale) || ids.some(id => !merged[id])) {
       return { ...row, economyBatches: merged, economyError: 'Ekonomin kunde inte uppdateras; tidigare belopp är inaktuella.', revenueAvailable: false };
     }
     return { ...row, ...summarizeEconomyBatches(ids.map(id => merged[id])), economyClosed: row.status === 'completed' || summarizeEconomyBatches(ids.map(id => merged[id])).economyClosed,
@@ -40,15 +42,15 @@ export function applyEconomyChanges(client: QueryClient, org: string, batches: R
     const key = query.queryKey;
     if (key[0] !== 'large-project-booking-economy' || key[1] !== org || !Array.isArray(key[3]) || !key[3].some(id => changed.has(id))) continue;
     const ids: string[] = key[3];
-    if (ids.some(id => staleIds.includes(id))) {
+    client.setQueryData(key, (old: Record<string, BatchEconomyData> | undefined) => old && {
+      ...old, ...Object.fromEntries(ids.filter(id => batches[id]).map(id => [id, batches[id]])),
+    });
+    if (ids.some(isStale)) {
       client.setQueryData<boolean>(['economy-aggregate-stale', org, key[2]], true);
       // Mark only this aggregate stale without automatically loading its sibling bookings.
       void client.invalidateQueries({ queryKey: key, exact: true, refetchType: 'none' });
     } else {
       client.setQueryData<boolean>(['economy-aggregate-stale', org, key[2]], false);
-      client.setQueryData(key, (old: Record<string, BatchEconomyData> | undefined) => old && {
-        ...old, ...Object.fromEntries(ids.filter(id => batches[id]).map(id => [id, batches[id]])),
-      });
     }
   }
 }
