@@ -34,6 +34,8 @@ jobs:
         run: |
           cat supabase/tests/economy-cache-refresh.setup.sql supabase/migrations/20261021064506_economy_cache_refresh_generation.sql supabase/tests/economy-cache-refresh.assert.sql | docker exec -i lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1
       - run: npm ci
+      - name: Targeted economy refresh dispatch regressions
+        run: npx vitest run src/test/economyCacheRefreshDispatch.test.ts
       - name: Cancellation and revision contracts
         run: npx vitest run src/test/cancellationNotice.contract.test.ts src/test/cancellationAtomic.contract.test.ts src/test/cancellationRevisionKind.contract.test.ts src/test/cancellationMutationContract.test.ts src/test/revisionContractEndToEnd.contract.test.ts src/test/canonicalRevisionGuard.contract.test.ts src/test/revisionGuardStaleContract.test.ts src/test/packingReviewSource.contract.test.ts
       - name: Full application typecheck

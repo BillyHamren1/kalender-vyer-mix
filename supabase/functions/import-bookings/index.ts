@@ -3,6 +3,7 @@
 import { syncWarehouseEventsForBooking } from '../_shared/warehouseImportEvents.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { dispatchEconomyCacheRefresh, economyRefreshBookingIds } from '../_shared/economyCacheRefreshDispatch.ts'
 import { recordCancellationNotice } from '../_shared/cancellation-notice.ts'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
 import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
@@ -23,6 +24,19 @@ import {
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import { notifyTimeWorkerAssignments } from '../_shared/time-v2/notifyWorkerAssignments.ts'
 import { bookingMapUrl, syncBookingFiles } from '../_shared/bookingFileSync.ts'
+
+function scheduleEconomyCacheRefresh(organizationId: string, bookingIds: string[]) {
+  const job = dispatchEconomyCacheRefresh({
+    supabaseUrl: Deno.env.get('SUPABASE_URL'),
+    serviceRoleKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+    organizationId,
+    bookingIds,
+  });
+  // @ts-ignore
+  if (job && typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+    EdgeRuntime.waitUntil(job);
+  }
+}
 
 import {
   normalizeIncomingRevision,
@@ -3132,6 +3146,14 @@ serve(async (req) => {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
         }));
+        // Economy data may change independently of the booking revision. Keep
+        // the targeted refresh even when this import correctly makes no row mutation.
+        const economyIds = economyRefreshBookingIds({
+          organizationId,
+          isDryRun,
+          singleBookingId: normalizedSingleBookingId,
+        });
+        if (economyIds.length > 0) scheduleEconomyCacheRefresh(organizationId, economyIds);
         // Säkerhetsnät: en aktiv packing med exakt 0 rader självläker även
         // när revisionen redan är applicerad. Fail-closed på läsfel; repair
         // rör aldrig befintliga rader (se emptyPackingSafetyNet.ts).
@@ -5011,22 +5033,17 @@ serve(async (req) => {
 
     // Booking ändrade bokningar → uppdatera lagrad ekonomi i bakgrunden
     // så att ekonomisidan är korrekt nästa gång den öppnas.
-    if (organizationId && !isDryRun) {
-      const economyIds = [...new Set([
+    const economyIds = economyRefreshBookingIds({
+      organizationId,
+      isDryRun,
+      singleBookingId: normalizedSingleBookingId,
+      changedBookingIds: [
         ...results.new_bookings, ...results.updated_bookings, ...results.products_updated_bookings,
-        ...(normalizedSingleBookingId ? [normalizedSingleBookingId] : []),
-      ].filter((id): id is string => typeof id === 'string' && id.length > 0))].slice(0, 200)
-      if (economyIds.length > 0) {
-        const job = fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/refresh-economy-cache`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-          body: JSON.stringify({ organization_id: organizationId, booking_ids: economyIds }),
-        }).catch((err) => console.warn('[import-bookings] economy refresh dispatch failed', err))
-        // @ts-ignore
-        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') EdgeRuntime.waitUntil(job)
-      }
+      ],
+    });
+    if (economyIds.length > 0 && organizationId && !isDryRun) {
+      scheduleEconomyCacheRefresh(organizationId, economyIds);
     }
-
 
 
     // ── Kort-varsel-notiser för nya bokningar (fire-and-forget) ──────────
