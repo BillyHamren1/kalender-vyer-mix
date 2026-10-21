@@ -1,9 +1,12 @@
-// Lagrad ekonomi per bokning. Hämtas EN gång från Booking och sparas i
-// economy_cache. Booking-ändringar (import-bookings) och Planning-skrivningar
-// uppdaterar raden i bakgrunden – ingen tidsbaserad utgång.
+// Lagrad ekonomi per bokning. Cacheuppdateringar claimas och skrivs med en
+// generationsnyckel i databasen så att äldre parallella hämtningar inte kan
+// skriva över en nyare uppdatering.
 import { fetchEconomyBatch } from './economy-fetch.ts';
 
-type Db = { from: (t: string) => any };
+type Db = {
+  from: (t: string) => any;
+  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: any; error: any }>;
+};
 
 /** Endast kompletta svar (utan upstream-fel) får sparas. */
 export function isCacheableBatch(batch: Record<string, unknown> | null | undefined): boolean {
@@ -21,37 +24,63 @@ export async function readEconomyCache(db: Db, organizationId: string, bookingId
   return out;
 }
 
-export async function writeEconomyCache(db: Db, organizationId: string, rows: Record<string, Record<string, unknown>>) {
-  const payload = Object.entries(rows).filter(([, d]) => isCacheableBatch(d))
-    .map(([booking_id, data]) => ({ booking_id, organization_id: organizationId, data, cached_at: new Date().toISOString() }));
-  if (payload.length === 0) return;
-  const { error } = await db.from('economy_cache').upsert(payload, { onConflict: 'booking_id' });
-  if (error) console.warn('[economy-cache] write failed', error.message);
-}
-
-/** Remove only the affected tenant's entries before a source refresh. */
-export async function invalidateEconomyCache(db: Db, organizationId: string, bookingIds: string[]) {
+/**
+ * Claim refresh generations and invalidate old rows in one database
+ * transaction. A later claim advances the generation and wins over any older
+ * fetch still in flight.
+ */
+export async function claimEconomyCacheRefresh(db: Db, organizationId: string, bookingIds: string[]) {
   const uniqueIds = [...new Set(bookingIds)];
-  for (let i = 0; i < uniqueIds.length; i += 100) {
-    const { error } = await db.from('economy_cache').delete()
-      .eq('organization_id', organizationId).in('booking_id', uniqueIds.slice(i, i + 100));
-    if (error) throw error;
+  if (uniqueIds.length === 0) return {};
+  const { data, error } = await db.rpc('claim_economy_cache_refresh', {
+    p_organization_id: organizationId,
+    p_booking_ids: uniqueIds,
+  });
+  if (error) throw error;
+  const generations: Record<string, number> = {};
+  for (const row of data ?? []) {
+    if (uniqueIds.includes(row.booking_id)) generations[row.booking_id] = Number(row.generation);
   }
+  if (Object.keys(generations).length !== uniqueIds.length) {
+    throw new Error('Failed to claim every economy cache refresh');
+  }
+  return generations;
 }
 
-/** Hämtar färsk ekonomi från Booking för givna bokningar och sparar den. */
+/** Save only if this refresh still owns the latest per-booking generation. */
+export async function writeEconomyCacheIfCurrent(
+  db: Db,
+  organizationId: string,
+  bookingId: string,
+  generation: number,
+  data: Record<string, unknown>,
+) {
+  if (!isCacheableBatch(data)) return false;
+  const { data: written, error } = await db.rpc('write_economy_cache_if_current', {
+    p_organization_id: organizationId,
+    p_booking_id: bookingId,
+    p_generation: generation,
+    p_data: data,
+  });
+  if (error) throw error;
+  return written === true;
+}
+
+/** Hämtar färsk ekonomi för bara de angivna bokningarna. */
 export async function refreshEconomyCache(
   db: Db, efUrl: string, apiKey: string, organizationId: string, bookingIds: string[], parallel = 10,
 ) {
   const affectedIds = [...new Set(bookingIds)];
   if (affectedIds.length === 0) return {};
-  await invalidateEconomyCache(db, organizationId, affectedIds);
+  const generations = await claimEconomyCacheRefresh(db, organizationId, affectedIds);
   const fresh: Record<string, Record<string, unknown>> = {};
   for (let i = 0; i < affectedIds.length; i += parallel) {
     const chunk = affectedIds.slice(i, i + parallel);
     const res = await Promise.all(chunk.map((id) => fetchEconomyBatch(fetch, efUrl, apiKey, id, organizationId)));
-    chunk.forEach((id, k) => { fresh[id] = res[k]; });
+    await Promise.all(chunk.map(async (id, k) => {
+      fresh[id] = res[k];
+      await writeEconomyCacheIfCurrent(db, organizationId, id, generations[id], res[k]);
+    }));
   }
-  await writeEconomyCache(db, organizationId, fresh);
   return fresh;
 }
