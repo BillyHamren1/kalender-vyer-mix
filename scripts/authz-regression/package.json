@@ -1,0 +1,12 @@
+{
+  "name": "operations-authz-regression",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node profile-tenant.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.12",
+    "pg": "8.23.1"
+  }
+}

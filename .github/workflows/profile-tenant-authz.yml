@@ -1,0 +1,41 @@
+name: Profile tenant authorization regression
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/authz-regression/**'
+      - '.github/workflows/profile-tenant-authz.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: authz_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: scripts/authz-regression
+      - run: npm test
+        working-directory: scripts/authz-regression
+      - name: PostgreSQL 15 authorization regression
+        run: npm test
+        working-directory: scripts/authz-regression
+        env:
+          AUTHZ_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/authz_fixture
