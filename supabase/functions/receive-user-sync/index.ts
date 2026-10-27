@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     if (!hubUserId || !email || !organizationId) {
       return json({ success: false, error: "user_id, email and organization_id are required" }, 400);
     }
-    if (!roles.length) return json({ success: false, error: "NO_VALID_ROLE_FOR_CALENDAR" }, 403);
+    if (!Array.isArray(body.roles)) return json({ success: false, error: "ROLE_SET_REQUIRED" }, 400);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -72,6 +72,17 @@ Deno.serve(async (req) => {
     let localEmail = email;
     let created = false;
     const { data: exact } = await admin.auth.admin.getUserById(hubUserId);
+    // Empty authoritative sets revoke existing access; never provision a new
+    // account or change passwords/profile context for a revocation delivery.
+    if (roles.length === 0) {
+      const existing = exact?.user || await findUserByEmail(admin, email);
+      if (!existing) return json({ success: true, revoked: true, mode: "absent" });
+      const { data, error } = await admin.rpc("replace_hub_role_projection", {
+        _user_id: existing.id, _organization_id: organizationId, _roles: [],
+      });
+      if (error || data?.ok !== true) return json({ success: false, error: "ROLE_SYNC_FAILED" }, 500);
+      return json({ success: true, revoked: true, organization_id: organizationId });
+    }
     if (exact?.user) {
       localEmail = exact.user.email || email;
       const update: Record<string, unknown> = {
@@ -127,20 +138,10 @@ Deno.serve(async (req) => {
     }, { onConflict: "user_id" });
     if (profileError) return json({ success: false, error: "PROFILE_SYNC_FAILED", details: profileError.message }, 500);
 
-    // Tenant-safe, idempotent role sync: upsert on (user_id, role, organization_id)
-    // so retries/parallel reloads never hit the unique key, then prune only
-    // roles in THIS organization that are no longer granted.
-    const { error: roleError } = await admin.from("user_roles").upsert(
-      roles.map((role) => ({ user_id: localUserId, role, organization_id: organizationId })),
-      { onConflict: "user_id,role,organization_id" },
-    );
-    if (roleError) return json({ success: false, error: "ROLE_UPSERT_FAILED", details: roleError.message }, 500);
-
-    let pruneQuery = admin.from("user_roles").delete()
-      .eq("user_id", localUserId).eq("organization_id", organizationId);
-    if (roles.length > 0) pruneQuery = pruneQuery.not("role", "in", `(${roles.join(",")})`);
-    const { error: deleteError } = await pruneQuery;
-    if (deleteError) return json({ success: false, error: "ROLE_DELETE_FAILED", details: deleteError.message }, 500);
+    const { data: roleProjection, error: roleError } = await admin.rpc("replace_hub_role_projection", {
+      _user_id: localUserId, _organization_id: organizationId, _roles: roles,
+    });
+    if (roleError || roleProjection?.ok !== true) return json({ success: false, error: "ROLE_SYNC_FAILED" }, 500);
 
     return json({
       success: true,

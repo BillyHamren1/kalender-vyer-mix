@@ -11712,6 +11712,10 @@ export type Database = {
         }
         Returns: Json
       }
+      replace_hub_role_projection: {
+        Args: { _organization_id: string; _roles: string[]; _user_id: string }
+        Returns: Json
+      }
       resolve_hub_actor_v1: { Args: { _hub_user_id: string }; Returns: Json }
       set_packing_list_item_packability: {
         Args: {

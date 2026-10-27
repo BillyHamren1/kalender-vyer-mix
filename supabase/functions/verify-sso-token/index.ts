@@ -217,16 +217,14 @@ Deno.serve(async (req) => {
     }
     trace('profile_sync_ok');
 
-    // Tenant-safe and concurrency-safe role sync. Hub opens Planning and
-    // Warehouse in parallel, so delete+insert races and can violate the unique
-    // key. Upsert is idempotent while preserving memberships in other tenants.
-    const roleRows = rolesToSync.map((role) => ({ user_id: userId, role, organization_id: organizationId }));
-    const { error: roleInsertError } = await admin
-      .from('user_roles')
-      .upsert(roleRows, { onConflict: 'user_id,role,organization_id' });
-    if (roleInsertError) {
+    // HUB revalidated this full role set. Replace atomically, including removal
+    // of roles no longer granted; unrelated organizations remain untouched.
+    const { data: roleProjection, error: roleInsertError } = await admin.rpc('replace_hub_role_projection', {
+      _user_id: userId, _organization_id: organizationId, _roles: rolesToSync,
+    });
+    if (roleInsertError || roleProjection?.ok !== true) {
       failure('role_upsert', roleInsertError);
-      return json(500, { success: false, error_code: 'ROLE_SYNC_FAILED', message: roleInsertError.message, trace_id: traceId });
+      return json(500, { success: false, error_code: 'ROLE_SYNC_FAILED', trace_id: traceId });
     }
     trace('role_sync_ok', { roles: rolesToSync });
 
