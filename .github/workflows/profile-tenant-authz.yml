@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/functions/verify-sso-token/**'
+      - 'supabase/functions/receive-user-sync/**'
       - 'scripts/authz-regression/**'
       - '.github/workflows/profile-tenant-authz.yml'
   workflow_dispatch:
@@ -33,6 +35,8 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: scripts/authz-regression
       - run: npm test
+        working-directory: scripts/authz-regression
+      - run: node --test role-sync-handlers.test.mjs
         working-directory: scripts/authz-regression
       - name: PostgreSQL 15 authorization regression
         run: npm test
