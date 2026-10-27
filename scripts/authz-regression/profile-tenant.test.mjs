@@ -4,7 +4,19 @@ import { readFile } from 'node:fs/promises';
 
 // Isolated synthetic PostgreSQL fixture: no network, production data or keys.
 // Policies/helper bodies reproduce the live catalog inspected 2026-10-27.
-const db = new PGlite();
+let db;
+if (process.env.AUTHZ_TEST_DATABASE_URL) {
+  const url = new URL(process.env.AUTHZ_TEST_DATABASE_URL);
+  if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname !== '/authz_fixture') {
+    throw new Error('Native tests require an isolated local authz_fixture database');
+  }
+  const { Client } = await import('pg');
+  const client = new Client({ connectionString: url.toString() });
+  await client.connect();
+  db = { exec: sql => client.query(sql), query: sql => client.query(sql), close: () => client.end() };
+} else {
+  db = new PGlite();
+}
 const member = '10000000-0000-4000-8000-000000000001';
 const other = '10000000-0000-4000-8000-000000000002';
 const orgA = '20000000-0000-4000-8000-000000000001';
