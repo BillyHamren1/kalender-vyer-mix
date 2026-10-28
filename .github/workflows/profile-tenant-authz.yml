@@ -5,6 +5,7 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/functions/verify-sso-token/**'
       - 'supabase/functions/receive-user-sync/**'
+      - 'supabase/functions/_shared/hub-role-projection.ts'
       - 'scripts/authz-regression/**'
       - '.github/workflows/profile-tenant-authz.yml'
   workflow_dispatch:
@@ -38,8 +39,16 @@ jobs:
         working-directory: scripts/authz-regression
       - run: node --test role-sync-handlers.test.mjs
         working-directory: scripts/authz-regression
+      - run: node versioned-projection.test.mjs
+        working-directory: scripts/authz-regression
       - name: PostgreSQL 15 authorization regression
         run: npm test
+        working-directory: scripts/authz-regression
+        env:
+          AUTHZ_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/authz_fixture
+
+      - name: PostgreSQL 15 version ordering regression
+        run: node versioned-projection.test.mjs
         working-directory: scripts/authz-regression
         env:
           AUTHZ_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/authz_fixture

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { applyHubProjection, sourceRevision } from '../_shared/hub-role-projection.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,18 +71,6 @@ async function createUserSession(
   return { session: null, error: lastError };
 }
 
-async function findLegacyUserByEmail(admin: any, email: string) {
-  const normalized = email.trim().toLowerCase();
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) return null;
-    const match = data?.users?.find((user: any) => (user.email || '').toLowerCase() === normalized);
-    if (match) return match;
-    if ((data?.users?.length || 0) < 200) return null;
-  }
-  return null;
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { success: false, error_code: 'METHOD_NOT_ALLOWED' });
@@ -139,6 +128,10 @@ Deno.serve(async (req) => {
     const hubUserId = payload.user_id as string;
     const email = String(payload.email || '').trim().toLowerCase();
     const rolesToSync = mapRoles(payload.roles);
+    let revision: string | null;
+    try { revision = sourceRevision(payload.source_revision); } catch {
+      return json(403, { success: false, error_code: 'INVALID_SOURCE_REVISION', trace_id: traceId });
+    }
     trace('claims', { hub_user_id: hubUserId, organization_id: organizationId, roles: rolesToSync, has_email: !!email });
     if (!organizationId || !hubUserId || !email || rolesToSync.length === 0) {
       failure('claims', { message: 'missing organization_id/user_id/email or no mappable role' });
@@ -167,65 +160,14 @@ Deno.serve(async (req) => {
     trace('org_ok');
 
 
-    // Canonical identity is the Hub UUID. Email is only a one-time legacy adoption fallback.
-    trace('resolve_user');
-    let userId = hubUserId;
-    let localEmail = email;
-    const { data: exact } = await admin.auth.admin.getUserById(hubUserId);
-    if (!exact?.user) {
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        id: hubUserId,
-        email,
-        email_confirm: true,
-        user_metadata: { full_name: payload.full_name || '', organization_id: organizationId, sso_user: true, hub_user_id: hubUserId },
-      });
-      if (createError || !created?.user) {
-        const legacy = await findLegacyUserByEmail(admin, email);
-        if (!legacy) {
-          failure('user_create', createError);
-          return json(500, { success: false, error_code: 'USER_CREATE_FAILED', message: createError?.message, trace_id: traceId });
-        }
-        userId = legacy.id;
-        localEmail = legacy.email || email;
-        await admin.auth.admin.updateUserById(userId, {
-          user_metadata: { ...legacy.user_metadata, full_name: payload.full_name || '', organization_id: organizationId, sso_user: true, hub_user_id: hubUserId },
-        });
-        trace('resolve_user_ok', { mode: 'legacy_adopt', user_id: userId });
-      } else {
-        userId = created.user.id;
-        localEmail = created.user.email || email;
-        trace('resolve_user_ok', { mode: 'created', user_id: userId });
-      }
-    } else {
-      localEmail = exact.user.email || email;
-      await admin.auth.admin.updateUserById(userId, {
-        user_metadata: { ...exact.user.user_metadata, full_name: payload.full_name || '', organization_id: organizationId, sso_user: true, hub_user_id: hubUserId },
-      });
-      trace('resolve_user_ok', { mode: 'existing', user_id: userId });
-    }
-
-    // Profile organization remains the downstream runtime context, but Hub itself no longer mutates its profile.
-    const { error: profileError } = await admin.from('profiles').upsert({
-      user_id: userId,
-      email: localEmail,
-      full_name: payload.full_name || null,
-      organization_id: organizationId,
-    }, { onConflict: 'user_id' });
-    if (profileError) {
-      failure('profile_sync', profileError);
-      return json(500, { success: false, error_code: 'PROFILE_SYNC_FAILED', message: profileError.message, trace_id: traceId });
-    }
-    trace('profile_sync_ok');
-
-    // HUB revalidated this full role set. Replace atomically, including removal
-    // of roles no longer granted; unrelated organizations remain untouched.
-    const { data: roleProjection, error: roleInsertError } = await admin.rpc('replace_hub_role_projection', {
-      _user_id: userId, _organization_id: organizationId, _roles: rolesToSync,
+    const projection = await applyHubProjection(admin, {
+      hubUserId, organizationId, email, fullName: payload.full_name || '', roles: rolesToSync, revision,
     });
-    if (roleInsertError || roleProjection?.ok !== true) {
-      failure('role_upsert', roleInsertError);
-      return json(500, { success: false, error_code: 'ROLE_SYNC_FAILED', trace_id: traceId });
+    if (!projection.ok) {
+      return json(409, { success: false, error_code: projection.error, trace_id: traceId });
     }
+    const userId = projection.userId;
+    const localEmail = projection.localEmail;
     trace('role_sync_ok', { roles: rolesToSync });
 
     const anon = createClient(supabaseUrl, anonKey);
@@ -243,6 +185,7 @@ Deno.serve(async (req) => {
       refresh_token: createdSession.refresh_token,
       user: { id: userId, email: localEmail, organization_id: organizationId, full_name: payload.full_name || null, sso_user: true },
       preferences: payload.preferences || null,
+      source_revision: projection.source_revision,
       roles: rolesToSync,
       trace_id: traceId,
     });
@@ -252,3 +195,4 @@ Deno.serve(async (req) => {
   }
 
 });
+
