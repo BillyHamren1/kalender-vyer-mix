@@ -1,11 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-let db;
+let db; let nativeClient;
 if (process.env.AUTHZ_TEST_DATABASE_URL) {
   const url=new URL(process.env.AUTHZ_TEST_DATABASE_URL);
   if (!['localhost','127.0.0.1'].includes(url.hostname) || url.pathname!='/authz_fixture') throw Error('isolated local fixture required');
-  const {Client}=await import('pg');const client=new Client({connectionString:url.toString()});await client.connect();
+  const {Client}=await import('pg');nativeClient=Client;const client=new Client({connectionString:url.toString()});await client.connect();
   db={exec:q=>client.query(q),query:q=>client.query(q),close:()=>client.end()};
   await db.exec('DROP SCHEMA IF EXISTS public CASCADE;DROP SCHEMA IF EXISTS auth CASCADE;DROP SCHEMA IF EXISTS hub_projection_private CASCADE;CREATE SCHEMA public;');
 } else db=new PGlite();
@@ -97,5 +97,26 @@ try {
   await assert.rejects(()=>apply(absent,['admin'],'22'));count++;
   check('failed projection leaves previous version',await query(`select source_revision::text revision from hub_projection_private.versions where hub_user_id='${absent}'`),[{revision:'21'}]);
   check('failed projection preserves previous roles',await query(`select role from user_roles where user_id='${absent}'`),[{role:'lager'}]);
+  if (nativeClient) {
+    const first=new nativeClient({connectionString:process.env.AUTHZ_TEST_DATABASE_URL});
+    const second=new nativeClient({connectionString:process.env.AUTHZ_TEST_DATABASE_URL});
+    await first.connect();await second.connect();
+    try {
+      await first.query('BEGIN;SET LOCAL ROLE service_role');
+      await first.query(`select apply_hub_role_projection('${absent}','${org}',ARRAY[]::text[],'23')`);
+      const backend=(await second.query('select pg_backend_pid() id')).rows[0].id;
+      await second.query('SET ROLE service_role');
+      const stale=second.query(`select apply_hub_role_projection('${absent}','${org}',ARRAY['lager'],'22') r`);
+      let blocked=false;
+      for(let attempt=0;attempt<100;attempt++) {
+        const state=await query(`select wait_event from pg_stat_activity where pid=${backend}`);
+        if(state[0]?.wait_event==='advisory'){blocked=true;break;}
+        await new Promise(resolve=>setTimeout(resolve,20));
+      }
+      check('concurrent old grant waits on source projection lock',blocked,true);
+      await first.query('COMMIT');
+      check('old grant sees committed newer revocation',(await stale).rows[0].r.error,'STALE_SOURCE_REVISION');
+    } finally {await first.query('ROLLBACK');await first.end();await second.end();}
+  }
   console.log(`${count} versioned projection assertions passed.`);
 } finally {await db.close()}
