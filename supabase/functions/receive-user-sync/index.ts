@@ -54,9 +54,11 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
     // Organization identity is controlled by HUB propagation. Never pick a fallback tenant.
+    if (roles.length) {
     const { data: org, error: orgError } = await admin.from("organizations").select("id").eq("id", organizationId).maybeSingle();
     if (orgError) return json({ success: false, error: "ORG_LOOKUP_FAILED" }, 500);
     if (!org) return json({ success: false, error: "ORG_NOT_FOUND", organization_id: organizationId }, 404);
+    }
 
     const result = await applyHubProjection(admin, { hubUserId, organizationId, email, fullName, roles, revision });
     if (!result.ok) return json({ success: false, error: result.error }, 409);

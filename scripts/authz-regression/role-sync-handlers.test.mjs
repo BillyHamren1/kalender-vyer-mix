@@ -4,18 +4,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const actor='10000000-0000-4000-8000-000000000001', org='20000000-0000-4000-8000-000000000001';
-async function harness(name, { rpcFailure=false, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false }={}) {
+async function harness(name, { rpcFailure=false, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false, emailCollision=false, listFailure=false, absentOrg=false }={}) {
   const source=await readFile(new URL(`../../supabase/functions/${name}/index.ts`,import.meta.url),'utf8');
   const calls=[];
   const authUser={id:actor,email:'fixture@example.invalid',user_metadata:{}};
   const client={
-    auth:{admin:{getUserById:async()=>({data:{user:authUser}}),updateUserById:async()=>({}),
+    auth:{admin:{listUsers:async()=>listFailure?{error:{message:'unavailable'}}:{data:{users:emailCollision?[authUser]:[]}},getUserById:async()=>({data:{user:authUser}}),updateUserById:async()=>({}),
       createUser:async()=>{calls.push("create");return createConflict?{error:{message:"email exists"}}:{data:{user:authUser}};},
       generateLink:async()=>{calls.push('session');return {data:{properties:{hashed_token:'fixture'}}};}},
       verifyOtp:async()=>({data:{session:{access_token:'synthetic',refresh_token:'synthetic'}}})},
     from: table=>{
       assert.notEqual(table,'user_roles','role writes must use the atomic RPC');
-      return {select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:org}})})}),upsert:async()=>{calls.push({profile:true});return {};}};
+      return {select:()=>({eq:()=>({maybeSingle:async()=>({data:absentOrg?null:{id:org}})})}),upsert:async()=>{calls.push({profile:true});return {};}};
     },
     rpc:async(name,args)=>{calls.push({name,args});
       if(name==='resolve_hub_actor_v1') return {data:unmapped?{status:'actor_unmapped'}:{status:'ok',localUserId:actor}};
@@ -57,7 +57,7 @@ test('empty authoritative role set revokes without changing profile context',asy
  const h=await harness('receive-user-sync');
  const r=await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:[]});
  assert.equal(r.status,200); assert.equal((await r.json()).revoked,true);
- assert.deepEqual(h.calls,[{name:'apply_hub_role_projection',args:{_hub_user_id:actor,_organization_id:org,_roles:[],_source_revision:null}}]);
+ assert.deepEqual(h.calls,[{name:'resolve_hub_actor_v1',args:{_hub_user_id:actor}},{name:'apply_hub_role_projection',args:{_hub_user_id:actor,_organization_id:org,_roles:[],_source_revision:null}}]);
 });
 test('missing role list is rejected rather than interpreted as revocation',async()=>{
  const h=await harness('receive-user-sync');
@@ -74,13 +74,14 @@ test('stale revalidated SSO projection never issues a session',async()=>{
  const h=await harness('verify-sso-token',{stale:true});
  assert.equal((await h.invoke({payload:{source_revision:'999'},signature:'fixture'})).status,409);
  assert.ok(!h.calls.includes('session'));
+ assert.ok(!h.calls.some(x=>x.profile));
  const rpc=h.calls.find(x=>x.name==='apply_hub_role_projection');assert.equal(rpc.args._source_revision,'7');
 });
 test('versioned empty projection records absent identity tombstone via canonical HUB UUID',async()=>{
  const h=await harness('receive-user-sync',{unmapped:true});
  const r=await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:[],source_revision:'9007199254740993'});
  assert.equal(r.status,200);assert.equal((await r.json()).source_revision,'9007199254740993');
- assert.deepEqual(h.calls,[{name:'apply_hub_role_projection',args:{_hub_user_id:actor,_organization_id:org,_roles:[],_source_revision:'9007199254740993'}}]);
+ assert.deepEqual(h.calls,[{name:'resolve_hub_actor_v1',args:{_hub_user_id:actor}},{name:'apply_hub_role_projection',args:{_hub_user_id:actor,_organization_id:org,_roles:[],_source_revision:'9007199254740993'}}]);
 });
 test('number or malformed revision is rejected before any mutation',async()=>{
  for(const revision of [1,'01','-1','9223372036854775808']) {
@@ -93,4 +94,17 @@ test('email conflict cannot adopt an unrelated local identity',async()=>{
  const h=await harness('receive-user-sync',{unmapped:true,createConflict:true});
  assert.equal((await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:['lager'],source_revision:'7'})).status,409);
  assert.ok(!h.calls.some(x=>x.name==='apply_hub_role_projection'));
+});
+
+test('unmapped email conflict or lookup failure cannot falsely acknowledge revocation',async()=>{
+ for(const options of [{emailCollision:true},{listFailure:true}]) {
+  const h=await harness('receive-user-sync',{unmapped:true,...options});
+  assert.equal((await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:[],source_revision:'8'})).status,409);
+  assert.ok(!h.calls.some(x=>x.name==='apply_hub_role_projection'));
+ }
+});
+test('absent organization still permits canonical revocation tombstone',async()=>{
+ const h=await harness('receive-user-sync',{unmapped:true,absentOrg:true});
+ const r=await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:[],source_revision:'8'});
+ assert.equal(r.status,200);assert.equal((await r.json()).source_revision,'8');
 });
