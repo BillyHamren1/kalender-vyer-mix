@@ -82,5 +82,11 @@ try {
     await assert.rejects(()=>role(actor,`select scanner_staff_access_allowed('linked','${org}')`),e=>e.code==='42501');
     await assert.rejects(()=>role(actor,`select hub_module_access_allowed('${user}','${org}','lager')`),e=>e.code==='42501');
   }
+  await assert.rejects(()=>db.exec(`update staff_members set user_id=null where id='linked'`),e=>e.code==='42501');
+  await assert.rejects(()=>db.exec(`update staff_members set organization_id='${otherOrg}' where id='linked'`),e=>e.code==='42501');
+  await db.exec(`delete from staff_members where id='linked'`);
+  await assert.rejects(()=>db.exec(`insert into staff_members values('linked','${org}',null,true)`),e=>e.code==='42501');
+  await db.exec(`grant insert,update on staff_members to authenticated`);
+  await assert.rejects(()=>role('authenticated',`insert into staff_members values('impersonation','${org}','${user}',true)`),e=>e.code==='42501');
   console.log(`${count} module/scanner SQL assertions passed plus client privilege checks`);
 } finally {await db.close()}

@@ -43,13 +43,47 @@ END $$;
 REVOKE ALL ON FUNCTION public.hub_module_access_allowed(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.hub_module_access_allowed(uuid,uuid,text) TO service_role;
 
+-- Retain the existing staff-to-auth binding without an FK: deleting/recreating
+-- staff must not erase the HUB authority boundary or turn it into standalone staff.
+CREATE TABLE hub_projection_private.scanner_staff_bindings (
+ staff_id text PRIMARY KEY, local_user_id uuid NOT NULL, organization_id uuid NOT NULL
+);
+ALTER TABLE hub_projection_private.scanner_staff_bindings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON hub_projection_private.scanner_staff_bindings FROM PUBLIC,anon,authenticated;
+GRANT SELECT,INSERT ON hub_projection_private.scanner_staff_bindings TO service_role;
+INSERT INTO hub_projection_private.scanner_staff_bindings
+ SELECT id,user_id,organization_id FROM public.staff_members WHERE user_id IS NOT NULL AND organization_id IS NOT NULL;
+CREATE FUNCTION hub_projection_private.retain_scanner_staff_binding()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE prior hub_projection_private.scanner_staff_bindings;
+BEGIN
+ SELECT * INTO prior FROM hub_projection_private.scanner_staff_bindings WHERE staff_id=NEW.id;
+ IF FOUND AND (NEW.user_id IS DISTINCT FROM prior.local_user_id OR NEW.organization_id IS DISTINCT FROM prior.organization_id) THEN
+ RAISE EXCEPTION 'Canonical staff binding is immutable' USING ERRCODE='42501'; END IF;
+ IF TG_OP='UPDATE' AND NEW.id IS DISTINCT FROM OLD.id AND OLD.user_id IS NOT NULL THEN
+ RAISE EXCEPTION 'Canonical staff identity is immutable' USING ERRCODE='42501'; END IF;
+ IF NEW.user_id IS NOT NULL AND NEW.organization_id IS NOT NULL THEN
+  -- Browser clients cannot assign themselves another account's staff authority.
+  IF current_setting('role',true) NOT IN ('service_role','postgres','supabase_admin','none') AND
+   (TG_OP='INSERT' OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.organization_id IS DISTINCT FROM OLD.organization_id) THEN
+   RAISE EXCEPTION 'Canonical staff binding requires trusted server' USING ERRCODE='42501'; END IF;
+  INSERT INTO hub_projection_private.scanner_staff_bindings VALUES(NEW.id,NEW.user_id,NEW.organization_id) ON CONFLICT DO NOTHING;
+ END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION hub_projection_private.retain_scanner_staff_binding() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER retain_scanner_staff_binding BEFORE INSERT OR UPDATE ON public.staff_members
+ FOR EACH ROW EXECUTE FUNCTION hub_projection_private.retain_scanner_staff_binding();
+
 CREATE FUNCTION public.scanner_staff_access_allowed(_staff_id text,_organization_id uuid)
 RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
-DECLARE staff public.staff_members;
+DECLARE staff public.staff_members; binding hub_projection_private.scanner_staff_bindings;
 BEGIN
  IF current_user NOT IN ('service_role','postgres','supabase_admin') THEN RAISE EXCEPTION 'Service only' USING ERRCODE='42501'; END IF;
  SELECT * INTO staff FROM public.staff_members WHERE id=_staff_id AND organization_id=_organization_id;
  IF NOT FOUND OR staff.is_active IS DISTINCT FROM true THEN RETURN false; END IF;
+ SELECT * INTO binding FROM hub_projection_private.scanner_staff_bindings WHERE staff_id=_staff_id;
+ IF FOUND AND (staff.user_id IS DISTINCT FROM binding.local_user_id OR staff.organization_id IS DISTINCT FROM binding.organization_id) THEN RETURN false; END IF;
  -- Independent personnel credentials remain their own authority; never link by email.
  IF staff.user_id IS NULL THEN RETURN true; END IF;
  RETURN public.hub_module_access_allowed(staff.user_id,_organization_id,'lager') AND EXISTS
