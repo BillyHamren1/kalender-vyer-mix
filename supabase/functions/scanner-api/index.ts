@@ -1,3 +1,4 @@
+import { scannerStaffAccessAllowed } from '../_shared/scannerHubAccess.ts';
 // @ts-nocheck
 import { scannerJobsReadOptions, readScannerPackingPage } from '../_shared/scannerJobsPage.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
@@ -109,6 +110,10 @@ async function authenticateRequest(
   if (!activeScannerSessionMatches(staffMember.active_mobile_session_id, sessionId)) {
     console.warn(`[scanner-api auth] 401 reason=token_revoked staffId=${staffId}`)
     throw { status: 401, message: 'Session revoked', reason: 'token_revoked' }
+  }
+
+  if (!await scannerStaffAccessAllowed(supabase, staffMember.id, staffMember.organization_id)) {
+    throw { status: 403, message: 'Scanner access revoked', reason: 'access_revoked' }
   }
 
   return {
@@ -3962,3 +3967,4 @@ Deno.serve(async (req) => {
 function json(data: any, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
 }
+

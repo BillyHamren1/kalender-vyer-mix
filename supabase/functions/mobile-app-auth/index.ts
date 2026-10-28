@@ -1,3 +1,4 @@
+import { scannerStaffAccessAllowed } from '../_shared/scannerHubAccess.ts';
 // @ts-nocheck
 // Lightweight standalone login endpoint for the mobile app.
 //
@@ -178,6 +179,9 @@ async function handleLogin(
   let scannerToken: string | undefined
   let scannerTokenExpiresAt: string | undefined
   if (issueScannerCredential) {
+    if (!await scannerStaffAccessAllowed(supabase, staffMember.id, staffMember.organization_id)) {
+      return json({ error: 'Scanner access revoked' }, 403, responseHeaders)
+    }
     if (!staffMember.organization_id) {
       return json({ error: 'Scanner organization is unavailable' }, 403, responseHeaders)
     }
@@ -318,4 +322,5 @@ Deno.serve(async (req) => {
     return json({ error: 'Internal server error' }, 500, responseHeaders)
   }
 })
+
 

@@ -161,10 +161,13 @@ Deno.serve(async (req) => {
 
 
     const projection = await applyHubProjection(admin, {
-      hubUserId, organizationId, email, fullName: payload.full_name || '', roles: rolesToSync, revision,
+      hubUserId, organizationId, email, fullName: payload.full_name || '', roles: rolesToSync, revision, moduleAccess: payload.module_access,
     });
     if (!projection.ok) {
       return json(409, { success: false, error_code: projection.error, trace_id: traceId });
+    }
+    if (revision !== null && payload.module_access?.[expectedModule(targetView)] !== true) {
+      return json(403, { success: false, error_code: 'MODULE_ACCESS_DENIED', trace_id: traceId });
     }
     const userId = projection.userId;
     const localEmail = projection.localEmail;
@@ -195,4 +198,5 @@ Deno.serve(async (req) => {
   }
 
 });
+
 

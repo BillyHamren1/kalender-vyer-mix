@@ -1,3 +1,4 @@
+import { scannerStaffAccessAllowed } from '../_shared/scannerHubAccess.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import { parseDispatch, validDispatchResponse } from '../_shared/scannerDispatchContract.ts'
 import { signScannerRequest } from '../_shared/eventflow-scanner-bundle-contract.ts'
@@ -93,6 +94,9 @@ export async function handleRequest(req: Request): Promise<Response> {
   ) {
     return json(401, { error: 'scanner_session_revoked' }, headers)
   }
+  if (!await scannerStaffAccessAllowed(supabase, staff.id, staff.organization_id)) {
+    return json(403, { error: 'scanner_access_revoked' }, headers)
+  }
 
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
@@ -157,3 +161,4 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) Deno.serve(handleRequest)
+
