@@ -11367,6 +11367,15 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_hub_role_projection: {
+        Args: {
+          _hub_user_id: string
+          _organization_id: string
+          _roles: string[]
+          _source_revision: string
+        }
+        Returns: Json
+      }
       apply_wms_packability_receipt: {
         Args: {
           _actor_id: string
