@@ -14,6 +14,8 @@ const id = (n: string) => `${n.repeat(8)}-${n.repeat(4)}-4${n.repeat(3)}-8${n.re
 const input = { schema: 'eventflow-scanner-return-gateway.v1', scanner_contract_version: 'scanner_contract_v1', operationId: `op-${id('a')}`, command: 'RETURN_QUANTITY', bookingId: id('1'), reservationId: id('2'), reservationLineId: id('3'), itemTypeId: null, deviceId: 'tc22', scanValue: null, quantity: 1, occurredAt: '2026-10-15T07:00:00.000Z', condition: 'ok', damageNote: null }
 const claims = { staffId: id('4'), organizationId: id('5'), sessionId: id('6'), releaseSha: env.SCANNER_RELEASE_SHA }
 let fetchMock: ReturnType<typeof vi.fn>
+let accessAllowed: boolean
+const accessRpc = vi.fn()
 let token: string
 let staff: Record<string, unknown> | null
 let booking: Record<string, unknown> | null
@@ -24,7 +26,9 @@ beforeEach(async () => {
   staff = { id: claims.staffId, organization_id: claims.organizationId, active_mobile_session_id: claims.sessionId, name: 'Lager' }
   booking = { id: input.bookingId, organization_id: claims.organizationId, booking_number: 'B-1001' }
   filters.length = 0
-  mocks.createClient.mockImplementation(() => ({ from: (table: string) => {
+  accessAllowed = true
+  accessRpc.mockImplementation(async () => ({ data: accessAllowed, error: null }))
+  mocks.createClient.mockImplementation(() => ({ rpc: accessRpc, from: (table: string) => {
     const query = { select: () => query, eq: (key: string, value: unknown) => { filters.push([table, key, value]); return query }, maybeSingle: async () => ({ data: table === 'staff_members' ? staff : booking, error: null }) }
     return query
   } }))
@@ -32,6 +36,13 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', fetchMock)
 })
 describe('signed return proxy boundary', () => {
+  it('denies revoked HUB authority for signed command and read credentials', async () => {
+    accessAllowed = false
+    expect((await handleRequest(request())).status).toBe(403)
+    expect((await readRequest(request({ schema: 'eventflow-scanner-return-read-gateway.v1', scanner_contract_version: 'scanner_contract_v1', bookingId: input.bookingId, reservationId: input.reservationId }))).status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(accessRpc).toHaveBeenCalledWith('scanner_staff_access_allowed', { _staff_id: claims.staffId, _organization_id: claims.organizationId })
+  })
   it('derives tenant/actor, signs exact bytes and preserves disabled owner response', async () => {
     const response = await handleRequest(request())
     expect(response.status).toBe(503)
