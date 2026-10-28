@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applyHubProjection, sourceRevision } from "../_shared/hub-role-projection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,17 +14,6 @@ function json(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-async function findUserByEmail(admin: any, email: string) {
-  for (let page = 1; page <= 100; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) return null;
-    const match = data?.users?.find((u: any) => (u.email || "").trim().toLowerCase() === email);
-    if (match) return match;
-    if ((data?.users?.length || 0) < 100) return null;
-  }
-  return null;
 }
 
 function mapHubRoles(input: unknown): string[] {
@@ -49,7 +39,8 @@ Deno.serve(async (req) => {
     const hubUserId = typeof body.user_id === "string" ? body.user_id : null;
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const organizationId = typeof body.organization_id === "string" ? body.organization_id : null;
-    const password = typeof body.password === "string" && body.password ? body.password : undefined;
+    let revision: string | null;
+    try { revision = sourceRevision(body.source_revision); } catch { return json({ success: false, error: "INVALID_SOURCE_REVISION" }, 400); }
     const fullName = typeof body.full_name === "string" ? body.full_name : undefined;
     const roles = mapHubRoles(body.roles);
 
@@ -67,93 +58,16 @@ Deno.serve(async (req) => {
     if (orgError) return json({ success: false, error: "ORG_LOOKUP_FAILED" }, 500);
     if (!org) return json({ success: false, error: "ORG_NOT_FOUND", organization_id: organizationId }, 404);
 
-    // Hub UUID is canonical for new users. Email is only a legacy-adoption fallback.
-    let localUserId = hubUserId;
-    let localEmail = email;
-    let created = false;
-    const { data: exact } = await admin.auth.admin.getUserById(hubUserId);
-    // Empty authoritative sets revoke existing access; never provision a new
-    // account or change passwords/profile context for a revocation delivery.
-    if (roles.length === 0) {
-      const existing = exact?.user || await findUserByEmail(admin, email);
-      if (!existing) return json({ success: true, revoked: true, mode: "absent" });
-      const { data, error } = await admin.rpc("replace_hub_role_projection", {
-        _user_id: existing.id, _organization_id: organizationId, _roles: [],
-      });
-      if (error || data?.ok !== true) return json({ success: false, error: "ROLE_SYNC_FAILED" }, 500);
-      return json({ success: true, revoked: true, organization_id: organizationId });
-    }
-    if (exact?.user) {
-      localEmail = exact.user.email || email;
-      const update: Record<string, unknown> = {
-        user_metadata: {
-          ...exact.user.user_metadata,
-          full_name: fullName ?? exact.user.user_metadata?.full_name,
-          organization_id: organizationId,
-          hub_user_id: hubUserId,
-          synced_from: "eventflow_hub",
-        },
-      };
-      if (password) update.password = password;
-      const { error } = await admin.auth.admin.updateUserById(localUserId, update);
-      if (error) return json({ success: false, error: "USER_UPDATE_FAILED", details: error.message }, 500);
-    } else {
-      const legacy = await findUserByEmail(admin, email);
-      if (legacy) {
-        localUserId = legacy.id;
-        localEmail = legacy.email || email;
-        const update: Record<string, unknown> = {
-          user_metadata: {
-            ...legacy.user_metadata,
-            full_name: fullName ?? legacy.user_metadata?.full_name,
-            organization_id: organizationId,
-            hub_user_id: hubUserId,
-            synced_from: "eventflow_hub",
-          },
-        };
-        if (password) update.password = password;
-        const { error } = await admin.auth.admin.updateUserById(localUserId, update);
-        if (error) return json({ success: false, error: "LEGACY_USER_ADOPTION_FAILED", details: error.message }, 500);
-      } else {
-        const createParams: Record<string, unknown> = {
-          id: hubUserId,
-          email,
-          email_confirm: true,
-          user_metadata: { full_name: fullName || "", organization_id: organizationId, hub_user_id: hubUserId, synced_from: "eventflow_hub" },
-        };
-        if (password) createParams.password = password;
-        const { data, error } = await admin.auth.admin.createUser(createParams);
-        if (error || !data?.user) return json({ success: false, error: "USER_CREATE_FAILED", details: error?.message }, 500);
-        localUserId = data.user.id;
-        localEmail = data.user.email || email;
-        created = true;
-      }
-    }
-
-    const { error: profileError } = await admin.from("profiles").upsert({
-      user_id: localUserId,
-      email: localEmail,
-      full_name: fullName || null,
-      organization_id: organizationId,
-    }, { onConflict: "user_id" });
-    if (profileError) return json({ success: false, error: "PROFILE_SYNC_FAILED", details: profileError.message }, 500);
-
-    const { data: roleProjection, error: roleError } = await admin.rpc("replace_hub_role_projection", {
-      _user_id: localUserId, _organization_id: organizationId, _roles: roles,
-    });
-    if (roleError || roleProjection?.ok !== true) return json({ success: false, error: "ROLE_SYNC_FAILED" }, 500);
-
-    return json({
-      success: true,
-      user_id: localUserId,
-      hub_user_id: hubUserId,
-      organization_id: organizationId,
-      roles,
-      mode: created ? "created" : localUserId === hubUserId ? "canonical" : "legacy_adopted",
-      password_synced: !!password,
-    }, created ? 201 : 200);
+    const result = await applyHubProjection(admin, { hubUserId, organizationId, email, fullName, roles, revision });
+    if (!result.ok) return json({ success: false, error: result.error }, 409);
+    return json({ success: true, user_id: result.userId, hub_user_id: hubUserId,
+      organization_id: organizationId, roles, revoked: result.revoked,
+      source_revision: result.source_revision, mode: result.created ? "created" : "canonical",
+      password_synced: false,
+    }, result.created ? 201 : 200);
   } catch (error) {
     console.error("[receive-user-sync] Internal error:", error);
     return json({ success: false, error: "INTERNAL_ERROR", details: String(error) }, 500);
   }
 });
+
