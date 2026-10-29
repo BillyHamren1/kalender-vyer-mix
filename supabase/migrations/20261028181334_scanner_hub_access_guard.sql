@@ -49,7 +49,7 @@ CREATE TABLE hub_projection_private.scanner_staff_bindings (
  staff_id text PRIMARY KEY, local_user_id uuid NOT NULL, organization_id uuid NOT NULL
 );
 ALTER TABLE hub_projection_private.scanner_staff_bindings ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON hub_projection_private.scanner_staff_bindings FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON hub_projection_private.scanner_staff_bindings FROM PUBLIC,anon,authenticated,service_role;
 GRANT SELECT,INSERT ON hub_projection_private.scanner_staff_bindings TO service_role;
 INSERT INTO hub_projection_private.scanner_staff_bindings
  SELECT id,user_id,organization_id FROM public.staff_members WHERE user_id IS NOT NULL AND organization_id IS NOT NULL;

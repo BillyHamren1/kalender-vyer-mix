@@ -55,7 +55,10 @@ try {
   await db.exec(await readFile(new URL('../../supabase/migrations/20261028145811_versioned_hub_role_projection.sql',import.meta.url),'utf8'));
   await db.exec(`CREATE TABLE staff_members(id text primary key,organization_id uuid,user_id uuid,is_active boolean);GRANT SELECT ON staff_members TO service_role;
     INSERT INTO staff_members VALUES('linked','${org}','${user}',true),('independent','${org}',null,true),('disabled','${org}',null,false);`);
+  await db.exec('ALTER DEFAULT PRIVILEGES GRANT ALL ON TABLES TO service_role');
   await db.exec(await readFile(new URL('../../supabase/migrations/20261028181334_scanner_hub_access_guard.sql',import.meta.url),'utf8'));
+  await assert.rejects(()=>role('service_role',`delete from hub_projection_private.scanner_staff_bindings where staff_id='linked'`),e=>e.code==='42501');
+  await assert.rejects(()=>role('service_role',`update hub_projection_private.scanner_staff_bindings set local_user_id='${absent}' where staff_id='linked'`),e=>e.code==='42501');
   const scanner=async(id='linked',o=org)=>(await role('service_role',`select scanner_staff_access_allowed('${id}','${o}') allowed`))[0].allowed;
   check('unlinked personnel preserved',await scanner('independent'),true);
   check('inactive staff blocked',await scanner('disabled'),false);
