@@ -11,9 +11,13 @@ export function sourceRevision(value: unknown): string | null {
 
 export async function applyHubProjection(admin: any, input: {
   hubUserId: string; organizationId: string; email: string;
-  fullName?: string; roles: string[]; revision: string | null;
+  fullName?: string; roles: string[]; revision: string | null; moduleAccess?: unknown;
 }) {
   const { hubUserId, organizationId, email, fullName, roles, revision } = input;
+  const gates = input.moduleAccess as Record<string, unknown> | undefined;
+  if (revision !== null && (!gates || typeof gates !== 'object' || Array.isArray(gates)
+    || typeof gates.planering !== 'boolean' || typeof gates.lager !== 'boolean'
+    || Object.keys(gates).length !== 2)) return { ok: false, error: 'MODULE_ACCESS_REQUIRED' };
   // Revocations must record a canonical tombstone even before a local identity
   // exists. Do not provision an account or move profile context to revoke.
   let userId: string | null = null;
@@ -57,7 +61,7 @@ export async function applyHubProjection(admin: any, input: {
 
   }
   const { data: projection, error } = await admin.rpc('apply_hub_role_projection', {
-    _hub_user_id: hubUserId, _organization_id: organizationId, _roles: roles, _source_revision: revision,
+    _hub_user_id: hubUserId, _organization_id: organizationId, _roles: roles, _source_revision: revision, _module_access: gates ?? null,
   });
   if (error || projection?.ok !== true) return { ok: false, error: projection?.error || 'ROLE_SYNC_FAILED' };
   if (roles.length) {
@@ -69,3 +73,4 @@ export async function applyHubProjection(admin: any, input: {
   return { ok: true, userId: projection.local_user_id ?? userId, localEmail, created,
     revoked: roles.length === 0, source_revision: projection.source_revision };
 }
+

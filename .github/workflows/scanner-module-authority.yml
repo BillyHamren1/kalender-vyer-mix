@@ -1,0 +1,19 @@
+name: Scanner module authority
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'scripts/authz-regression/**'
+      - '.github/workflows/scanner-module-authority.yml'
+jobs:
+  authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: npm ci --prefix scripts/authz-regression
+      - run: node scripts/authz-regression/scanner-module-gates.test.mjs
+      - run: node --test scripts/authz-regression/scanner-role-handlers.test.mjs scripts/authz-regression/scanner-auth-paths.test.mjs scripts/authz-regression/role-sync-handlers.test.mjs

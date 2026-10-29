@@ -1,3 +1,4 @@
+import { scannerStaffAccessAllowed } from '../_shared/scannerHubAccess.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 import {
   buildBundleScannerInventoryCommand,
@@ -86,6 +87,9 @@ export async function handleRequest(req: Request): Promise<Response> {
   ) {
     return json(401, { error: 'scanner_session_revoked' }, headers)
   }
+  if (!await scannerStaffAccessAllowed(supabase, staff.id, staff.organization_id)) {
+    return json(403, { error: 'scanner_access_revoked' }, headers)
+  }
 
   const bundleSecret = Deno.env.get('EVENTFLOW_SCANNER_BUNDLE_SECRET') ?? ''
   const bundleUrl = Deno.env.get('EVENTFLOW_BUNDLE_FUNCTIONS_URL') ?? canonicalFunctionsUrl
@@ -130,3 +134,4 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) Deno.serve(handleRequest)
+

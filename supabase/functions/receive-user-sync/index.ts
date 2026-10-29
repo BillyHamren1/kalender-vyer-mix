@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     if (!org) return json({ success: false, error: "ORG_NOT_FOUND", organization_id: organizationId }, 404);
     }
 
-    const result = await applyHubProjection(admin, { hubUserId, organizationId, email, fullName, roles, revision });
+    const result = await applyHubProjection(admin, { hubUserId, organizationId, email, fullName, roles, revision, moduleAccess: body.module_access });
     if (!result.ok) return json({ success: false, error: result.error }, 409);
     return json({ success: true, user_id: result.userId, hub_user_id: hubUserId,
       organization_id: organizationId, roles, revoked: result.revoked,
@@ -72,4 +72,5 @@ Deno.serve(async (req) => {
     return json({ success: false, error: "INTERNAL_ERROR", details: String(error) }, 500);
   }
 });
+
 
