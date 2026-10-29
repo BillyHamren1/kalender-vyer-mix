@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { canMutatePacking } from '../_shared/packingModuleAccess.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { buildWarehousePackabilityRequest, parseWarehousePackabilityReceipt, WMS_PACKABILITY_BASE_URL } from '../_shared/warehousePackabilityWms.ts'
 
@@ -82,6 +83,11 @@ Deno.serve(async (req) => {
     const packabilityModes = new Set(['set_packable', 'set_non_packable', 'reset_packability'])
     if (mode !== 'exclude' && mode !== 'restore' && !packabilityModes.has(mode)) {
       return json({ error: ERROR_MESSAGES.invalid_mode, code: 'invalid_mode' }, 400)
+    }
+
+    const requiredModule = packabilityModes.has(mode) ? 'lager' : 'planering'
+    if (!(await canMutatePacking(supabase, user.id, profile.organization_id, requiredModule))) {
+      return json({ error: ERROR_MESSAGES.forbidden, code: 'forbidden' }, 403)
     }
 
     if (packabilityModes.has(mode)) {
@@ -216,3 +222,4 @@ Deno.serve(async (req) => {
     return json({ error: 'Kunde inte uppdatera packlistan.', code: 'unexpected' }, 500)
   }
 })
+

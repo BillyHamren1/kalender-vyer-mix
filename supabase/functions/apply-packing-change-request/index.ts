@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { canMutatePacking } from '../_shared/packingModuleAccess.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -32,9 +33,13 @@ Deno.serve(async (req) => {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('organization_id')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .maybeSingle()
     if (profileError || !profile?.organization_id) return json({ error: 'Organization access required' }, 403)
+
+    if (!(await canMutatePacking(supabase, user.id, profile.organization_id, 'lager'))) {
+      return json({ error: 'Forbidden', code: 'forbidden' }, 403)
+    }
 
     const body = await req.json().catch(() => ({}))
     const ids: string[] = Array.isArray(body?.change_request_ids) ? body.change_request_ids : []
@@ -209,3 +214,4 @@ function json(payload: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
+

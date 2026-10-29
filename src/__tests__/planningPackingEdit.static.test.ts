@@ -25,7 +25,7 @@ const migrationSql = (() => {
     .sort()
     .reverse()
     .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
-    .find((sql) => sql.includes('planning_edit_packing_list_item'));
+    .find((sql) => sql.includes('CREATE OR REPLACE FUNCTION public.planning_edit_packing_list_item'));
   return file ?? '';
 })();
 
@@ -256,3 +256,4 @@ describe('Säkerhetsuppföljning (org-scope, restore-guard, audit)', () => {
     expect(view).toContain('hanteras fortfarande enbart i skannern');
   });
 });
+
