@@ -1,3 +1,4 @@
+import { hasHubPackingGate } from './packingModuleAccess.ts';
 import type { TimeWmsActor } from './timeWmsProjection.ts';
 
 export class PackingSyncAuthError extends Error {
@@ -22,6 +23,9 @@ export async function authorizePackingSync(
   if (!(roles || []).some((row: any) => ['admin', 'projekt', 'lager', 'forsaljning'].includes(row.role))) {
     throw new PackingSyncAuthError(403, 'forbidden');
   }
+  if (!(await hasHubPackingGate(admin, data.user.id, organizationId, ['planering', 'lager']))) {
+    throw new PackingSyncAuthError(403, 'module_access_denied');
+  }
   return { service: false, actor: { organizationId, personnelId: data.user.id, label: data.user.email || data.user.id } };
 }
 
@@ -43,3 +47,4 @@ export async function isPackingSyncWorkerAuthorized(
     return false;
   }
 }
+

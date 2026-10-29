@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { canMutatePacking } from '../_shared/packingModuleAccess.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
 
@@ -35,6 +36,10 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .maybeSingle()
     if (!profile?.organization_id) return json({ error: 'Organization access required' }, 403)
+
+    if (!(await canMutatePacking(supabase, user.id, profile.organization_id, 'lager'))) {
+      return json({ error: 'Forbidden', code: 'forbidden' }, 403)
+    }
 
     const body = await req.json().catch(() => ({}))
     const packingId: string | null = body?.packing_id || null
@@ -86,3 +91,4 @@ function json(data: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
+

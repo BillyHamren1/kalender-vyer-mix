@@ -6,7 +6,7 @@ function adminFor(roles: Array<{role: string}>, roleError: unknown = null) {
   const filters: unknown[] = [];
   const query: any = { select: () => query, eq: (...args: unknown[]) => { filters.push(args); return query; },
     then: (resolve: any) => Promise.resolve({ data: roles, error: roleError }).then(resolve) };
-  return { filters, auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'verified-user', email: 'user@test.invalid', user_metadata: { role: 'admin' } } } }) }, from: vi.fn(() => query) };
+  return { filters, rpc: vi.fn().mockResolvedValue({data:true,error:null}), auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'verified-user', email: 'user@test.invalid', user_metadata: { role: 'admin' } } } }) }, from: vi.fn(() => query) };
 }
 describe('packing sync authorization', () => {
   it('rejects missing token without database lookup', async () => {
@@ -69,3 +69,4 @@ describe('worker credentials', () => {
     expect(await isPackingSyncWorkerAuthorized('', 'candidate', 'service', admin)).toBe(false);
   });
 });
+
