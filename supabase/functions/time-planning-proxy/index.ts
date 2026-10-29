@@ -4,7 +4,7 @@
  * The browser never talks to Time directly and never receives a service
  * credential. This function:
  *  1. verifies the Planning JWT,
- *  2. requires Planning authority (has_planning_access),
+ *  2. requires current Planning authority in the selected organization,
  *  3. resolves the tenant server-side,
  *  4. calls Time's real deployed boundary `time-planning-adapter`
  *     (contract `time-planning-boundary.v1`, adapter `time-planning-adapter.v2`)
@@ -16,7 +16,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { assertPlanningAccess } from '../_shared/planningAccess.ts';
+import { assertTimePlanningAccess, resolveTimePlanningOrganization } from './access.ts';
 import {
   buildServiceProofClaims,
   deriveSigningKeyFromSeed,
@@ -169,8 +169,11 @@ Deno.serve(async (req) => {
     } else {
       const { data: pushUser, error: pushUserError } = await admin.auth.getUser(authorization.slice(7));
       if (pushUserError || !pushUser?.user) return fail(401, 'unauthorized', 'Invalid session');
-      const pushAccess = await assertPlanningAccess(admin as unknown as never, pushUser.user.id);
+      const pushAccess = await assertTimePlanningAccess(admin, pushUser.user.id);
       if (!pushAccess.ok) return fail(pushAccess.status, pushAccess.error, pushAccess.message);
+      if (!resolveTimePlanningOrganization(pushAccess.organizationId, Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID'))) {
+        return fail(403, 'tenant_binding_required', 'Planning-organisationen saknar en verifierad Time-bindning.');
+      }
       pushOrganizationId = pushAccess.organizationId;
     }
     return handleWorkerAssignmentPush({
@@ -187,8 +190,10 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice(7));
   if (userError || !userData?.user) return fail(401, 'unauthorized', 'Invalid session');
 
-  const access = await assertPlanningAccess(admin as unknown as never, userData.user.id);
+  const access = await assertTimePlanningAccess(admin, userData.user.id);
   if (!access.ok) return fail(access.status, access.error, access.message);
+  const timeOrganizationId = resolveTimePlanningOrganization(access.organizationId, Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID'));
+  if (!timeOrganizationId) return fail(403, 'tenant_binding_required', 'Planning-organisationen saknar en verifierad Time-bindning.');
 
 
   // ONLY signing path: ES256 key derived at runtime from the secret seed.
@@ -224,7 +229,7 @@ Deno.serve(async (req) => {
     const result = await handleExpenseOperation({
       admin,
       organizationId: access.organizationId,
-      timeOrganizationId: Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId,
+      timeOrganizationId,
       adapterUrl,
       anonKey,
       signingSeed,
@@ -240,7 +245,7 @@ Deno.serve(async (req) => {
   // Adapter settings were resolved before authentication so the worker-only
   // sync route and Planning admin routes use one configuration source.
   // Time's tenant id for this Planning tenant. Server-side only; never from the client.
-  const timeOrganizationId = Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId;
+  // timeOrganizationId was bound to the verified source organization above.
 
   const missing = [
     !adapterUrl ? 'TIME_ADAPTER_URL' : null,
@@ -334,3 +339,4 @@ Deno.serve(async (req) => {
     data: scrub(envelope.data),
   });
 });
+
