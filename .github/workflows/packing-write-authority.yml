@@ -16,4 +16,4 @@ jobs:
           node-version: '24.22.1'
       - run: npm ci --prefix scripts/authz-regression
       - run: node scripts/authz-regression/packing-write.test.mjs
-      - run: node --test scripts/authz-regression/packing-module-access.test.mjs
+      - run: node --test scripts/authz-regression/packing-module-access.test.mjs scripts/authz-regression/packing-handler-access.test.mjs
