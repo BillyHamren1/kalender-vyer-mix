@@ -47,7 +47,7 @@ describe('Scanner parcel contract', () => {
     })
     expect(query.ok && query.value.bookingId).toBe(bookingId.toLowerCase())
     expect(request.ok && request.value.bookingId).toBe(bookingId.toLowerCase())
-    if (!request.ok) throw new Error(request.error)
+    if (request.ok === false) throw new Error(request.error)
     expect(await scannerParcelFingerprint(request.value)).not.toBe(
       await scannerParcelFingerprint({ ...request.value, bookingId: ids.bookingId }),
     )
