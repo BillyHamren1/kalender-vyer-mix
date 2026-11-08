@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchLiveBookingById } from "@/services/booking/liveBookingService";
+import { fetchLiveBookingRead } from "@/services/booking/liveBookingService";
 import { fetchWmsPackageRows } from "@/services/booking/packageMembersService";
 import { buildPackageMembers } from "@/lib/booking/packageMembers";
 
@@ -12,8 +12,8 @@ interface LiveBookingProductsListProps {
 
 const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) => {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["live-booking-products", bookingId],
-    queryFn: () => fetchLiveBookingById(bookingId),
+    queryKey: ["live-booking-products-outcome", bookingId],
+    queryFn: () => fetchLiveBookingRead(bookingId),
     enabled: Boolean(bookingId),
     staleTime: 0,
     refetchOnMount: "always",
@@ -22,7 +22,7 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
   const membersQuery = useQuery({
     queryKey: ["booking-package-members", bookingId],
     queryFn: () => fetchWmsPackageRows(bookingId),
-    enabled: Boolean(bookingId),
+    enabled: Boolean(bookingId) && data?.outcome === 'available',
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -46,7 +46,11 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
     );
   }
 
-  const products = data.products ?? [];
+  if (data.outcome === 'cancelled') {
+    return <p role="status" className="py-4 text-sm text-muted-foreground">Bokningen är avbokad i Sales.</p>;
+  }
+
+  const products = data.booking.products ?? [];
   const packageMembers = buildPackageMembers(products, membersQuery.data ?? []);
 
   return (
@@ -68,3 +72,4 @@ const LiveBookingProductsList = ({ bookingId }: LiveBookingProductsListProps) =>
 };
 
 export default LiveBookingProductsList;
+

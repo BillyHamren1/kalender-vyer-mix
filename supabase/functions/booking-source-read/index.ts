@@ -6,6 +6,7 @@
 // organization_id fastställs ALLTID på servern utifrån användarens profil.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { assertPlanningAccess } from '../_shared/planningAccess.ts';
+import { readCancelledOutcome } from './cancelledOutcome.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -68,6 +69,8 @@ Deno.serve(async (req) => {
     }
 
     const payload = await res.json().catch(() => null);
+    const cancelled = readCancelledOutcome(payload, bookingId, organizationId);
+    if (cancelled) return json(cancelled);
     let canonical: Record<string, unknown> | null = null;
     if (payload && typeof payload === 'object') {
       if (typeof (payload as any).found === 'boolean') {
@@ -96,3 +99,4 @@ Deno.serve(async (req) => {
     return json({ error: (error as Error).message ?? 'Internal server error' }, 500);
   }
 });
+

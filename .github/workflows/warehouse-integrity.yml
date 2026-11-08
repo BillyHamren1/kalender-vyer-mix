@@ -32,12 +32,22 @@ jobs:
           src/components/warehouse-ops/__tests__/QuickAssignStaffPopover.test.tsx
           src/components/warehouse/WarehousePersonnelView.test.tsx
           src/components/warehouse/WarehouseJobSheet.test.tsx
+          src/components/project/LiveBookingProductsList.test.tsx
+          src/services/booking/liveBookingService.cancelled.test.ts
+          src/test/bookingSourceCancelledOutcome.test.ts
       - run: npx tsc --noEmit -p tsconfig.app.json
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+      - run: npm run build
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check live Booking read edge dependencies
+        run: deno check --no-lock supabase/functions/booking-source-read/index.ts
       - name: Install isolated SQL engine
         run: npm install --prefix /tmp/warehouse-sql --no-save --ignore-scripts @electric-sql/pglite@0.5.8
       - name: Verify cron migration
         env:
           PGLITE_MODULE: /tmp/warehouse-sql/node_modules/@electric-sql/pglite/dist/index.js
         run: node scripts/test-wms-cron.mjs
+
