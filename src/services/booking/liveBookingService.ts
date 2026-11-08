@@ -37,7 +37,11 @@ export const toProjectBookingAttachments = (
  * Den lokala Planning-kopian används INTE som källa för bokningsfält här —
  * endast Planning-lokala fält (viewed, assigned_project_*) läggs ovanpå.
  */
-export const fetchLiveBookingById = async (bookingId: string): Promise<Booking> => {
+export type LiveBookingRead =
+  | { outcome: 'available'; booking: Booking }
+  | { outcome: 'cancelled'; booking_id: string };
+
+export const fetchLiveBookingRead = async (bookingId: string): Promise<LiveBookingRead> => {
   const { data, error } = await supabase.functions.invoke('booking-source-read', {
     body: { booking_id: bookingId },
   });
@@ -47,9 +51,22 @@ export const fetchLiveBookingById = async (bookingId: string): Promise<Booking> 
     throw new Error((data as any)?.error || 'Kunde inte hämta bokning från Booking');
   }
 
+  if (data.outcome === 'cancelled' && data.booking_id === bookingId) {
+    return { outcome: 'cancelled', booking_id: bookingId };
+  }
+
   const canonical = (data as any).booking as CanonicalBooking;
+  if (!canonical || typeof canonical !== 'object') {
+    throw new Error('booking_source_invalid_response');
+  }
   const local = (data as any).planning_local as PlanningLocalBookingFields | null;
-  return applyPlanningLocalFields(mapCanonicalBookingToPlanning(canonical), local);
+  return { outcome: 'available', booking: applyPlanningLocalFields(mapCanonicalBookingToPlanning(canonical), local) };
+};
+
+export const fetchLiveBookingById = async (bookingId: string): Promise<Booking> => {
+  const result = await fetchLiveBookingRead(bookingId);
+  if (result.outcome === 'cancelled') throw new Error('booking_cancelled_in_source');
+  return result.booking;
 };
 
 /** Project views must show Bookings current attachment snapshot, never the stale local mirror. */
@@ -96,3 +113,4 @@ export const BOOKING_ATTACHMENT_WRITE_DISABLED_MESSAGE =
 export const assertBookingAttachmentWriteUnavailable = (): never => {
   throw new Error(BOOKING_ATTACHMENT_WRITE_DISABLED_MESSAGE);
 };
+
