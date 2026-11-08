@@ -1,0 +1,88 @@
+{
+  "updated_at_utc": "2026-11-08T17:23:00Z",
+  "ops_counter": {
+    "pr": 86,
+    "merged": "d3d13e4ec4eb4ac9389b6dad2f98fc4990d4328d",
+    "deployment": "c1d06b6e-5422-4ea6-befb-13b5f0686473",
+    "lovable_monitor": "umsg_01m6y26mszfy8a8x1azmz31k5h",
+    "reported_public_bundle": "index-DQ7Eoupc.js",
+    "live_ui_recheck_pending": false,
+    "observed_live": "index-DQ7Eoupc.js; FA12CANCELLED,PackstatusAvbokad,0/222"
+  },
+  "ops_cancel_budget": {
+    "pr": 87,
+    "merged": "228028c8a76c5bdfe27031e26913ab0a128514da",
+    "all_six_CI": "success",
+    "applied_via_native_migration": true,
+    "verified_config": "search_path=public;statement_timeout=45s",
+    "verified_body_md5": "04d3ffb0fb16a0d899bcb1a6cb3e6146",
+    "ACL": "postgres,service_role only unchanged"
+  },
+  "fa12_live": {
+    "booking": "e1cbb4b6-5e1e-40a9-843e-76f4ef111258",
+    "ops_status": "CANCELLED",
+    "applied_source_updated_at": "2026-11-08T17:12:18.384962Z",
+    "cancelled_warehouse_events": 6,
+    "preserved_packing_rows": 78,
+    "previous_retry_job": "2bd5fa0c-0ec3-4c94-b543-d299dfab3148",
+    "previous_retry_completed_attempt": 3,
+    "newer_current_cancel_job": "22173e84-9eb1-4ed9-acc1-c7d498e8f052",
+    "newer_job_state": "completed,attempt2"
+  },
+  "fa13_live": {
+    "booking": "b6652f44-b45f-4cdb-9602-47ac7b6a6310",
+    "status": "CANCELLED",
+    "six_packages_reserved_future_2030": false,
+    "receiver": "479ffab4-f7fc-4a71-a10f-764d0f0f8704",
+    "import": "first timeout98sec;second passed imported1 failed0",
+    "remaining_failure": "WMS projection invalid_request after exact currenthandler redeploy",
+    "must_cancel_after_projection_test": false,
+    "inventory_reservation": "cfafee77-bf7c-4113-957f-79bd7680a4c9",
+    "inventory_status": "cancelled,preserved12lines",
+    "ops_status": "CANCELLED,preserved78packingrows",
+    "applied_source_updated_at": "2026-11-08T17:20:59.259324Z",
+    "cancel_receiver": "bcb5f998-0eeb-40a6-9b26-2fa70ea05f2a",
+    "cancel_receiver_result": "completed,attempt1"
+  },
+  "inventory_diagnostics": {
+    "pr": 71,
+    "head": "c9e4d728ba4b5315596bcb0bbf61f2019f145316",
+    "four_relevant_gates": "success",
+    "other_gates": "finishing",
+    "merged": true,
+    "note": "main merge triggers existing Edge auto-deploy; root verify then normal fresh FA13 title event and safe caller/validationFields logs only",
+    "merge_commit": "d0332441549036dbd6a159843655f300801c035b",
+    "all_six_CI": "success",
+    "deployed": true,
+    "runtime_diagnostic": "2026-11-08T17:17:36Z,17:18:22Z caller=time,validationFields=[actor.service]",
+    "exact_active_version_id": "unavailable"
+  },
+  "credential_fix_block": {
+    "automatic_review_rejected": true,
+    "action": "rotate existing PLANNING_WMS_HMAC_SECRET to new distinct cryptorandom sharedvalue in Inventorypnvvnvywphfvmwdmqqzs and Operationspihrhltinhewhoxefjxv via protected provider channel; no values printed",
+    "reason": "user authorized workflowfix but not explicit exact credential rotation and cross-system update",
+    "next": "finishunaffectedPR88 then askexplicitapproval for exactsame-accessrotation; do not retry or bypass before approval",
+    "TIME_PACK_SCAN_HMAC_SECRET": "leaveunchanged"
+  },
+  "cancelled_order_read": {
+    "PR": 88,
+    "head": "59a0fd75dc6acc00f6d1833a44e75b033f50f3cf",
+    "scope": "canonical tenant-matchedtombstone=>neutralcancelledUI,nohistoricalfallback",
+    "local_tests": 23,
+    "CI": "all6success;149tests+types+build+Deno",
+    "deploy_requirement": "booking-source-read verify_jwt=true and frontend; existingplanningAccessexactunchanged",
+    "merged": "0a4b24a4d8266acb10e0847abe6c4e9c4bce9f09",
+    "backend_version": 131,
+    "backend_verify_jwt": true,
+    "backend_three_source_files_exact": true,
+    "frontend_monitor": "umsg_01m6y31jp3f3j930nptwa1a84h",
+    "frontend_status": "sync/publishrunning;Lovablelatest228028c8"
+  },
+  "cleanup_ops_readback": {
+    "FA10": "CANCELLED;0unmarkedwarehouseevents",
+    "FA11": "noOpsbookingcreated",
+    "FA12": "CANCELLED;0unmarkedwarehouseevents",
+    "FA13": "CANCELLED;0unmarkedwarehouseevents"
+  }
+}
+
