@@ -13,6 +13,7 @@ import WarehouseBookingQuickOpen from '@/components/warehouse/WarehouseBookingQu
 import { usePackingList } from '@/hooks/usePackingList';
 import { PACKING_STATUS_COLORS, PACKING_STATUS_LABELS, type PackingStatus } from '@/types/packing';
 import { cn } from '@/lib/utils';
+import { computePackingProgress } from '@/lib/packing/progress';
 
 const BOOKING_SELECT = 'id, booking_number, client, title, status, eventdate, rigdaydate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, contact_name, contact_phone, contact_email, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, rental_only, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time';
 
@@ -82,16 +83,16 @@ const WarehouseBookingDetail = () => {
   });
 
   const packingProgress = useMemo(() => {
-    const activeRows = items.filter((item) => !item.excluded);
-    const total = activeRows.reduce((sum, item) => sum + Number(item.quantity_to_pack || 0), 0);
-    const packed = activeRows.reduce(
-      (sum, item) => sum + Math.min(Number(item.quantity_packed || 0), Number(item.quantity_to_pack || 0)),
-      0,
-    );
+    // The list read model calls its product relation `product`; the shared
+    // progress owner expects `booking_products` to identify visual headers.
+    const progress = computePackingProgress(items.map((item) => ({
+      ...item,
+      booking_products: item.product ?? null,
+    })));
     return {
-      total,
-      packed,
-      percent: total > 0 ? Math.round((packed / total) * 100) : 0,
+      total: progress.total,
+      packed: progress.verified,
+      percent: progress.percentage,
     };
   }, [items]);
 
