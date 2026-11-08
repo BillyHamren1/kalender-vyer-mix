@@ -61,8 +61,16 @@
     "automatic_review_rejected": true,
     "action": "rotate existing PLANNING_WMS_HMAC_SECRET to new distinct cryptorandom sharedvalue in Inventorypnvvnvywphfvmwdmqqzs and Operationspihrhltinhewhoxefjxv via protected provider channel; no values printed",
     "reason": "user authorized workflowfix but not explicit exact credential rotation and cross-system update",
-    "next": "finishunaffectedPR88 then askexplicitapproval for exactsame-accessrotation; do not retry or bypass before approval",
-    "TIME_PACK_SCAN_HMAC_SECRET": "leaveunchanged"
+    "next": "User enters same new Planningkey securely in InventoryLovable More>Settings>Secrets and Operations SupabaseEventFlowCalendar EdgeFunctions>Secrets. ExistingnamePLANNING_WMS_HMAC_SECRETbothends;Timekeyunchanged. Do notaskapprovalagain; afterusercompletion livefullQA.",
+    "TIME_PACK_SCAN_HMAC_SECRET": "leaveunchanged",
+    "user_explicitly_approved": true,
+    "approval_text": "Jag godk\u00e4nner",
+    "approved_rotation_message": "umsg_01m6y41rjtem1tqdcng6sft7xh",
+    "user_approval_required": false,
+    "rotation_performed": false,
+    "capability_block": "Lovable secrettools existingupdate unsupported; no protected crossbackendrelay; usersecureGUIentry required, no secretvalues read/changed",
+    "inventory_capability_message": "umsg_01m6y46e6be3ns4e80pw5e9wk3",
+    "ops_capability_message": "umsg_01m6y46tjxfrjbwfq23h49jyhs"
   },
   "cancelled_order_read": {
     "PR": 88,
@@ -76,13 +84,21 @@
     "backend_verify_jwt": true,
     "backend_three_source_files_exact": true,
     "frontend_monitor": "umsg_01m6y31jp3f3j930nptwa1a84h",
-    "frontend_status": "sync/publishrunning;Lovablelatest228028c8"
+    "frontend_status": "LIVE VERIFIED",
+    "frontend_deployment_id": "abec1097-14c3-4fd9-8716-4fa163604754",
+    "frontend_source": "0a4b24a4d8266acb10e0847abe6c4e9c4bce9f09",
+    "observed_bundle": "index-BWS8H2Bo.js",
+    "live_ui": "FA12CANCELLED,Avbokad,0/222; neutralstatusBokningen\u00e4ravbokadiSales;nogenericreaderror"
   },
   "cleanup_ops_readback": {
     "FA10": "CANCELLED;0unmarkedwarehouseevents",
     "FA11": "noOpsbookingcreated",
     "FA12": "CANCELLED;0unmarkedwarehouseevents",
     "FA13": "CANCELLED;0unmarkedwarehouseevents"
-  }
+  },
+  "inventory_release_proof": "Allfourtestreservations12releaseevents/12distinctlines each, no double release",
+  "final_sales_ui": "FA13Avbokad;Apro3x3 sixinbooking;12/12available",
+  "evidence_image": "/workspace/scratch/eventflow-sales-final-capacity-20261108.jpg",
+  "next_turn": "Approvalalreadyreceived. AwaitrequiredsecureuserentryofsameNEWexistingPlanningHMACvalue in bothbackends;noextraapprovalneeded. Afterusercompletion usefreshUIcopy->confirmed,requireOpsreceivercompletedWMSprojection +Inventoryheld6 +WMS222parts, thencancelandverifyallownersfree. Neverreplayfrozenfailedconfirmedjobs."
 }
 
