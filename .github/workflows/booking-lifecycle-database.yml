@@ -28,7 +28,7 @@ jobs:
       - name: Migration and lifecycle assertions
         run: |
           docker exec lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;'
-          cat supabase/tests/lifecycle-preservation.setup.sql supabase/migrations/20261013134026_preserve_booking_cancellation_work.sql supabase/tests/lifecycle-preservation.assert.sql | docker exec -i lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1
+          cat supabase/tests/lifecycle-preservation.setup.sql supabase/migrations/20261013134026_preserve_booking_cancellation_work.sql supabase/tests/cancellation-timeout.setup.sql supabase/migrations/20261108170524_cancellation_notice_bounded_timeout.sql supabase/tests/cancellation-timeout.assert.sql supabase/rollback/20261108170524_cancellation_notice_bounded_timeout.sql supabase/tests/cancellation-timeout.rollback.assert.sql supabase/migrations/20261108170524_cancellation_notice_bounded_timeout.sql supabase/tests/cancellation-timeout.assert.sql supabase/tests/lifecycle-preservation.assert.sql | docker exec -i lifecycle-pg psql -U postgres -v ON_ERROR_STOP=1
           python3 supabase/tests/lifecycle-concurrency.py lifecycle-pg
       - name: Economy cache generations and tenant isolation
         run: |
@@ -42,4 +42,5 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
         run: npx tsc --noEmit -p tsconfig.app.json
+
 
