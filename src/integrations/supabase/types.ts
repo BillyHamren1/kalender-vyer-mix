@@ -11367,15 +11367,26 @@ export type Database = {
         }
         Returns: Json
       }
-      apply_hub_role_projection: {
-        Args: {
-          _hub_user_id: string
-          _organization_id: string
-          _roles: string[]
-          _source_revision: string
-        }
-        Returns: Json
-      }
+      apply_hub_role_projection:
+        | {
+            Args: {
+              _hub_user_id: string
+              _organization_id: string
+              _roles: string[]
+              _source_revision: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _hub_user_id: string
+              _module_access: Json
+              _organization_id: string
+              _roles: string[]
+              _source_revision: string
+            }
+            Returns: Json
+          }
       apply_wms_packability_receipt: {
         Args: {
           _actor_id: string
@@ -11403,6 +11414,10 @@ export type Database = {
       auto_create_project_for_orphan_booking: {
         Args: { p_booking_id: string }
         Returns: string
+      }
+      can_write_warehouse_packing: {
+        Args: { _organization_id: string }
+        Returns: boolean
       }
       claim_economy_cache_refresh: {
         Args: { p_booking_ids: string[]; p_organization_id: string }
@@ -11609,6 +11624,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      hub_module_access_allowed: {
+        Args: {
+          _local_user_id: string
+          _module: string
+          _organization_id: string
+        }
+        Returns: boolean
+      }
       is_booking_activation_status_change: {
         Args: { _new: string; _old: string }
         Returns: boolean
@@ -11726,6 +11749,10 @@ export type Database = {
         Returns: Json
       }
       resolve_hub_actor_v1: { Args: { _hub_user_id: string }; Returns: Json }
+      scanner_staff_access_allowed: {
+        Args: { _organization_id: string; _staff_id: string }
+        Returns: boolean
+      }
       set_packing_list_item_packability: {
         Args: {
           _actor_id: string
