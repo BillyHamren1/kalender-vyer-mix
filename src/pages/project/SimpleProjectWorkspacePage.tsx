@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddSupplierDialog from "@/components/project/suppliers/AddSupplierDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import { BookingCostsPanel } from "@/components/project/BookingCostsPanel";
+import { ProjectAdditionProducts, ProjectAdditionCosts } from "@/components/project/ProjectAdditionBookings";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
@@ -174,13 +175,14 @@ export default function SimpleProjectWorkspacePage() {
             <section aria-labelledby="booking-core-heading" className="space-y-3">
               <div><h2 id="booking-core-heading" className="text-lg font-semibold">Bokning och leverans</h2><p className="text-sm text-muted-foreground">Adress, kontakt, datum, markspik och allt som ska levereras.</p></div>
               <BookingInfoExpanded booking={displayBooking} projectLeader={project.project_leader} bookingAttachments={attachmentsQuery.data || []} showProductsHeading />
+              <ProjectAdditionProducts projectId={projectId} rootBookingId={bookingId} />
             </section>
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><StickyNote className="h-5 w-5" />Interninformation</CardTitle></CardHeader><CardContent className="space-y-3">{bookingId && canonicalNotes.isError && <p role="alert">Interninformationen kunde inte hämtas från Booking.</p>}<Textarea disabled={!!bookingId && !canonicalNotes.data} rows={7} value={currentNotes} onChange={(event) => setNotes(event.target.value)} placeholder="Det teamet behöver veta om bokningen…" /><div className="flex justify-end"><Button onClick={() => notesMutation.mutate()} disabled={notesMutation.isPending || (!!bookingId && !canonicalNotes.data)}><Save className="mr-2 h-4 w-4" />Spara</Button></div></CardContent></Card>
             <ProjectFiles files={filesQuery.data || []} bookingAttachments={attachmentsQuery.data || []} isUploading={fileMutation.isPending} onUpload={({ file }) => fileMutation.mutate({ type: "upload", file })} onDelete={({ id, url }) => fileMutation.mutate({ type: "delete", id, url })} />
           </TabsContent>
 
           <TabsContent value="costs" className="mt-0 space-y-5">
-            {bookingId ? <BookingCostsPanel bookingId={bookingId} projectId={projectId} /> : <p className="text-sm text-muted-foreground">Projektet saknar kopplad bokning.</p>}
+            {bookingId ? <BookingCostsPanel bookingId={bookingId} projectId={projectId} /> : <p className="text-sm text-muted-foreground">Projektet saknar kopplad bokning.</p>}{bookingId && <ProjectAdditionCosts projectId={projectId} rootBookingId={bookingId} />}
           </TabsContent>
 
           <TabsContent value="planning" className="mt-0">

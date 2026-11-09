@@ -6,6 +6,7 @@ import ProjectOverviewWorkspace from "@/components/project/ProjectOverviewWorksp
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import { ProjectAdditionProducts } from "@/components/project/ProjectAdditionBookings";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -141,6 +142,7 @@ const ProjectViewPage = () => {
             <div className="relative max-h-[680px] overflow-y-auto rounded-2xl">
               {bookingId && <Button variant="outline" size="icon" onClick={refreshBooking} disabled={isRefreshing} className="absolute top-3 right-3 z-10 h-8 w-8" title="Uppdatera bokning"><RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /></Button>}
               <BookingInfoExpanded booking={displayBooking} projectLeader={projectLeaderDisplay} bookingAttachments={bookingAttachments} showCustomerInfo={false} />
+              <ProjectAdditionProducts projectId={project.id} rootBookingId={bookingId} />
             </div>
           )}
         </TabsContent>

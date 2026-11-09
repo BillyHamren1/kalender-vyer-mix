@@ -991,15 +991,19 @@ async function reconcileCalendarEvents(
       // smallest UUID as the deterministic rep.
       const [{ data: lpbRows, error: lpbRowsErr }, { data: bRows, error: bRowsErr }] = await Promise.all([
         supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
-        supabase.from('bookings').select('id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
+        supabase.from('bookings').select('id, parent_booking_id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
       ]);
       if (lpbRowsErr || bRowsErr) throw (lpbRowsErr || bRowsErr);
 
+      // Linked Sales additions never become the LP calendar representative.
+      const additionIds = new Set<string>(
+        (bRows || []).filter((r: any) => r.parent_booking_id).map((r: any) => r.id),
+      );
       const siblingIds = new Set<string>([
         bookingData.id,
         ...((lpbRows || []).map((r: any) => r.booking_id).filter(Boolean)),
         ...((bRows || []).map((r: any) => r.id).filter(Boolean)),
-      ]);
+      ].filter((id) => !additionIds.has(id) || id === bookingData.id));
       const repId = Array.from(siblingIds).sort()[0];
       isLargeProjectRep = repId === bookingData.id;
 
@@ -3614,6 +3618,8 @@ serve(async (req) => {
           // project (tenant-scoped RPC) and never materialise its own planning
           // calendar copy — the root project's calendar already covers it.
           if (bookingGroup.kind === 'addition') {
+            // Only confirmed additions enter the operational flow.
+            if (bookingData.status !== 'CONFIRMED') return { ok: true };
             const { data: attachRes, error: attachErr } = await supabase.rpc('attach_booking_addition', {
               p_organization_id: organizationId,
               p_child_booking_id: bookingData.id,
@@ -3826,7 +3832,7 @@ serve(async (req) => {
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery && !needsProductRecovery) {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
             assertLeaseOwned('warehouse_events');
-            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
+            const warehouseEventsCreated = bookingGroup.kind === 'addition' ? 0 : await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
             // Sync all attachments with shared dedup
             assertLeaseOwned('attachments');
@@ -4343,6 +4349,15 @@ serve(async (req) => {
           }
           // else: external only or both identical — bookingData value is fine
 
+          // Linked addition: Operations owns its project attachment (set only by
+          // attach_booking_addition). Sales payload and the preservation logic
+          // above must never clear or re-point it.
+          if (bookingGroup.kind === 'addition') {
+            delete updateData.assigned_project_id;
+            delete updateData.assigned_project_name;
+            delete updateData.assigned_to_project;
+          }
+
           // Update existing booking
           assertLeaseOwned('booking_update');
           const { error: updateError } = await supabase
@@ -4469,6 +4484,12 @@ serve(async (req) => {
           dbInsertData.rig_time_locked = !!dbInsertData.rig_start_time_external;
           dbInsertData.event_time_locked = !!dbInsertData.event_start_time_external;
           dbInsertData.rigdown_time_locked = !!dbInsertData.rigdown_start_time_external;
+          if (bookingGroup.kind === 'addition') {
+            // Never trust a client/Sales project ID for an addition.
+            dbInsertData.assigned_project_id = null;
+            dbInsertData.assigned_project_name = null;
+            dbInsertData.assigned_to_project = false;
+          }
           assertLeaseOwned('booking_insert');
           const { error: insertError } = await supabase
             .from('bookings')
@@ -4946,7 +4967,7 @@ serve(async (req) => {
               (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
             console.log(`[Warehouse Sync] Syncing events for ${bookingData.id} (isNew=${isNewBooking}, needsRecovery=${needsWarehouseRecovery}, justConfirmed=${justConfirmed})`);
             assertLeaseOwned('warehouse_events');
-            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
+            const warehouseEventsCreated = bookingGroup.kind === 'addition' ? 0 : await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
           } else {
             console.log(`[Warehouse Sync] Skipping for ${bookingData.id} - dates unchanged and not new/justConfirmed`);
