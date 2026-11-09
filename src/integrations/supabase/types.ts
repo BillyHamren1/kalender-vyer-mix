@@ -11555,6 +11555,10 @@ export type Database = {
           job_status: string
         }[]
       }
+      enqueue_pending_booking_additions: {
+        Args: { p_organization_id: string; p_root_booking_id: string }
+        Returns: number
+      }
       ensure_internal_lager_booking: {
         Args: { _org_id: string }
         Returns: string

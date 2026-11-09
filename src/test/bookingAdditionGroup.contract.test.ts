@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { parseBookingGroup, classifyAttachOutcome } from "../../supabase/functions/_shared/bookingGroup";
+import { deriveSingleBookingOutcome, validateSingleBookingResult } from "../../supabase/functions/_shared/singleBookingResult";
 
 const importSrc = readFileSync("supabase/functions/import-bookings/index.ts", "utf8");
 
@@ -42,6 +43,17 @@ describe("classifyAttachOutcome", () => {
       .toEqual({ error: "booking_addition_root_unavailable", retryable: true });
     expect(classifyAttachOutcome({ ok: false, outcome: "explicit_assignment_conflict", retryable: false }))
       .toEqual({ error: "booking_addition_explicit_assignment_conflict", retryable: false });
+  });
+  it("keeps an unassigned root as a retryable failure so the sync job is not completed", () => {
+    expect(classifyAttachOutcome({ ok: false, outcome: "root_unassigned", retryable: true }))
+      .toEqual({ error: "booking_addition_root_unassigned", retryable: true });
+    const results = { failed: 1, errors: [{ booking_id: "c1", error: "booking_addition_root_unassigned" }], total: 1 };
+    expect(deriveSingleBookingOutcome(results)).toBe("partial");
+    const v = validateSingleBookingResult(
+      { sync_mode: "single", booking_id: "c1", organization_id: "o1", outcome: "partial", success: false, completed: false, results },
+      { bookingId: "c1", organizationId: "o1" }, { ok: true, status: 200 },
+    );
+    expect(v).toEqual({ ok: false, permanent: false, reason: "partial_import" });
   });
 });
 

@@ -92,9 +92,8 @@ export type AttachOutcome =
 export function classifyAttachOutcome(res: any): { error: string | null; retryable: boolean } {
   const outcome = String(res?.outcome ?? 'unknown') as AttachOutcome;
   if (res?.ok === true) return { error: null, retryable: false };
-  // Root not yet assigned: the addition waits in Operations without its own
-  // project; next sync retries the attach. Not a failure of the import itself.
-  if (outcome === 'root_unassigned') return { error: null, retryable: false };
+  // root_unassigned stays a retryable failure: the sync job must not complete
+  // until the addition is attached (queue retries; root assignment re-enqueues).
   const retryable = res?.retryable === true;
   return { error: `booking_addition_${outcome}`, retryable };
 }

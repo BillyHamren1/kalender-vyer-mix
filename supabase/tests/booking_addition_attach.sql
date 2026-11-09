@@ -3,7 +3,7 @@
 -- any other error message names the failing assertion.
 DO $t$
 DECLARE
-  oa uuid; ob uuid; p uuid; q uuid; lp uuid; r jsonb; n int; s text;
+  oa uuid; ob uuid; p uuid; q uuid; lp uuid; pc uuid; pu uuid; r jsonb; n int; s text;
 BEGIN
   INSERT INTO public.organizations(name, slug) VALUES ('zz-test-a','zz-test-a-'||gen_random_uuid()) RETURNING id INTO oa;
   INSERT INTO public.organizations(name, slug) VALUES ('zz-test-b','zz-test-b-'||gen_random_uuid()) RETURNING id INTO ob;
@@ -56,5 +56,38 @@ BEGIN
   IF s = 'cancelled' THEN RAISE EXCEPTION 'T14 root project cancelled (%)', r; END IF;
   SELECT status INTO s FROM public.bookings WHERE id='zzt-root';
   IF s <> 'CONFIRMED' THEN RAISE EXCEPTION 'T15 root status %', s; END IF;
+  -- Completed (slutfakturerad) root: addition joins the SAME completed project, root stays completed.
+  INSERT INTO public.bookings(id, client, status, organization_id) VALUES
+    ('zzt-rootc','T','CONFIRMED',oa), ('zzt-cc','T','CONFIRMED',oa),
+    ('zzt-rootu','T','CONFIRMED',oa), ('zzt-cu','T','CONFIRMED',oa);
+  INSERT INTO public.projects(name, booking_id, organization_id, status) VALUES ('PC','zzt-rootc',oa,'completed') RETURNING id INTO pc;
+  r := public.attach_booking_addition(oa,'zzt-cc','zzt-rootc',1);
+  IF r->>'outcome' <> 'attached' OR (r->>'target_id')::uuid <> pc THEN RAISE EXCEPTION 'C1 completed root %', r; END IF;
+  r := public.attach_booking_addition(oa,'zzt-cc','zzt-rootc',1);
+  IF r->>'outcome' <> 'already_attached' THEN RAISE EXCEPTION 'C2 %', r; END IF;
+  SELECT status INTO s FROM public.projects WHERE id=pc;
+  IF s <> 'completed' THEN RAISE EXCEPTION 'C3 root status changed to %', s; END IF;
+  SELECT count(*) INTO n FROM public.projects WHERE organization_id=oa AND booking_id IN ('zzt-rootc','zzt-cc');
+  IF n <> 1 THEN RAISE EXCEPTION 'C4 dup projects %', n; END IF;
+  SELECT count(*) INTO n FROM public.bookings WHERE assigned_project_id=pc::text AND id='zzt-cc';
+  IF n <> 1 THEN RAISE EXCEPTION 'C5 child link %', n; END IF;
+
+  -- Root unassigned -> retryable; root later assigned -> addition re-queued and then attached once.
+  r := public.attach_booking_addition(oa,'zzt-cu','zzt-rootu',1);
+  IF r->>'outcome' <> 'root_unassigned' OR (r->>'retryable')::bool IS NOT TRUE THEN RAISE EXCEPTION 'U1 %', r; END IF;
+  SELECT count(*) INTO n FROM public.booking_sync_jobs WHERE booking_id='zzt-cu' AND status IN ('pending','retryable','processing');
+  IF n <> 0 THEN RAISE EXCEPTION 'U2 premature job %', n; END IF;
+  INSERT INTO public.projects(name, booking_id, organization_id) VALUES ('PU','zzt-rootu',oa) RETURNING id INTO pu;
+  SELECT count(*) INTO n FROM public.booking_sync_jobs WHERE booking_id='zzt-cu' AND organization_id::text=oa::text;
+  IF n <> 1 THEN RAISE EXCEPTION 'U3 retry job not enqueued on root assignment (%)', n; END IF;
+  r := public.attach_booking_addition(oa,'zzt-cu','zzt-rootu',1);
+  IF r->>'outcome' <> 'attached' OR (r->>'target_id')::uuid <> pu THEN RAISE EXCEPTION 'U4 %', r; END IF;
+  SELECT count(*) INTO n FROM public.projects WHERE organization_id=oa AND booking_id IN ('zzt-rootu','zzt-cu');
+  IF n <> 1 THEN RAISE EXCEPTION 'U5 dup projects %', n; END IF;
+  UPDATE public.projects SET name='PU2' WHERE id=pu;
+  UPDATE public.projects SET status='completed' WHERE id=pu;
+  SELECT count(*) INTO n FROM public.booking_sync_jobs WHERE booking_id='zzt-cu' AND organization_id::text=oa::text;
+  IF n <> 1 THEN RAISE EXCEPTION 'U6 attached addition re-queued (%)', n; END IF;
+
   RAISE EXCEPTION 'ALL_PASS_ROLLBACK cancel_outcome=%', r->>'outcome';
 END $t$;
