@@ -24,6 +24,7 @@ import {
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import { notifyTimeWorkerAssignments } from '../_shared/time-v2/notifyWorkerAssignments.ts'
 import { bookingMapUrl, syncBookingFiles } from '../_shared/bookingFileSync.ts'
+import { parseBookingGroup, classifyAttachOutcome } from '../_shared/bookingGroup.ts'
 
 function scheduleEconomyCacheRefresh(organizationId: string, bookingIds: string[]) {
   const job = dispatchEconomyCacheRefresh({
@@ -3368,6 +3369,34 @@ serve(async (req) => {
 // Normalize status for consistent comparison
         const bookingStatus = normalizeBookingStatus(externalBooking.status);
 
+        // Sales linked addition (booking_group). Malformed grouping fails closed:
+        // the booking is not imported at all rather than guessed into a project.
+        const bookingGroupParse = parseBookingGroup(externalBooking);
+        if (!bookingGroupParse.ok) {
+          console.warn(`[Booking Addition] REJECT ${externalBooking.id}: ${bookingGroupParse.error}`);
+          results.errors.push({ booking_id: externalBooking.id, error: bookingGroupParse.error });
+          results.failed++;
+          continue;
+        }
+        const bookingGroup = bookingGroupParse.group;
+        if (bookingGroup.kind === 'addition' && bookingStatus === 'CONFIRMED') {
+          // Root must already exist in THIS tenant. Otherwise retry later
+          // instead of letting the addition start an unrelated project.
+          const { data: rootRow, error: rootErr } = await supabase
+            .from('bookings')
+            .select('id')
+            .eq('id', bookingGroup.rootBookingId)
+            .eq('organization_id', organizationId)
+            .maybeSingle();
+          if (rootErr || !rootRow) {
+            const err = rootErr ? `booking_addition_root_read_failed:${rootErr.message || rootErr}` : 'booking_addition_root_unavailable';
+            console.warn(`[Booking Addition] DEFER ${externalBooking.id}: ${err}`);
+            results.errors.push({ booking_id: externalBooking.id, error: err });
+            results.failed++;
+            continue;
+          }
+        }
+
         // Check for existing booking FIRST (before deciding to skip CANCELLED)
         const existingById = existingBookingMap.get(externalBooking.id)
         let existingByNumber = null
@@ -3580,6 +3609,27 @@ serve(async (req) => {
           } catch (leaseErr) {
             console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: lease_not_owned`);
             throw leaseErr;
+          }
+          // Linked Sales addition: attach to the root's existing Operations
+          // project (tenant-scoped RPC) and never materialise its own planning
+          // calendar copy — the root project's calendar already covers it.
+          if (bookingGroup.kind === 'addition') {
+            const { data: attachRes, error: attachErr } = await supabase.rpc('attach_booking_addition', {
+              p_organization_id: organizationId,
+              p_child_booking_id: bookingData.id,
+              p_root_booking_id: bookingGroup.rootBookingId,
+              p_addition_number: bookingGroup.additionNumber,
+            });
+            const attach = attachErr
+              ? { error: `booking_addition_attach_failed:${attachErr.message || attachErr}`, retryable: true }
+              : classifyAttachOutcome(attachRes);
+            console.log(`[Booking Addition] ${bookingData.id} → root ${bookingGroup.rootBookingId}: ${attachErr ? 'rpc_error' : attachRes?.outcome}`);
+            if (attach.error) {
+              results.failed++;
+              results.errors.push({ booking_id: bookingData.id, error: attach.error });
+              return { ok: false, error: attach.error };
+            }
+            return { ok: true };
           }
           const res = await reconcileCalendarEvents(
             supabase, bookingData, organizationId, results, existingBooking, calendarSyncCtx,

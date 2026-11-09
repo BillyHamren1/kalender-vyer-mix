@@ -1139,6 +1139,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          addition_number: number | null
           assigned_project_id: string | null
           assigned_project_name: string | null
           assigned_to_project: boolean | null
@@ -1177,6 +1178,7 @@ export type Database = {
           needs_review: boolean
           needs_review_reason: string | null
           organization_id: string
+          parent_booking_id: string | null
           rental_only: boolean
           rig_end_time: string | null
           rig_end_time_external: string | null
@@ -1197,6 +1199,7 @@ export type Database = {
           viewed: boolean
         }
         Insert: {
+          addition_number?: number | null
           assigned_project_id?: string | null
           assigned_project_name?: string | null
           assigned_to_project?: boolean | null
@@ -1235,6 +1238,7 @@ export type Database = {
           needs_review?: boolean
           needs_review_reason?: string | null
           organization_id?: string
+          parent_booking_id?: string | null
           rental_only?: boolean
           rig_end_time?: string | null
           rig_end_time_external?: string | null
@@ -1255,6 +1259,7 @@ export type Database = {
           viewed?: boolean
         }
         Update: {
+          addition_number?: number | null
           assigned_project_id?: string | null
           assigned_project_name?: string | null
           assigned_to_project?: boolean | null
@@ -1293,6 +1298,7 @@ export type Database = {
           needs_review?: boolean
           needs_review_reason?: string | null
           organization_id?: string
+          parent_booking_id?: string | null
           rental_only?: boolean
           rig_end_time?: string | null
           rig_end_time_external?: string | null
@@ -11409,6 +11415,15 @@ export type Database = {
       archive_job_thread: {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
+      }
+      attach_booking_addition: {
+        Args: {
+          p_addition_number?: number
+          p_child_booking_id: string
+          p_organization_id: string
+          p_root_booking_id: string
+        }
+        Returns: Json
       }
       auto_close_open_location_entries: { Args: never; Returns: number }
       auto_create_project_for_orphan_booking: {
