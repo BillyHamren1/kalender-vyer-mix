@@ -1,5 +1,7 @@
 export const TIME_WMS_PROJECTION_URL =
   'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/time-wms-outbound/outbound/projection';
+export const TIME_WMS_CALLER = 'planning' as const;
+export const TIME_WMS_CALLER_SIGNATURE_DOMAIN = 'time-wms-caller.v1' as const;
 export const TIME_WMS_PROJECTION_SCHEMA = 'time-wms-outbound-projection-request.v1' as const;
 
 export interface TimeWmsActor {
@@ -97,7 +99,7 @@ export async function fetchTimeWmsProjection(
   const nonce = (deps.nonce?.() ?? crypto.randomUUID()).replace(/-/g, '');
   const signature = await hmacSha256Hex(
     deps.hmacSecret,
-    `${timestamp}.${nonce}.${rawBody}`,
+    `${TIME_WMS_CALLER_SIGNATURE_DOMAIN}:${TIME_WMS_CALLER}:${timestamp}.${nonce}.${rawBody}`,
   );
 
   let response: Response;
@@ -110,6 +112,7 @@ export async function fetchTimeWmsProjection(
         'x-time-timestamp': timestamp,
         'x-time-nonce': nonce,
         'x-time-signature': signature,
+        'x-time-caller': TIME_WMS_CALLER,
       },
       body: rawBody,
     });

@@ -13,7 +13,7 @@ const actor = {
 };
 
 describe('Time-WMS projection transport', () => {
-  it('signerar exakt timestamp.nonce.rawBody och skickar endast serverkontraktets headers', async () => {
+  it('signerar caller-bundet MAC-underlag och skickar serverkontraktets headers', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const request = buildTimeWmsProjectionRequest({
       bookingId: 'e8065d07-d5f3-4ad2-a8c7-b834c5baa8a7',
@@ -52,7 +52,7 @@ describe('Time-WMS projection transport', () => {
     const isoTimestamp = new Date(1790078400 * 1000).toISOString();
     const expected = await hmacSha256Hex(
       secret,
-      `${isoTimestamp}.nonce123456789012.${rawBody}`,
+      `time-wms-caller.v1:planning:${isoTimestamp}.nonce123456789012.${rawBody}`,
     );
     expect(calls[0].init?.headers).toEqual({
       'content-type': 'application/json',
@@ -60,6 +60,7 @@ describe('Time-WMS projection transport', () => {
       'x-time-timestamp': isoTimestamp,
       'x-time-nonce': 'nonce123456789012',
       'x-time-signature': expected,
+      'x-time-caller': 'planning',
     });
   });
 

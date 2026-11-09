@@ -22,6 +22,7 @@ jobs:
           src/__tests__/packingSyncAuth.test.ts
           src/__tests__/wmsPackingListSync.test.ts
           src/__tests__/timeWmsProjection.test.ts
+          src/__tests__/timeWmsCallerBinding.test.ts
           src/__tests__/warehouseAssignmentPrecedence.test.ts
           src/__tests__/warehouseMobileAssignments.test.ts
           src/__tests__/warehouseTaskAccess.test.ts
@@ -50,4 +51,5 @@ jobs:
         env:
           PGLITE_MODULE: /tmp/warehouse-sql/node_modules/@electric-sql/pglite/dist/index.js
         run: node scripts/test-wms-cron.mjs
+
 
