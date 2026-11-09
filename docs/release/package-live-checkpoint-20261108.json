@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-08T17:23:00Z",
+  "updated_at_utc": "2026-11-09T02:36:00Z",
   "ops_counter": {
     "pr": 86,
     "merged": "d3d13e4ec4eb4ac9389b6dad2f98fc4990d4328d",
@@ -64,13 +64,14 @@
     "next": "User enters same new Planningkey securely in InventoryLovable More>Settings>Secrets and Operations SupabaseEventFlowCalendar EdgeFunctions>Secrets. ExistingnamePLANNING_WMS_HMAC_SECRETbothends;Timekeyunchanged. Do notaskapprovalagain; afterusercompletion livefullQA.",
     "TIME_PACK_SCAN_HMAC_SECRET": "leaveunchanged",
     "user_explicitly_approved": true,
-    "approval_text": "Jag godk\u00e4nner",
+    "approval_text": "Jag godkänner",
     "approved_rotation_message": "umsg_01m6y41rjtem1tqdcng6sft7xh",
     "user_approval_required": false,
     "rotation_performed": false,
     "capability_block": "Lovable secrettools existingupdate unsupported; no protected crossbackendrelay; usersecureGUIentry required, no secretvalues read/changed",
     "inventory_capability_message": "umsg_01m6y46e6be3ns4e80pw5e9wk3",
-    "ops_capability_message": "umsg_01m6y46tjxfrjbwfq23h49jyhs"
+    "ops_capability_message": "umsg_01m6y46tjxfrjbwfq23h49jyhs",
+    "current_state": "Superseded by proven caller collision and signed-identity code fix; manual key-change request withdrawn. No credential/settings changes necessary for this fix."
   },
   "cancelled_order_read": {
     "PR": 88,
@@ -88,7 +89,7 @@
     "frontend_deployment_id": "abec1097-14c3-4fd9-8716-4fa163604754",
     "frontend_source": "0a4b24a4d8266acb10e0847abe6c4e9c4bce9f09",
     "observed_bundle": "index-BWS8H2Bo.js",
-    "live_ui": "FA12CANCELLED,Avbokad,0/222; neutralstatusBokningen\u00e4ravbokadiSales;nogenericreaderror"
+    "live_ui": "FA12CANCELLED,Avbokad,0/222; neutralstatusBokningenäravbokadiSales;nogenericreaderror"
   },
   "cleanup_ops_readback": {
     "FA10": "CANCELLED;0unmarkedwarehouseevents",
@@ -99,6 +100,65 @@
   "inventory_release_proof": "Allfourtestreservations12releaseevents/12distinctlines each, no double release",
   "final_sales_ui": "FA13Avbokad;Apro3x3 sixinbooking;12/12available",
   "evidence_image": "/workspace/scratch/eventflow-sales-final-capacity-20261108.jpg",
-  "next_turn": "Approvalalreadyreceived. AwaitrequiredsecureuserentryofsameNEWexistingPlanningHMACvalue in bothbackends;noextraapprovalneeded. Afterusercompletion usefreshUIcopy->confirmed,requireOpsreceivercompletedWMSprojection +Inventoryheld6 +WMS222parts, thencancelandverifyallownersfree. Neverreplayfrozenfailedconfirmedjobs."
+  "next_turn": "Original fixed-component count and proven WMS caller collision resolved, deployed and live-tested. Test reservations cancelled. No pending manual key change. User may use normal Sales flow.",
+  "resolved_20261109": {
+    "root_cause": {
+      "timestamp": "2026-11-09T02:14:20Z",
+      "caller": "time",
+      "matchedCallers": [
+        "time",
+        "planning"
+      ],
+      "validationFields": [
+        "actor.service"
+      ],
+      "http": 400,
+      "conclusion": "Both configured candidate slots validate same normal Ops signature; first-match Time classification rejected service actor. Not expired credentials. No secrets read or changed."
+    },
+    "fix": {
+      "receiver_pr": 73,
+      "receiver_commit": "e015d290e2602336eb609f54261d38823109b504",
+      "sender_pr": 89,
+      "sender_commit": "72ce8c0f14a8401b8c37a6f0b4375c1d6ae5ec2c",
+      "protocol": "Caller identity bound into domain-separated HMAC; exactly named configured candidate verifies. Legacy clients unchanged. No downgrade, auth bypass, settings or secret changes.",
+      "tests": "All6 workflows green per repo;29 receiver tests+6 sender tests+18 actual crossrepo handler checks pass",
+      "receiver_source_receipt": "98dd89cf41689971f80b1dc32b31c5dc6168ff2ed3b8d182fe14bf669192fe29",
+      "ops_versions": {
+        "sync-booking-to-packing": 878,
+        "scanner-api": 974,
+        "repair-packing-items": 139,
+        "import-bookings": 1326
+      },
+      "ops_readback": "All4 bundles exact expected files; only shared transport changed; existing auth preserved"
+    },
+    "fixed_rule_live": {
+      "first_test": "FA-2611-15",
+      "final_test": "FA-2611-17",
+      "booking_id": "475ca3f3-308a-4f82-867f-6bbf63bfcba6",
+      "reservation_id": "b8102c9f-9c75-45ca-9874-77010a6627ab",
+      "two_separate_package_lines": "Multiflex8x3 qty1 each",
+      "stored_demand": {
+        "Montagepinne": 1,
+        "Rep": 2
+      },
+      "wms_packlist": {
+        "active_Montagepinne": 1,
+        "active_Rep": 2,
+        "total_units": 61
+      },
+      "normal_confirmation_job": "24cedb50-35ab-47b9-88a5-c3cde8d34e93",
+      "confirmation_completed": "2026-11-09T02:29:53.038558Z",
+      "confirmation_attempts": 1
+    },
+    "cleanup": {
+      "FA14": "cancelled Inventory12 releases;Ops cancellation completed1",
+      "FA15": "cancelled Inventory2 releases;Ops completed1;datedavailable5",
+      "FA17": "cancelled Sales+Inventory+Operations;2 releaseevents exactly once per line;datedavailable5",
+      "final_cancel_job": "56bf92a0-d598-402f-99e1-956a21abc048",
+      "final_cancel_attempts": 2,
+      "final_cancel_completed": "2026-11-09T02:35:16.936223Z",
+      "note": "No active synthetic reservations retained. Audit history preserved. No customer emails sent."
+    },
+    "limitation": "Verified this real ordinary authenticated Sales→Inventory→Operations/WMS scenario; no claim of every module or scenario being flawless. Ops project overview refresh did not show an unassigned booking; backend received it, WMS booking and packlist verified in UI. Do not create project assignment solely for test."
+  }
 }
-
