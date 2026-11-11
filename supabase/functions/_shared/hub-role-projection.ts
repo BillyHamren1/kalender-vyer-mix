@@ -1,3 +1,8 @@
+function transientDatabaseFailure(error: any, status?: number): boolean {
+  return !!error && ((status !== undefined && status >= 500)
+    || ['57014', '55P03', '40P01', '40001', '53300', 'PGRST000', 'PGRST001', 'PGRST002', 'PGRST003'].includes(error.code));
+}
+
 // Both SSO and webhooks use canonical server-owned identity links. Email and
 // editable user_metadata never choose an authorization principal.
 export function sourceRevision(value: unknown): string | null {
@@ -60,19 +65,23 @@ export async function applyHubProjection(admin: any, input: {
     }
 
   }
-  const { data: projection, error } = await admin.rpc('apply_hub_role_projection', {
+  const { data: projection, error, status } = await admin.rpc('apply_hub_role_projection', {
     _hub_user_id: hubUserId, _organization_id: organizationId, _roles: roles, _source_revision: revision, _module_access: gates ?? null,
   });
   if (error || projection?.ok !== true) return {
     ok: false, error: projection?.error || 'ROLE_SYNC_FAILED',
     // Infrastructure contention is retryable; revision/identity conflicts are not.
-    retryable: !!error && ['57014', '55P03', '40P01', '40001', '53300'].includes(error.code),
+    retryable: transientDatabaseFailure(error, status),
   };
   if (roles.length) {
-    const { error } = await admin.from('profiles').upsert({
-      user_id: userId, email: localEmail, full_name: fullName || null, organization_id: organizationId,
-    }, { onConflict: 'user_id' });
-    if (error) return { ok: false, error: 'PROFILE_SYNC_FAILED' };
+    const desiredProfile = { user_id: userId, email: localEmail, full_name: fullName || null, organization_id: organizationId };
+    const current = await admin.from('profiles').select('user_id,email,full_name,organization_id').eq('user_id', userId).maybeSingle();
+    if (current.error) return { ok: false, error: 'PROFILE_LOOKUP_FAILED', retryable: transientDatabaseFailure(current.error, current.status) };
+    const unchanged = current.data && Object.entries(desiredProfile).every(([key, value]) => current.data[key] === value);
+    if (!unchanged) {
+      const result = await admin.from('profiles').upsert(desiredProfile, { onConflict: 'user_id' });
+      if (result.error) return { ok: false, error: 'PROFILE_SYNC_FAILED', retryable: transientDatabaseFailure(result.error, result.status) };
+    }
   }
   return { ok: true, userId: projection.local_user_id ?? userId, localEmail, created,
     revoked: roles.length === 0, source_revision: projection.source_revision };
