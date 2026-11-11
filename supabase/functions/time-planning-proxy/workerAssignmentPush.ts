@@ -176,6 +176,7 @@ export async function handleWorkerAssignmentPush(ctx: WorkerPushContext): Promis
         organizationId: ctx.organizationId,
         personnelId: staffId,
         assignments: projection.assignments,
+        warehouseContext: projection.warehouseContext,
       });
       const upstreamBody = await upstream.json().catch(() => null) as Json | null;
       if (!upstream.ok) {
