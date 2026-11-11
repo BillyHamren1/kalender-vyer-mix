@@ -26,7 +26,20 @@ import {
 } from './assignmentShape.ts';
 import type { WorkOrderBookingSource, WorkOrderProjectSource } from '../_shared/time-v2/workOrderV1Builder.ts';
 
+import { resolveCanonicalLagerLocation } from '../_shared/time-v2/lagerProjection.ts';
+
 export type Json = Record<string, unknown>;
+
+interface WorkerWarehouseContext {
+  readonly from: string;
+  readonly to: string;
+  readonly target: {
+    readonly externalId: string;
+    readonly version: string;
+    readonly label: string;
+    readonly location: { latitude: number; longitude: number; radiusM: number; address?: string };
+  } | null;
+}
 
 /**
  * The Time worker route is currently pinned to the isolated Time staging
@@ -97,6 +110,7 @@ export interface ProjectionSuccess {
   readonly from: string;
   readonly to: string;
   readonly workOrder: unknown;
+  readonly warehouseContext?: WorkerWarehouseContext;
   readonly code?: undefined;
 }
 
@@ -122,6 +136,8 @@ export async function buildWorkerProjection(input: {
   const window = projectionWindow();
   const from = input.from ?? window.from;
   const to = input.to ?? window.to;
+
+  const warehouseContext = await readWorkerWarehouseContext(admin, organizationId, from, to);
 
   const { data: staffAssignments, error: assignmentError } = await admin
     .from('staff_assignments')
@@ -198,7 +214,42 @@ export async function buildWorkerProjection(input: {
   }
   assignments.sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)));
 
-  return { ok: true, assignments, from, to, workOrder: workOrderReport };
+  return { ok: true, assignments, from, to, workOrder: workOrderReport, ...(warehouseContext ? { warehouseContext } : {}) };
+}
+
+/** Resolve only the organization’s explicitly linked, active internal Lager. */
+export async function readWorkerWarehouseContext(
+  admin: Parameters<typeof buildWorkerProjection>[0]['admin'],
+  organizationId: string,
+  from: string,
+  to: string,
+): Promise<WorkerWarehouseContext | null> {
+  const { data: projects, error: projectError } = await admin.from('projects')
+    .select('id, organization_id, name, is_internal, location_id')
+    .eq('organization_id', organizationId).eq('is_internal', true).is('deleted_at', null)
+    .ilike('name', 'Lager').not('location_id', 'is', null).limit(2);
+  if (projectError) return null;
+  if (projects?.length !== 1) return { from, to, target: null };
+
+  const { data: rows, error: locationError } = await admin.from('organization_locations')
+    .select('id, organization_id, name, address, latitude, longitude, radius_meters, geofence_mode, location_type, is_active, is_private_residence')
+    .eq('organization_id', organizationId).eq('id', projects[0].location_id).eq('is_active', true);
+  if (locationError) return null;
+  const safeLocations = (rows ?? []).filter((row: { location_type?: string; is_private_residence?: boolean }) =>
+    row.location_type !== 'private_residence' && row.is_private_residence !== true);
+  const { location } = resolveCanonicalLagerLocation(organizationId, safeLocations, projects);
+  if (!location || location.latitude === null || location.longitude === null || location.radiusMeters === null) {
+    return { from, to, target: null };
+  }
+  const target = {
+    externalId: location.locationId,
+    label: location.label,
+    location: {
+      latitude: location.latitude, longitude: location.longitude, radiusM: location.radiusMeters,
+      ...(location.address ? { address: location.address } : {}),
+    },
+  };
+  return { from, to, target: { ...target, version: await sha256Hex(JSON.stringify(target)) } };
 }
 
 /** Signed `worker.assignments.sync` call to Time's deployed adapter. */
@@ -209,6 +260,7 @@ export async function callTimeAdapter(input: {
   organizationId: string;
   personnelId: string;
   assignments: readonly Json[];
+  warehouseContext?: WorkerWarehouseContext;
 }) {
   const payload = {
     schema: 'time-planning-boundary.v1',
@@ -216,6 +268,7 @@ export async function callTimeAdapter(input: {
     operation: 'worker.assignments.sync',
     personnelId: input.personnelId,
     assignments: input.assignments,
+    ...(input.warehouseContext ? { warehouseContext: input.warehouseContext } : {}),
   };
   const body = JSON.stringify(payload);
   const { key, keyId } = await deriveSigningKeyFromSeed(input.signingSeed);
