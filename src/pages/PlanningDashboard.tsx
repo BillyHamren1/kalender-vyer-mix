@@ -39,7 +39,7 @@ const PlanningDashboard = () => {
 
   const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
   const { isImporting, triggerImport } = useCalendarImport();
-  const { messages, isLoadingMessages } = useStaffDashboard();
+  const { messages, isLoadingMessages } = useStaffDashboard({ activity: false, locations: false });
 
 
   // Navigation handlers
