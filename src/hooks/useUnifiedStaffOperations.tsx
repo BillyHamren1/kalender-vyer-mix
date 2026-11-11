@@ -2,29 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subDays, addDays } from 'date-fns';
+import { format } from 'date-fns';
+import { getStaffAssignmentsWindow } from '@/lib/calendar/staffAssignmentsWindow';
 import { useEffect } from 'react';
 import { assignStaffToTeamCore, removeStaffAssignmentCore } from '@/services/staffAssignmentCore';
 import { uniqueChannelName } from '@/lib/realtime/channelName';
-
-// Datum-scope: vi hämtar INTE hela staff_assignments-tabellen (kan vara
-// tiotusentals rader genom åren). Vi laddar ett rullande fönster runt idag.
-// Cache-nyckeln baseras på en STABIL "bucket" (månadens första dag) så att
-// alla vyer i appen delar samma cache och inte triggar ny query för varje
-// veckonavigering. Vid behov av äldre/nyare data: utöka fönstret nedan.
-const STAFF_ASSIGNMENTS_DAYS_BACK = 120;
-const STAFF_ASSIGNMENTS_DAYS_FORWARD = 365;
-
-function getStaffAssignmentsWindow(): { from: string; to: string; bucket: string } {
-  const today = new Date();
-  // Bucket = år-månad, så cache delas inom samma månad
-  const bucket = format(today, 'yyyy-MM');
-  return {
-    from: format(subDays(today, STAFF_ASSIGNMENTS_DAYS_BACK), 'yyyy-MM-dd'),
-    to: format(addDays(today, STAFF_ASSIGNMENTS_DAYS_FORWARD), 'yyyy-MM-dd'),
-    bucket,
-  };
-}
 
 export interface StaffAssignment {
   staffId: string;
@@ -50,7 +32,7 @@ async function fetchAllAssignments(from: string, to: string): Promise<StaffAssig
   for (let page = 0; page < 10; page++) {
     const { data, error } = await supabase
       .from('staff_assignments')
-      .select(`*, staff_members(id, name, color)`)
+      .select(`staff_id, team_id, assignment_date, staff_members(id, name, color)`)
       .gte('assignment_date', from)
       .lte('assignment_date', to)
       .order('assignment_date', { ascending: true })
@@ -86,7 +68,7 @@ async function fetchActiveStaff(): Promise<StaffMember[]> {
 export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string, filterByStaffIds?: string[]) => {
   const queryClient = useQueryClient();
 
-  const window = useMemo(() => getStaffAssignmentsWindow(), []);
+  const window = getStaffAssignmentsWindow(currentDate);
 
   // Datum-scopad query. Delas mellan ALLA kalender-/projekt-/booking-vyer
   // tack vare bucket-baserad nyckel (samma månad => samma cache).
@@ -341,7 +323,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning — planeringen sparades INTE');
       queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
     }
-  }, [currentDate, activeStaff, queryClient]);
+  }, [currentDate, activeStaff, queryClient, window.bucket]);
 
   const forceRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
