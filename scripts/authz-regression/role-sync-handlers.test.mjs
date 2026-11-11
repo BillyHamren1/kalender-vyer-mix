@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const actor='10000000-0000-4000-8000-000000000001', org='20000000-0000-4000-8000-000000000001';
-async function harness(name, { rpcFailure=false, rpcCode=undefined, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false, emailCollision=false, listFailure=false, absentOrg=false }={}) {
+async function harness(name, { rpcFailure=false, rpcCode=undefined, profileCurrent=false, profileFailure=false, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false, emailCollision=false, listFailure=false, absentOrg=false }={}) {
   const source=await readFile(new URL(`../../supabase/functions/${name}/index.ts`,import.meta.url),'utf8');
   const calls=[];
   const authUser={id:actor,email:'fixture@example.invalid',user_metadata:{}};
@@ -15,7 +15,7 @@ async function harness(name, { rpcFailure=false, rpcCode=undefined, hubDenied=fa
       verifyOtp:async()=>({data:{session:{access_token:'synthetic',refresh_token:'synthetic'}}})},
     from: table=>{
       assert.notEqual(table,'user_roles','role writes must use the atomic RPC');
-      return {select:()=>({eq:()=>({maybeSingle:async()=>({data:absentOrg?null:{id:org}})})}),upsert:async()=>{calls.push({profile:true});return {};}};
+      return {select:()=>({eq:()=>({maybeSingle:async()=>({data:table==='profiles' ? (profileCurrent ? {user_id:actor,email:authUser.email,full_name:null,organization_id:org} : null) : (absentOrg?null:{id:org})})})}),upsert:async()=>{calls.push({profile:true});return profileFailure ? {error:{message:"temporary unavailable"},status:503} : {};}};
     },
     rpc:async(name,args)=>{calls.push({name,args});
       if(name==='resolve_hub_actor_v1') return {data:unmapped?{status:'actor_unmapped'}:{status:'ok',localUserId:actor}};
@@ -114,5 +114,19 @@ test('database timeout is retryable but never issues a session before role sync'
  const response=await h.invoke({payload:{},signature:'fixture'});
  assert.equal(response.status,503);
  assert.equal((await response.json()).error_code,'ROLE_SYNC_FAILED');
+ assert.ok(!h.calls.includes('session'));
+});
+
+test('unchanged profile avoids an upsert while still verifying roles',async()=>{
+ const h=await harness('verify-sso-token',{profileCurrent:true});
+ assert.equal((await h.invoke({payload:{},signature:'fixture'})).status,200);
+ assert.ok(!h.calls.some(x=>x.profile));
+ assert.ok(h.calls.some(x=>x.name==='apply_hub_role_projection'));
+});
+test('profile HTTP 503 remains retryable and cannot issue a session',async()=>{
+ const h=await harness('verify-sso-token',{profileFailure:true});
+ const r=await h.invoke({payload:{},signature:'fixture'});
+ assert.equal(r.status,503);
+ assert.equal((await r.json()).error_code,'PROFILE_SYNC_FAILED');
  assert.ok(!h.calls.includes('session'));
 });
