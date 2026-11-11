@@ -5,7 +5,7 @@ import StaffMapView from '@/components/staff-dashboard/StaffMapView';
 import JobActivityFeed from '@/components/staff-dashboard/JobActivityFeed';
 
 const StaffDashboard = () => {
-  const { activity, isLoadingActivity, locations, isLoadingLocations } = useStaffDashboard();
+  const { activity, isLoadingActivity, locations, isLoadingLocations } = useStaffDashboard({ messages: false });
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)] p-4 gap-4 theme-purple">
