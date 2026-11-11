@@ -7,8 +7,8 @@ vi.mock('@/services/eventService', () => ({
   fetchCalendarEvents: vi.fn(async () => []),
   fetchAllPages: vi.fn(),
   resolveCalendarWindow: ({ anchorDate }: { anchorDate: Date }) => ({
-    windowFrom: new Date(anchorDate.getTime() - 30 * 86400000).toISOString(),
-    windowTo: new Date(anchorDate.getTime() + 30 * 86400000).toISOString(),
+    windowFrom: new Date(anchorDate.getTime() - 45 * 86400000).toISOString(),
+    windowTo: new Date(anchorDate.getTime() + 60 * 86400000).toISOString(),
   }),
 }));
 vi.mock('@/services/eventTitleFixService', () => ({ fixAllEventTitles: vi.fn() }));
@@ -22,6 +22,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 import { CalendarContext } from '@/App';
+import { fetchCalendarEvents } from '@/services/eventService';
 import { useRealTimeCalendarEvents } from '../useRealTimeCalendarEvents';
 
 describe('calendar restoration after project navigation', () => {
@@ -49,4 +50,19 @@ describe('calendar restoration after project navigation', () => {
       unmount();
     },
   );
+});
+
+ describe('month navigation read coverage', () => {
+  it('reloads before the next month extends beyond the loaded window', async () => {
+    const wrapper = ({ children }: React.PropsWithChildren) => (
+      <CalendarContext.Provider value={{ lastViewedDate: '2026-11-01T12:00:00Z', setLastViewedDate: vi.fn() } as any}>{children}</CalendarContext.Provider>
+    );
+    const { result, unmount } = renderHook(() => useRealTimeCalendarEvents(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    vi.mocked(fetchCalendarEvents).mockClear();
+    act(() => result.current.handleDatesSet({ start: '2026-12-01T12:00:00Z' }));
+    await waitFor(() => expect(fetchCalendarEvents).toHaveBeenCalledWith(expect.objectContaining({ anchorDate: new Date('2026-12-01T12:00:00Z') })));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    unmount();
+  });
 });

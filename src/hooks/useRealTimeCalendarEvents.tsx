@@ -356,7 +356,7 @@ export const useRealTimeCalendarEvents = (
     const day = format(currentDate, 'yyyy-MM-dd');
     // Marginal så att vi laddar om innan man bläddrar rakt ut ur fönstret.
     const softFrom = format(addDays(new Date(win.from), 14), 'yyyy-MM-dd');
-    const softTo = format(subDays(new Date(win.to), 14), 'yyyy-MM-dd');
+    const softTo = format(subDays(new Date(win.to), 42), 'yyyy-MM-dd');
     if (day < softFrom || day > softTo) {
       console.log('[useRealTimeCalendarEvents] Datum utanför laddat fönster — laddar om för', day);
       void loadEvents(true, currentDate);

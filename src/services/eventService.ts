@@ -134,7 +134,7 @@ export const resolveCalendarWindow = (options?: FetchCalendarEventsOptions) => {
   const anchorRaw = options?.anchorDate ? new Date(options.anchorDate) : today;
   const anchor = Number.isNaN(anchorRaw.getTime()) ? today : anchorRaw;
 
-  // Covers a complete month grid plus the hook's 14-day navigation margin.
+  // Covers a complete month grid with room for navigation prefetch.
   const from = subDays(anchor, daysBack);
   const to = addDays(anchor, daysForward);
 
