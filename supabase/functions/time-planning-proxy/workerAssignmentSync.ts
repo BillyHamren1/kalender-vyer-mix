@@ -84,6 +84,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
       organizationId: timeOrganizationId,
       personnelId: String(staff.id),
       assignments: projection.assignments,
+      warehouseContext: projection.warehouseContext,
     });
   } catch (error) {
     return fail(503, 'upstream_unavailable', `Time-gränsen kunde inte nås: ${(error as Error)?.message ?? 'okänt fel'}`, true);
@@ -102,6 +103,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
       from: projection.from,
       to: projection.to,
       workOrder: projection.workOrder,
+      warehouseContextStatus: projection.warehouseContext ? 'synced' : 'unavailable',
       receipt: upstreamBody?.data ?? null,
     },
   });
