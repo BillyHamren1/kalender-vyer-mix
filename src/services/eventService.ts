@@ -121,11 +121,11 @@ export interface FetchCalendarEventsOptions {
 
 /**
  * Fönstret centreras kring det datum användaren faktiskt tittar på, så att
- * navigering två år bakåt laddar den veckans jobb. Fönstret unionas alltid med
- * ett basfönster kring idag så att "nuet" aldrig försvinner när man bläddrar.
+ * navigering två år bakåt laddar den veckans jobb. Historiska datum får ett lika stort, separat fönster; att inkludera idag
+ * skulle läsa flera års data vid historisk navigering.
  */
-export const CALENDAR_WINDOW_DAYS_BACK = 180;
-export const CALENDAR_WINDOW_DAYS_FORWARD = 180;
+export const CALENDAR_WINDOW_DAYS_BACK = 45;
+export const CALENDAR_WINDOW_DAYS_FORWARD = 60;
 
 export const resolveCalendarWindow = (options?: FetchCalendarEventsOptions) => {
   const daysBack = options?.daysBack ?? CALENDAR_WINDOW_DAYS_BACK;
@@ -134,10 +134,9 @@ export const resolveCalendarWindow = (options?: FetchCalendarEventsOptions) => {
   const anchorRaw = options?.anchorDate ? new Date(options.anchorDate) : today;
   const anchor = Number.isNaN(anchorRaw.getTime()) ? today : anchorRaw;
 
-  const candidatesFrom = [subDays(anchor, daysBack), subDays(today, 30)];
-  const candidatesTo = [addDays(anchor, daysForward), addDays(today, 90)];
-  const from = new Date(Math.min(...candidatesFrom.map(d => d.getTime())));
-  const to = new Date(Math.max(...candidatesTo.map(d => d.getTime())));
+  // Covers a complete month grid with room for navigation prefetch.
+  const from = subDays(anchor, daysBack);
+  const to = addDays(anchor, daysForward);
 
   return {
     windowFrom: format(from, 'yyyy-MM-dd'),
