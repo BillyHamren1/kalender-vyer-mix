@@ -3,7 +3,7 @@
  * en ny bokning kommit in. Kryssa bort = ligger kvar i inkorgen på dashboarden.
  * Planera = öppnar den vanliga placeringsdialogen direkt i kalendervyn.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar, CalendarPlus, Inbox, Loader2, MapPin, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -20,8 +20,11 @@ import { placeBookingWithDefaults } from '@/services/bookingDefaultPlacement';
 import { BookingPlacementDialog } from '@/components/project/BookingPlacementDialog';
 import {
   filterDismissed,
+  hasUnsnoozed,
   readDismissedIds,
+  readSnoozedIds,
   writeDismissedIds,
+  writeSnoozedIds,
 } from '@/lib/calendar/newBookingsDismissal';
 
 
@@ -47,7 +50,7 @@ const NewBookingsPopup: React.FC = () => {
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
   const [dismissed, setDismissed] = useState<string[]>(() => readDismissedIds());
-  const [closed, setClosed] = useState(false);
+  const [snoozed, setSnoozed] = useState<string[]>(() => readSnoozedIds());
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
   const [planningAll, setPlanningAll] = useState(false);
   const { teamResources } = useTeamResources();
@@ -138,10 +141,13 @@ const NewBookingsPopup: React.FC = () => {
 
   const visible = useMemo(() => filterDismissed(items, dismissed), [items, dismissed]);
 
-  // Nya bokningar som kommer in senare ska trigga popupen igen.
-  useEffect(() => {
-    if (visible.length > 0) setClosed(false);
-  }, [visible.length]);
+  // "Senare" gäller samma lista under hela besöket; endast verkligt nya bokningar öppnar igen.
+  const closed = !hasUnsnoozed(visible, snoozed);
+  const snooze = () => {
+    const next = [...snoozed, ...visible.map((i) => i.dismissKey)];
+    setSnoozed(next);
+    writeSnoozedIds(next);
+  };
 
   const dismiss = (key: string) => {
     const next = [...dismissed, key];
@@ -178,7 +184,7 @@ const NewBookingsPopup: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['planner-calendar'] });
     if (ok > 0) toast.success(`${ok} bokning${ok === 1 ? '' : 'ar'} planerad${ok === 1 ? '' : 'e'} enligt standard`);
     if (failed.length > 0) toast.error(`Kunde inte planera: ${failed.join(', ')}`);
-    if (failed.length === 0) setClosed(true);
+    if (failed.length === 0) snooze();
   };
 
   const open = !closed && visible.length > 0 && !placementBookingId;
@@ -186,7 +192,7 @@ const NewBookingsPopup: React.FC = () => {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => { if (!v) setClosed(true); }}>
+      <Dialog open={open} onOpenChange={(v) => { if (!v) snooze(); }}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-lg overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -245,7 +251,7 @@ const NewBookingsPopup: React.FC = () => {
           </p>
 
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setClosed(true)} disabled={planningAll}>
+            <Button variant="ghost" size="sm" onClick={snooze} disabled={planningAll}>
               Senare
             </Button>
             <Button size="sm" onClick={planAll} disabled={planningAll || visible.length === 0}>

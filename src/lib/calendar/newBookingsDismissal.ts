@@ -38,3 +38,36 @@ export function filterDismissed<T extends DismissableBooking>(items: T[], dismis
   const set = new Set(dismissed);
   return items.filter((i) => !set.has(i.dismissKey));
 }
+
+/**
+ * "Senare" gäller hela besöket (sessionStorage), så att popupen inte öppnas igen
+ * vid vecko-/månadsbyte, remount eller tillfälligt tom refetch för samma lista.
+ * Den öppnas igen endast när en bokning som INTE fanns i den uppskjutna listan dyker upp.
+ */
+export const NEW_BOOKINGS_SNOOZE_KEY = 'calendar.newBookingsSnoozed.v1';
+
+export function readSnoozedIds(storage?: Storage): string[] {
+  try {
+    const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
+    const raw = s?.getItem(NEW_BOOKINGS_SNOOZE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeSnoozedIds(ids: string[], storage?: Storage): void {
+  try {
+    const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
+    s?.setItem(NEW_BOOKINGS_SNOOZE_KEY, JSON.stringify(Array.from(new Set(ids)).slice(-200)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True om någon synlig post saknas i den uppskjutna listan (= ny bokning). */
+export function hasUnsnoozed<T extends DismissableBooking>(items: T[], snoozed: string[]): boolean {
+  const set = new Set(snoozed);
+  return items.some((i) => !set.has(i.dismissKey));
+}

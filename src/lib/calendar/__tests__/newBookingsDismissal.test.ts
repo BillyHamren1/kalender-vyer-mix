@@ -39,3 +39,18 @@ describe('newBookingsDismissal', () => {
     expect(readDismissedIds(s)).toEqual([]);
   });
 });
+
+import { hasUnsnoozed, readSnoozedIds, writeSnoozedIds } from '../newBookingsDismissal';
+describe('Senare-snooze per besök', () => {
+  const mem = () => { const m = new Map<string,string>(); return { getItem:(k:string)=>m.get(k)??null, setItem:(k:string,v:string)=>{m.set(k,v);} } as unknown as Storage; };
+  it('samma tre bokningar öppnar inte igen efter Senare (vecko-/månadsbyte, remount)', () => {
+    const s = mem();
+    const items = [{dismissKey:'a'},{dismissKey:'b'},{dismissKey:'c'}];
+    writeSnoozedIds(items.map(i=>i.dismissKey), s);
+    expect(hasUnsnoozed(items, readSnoozedIds(s))).toBe(false);
+    expect(hasUnsnoozed([], readSnoozedIds(s))).toBe(false);
+  });
+  it('en verkligt ny bokning öppnar igen', () => {
+    expect(hasUnsnoozed([{dismissKey:'a'},{dismissKey:'d'}], ['a','b','c'])).toBe(true);
+  });
+});
