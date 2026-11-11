@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const actor='10000000-0000-4000-8000-000000000001', org='20000000-0000-4000-8000-000000000001';
-async function harness(name, { rpcFailure=false, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false, emailCollision=false, listFailure=false, absentOrg=false }={}) {
+async function harness(name, { rpcFailure=false, rpcCode=undefined, hubDenied=false, revision="7", stale=false, unmapped=false, createConflict=false, emailCollision=false, listFailure=false, absentOrg=false }={}) {
   const source=await readFile(new URL(`../../supabase/functions/${name}/index.ts`,import.meta.url),'utf8');
   const calls=[];
   const authUser={id:actor,email:'fixture@example.invalid',user_metadata:{}};
@@ -19,7 +19,7 @@ async function harness(name, { rpcFailure=false, hubDenied=false, revision="7", 
     },
     rpc:async(name,args)=>{calls.push({name,args});
       if(name==='resolve_hub_actor_v1') return {data:unmapped?{status:'actor_unmapped'}:{status:'ok',localUserId:actor}};
-      return rpcFailure?{error:{message:'fixture failure'}}:stale?{data:{ok:false,error:'STALE_SOURCE_REVISION'}}:{data:{ok:true,local_user_id:actor,source_revision:args._source_revision}};
+      return rpcFailure?{error:{message:'fixture failure',code:rpcCode}}:stale?{data:{ok:false,error:'STALE_SOURCE_REVISION'}}:{data:{ok:true,local_user_id:actor,source_revision:args._source_revision}};
     },
   };
   let handler;
@@ -107,4 +107,12 @@ test('absent organization still permits canonical revocation tombstone',async()=
  const h=await harness('receive-user-sync',{unmapped:true,absentOrg:true});
  const r=await h.invoke({user_id:actor,organization_id:org,email:'fixture@example.invalid',roles:[],source_revision:'8'});
  assert.equal(r.status,200);assert.equal((await r.json()).source_revision,'8');
+});
+
+test('database timeout is retryable but never issues a session before role sync',async()=>{
+ const h=await harness('verify-sso-token',{rpcFailure:true,rpcCode:'57014'});
+ const response=await h.invoke({payload:{},signature:'fixture'});
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error_code,'ROLE_SYNC_FAILED');
+ assert.ok(!h.calls.includes('session'));
 });

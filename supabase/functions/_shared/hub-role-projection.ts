@@ -63,7 +63,11 @@ export async function applyHubProjection(admin: any, input: {
   const { data: projection, error } = await admin.rpc('apply_hub_role_projection', {
     _hub_user_id: hubUserId, _organization_id: organizationId, _roles: roles, _source_revision: revision, _module_access: gates ?? null,
   });
-  if (error || projection?.ok !== true) return { ok: false, error: projection?.error || 'ROLE_SYNC_FAILED' };
+  if (error || projection?.ok !== true) return {
+    ok: false, error: projection?.error || 'ROLE_SYNC_FAILED',
+    // Infrastructure contention is retryable; revision/identity conflicts are not.
+    retryable: !!error && ['57014', '55P03', '40P01', '40001', '53300'].includes(error.code),
+  };
   if (roles.length) {
     const { error } = await admin.from('profiles').upsert({
       user_id: userId, email: localEmail, full_name: fullName || null, organization_id: organizationId,
