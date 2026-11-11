@@ -53,7 +53,12 @@ try {
   `);
   await db.exec(await readFile(new URL('../../supabase/migrations/20261027155649_atomic_hub_role_projection.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../../supabase/migrations/20261028145811_versioned_hub_role_projection.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261111082000_hub_role_projection_noop.sql',import.meta.url),'utf8'));
   check('legacy delivery works before first version',(await apply(user,['projekt'],null)).ok,true);
+  await db.exec(`CREATE FUNCTION reject_role_write() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'unexpected role write'; END $$;
+    CREATE TRIGGER no_role_writes BEFORE INSERT OR UPDATE OR DELETE ON user_roles FOR EACH STATEMENT EXECUTE FUNCTION reject_role_write();`);
+  check('unchanged roles skip all write statements',(await apply(user,['projekt'],null)).ok,true);
+  await db.exec('DROP TRIGGER no_role_writes ON user_roles;');
   check('versioned grant accepted',(await apply(user,['projekt'],'10')).ok,true);
   check('version acknowledgement is exact string',(await apply(user,['projekt'],'10')).source_revision,'10');
   check('same revision conflict refused',(await apply(user,['admin'],'10')).error,'SOURCE_REVISION_CONFLICT');

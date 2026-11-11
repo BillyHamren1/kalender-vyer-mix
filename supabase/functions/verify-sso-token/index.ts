@@ -164,7 +164,8 @@ Deno.serve(async (req) => {
       hubUserId, organizationId, email, fullName: payload.full_name || '', roles: rolesToSync, revision, moduleAccess: payload.module_access,
     });
     if (!projection.ok) {
-      return json(409, { success: false, error_code: projection.error, trace_id: traceId });
+      trace('projection_failed', { code: projection.error, retryable: projection.retryable === true });
+      return json(projection.retryable ? 503 : 409, { success: false, error_code: projection.error, trace_id: traceId });
     }
     if (revision !== null && payload.module_access?.[expectedModule(targetView)] !== true) {
       return json(403, { success: false, error_code: 'MODULE_ACCESS_DENIED', trace_id: traceId });
