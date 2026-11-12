@@ -1,0 +1,93 @@
+--- ../../supabase/functions/time-planning-proxy/workerAssignmentSync.ts	2026-11-12 21:26:14.388601728 +0000
++++ workerAssignmentSync.ts	2026-11-12 21:31:38.577705272 +0000
+@@ -1,4 +1,5 @@
+-import { corsHeaders } from '../_shared/cors.ts';
++import { corsHeaders } from '../../supabase/functions/_shared/cors.ts';
++import { IDENTITY_CONTEXT_REQUEST, resolveWorkerStaff, type Resolution, type StaffRow } from './canonicalWorker.ts';
+ import {
+   buildWorkerProjection,
+   callTimeAdapter,
+@@ -7,7 +8,7 @@
+   resolveGatewayKey,
+   text,
+   timeProjectRoot,
+-} from './workerProjection.ts';
++} from '../../supabase/functions/time-planning-proxy/workerProjection.ts';
+ 
+ const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
+   status,
+@@ -28,8 +29,8 @@
+ }
+ 
+ /**
+- * Authenticate the Time personnel JWT at its owning Auth service, resolve the
+- * same person by email in Planning, and push that worker's current Planning
++ * Resolve the worker via Time's verified identity-context (exact Operations
++ * staff id + organization for migrated accounts; email only for unlinked legacy), and push that worker's current Planning
+  * assignments into Time. No Planning source row is modified.
+  */
+ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContext): Promise<Response> {
+@@ -39,26 +40,43 @@
+     ?? ctx.anonKey ?? ctx.authorization.replace(/^Bearer\s+/i, '').trim();
+ 
+ 
+-  const userResponse = await fetch(`${timeProjectRoot(ctx.adapterUrl)}/auth/v1/user`, {
+-    headers: { authorization: ctx.authorization, apikey: gatewayKey },
+-  }).catch(() => null);
+-  if (!userResponse?.ok) return fail(401, 'unauthorized', 'Time-sessionen kunde inte verifieras.');
+-
+-  const timeUser = await userResponse.json().catch(() => null) as Json | null;
+-  const email = text(timeUser?.email)?.toLocaleLowerCase('sv-SE');
+-  if (!email) return fail(401, 'unauthorized', 'Time-sessionen saknar verifierad e-postadress.');
+-
+-  const { data: staffRows, error: staffError } = await ctx.admin
+-    .from('staff_members')
+-    .select('id, organization_id, name, email, role, is_active')
+-    .ilike('email', email)
+-    .eq('is_active', true)
+-    .limit(2);
+-  if (staffError) return fail(500, 'planning_read_failed', 'Planning-personalen kunde inte läsas.', true);
+-  if (!staffRows || staffRows.length !== 1) {
+-    return fail(404, 'personnel_not_mapped', 'E-postadressen matchar inte exakt en aktiv person i Planning.');
+-  }
+-  const staff = staffRows[0] as Json;
++  const timeRoot = timeProjectRoot(ctx.adapterUrl);
++  const STAFF_COLUMNS = 'id, organization_id, name, email, role, is_active';
++  const resolution = await resolveWorkerStaff({
++    // Time verifies the JWT server-side and checks current role/profile; scope never comes from the client.
++    fetchIdentityContext: async () => {
++      const r = await fetch(`${timeRoot}/functions/v1/identity-context`, {
++        method: 'POST',
++        headers: { authorization: ctx.authorization, apikey: gatewayKey, 'content-type': 'application/json' },
++        body: JSON.stringify(IDENTITY_CONTEXT_REQUEST),
++      }).catch(() => null);
++      if (!r) return null;
++      return { status: r.status, body: await r.json().catch(() => null) };
++    },
++    getStaffById: async (id) => {
++      const { data, error } = await ctx.admin.from('staff_members').select(STAFF_COLUMNS).eq('id', id).maybeSingle();
++      if (error) throw new Error('planning_read_failed');
++      return data as StaffRow | null;
++    },
++    // Only for Time profiles WITHOUT an Operations link (pre-migration accounts).
++    legacyByEmail: async (): Promise<Resolution> => {
++      const userResponse = await fetch(`${timeRoot}/auth/v1/user`, {
++        headers: { authorization: ctx.authorization, apikey: gatewayKey },
++      }).catch(() => null);
++      if (!userResponse?.ok) return { ok: false, status: 401, code: 'unauthorized', retryable: false };
++      const timeUser = await userResponse.json().catch(() => null) as Json | null;
++      const email = text(timeUser?.email)?.toLocaleLowerCase('sv-SE');
++      if (!email) return { ok: false, status: 401, code: 'unauthorized', retryable: false };
++      const { data: staffRows, error } = await ctx.admin.from('staff_members').select(STAFF_COLUMNS)
++        .ilike('email', email.replace(/[\\%_]/g, (c) => `\\${c}`)).eq('is_active', true).limit(2);
++      if (error) return { ok: false, status: 500, code: 'planning_read_failed', retryable: true };
++      if (!staffRows || staffRows.length !== 1) return { ok: false, status: 404, code: 'personnel_not_mapped', retryable: false };
++      return { ok: true, staff: staffRows[0] as StaffRow, via: 'legacy_email' };
++    },
++  }).catch((): Resolution => ({ ok: false, status: 500, code: 'planning_read_failed', retryable: true }));
++  if (!resolution.ok) return fail(resolution.status, resolution.code, 'Time-personalen kunde inte kopplas till Operations.', resolution.retryable);
++
++  const staff = resolution.staff as unknown as Json;
+   const sourceOrganizationId = String(staff.organization_id);
+   const timeOrganizationId = ctx.timeOrganizationId ?? sourceOrganizationId;
+   if (timeOrganizationId !== sourceOrganizationId) {

@@ -42,3 +42,17 @@ sessions today (no credential version column); recommended follow-up: add `staff
 2. Review + apply `rate_limit.sql` (limits: 10/identifier, 600 global verify, 120/staff resolve per 15 min).
 3. Move folder to `supabase/functions/time-staff-auth/` with `verify_jwt = false`, then deploy.
 4. Time side must implement the client and resolve_active checks.
+
+## Dependent change: time-planning-proxy worker assignment sync (NOT LIVE)
+`supabase/functions/time-planning-proxy/workerAssignmentSync.ts` (live, unchanged) matches staff by the
+Time `/auth/v1/user` email, which breaks for Operations-backed Time principals with a synthetic address.
+Proposed replacement: `proposals/time-planning-proxy/workerAssignmentSync.ts` + `canonicalWorker.ts`
+(diff: `workerAssignmentSync.diff`; on activation restore the `./workerProjection.ts` and `../_shared/cors.ts` imports
+and copy `canonicalWorker.ts` + `time-staff-auth/core.ts`' `isOpaqueStaffId` into the function/_shared).
+- Calls Time `POST /functions/v1/identity-context` with the worker's own bearer and body
+  `{domain:'personnel', activationMode:'read_only'}`. Time must verify the JWT server-side, check current
+  role/profile, and return `{domain, activationMode, operationsStaffId (opaque text|null), organizationId (uuid)}`.
+- Linked: exact `staff_members.id = operationsStaffId`, same `organization_id`, `is_active = true`. No email, no client scope.
+- Invalid payload / 401 / 403 / 5xx / network failure: fail closed, no email fallback.
+- Only an explicit `operationsStaffId: null` (unlinked legacy profile) uses the old email lookup (wildcards now escaped).
+Dependency: Time `identity-context` endpoint with exactly this response contract (path assumed; adjust if different).
