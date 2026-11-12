@@ -5,8 +5,9 @@ import { handle, checkSharedSecret, constantTimeEqual, escapeLike, SCHEMA, type 
 
 const ORG_A = '11111111-1111-4111-8111-111111111111';
 const ORG_B = '22222222-2222-4222-8222-222222222222';
-const S1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const S2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+// Representative non-UUID Operations staff id (staff_members.id is TEXT).
+const S1 = 'staff_1742198732_Ab9X';
+const S2 = 'BBBBBBBB-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; // UUID-shaped, mixed case, must stay verbatim
 const SECRET = 'x'.repeat(40);
 
 function makeDeps(staff: StaffRow[], accounts: AccountRow[], opts: { limited?: boolean; limiterDown?: boolean } = {}) {
@@ -46,7 +47,7 @@ describe('verify_credentials', () => {
   it('returns only validated Operations identity on success', async () => {
     const { deps } = makeDeps([staffRow()], [acct()]);
     const r = await handle(deps, verify('  ANNA@x.se '));
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(200); // credential path returns the non-UUID row id verbatim
     expect(r.body).toEqual({ schema: SCHEMA, staff: { staffId: S1, organizationId: ORG_A, displayName: 'Anna', email: 'anna@x.se' } });
   });
   it('supports plain username login like the existing verifier', async () => {
@@ -119,6 +120,18 @@ describe('resolve_active', () => {
   it('returns identity for active staff with a valid account', async () => {
     const r = await handle(makeDeps([staffRow()], [acct()]).deps, resolve(ORG_A, S1));
     expect(r.status).toBe(200);
+  });
+  it('keeps non-UUID staffId exactly (no parsing, lowercasing or rewriting)', async () => {
+    const r = await handle(makeDeps([staffRow()], [acct()]).deps, resolve(ORG_A, S1));
+    expect((r.body.staff as { staffId: string }).staffId).toBe('staff_1742198732_Ab9X');
+  });
+  it('keeps UUID-shaped staffId case verbatim; a lowercased variant does not match', async () => {
+    const deps = makeDeps([staffRow({ id: S2 })], [acct({ staff_id: S2 })]).deps;
+    expect(((await handle(deps, resolve(ORG_A, S2))).body.staff as { staffId: string }).staffId).toBe(S2);
+    expect((await handle(deps, resolve(ORG_A, S2.toLowerCase()))).status).toBe(403);
+  });
+  it.each(['', ' x', 'x ', 'a\u0000b', 'y'.repeat(129)])('rejects malformed opaque staffId %#', async (id) => {
+    expect((await handle(makeDeps([staffRow()], [acct()]).deps, resolve(ORG_A, id))).status).toBe(400);
   });
   it('cross-tenant lookup is 403', async () => {
     expect((await handle(makeDeps([staffRow()], [acct()]).deps, resolve(ORG_B, S1))).status).toBe(403);

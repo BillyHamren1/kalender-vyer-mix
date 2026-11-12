@@ -8,7 +8,7 @@ and this change must stay reviewable. No migration applied, no secret set, nothi
 POST, `Content-Type: application/json`, body <= 4 KB, header `x-time-operations-secret`.
 - `{schema:"time-operations-auth.v1", action:"verify_credentials", identifier, password}`
 - `{schema:"time-operations-auth.v1", action:"resolve_active", organizationId, staffId}`
-Exact key sets; anything else -> 400. Success: `{schema, staff:{staffId, organizationId, displayName, email|null}}`.
+Exact key sets; anything else -> 400. `staffId` is opaque TEXT (1–128 chars, no surrounding whitespace/control chars), used verbatim end to end — most live ids are not UUIDs; only `organizationId` is a UUID. Success: `{schema, staff:{staffId, organizationId, displayName, email|null}}`.
 401 bad credentials (unknown, wrong password, ambiguous/duplicate, tenant mismatch),
 403 inactive (only after correct password; for resolve_active also not-found/cross-tenant/no account),
 429 rate limited, 503 secret missing/limiter or DB down (fail closed). No CORS; no session ids.

@@ -25,6 +25,12 @@ export interface Deps {
 export interface Result { status: number; body: Record<string, unknown> }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const MAX_STAFF_ID_LENGTH = 128;
+/** Operations staff ids are TEXT and frequently not UUIDs; accept bounded, non-empty, printable, untrimmed-free text. */
+export function isOpaqueStaffId(v: unknown): v is string {
+  return typeof v === 'string' && v.length >= 1 && v.length <= MAX_STAFF_ID_LENGTH
+    && v === v.trim() && !/[\u0000-\u001f\u007f]/.test(v);
+}
 const err = (status: number, error: string): Result => ({ status, body: { schema: SCHEMA, error } });
 const BAD_REQUEST = () => err(400, 'invalid_request');
 const UNAUTHORIZED = () => err(401, 'invalid_credentials');
@@ -83,8 +89,9 @@ export function parseBody(raw: string): Parsed | null {
   if (o.action === 'resolve_active' && keys === 'action,organizationId,schema,staffId') {
     const { organizationId, staffId } = o;
     if (typeof organizationId !== 'string' || typeof staffId !== 'string') return null;
-    if (!UUID.test(organizationId) || !UUID.test(staffId)) return null;
-    return { action: 'resolve_active', organizationId: organizationId.toLowerCase(), staffId: staffId.toLowerCase() };
+    if (!UUID.test(organizationId) || !isOpaqueStaffId(staffId)) return null;
+    // staffId is opaque TEXT (staff_members.id): used exactly as given, never parsed/lowercased/trimmed.
+    return { action: 'resolve_active', organizationId: organizationId.toLowerCase(), staffId };
   }
   return null;
 }
@@ -142,7 +149,7 @@ export async function handle(deps: Deps, rawBody: string): Promise<Result> {
   }
 
   try {
-    if (!(await deps.consumeRateLimit(`resolve:staff:${req.staffId}`))) return err(429, 'rate_limited');
+    if (!(await deps.consumeRateLimit(`resolve:staff:${await deps.sha256Hex(req.staffId)}`))) return err(429, 'rate_limited');
   } catch { return err(503, 'unavailable'); }
   const staff = await deps.getStaff(req.staffId);
   if (!staff || staff.organization_id !== req.organizationId || !staff.is_active) return FORBIDDEN();
