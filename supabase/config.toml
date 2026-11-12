@@ -244,3 +244,6 @@ verify_jwt = false
 
 [functions.refresh-economy-cache]
 verify_jwt = false
+
+[functions.time-staff-auth]
+verify_jwt = false

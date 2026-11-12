@@ -28,9 +28,8 @@ export interface WorkerAssignmentSyncContext {
 }
 
 /**
- * Authenticate the Time personnel JWT at its owning Auth service, resolve the
- * same person by email in Planning, and push that worker's current Planning
- * assignments into Time. No Planning source row is modified.
+ * Resolve the Time worker's canonical Operations identity at its owning
+ * service, then push that worker's current Operations assignments into Time.
  */
 export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContext): Promise<Response> {
   // Konfigurerad nyckel först, därefter värdpinnad publik nyckel, sist
@@ -39,24 +38,36 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     ?? ctx.anonKey ?? ctx.authorization.replace(/^Bearer\s+/i, '').trim();
 
 
-  const userResponse = await fetch(`${timeProjectRoot(ctx.adapterUrl)}/auth/v1/user`, {
-    headers: { authorization: ctx.authorization, apikey: gatewayKey },
+  const timeRoot = timeProjectRoot(ctx.adapterUrl);
+  const identityResponse = await fetch(`${timeRoot}/functions/v1/identity-context`, {
+    method: 'POST',
+    headers: { authorization: ctx.authorization, apikey: gatewayKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ domain: 'personnel', activationMode: 'read_only' }),
+    redirect: 'error',
+    signal: AbortSignal.timeout(5000),
   }).catch(() => null);
-  if (!userResponse?.ok) return fail(401, 'unauthorized', 'Time-sessionen kunde inte verifieras.');
+  if (!identityResponse || identityResponse.status >= 500) {
+    return fail(503, 'identity_unavailable', 'Time-identiteten kunde inte hämtas.', true);
+  }
+  if (!identityResponse.ok) return fail(401, 'unauthorized', 'Time-sessionen kunde inte verifieras.');
 
-  const timeUser = await userResponse.json().catch(() => null) as Json | null;
-  const email = text(timeUser?.email)?.toLocaleLowerCase('sv-SE');
-  if (!email) return fail(401, 'unauthorized', 'Time-sessionen saknar verifierad e-postadress.');
-
+  const identity = await identityResponse.json().catch(() => null) as Json | null;
+  const organizationId = text(identity?.organizationId);
+  const staffId = identity?.operationsStaffId;
+  if (identity?.identityDomain !== 'personnel' || !organizationId ||
+      typeof staffId !== 'string' || staffId.length === 0 || staffId.length > 128) {
+    return fail(404, 'personnel_not_mapped', 'Time-kontot saknar en verifierad personalkoppling till Operations.');
+  }
   const { data: staffRows, error: staffError } = await ctx.admin
     .from('staff_members')
     .select('id, organization_id, name, email, role, is_active')
-    .ilike('email', email)
+    .eq('id', staffId)
+    .eq('organization_id', organizationId)
     .eq('is_active', true)
     .limit(2);
   if (staffError) return fail(500, 'planning_read_failed', 'Planning-personalen kunde inte läsas.', true);
   if (!staffRows || staffRows.length !== 1) {
-    return fail(404, 'personnel_not_mapped', 'E-postadressen matchar inte exakt en aktiv person i Planning.');
+    return fail(404, 'personnel_not_mapped', 'Time-kontot matchar inte en aktiv person i Operations.');
   }
   const staff = staffRows[0] as Json;
   const sourceOrganizationId = String(staff.organization_id);
