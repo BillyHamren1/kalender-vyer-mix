@@ -28,7 +28,9 @@ export function useProjectMessagesCount(): number {
   const { data: count = 0, refetch } = useQuery({
     queryKey: ['project-messages-count', organizationId, myIds.join('|')],
     enabled: !!organizationId && myIds.length > 0,
-    staleTime: 30000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
     queryFn: async () => {
       const since = new Date(Date.now() - LOOKBACK_DAYS * 86400000).toISOString();
       const { data, error } = await supabase

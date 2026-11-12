@@ -54,7 +54,9 @@ export function useProjectInboxCount(): number {
     queryKey: ['project-inbox-count', organizationId],
     queryFn: () => fetchProjectInboxCount(organizationId!),
     enabled: !!organizationId,
-    staleTime: 30000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
 
   useEffect(() => {
@@ -68,6 +70,10 @@ export function useProjectInboxCount(): number {
       .channel(uniqueChannelName('project-inbox-badge'))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, schedule)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, schedule)
+      // Tilldelning sker ofta genom att projekt/jobb/stort-projekt-länk skapas utan bokningsuppdatering
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'large_project_bookings' }, schedule)
       .subscribe();
 
     return () => {

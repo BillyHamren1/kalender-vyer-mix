@@ -73,6 +73,8 @@ export function useUnplannedProjects() {
       );
     },
     placeholderData: [],
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
 
   useEffect(() => {
