@@ -1,49 +1,67 @@
+// @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
-import { resolveWorkerStaff, parseIdentityContext, type ResolveDeps, type StaffRow } from '../../proposals/time-planning-proxy/canonicalWorker';
-
+import { fetchIdentityContext, resolveWorkerStaff, parseIdentityContext, type StaffRow } from '../../supabase/functions/time-planning-proxy/canonicalWorker';
 const ORG = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-2222-4222-8222-222222222222';
-const SID = 'staff_1742198732_Ab9X'; // non-UUID Operations staff id (TEXT)
-const ctx = (o: Record<string, unknown> = {}) => ({ domain: 'personnel', activationMode: 'read_only', operationsStaffId: SID, organizationId: ORG, ...o });
-const row = (o: Partial<StaffRow> = {}): StaffRow => ({ id: SID, organization_id: ORG, is_active: true, email: 'x+synthetic@time.invalid', ...o });
-
-function deps(idc: { status: number; body: unknown } | null, rows: StaffRow[] = [row()]) {
-  const legacyByEmail = vi.fn(async () => ({ ok: true as const, staff: row({ id: 'legacy' }), via: 'legacy_email' as const }));
-  const getStaffById = vi.fn(async (id: string) => rows.find((r) => r.id === id) ?? null);
-  const d: ResolveDeps = { fetchIdentityContext: async () => idc, getStaffById, legacyByEmail };
-  return { d, legacyByEmail, getStaffById };
+const SID = 'STAFF-opaque-Fixture/17';
+const ctx = (extra = {}) => ({ domain: 'personnel', activationMode: 'read_only', operationsStaffId: SID, organizationId: ORG, ...extra });
+const row = (extra = {}): StaffRow => ({ id: SID, organization_id: ORG, tags: ['Montage'], is_active: true, ...extra });
+function deps(body: unknown = ctx(), rows = [row()], account = true, status = 200) {
+  return { fetchIdentityContext: async () => ({ status, body }),
+    getStaffById: vi.fn(async () => rows), hasAccount: vi.fn(async () => account) };
 }
-
-describe('Operations-backed worker resolution', () => {
-  it('uses exact non-UUID staff id and never the email path', async () => {
-    const { d, legacyByEmail, getStaffById } = deps({ status: 200, body: ctx() });
-    const r = await resolveWorkerStaff(d);
-    expect(r).toMatchObject({ ok: true, via: 'operations_canonical', staff: { id: SID } });
-    expect(getStaffById).toHaveBeenCalledWith(SID);
-    expect(legacyByEmail).not.toHaveBeenCalled();
+describe('canonical worker identity', () => {
+  it.each([SID, 'BBBBBBBB-bbbb-4bbb-8bbb-bbbbbbbbbbbb'])('preserves exact opaque id %s', async (id) => {
+    const d = deps(ctx({ operationsStaffId: id }), [row({ id, email: 'synthetic-changed@invalid.test' })]);
+    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: true, staff: { id } });
+    expect(d.getStaffById).toHaveBeenCalledWith(id, ORG);
+    expect(d.hasAccount).toHaveBeenCalledWith(id, ORG);
   });
-  it('does not lowercase or rewrite the staff id', async () => {
-    const { d } = deps({ status: 200, body: ctx() }, [row({ id: SID.toLowerCase() })]);
-    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: false, code: 'personnel_not_mapped' });
+  it.each([{ domain: 'admin' }, { activationMode: 'write' }, { operationsStaffId: null },
+    { operationsStaffId: '' }, { operationsStaffId: ' x' }, { operationsStaffId: 'a'.repeat(129) },
+    { organizationId: 'invalid' }])('invalid or unlinked context never falls back', async (extra) => {
+    const d = deps(ctx(extra));
+    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: false, status: 502 });
+    expect(d.getStaffById).not.toHaveBeenCalled();
   });
-  it('rejects organization mismatch and inactive staff', async () => {
-    expect(await resolveWorkerStaff(deps({ status: 200, body: ctx({ organizationId: OTHER }) }).d)).toMatchObject({ ok: false, status: 409 });
-    expect(await resolveWorkerStaff(deps({ status: 200, body: ctx() }, [row({ is_active: false })]).d)).toMatchObject({ ok: false, status: 403 });
+  it('rejects missing staffId', () => { expect(parseIdentityContext({ domain: 'personnel', activationMode: 'read_only', organizationId: ORG })).toBeNull(); });
+  it.each([{ rows: [] }, { rows: [row(), row()] }, { rows: [row({ id: SID.toLowerCase() })] }, { rows: [row({ organization_id: OTHER })] },
+    { rows: [row({ is_active: false })] }, { rows: [row({ tags: ['Lager'] })] }])('denies missing, duplicate, rewritten, cross-tenant, inactive or ungranted rows %#', async ({ rows }) => {
+    expect(await resolveWorkerStaff(deps(ctx(), rows))).toMatchObject({ ok: false, status: 403 });
   });
-  it('fails closed (no email fallback) on invalid payload, auth failure or outage', async () => {
-    for (const idc of [{ status: 200, body: ctx({ domain: 'admin' }) }, { status: 200, body: ctx({ operationsStaffId: ' x' }) },
-      { status: 200, body: ctx({ organizationId: 'nope' }) }, { status: 401, body: null }, { status: 500, body: null }, null]) {
-      const { d, legacyByEmail } = deps(idc);
-      expect((await resolveWorkerStaff(d)).ok).toBe(false);
-      expect(legacyByEmail).not.toHaveBeenCalled();
-    }
+  it('removed account denies an already-issued worker JWT', async () => {
+    expect(await resolveWorkerStaff(deps(ctx(), [row()], false))).toMatchObject({ ok: false, status: 403 });
   });
-  it('only an explicit unlinked personnel profile uses the legacy email path', async () => {
-    const { d, legacyByEmail } = deps({ status: 200, body: { domain: 'personnel', activationMode: 'read_only', operationsStaffId: null } });
-    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: true, via: 'legacy_email' });
-    expect(legacyByEmail).toHaveBeenCalledOnce();
+  it.each([401,403,500])('upstream denial %s stops staff reads', async (status) => {
+    const d = deps(null, [row()], true, status);
+    expect((await resolveWorkerStaff(d)).ok).toBe(false);
+    expect(d.getStaffById).not.toHaveBeenCalled();
   });
-  it('parser keeps the opaque id verbatim', () => {
-    expect(parseIdentityContext(ctx())).toEqual({ kind: 'operations', operationsStaffId: SID, organizationId: ORG });
+  it('database and transport exceptions fail closed', async () => {
+    const d = deps(); d.fetchIdentityContext = async () => { throw Error('down'); };
+    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: false, status: 503 });
+  });
+});
+describe('verified identity transport', () => {
+  const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  it('sends only worker bearer and agreed read-only body to configured origin', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => response(ctx()));
+    expect(await fetchIdentityContext('https://time.fixture.invalid/functions/v1', 'Bearer fixture-token', 'public-key', fetcher)).toMatchObject({ status: 200 });
+    expect(fetcher).toHaveBeenCalledWith('https://time.fixture.invalid/functions/v1/identity-context', expect.objectContaining({
+      method: 'POST', redirect: 'error', headers: { authorization: 'Bearer fixture-token', apikey: 'public-key', 'content-type': 'application/json' },
+      body: JSON.stringify({ domain: 'personnel', activationMode: 'read_only' }),
+    }));
+  });
+  it.each(['http://time.invalid', 'https://user:pass@time.invalid', 'not a url'])('rejects unsafe endpoint %s', async (url) => {
+    const f = vi.fn<typeof fetch>(); expect(await fetchIdentityContext(url, 'Bearer fixture', 'key', f)).toBeNull(); expect(f).not.toHaveBeenCalled();
+  });
+  it.each([response({},302), new Response('not json', { headers: { 'content-type': 'application/json' } }),
+    new Response('{}'), response({ data: 'x'.repeat(5000) })])('rejects redirect or invalid/oversize response %#', async (res) => {
+    expect(await fetchIdentityContext('https://time.invalid', 'Bearer fixture', 'key', async () => res)).toBeNull();
+  });
+  it('times out even if upstream never resolves', async () => {
+    const f = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    expect(await fetchIdentityContext('https://time.invalid', 'Bearer fixture', 'key', f, 10)).toBeNull();
+    expect(f.mock.calls[0][1]?.signal?.aborted).toBe(true);
   });
 });

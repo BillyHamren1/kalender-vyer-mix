@@ -9263,6 +9263,24 @@ export type Database = {
           },
         ]
       }
+      time_staff_auth_rate_limits: {
+        Row: {
+          attempts: number
+          bucket: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          bucket: string
+          window_start?: string
+        }
+        Update: {
+          attempts?: number
+          bucket?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       timeline_action_audit: {
         Row: {
           action: string
@@ -11794,6 +11812,7 @@ export type Database = {
           siblings_synced: number
         }[]
       }
+      time_staff_auth_consume: { Args: { p_bucket: string }; Returns: boolean }
       tr_shift_interval: {
         Args: { _date: string; _end: string; _start: string }
         Returns: unknown

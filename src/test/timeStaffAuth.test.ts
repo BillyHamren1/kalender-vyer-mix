@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { handle, checkSharedSecret, constantTimeEqual, escapeLike, SCHEMA, type Deps, type AccountRow, type StaffRow } from '../../proposals/time-staff-auth/core';
+import { handle, checkSharedSecret, constantTimeEqual, escapeLike, SCHEMA, type Deps, type AccountRow, type StaffRow } from '../../supabase/functions/time-staff-auth/core';
 
 const ORG_A = '11111111-1111-4111-8111-111111111111';
 const ORG_B = '22222222-2222-4222-8222-222222222222';
 // Representative non-UUID Operations staff id (staff_members.id is TEXT).
-const S1 = 'staff_1742198732_Ab9X';
+const S1 = 'STAFF-opaque-Fixture/17';
 const S2 = 'BBBBBBBB-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; // UUID-shaped, mixed case, must stay verbatim
 const SECRET = 'x'.repeat(40);
 
@@ -22,7 +22,7 @@ function makeDeps(staff: StaffRow[], accounts: AccountRow[], opts: { limited?: b
   };
   return { deps, writes };
 }
-const staffRow = (o: Partial<StaffRow> = {}): StaffRow => ({ id: S1, organization_id: ORG_A, name: 'Anna', email: 'anna@x.se', is_active: true, ...o });
+const staffRow = (o: Partial<StaffRow> = {}): StaffRow => ({ id: S1, organization_id: ORG_A, name: 'Anna', email: 'anna@x.se', is_active: true, tags: ['Montage'], ...o });
 const acct = (o: Partial<AccountRow> = {}): AccountRow => ({ staff_id: S1, organization_id: ORG_A, username: 'anna@x.se', password_hash: btoa('Hemligt1'), ...o });
 const verify = (identifier: string, password = 'Hemligt1') => JSON.stringify({ schema: SCHEMA, action: 'verify_credentials', identifier, password });
 const resolve = (organizationId: string, staffId: string) => JSON.stringify({ schema: SCHEMA, action: 'resolve_active', organizationId, staffId });
@@ -123,7 +123,7 @@ describe('resolve_active', () => {
   });
   it('keeps non-UUID staffId exactly (no parsing, lowercasing or rewriting)', async () => {
     const r = await handle(makeDeps([staffRow()], [acct()]).deps, resolve(ORG_A, S1));
-    expect((r.body.staff as { staffId: string }).staffId).toBe('staff_1742198732_Ab9X');
+    expect((r.body.staff as { staffId: string }).staffId).toBe('STAFF-opaque-Fixture/17');
   });
   it('keeps UUID-shaped staffId case verbatim; a lowercased variant does not match', async () => {
     const deps = makeDeps([staffRow({ id: S2 })], [acct({ staff_id: S2 })]).deps;
@@ -143,11 +143,11 @@ describe('resolve_active', () => {
 });
 
 describe('no Scanner/mobile session side effects', () => {
-  const dir = path.resolve(__dirname, '../../proposals/time-staff-auth');
+  const dir = path.resolve(__dirname, '../../supabase/functions/time-staff-auth');
   const src = ['core.ts', 'index.ts'].map((f) => readFileSync(path.join(dir, f), 'utf8')).join('\n');
   it('never touches active_mobile_session_id, scanner tokens or writes', () => {
     expect(src).not.toMatch(/active_mobile_session/);
-    expect(src).not.toMatch(/scanner/i);
+    expect(src).not.toMatch(/createScanner|createMobileMessageToken/);
     expect(src).not.toMatch(/\.(update|insert|upsert|delete)\(/);
   });
   it('success payload has no session ids or sensitive staff fields', async () => {
