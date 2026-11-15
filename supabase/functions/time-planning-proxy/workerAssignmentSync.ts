@@ -51,7 +51,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
       return data?.length === 1 && data[0].staff_id === id && data[0].organization_id === organizationId;
     },
   });
-  if (!resolution.ok) return fail(resolution.status, resolution.code,
+  if (resolution.ok === false) return fail(resolution.status, resolution.code,
     'Time-identiteten eller aktuell Operations-appåtkomst kunde inte verifieras.', resolution.retryable);
   const staff = resolution.staff as unknown as Json;
   const sourceOrganizationId = String(staff.organization_id);
@@ -68,7 +68,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     from,
     to,
   });
-  if (!projection.ok) return fail(projection.status, projection.code, projection.message, projection.retryable);
+  if (projection.ok === false) return fail(projection.status, projection.code, projection.message, projection.retryable);
 
   let upstream: Response;
   try {

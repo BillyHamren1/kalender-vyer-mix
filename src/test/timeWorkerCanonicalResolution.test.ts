@@ -60,7 +60,7 @@ describe('verified identity transport', () => {
     expect(await fetchIdentityContext('https://time.invalid', 'Bearer fixture', 'key', async () => res)).toBeNull();
   });
   it('times out even if upstream never resolves', async () => {
-    const f = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    const f = vi.fn<typeof fetch>(() => new Promise<Response>(() => {}));
     expect(await fetchIdentityContext('https://time.invalid', 'Bearer fixture', 'key', f, 10)).toBeNull();
     expect(f.mock.calls[0][1]?.signal?.aborted).toBe(true);
   });
