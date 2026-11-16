@@ -16,6 +16,7 @@ interface StaffAccountCardProps {
   staffName: string;
   staffEmail?: string;
   tags?: string[];
+  isActive?: boolean;
 }
 
 interface StaffAccount {
@@ -37,7 +38,7 @@ const generateUsername = (name: string): string => {
 // Default password for all new accounts
 const getDefaultPassword = (): string => 'Frasse123';
 
-const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName, staffEmail, tags = [] }) => {
+const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName, staffEmail, tags = [], isActive = false }) => {
   const queryClient = useQueryClient();
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
@@ -247,7 +248,7 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName,
 
               {/* App access indicators */}
               <div className="flex flex-wrap gap-2">
-                {tags.includes('Montage') && (
+                {isActive && (
                   <Badge variant="secondary" className="text-xs gap-1">
                     <Check className="h-3 w-3" />
                     Tidrapporteringsappen
@@ -258,11 +259,6 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName,
                     <Check className="h-3 w-3" />
                     Scanner-appen
                   </Badge>
-                )}
-                {!tags.includes('Montage') && !tags.includes('Lager') && (
-                  <p className="text-xs text-muted-foreground">
-                    Tagga som Montage eller Lager för att ge tillgång till mobilappar
-                  </p>
                 )}
               </div>
 

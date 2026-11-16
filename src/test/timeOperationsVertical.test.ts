@@ -8,7 +8,7 @@ import { handleWorkerAssignmentSync } from '../../supabase/functions/time-planni
 const ORG = '11111111-1111-4111-8111-111111111111';
 const SID = 'STAFF-opaque-Fixture/17';
 const secret = 'test-fixture-only-'.repeat(3);
-const staff = { id: SID, organization_id: ORG, name: 'Fixture', email: null, tags: ['Montage'], is_active: true };
+const staff = { id: SID, organization_id: ORG, name: 'Fixture', email: null, tags: [], is_active: true };
 const account = { staff_id: SID, organization_id: ORG, username: 'fixture', password_hash: btoa('FixturePass') };
 const deps = (): Deps => ({ findStaffIdsByEmail: async () => [], findAccountsByStaffId: async () => [account],
   findAccountsByUsername: async () => [account], getStaff: async () => staff, consumeRateLimit: async () => true, sha256Hex: async () => 'fixturehash' });
@@ -56,10 +56,10 @@ describe('HTTP auth boundary', () => {
     expect((await handleRequest(request(credentials, secret, 'http://operations.invalid'), secret, deps)).status).toBe(400);
     expect((await handleRequest(new Request('https://operations.invalid'), secret, deps)).status).toBe(405);
   });
-  it('current Montage permission is required in both credential and resolve paths', async () => {
-    const d = deps(); d.getStaff = async () => ({ ...staff, tags: ['Lager'] });
+  it.each([{ tags: [] }, { tags: ['Lager'] }, { tags: ['Montage'] }])('active accounts can verify and resolve regardless of tags %j', async ({ tags }) => {
+    const d = deps(); d.getStaff = async () => ({ ...staff, tags });
     for (const body of [credentials, { schema: SCHEMA, action: 'resolve_active', organizationId: ORG, staffId: SID }])
-      expect((await handleRequest(request(body), secret, () => d)).status).toBe(403);
+      expect((await handleRequest(request(body), secret, () => d)).status).toBe(200);
   });
   it('rechecks deactivation and removed accounts after successful credential verification', async () => {
     const d = deps();
@@ -87,8 +87,9 @@ describe('synthetic vertical path: credential verification → verified identity
     const calls: { url: string; init?: RequestInit }[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      if (url.endsWith('/identity-context')) return new Response(JSON.stringify({ domain: 'personnel', activationMode: 'read_only',
-        operationsStaffId: identity.staffId, organizationId: identity.organizationId }), { headers: { 'content-type': 'application/json' } });
+      if (url.endsWith('/identity-context')) return new Response(JSON.stringify({ identityDomain: 'personnel',
+        operationsStaffId: identity.staffId, operationsOrganizationId: identity.organizationId,
+        organizationId: '22222222-2222-4222-8222-222222222222' }), { headers: { 'content-type': 'application/json' } });
       return new Response(JSON.stringify({ data: { accepted: true } }), { headers: { 'content-type': 'application/json' } });
     }));
     const context = { admin: db, authorization: 'Bearer synthetic-worker-fixture', adapterUrl: 'https://time.fixture.invalid/functions/v1',

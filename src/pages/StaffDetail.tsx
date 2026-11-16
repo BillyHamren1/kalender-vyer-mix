@@ -592,7 +592,7 @@ const StaffDetail: React.FC = () => {
         </Card>
 
         {/* Konto */}
-        <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} staffEmail={staffMember.email} tags={(staffMember as any).tags || []} />
+        <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} staffEmail={staffMember.email} tags={(staffMember as any).tags || []} isActive={staffMember.is_active === true} />
         </TabsContent>
 
         <TabsContent value="timereports" className="flex-1 overflow-y-auto p-6 space-y-6 mt-0">

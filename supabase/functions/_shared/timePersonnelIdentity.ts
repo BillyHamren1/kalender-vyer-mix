@@ -5,9 +5,9 @@ export function isOpaqueStaffId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= MAX_STAFF_ID_LENGTH
     && value === value.trim() && !/[\u0000-\u001f\u007f]/.test(value);
 }
-/** Matches StaffAccountCard's current server-owned Time app grant. */
-export function hasTimeAccess(tags: unknown): boolean {
-  return Array.isArray(tags) && tags.includes('Montage');
+/** Time is available to all personnel; callers still require active staff and a valid account. */
+export function hasTimeAccess(_tags?: unknown): boolean {
+  return true;
 }
 /** Bounded streaming read, including requests without Content-Length. */
 export async function readBoundedBody(source: Request | Response, limit: number): Promise<string> {

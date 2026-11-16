@@ -1,5 +1,8 @@
 # Roadmap — Planning→Time syntetisk resa (P2)
 
+## Time-åtkomst utan Montage
+- [x] Taggkravet borttaget; Time V2 identityDomain/operationsOrganizationId samt äldre fält stöds. 86/86 riktade tester gröna via isolerad Vitest 3 (ordinarie Vitest/Vite-startfel kvar); preview med aktiv/inaktiv syntetisk personal verifierad, build OK. Ingen manuell deploy/publicering; verklig Time-inloggning ej verifierad.
+
 ## Aktuellt uppdrag
 - [x] Mätt 76 fasta adresser före/efter; gemensam previewstart median 1418→657 ms, sekundära moduler läses på begäran och ekonomins datum/batch parallellt. 33 tester gröna i isolerad Vitest 3, preview build OK; resultat i docs/performance-audit-20261018.md. Ingen deploy/publicering.
 - [ ] Mät/rangordna inloggad dataladdning på alla sidor och parameteriserade detaljer: blockerad av external_unmanaged utan tillgänglig behörig session. 74/76 kontroller landar på inloggning, inte verkligt sidinnehåll.

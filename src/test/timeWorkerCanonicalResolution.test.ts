@@ -5,12 +5,32 @@ const ORG = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-2222-4222-8222-222222222222';
 const SID = 'STAFF-opaque-Fixture/17';
 const ctx = (extra = {}) => ({ domain: 'personnel', activationMode: 'read_only', operationsStaffId: SID, organizationId: ORG, ...extra });
-const row = (extra = {}): StaffRow => ({ id: SID, organization_id: ORG, tags: ['Montage'], is_active: true, ...extra });
+const row = (extra = {}): StaffRow => ({ id: SID, organization_id: ORG, tags: [], is_active: true, ...extra });
 function deps(body: unknown = ctx(), rows = [row()], account = true, status = 200) {
   return { fetchIdentityContext: async () => ({ status, body }),
     getStaffById: vi.fn(async () => rows), hasAccount: vi.fn(async () => account) };
 }
 describe('canonical worker identity', () => {
+  it.each([{ tags: [] }, { tags: ['Lager'] }, { tags: ['Montage'] }])('allows active accounts regardless of tags %j', async ({ tags }) => {
+    expect(await resolveWorkerStaff(deps(ctx(), [row({ tags })]))).toMatchObject({ ok: true });
+  });
+  it.each(['domain', 'identityDomain'])('accepts %s without activationMode and uses Operations tenant', async (field) => {
+    const body = { [field]: 'personnel', operationsStaffId: SID, operationsOrganizationId: ORG, organizationId: OTHER };
+    const d = deps(body);
+    expect(parseIdentityContext(body)).toEqual({ operationsStaffId: SID, organizationId: ORG });
+    expect(await resolveWorkerStaff(d)).toMatchObject({ ok: true });
+    expect(d.getStaffById).toHaveBeenCalledWith(SID, ORG);
+  });
+  it('accepts legacy organizationId without activationMode', () => {
+    expect(parseIdentityContext({ identityDomain: 'personnel', operationsStaffId: SID, organizationId: ORG }))
+      .toEqual({ operationsStaffId: SID, organizationId: ORG });
+  });
+  it.each([
+    { identityDomain: 'admin' }, { domain: 'admin', identityDomain: 'personnel' },
+    { operationsOrganizationId: 'invalid' }, { organizationId: undefined },
+  ])('rejects invalid/conflicting mapping without fallback %#', (extra) => {
+    expect(parseIdentityContext(ctx(extra))).toBeNull();
+  });
   it.each([SID, 'BBBBBBBB-bbbb-4bbb-8bbb-bbbbbbbbbbbb'])('preserves exact opaque id %s', async (id) => {
     const d = deps(ctx({ operationsStaffId: id }), [row({ id, email: 'synthetic-changed@invalid.test' })]);
     expect(await resolveWorkerStaff(d)).toMatchObject({ ok: true, staff: { id } });
@@ -26,7 +46,7 @@ describe('canonical worker identity', () => {
   });
   it('rejects missing staffId', () => { expect(parseIdentityContext({ domain: 'personnel', activationMode: 'read_only', organizationId: ORG })).toBeNull(); });
   it.each([{ rows: [] }, { rows: [row(), row()] }, { rows: [row({ id: SID.toLowerCase() })] }, { rows: [row({ organization_id: OTHER })] },
-    { rows: [row({ is_active: false })] }, { rows: [row({ tags: ['Lager'] })] }])('denies missing, duplicate, rewritten, cross-tenant, inactive or ungranted rows %#', async ({ rows }) => {
+    { rows: [row({ is_active: false })] }])('denies missing, duplicate, rewritten, cross-tenant or inactive rows %#', async ({ rows }) => {
     expect(await resolveWorkerStaff(deps(ctx(), rows))).toMatchObject({ ok: false, status: 403 });
   });
   it('removed account denies an already-issued worker JWT', async () => {

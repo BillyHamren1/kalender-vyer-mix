@@ -8,14 +8,19 @@ export interface IdentityContext { operationsStaffId: string; organizationId: st
 export type Resolution = { ok: true; staff: StaffRow; via: 'operations_canonical' }
   | { ok: false; status: number; code: string; retryable: boolean };
 const no = (status: number, code: string, retryable = false): Resolution => ({ ok: false, status, code, retryable });
-/** The agreed four-field response. Missing/null mappings are denied, never legacy email. */
+/** Accept Time V2 and legacy field names; missing/invalid mappings never fall back to email. */
 export function parseIdentityContext(body: unknown): IdentityContext | null {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
   const value = body as Record<string, unknown>;
-  if (value.domain !== 'personnel' || value.activationMode !== 'read_only'
-    || !isOpaqueStaffId(value.operationsStaffId) || typeof value.organizationId !== 'string'
-    || !UUID.test(value.organizationId)) return null;
-  return { operationsStaffId: value.operationsStaffId, organizationId: value.organizationId.toLowerCase() };
+  const domain = value.identityDomain ?? value.domain;
+  const organizationId = value.operationsOrganizationId ?? value.organizationId;
+  if (domain !== 'personnel'
+    || (value.domain !== undefined && value.domain !== 'personnel')
+    || (value.identityDomain !== undefined && value.identityDomain !== 'personnel')
+    || (value.activationMode !== undefined && value.activationMode !== 'read_only')
+    || !isOpaqueStaffId(value.operationsStaffId) || typeof organizationId !== 'string'
+    || !UUID.test(organizationId)) return null;
+  return { operationsStaffId: value.operationsStaffId, organizationId: organizationId.toLowerCase() };
 }
 /** URL originates only from server TIME_ADAPTER_URL. No redirects or client endpoint. */
 export async function fetchIdentityContext(adapterUrl: string, authorization: string, gatewayKey: string,
