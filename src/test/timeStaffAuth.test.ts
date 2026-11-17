@@ -72,10 +72,10 @@ describe('verify_credentials', () => {
       [acct({ username: 'a' }), acct({ staff_id: S2, organization_id: ORG_B, username: 'b' })]);
     expect((await handle(deps, verify('dup@x.se'))).status).toBe(401);
   });
-  it('rejects email and username pointing to different accounts', async () => {
-    const { deps } = makeDeps([staffRow({ email: 'p@x.se' }), staffRow({ id: S2, email: null })],
-      [acct({ username: 'anna' }), acct({ staff_id: S2, username: 'p@x.se' })]);
+  it('email is never a login identifier — only the username', async () => {
+    const { deps } = makeDeps([staffRow({ email: 'p@x.se' })], [acct({ username: 'anna.berg' })]);
     expect((await handle(deps, verify('p@x.se'))).status).toBe(401);
+    expect((await handle(deps, verify('Anna.Berg'))).status).toBe(200);
   });
   it('inactive staff with correct password gets 403', async () => {
     const { deps } = makeDeps([staffRow({ is_active: false })], [acct()]);

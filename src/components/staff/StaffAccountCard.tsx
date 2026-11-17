@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Key, UserPlus, RefreshCw, Trash2, Check, AlertCircle, Copy, Eye, EyeOff, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { insertWithUniqueUsername } from '@/lib/staff/staffUsername';
 
 interface StaffAccountCardProps {
   staffId: string;
@@ -25,15 +26,6 @@ interface StaffAccount {
   created_at: string;
 }
 
-// Generate username from name
-const generateUsername = (name: string): string => {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '.')
-    .replace(/[^a-z.]/g, '');
-};
 
 // Default password for all new accounts
 const getDefaultPassword = (): string => 'Frasse123';
@@ -69,30 +61,10 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName,
   // Create account mutation
   const createAccountMutation = useMutation({
     mutationFn: async () => {
-      const username = staffEmail || generateUsername(staffName);
       const password = getDefaultPassword();
       const passwordHash = btoa(password);
-
-      // Check if username exists
-      const { data: existing } = await supabase
-        .from('staff_accounts')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (existing) {
-        throw new Error(`Användarnamn "${username}" finns redan`);
-      }
-
-      const { error } = await supabase
-        .from('staff_accounts')
-        .insert({
-          staff_id: staffId,
-          username,
-          password_hash: passwordHash
-        });
-
-      if (error) throw error;
+      const username = await insertWithUniqueUsername(staffName, async (u) =>
+        await supabase.from('staff_accounts').insert({ staff_id: staffId, username: u, password_hash: passwordHash }));
 
       return { username, password };
     },

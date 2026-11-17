@@ -97,24 +97,11 @@ function success(staff: StaffRow): Result {
   };
 }
 
-/** Exactly-one account resolution, mirroring mobile-app-auth order but rejecting ambiguity. */
+/** Login is by username only (globally unique). Email is never a credential: one person may belong to several organisations. */
 async function resolveAccount(deps: Deps, identifierLower: string): Promise<AccountRow | null | 'ambiguous'> {
   const byUsername = await deps.findAccountsByUsername(identifierLower);
   if (byUsername.length > 1) return 'ambiguous';
-  if (!identifierLower.includes('@')) return byUsername[0] ?? null;
-
-  const staffHits = (await deps.findStaffIdsByEmail(identifierLower))
-    .filter((s) => (s.email ?? '').trim().toLowerCase() === identifierLower);
-  if (staffHits.length > 1) return 'ambiguous';
-  let byEmail: AccountRow | null = null;
-  if (staffHits.length === 1) {
-    const accounts = await deps.findAccountsByStaffId(staffHits[0].id);
-    if (accounts.length > 1) return 'ambiguous';
-    byEmail = accounts[0] ?? null;
-  }
-  // Email and username pointing at two different accounts is ambiguous, never a silent pick.
-  if (byEmail && byUsername[0] && byUsername[0].staff_id !== byEmail.staff_id) return 'ambiguous';
-  return byEmail ?? byUsername[0] ?? null;
+  return byUsername[0] ?? null;
 }
 
 async function handleInternal(deps: Deps, rawBody: string): Promise<Result> {

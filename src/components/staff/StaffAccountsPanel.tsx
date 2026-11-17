@@ -10,6 +10,7 @@ import { Key, UserPlus, Users, Copy, Download, Trash2, RefreshCw, Check, AlertCi
 import { supabase } from '@/integrations/supabase/client';
 import { fetchStaffMembers } from '@/services/staffService';
 import { toast } from 'sonner';
+import { insertWithUniqueUsername } from '@/lib/staff/staffUsername';
 
 interface StaffAccount {
   id: string;
@@ -25,15 +26,6 @@ interface CreatedCredential {
   password: string;
 }
 
-// Generate username from name (e.g., "Billy Hamrén" -> "billy.hamren")
-const generateUsername = (name: string): string => {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove accents
-    .replace(/\s+/g, '.')             // Spaces to dots
-    .replace(/[^a-z.]/g, '');         // Keep only a-z and dots
-};
 
 // Default password for all new accounts
 const getDefaultPassword = (): string => 'Frasse123';
@@ -83,30 +75,10 @@ const StaffAccountsPanel: React.FC = () => {
   // Create single account mutation
   const createAccountMutation = useMutation({
     mutationFn: async (staffMember: { id: string; name: string; email?: string }) => {
-      const username = staffMember.email || generateUsername(staffMember.name);
       const password = getDefaultPassword();
       const passwordHash = btoa(password);
-
-      // Check if username exists
-      const { data: existing } = await supabase
-        .from('staff_accounts')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (existing) {
-        throw new Error(`Användarnamn "${username}" finns redan`);
-      }
-
-      const { error } = await supabase
-        .from('staff_accounts')
-        .insert({
-          staff_id: staffMember.id,
-          username,
-          password_hash: passwordHash
-        });
-
-      if (error) throw error;
+      const username = await insertWithUniqueUsername(staffMember.name, async (u) =>
+        await supabase.from('staff_accounts').insert({ staff_id: staffMember.id, username: u, password_hash: passwordHash }));
 
       return { staffName: staffMember.name, staffId: staffMember.id, username, password };
     },
@@ -131,33 +103,16 @@ const StaffAccountsPanel: React.FC = () => {
 
     for (const staff of staffWithoutAccounts) {
       try {
-        const username = staff.email || generateUsername(staff.name);
         const password = getDefaultPassword();
         const passwordHash = btoa(password);
-
-        // Check if username exists
-        const { data: existing } = await supabase
-          .from('staff_accounts')
-          .select('id')
-          .eq('username', username)
-          .maybeSingle();
-
-        if (existing) {
-          errors.push(`${staff.name}: användarnamn finns redan`);
-          continue;
+        let username = '';
+        try {
+          username = await insertWithUniqueUsername(staff.name, async (u) =>
+            await supabase.from('staff_accounts').insert({ staff_id: staff.id, username: u, password_hash: passwordHash }));
+        } catch (e) {
+          errors.push(`${staff.name}: ${(e as Error).message}`);
         }
-
-        const { error } = await supabase
-          .from('staff_accounts')
-          .insert({
-            staff_id: staff.id,
-            username,
-            password_hash: passwordHash
-          });
-
-        if (error) {
-          errors.push(`${staff.name}: ${error.message}`);
-        } else {
+        if (username) {
           credentials.push({ staffName: staff.name, staffId: staff.id, username, password });
         }
       } catch (err) {
