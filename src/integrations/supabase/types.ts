@@ -11938,6 +11938,18 @@ export type Database = {
         Args: { _organization_id: string; _roles: string[]; _user_id: string }
         Returns: Json
       }
+      reserve_booking_calendar_repair: {
+        Args: {
+          p_booking_id: string
+          p_lease_seconds?: number
+          p_organization_id: string
+          p_owner_job_id?: string
+          p_source_status: string
+          p_source_updated_at: string
+          p_source_version: number
+        }
+        Returns: Json
+      }
       reserve_booking_product_repair: {
         Args: {
           p_booking_id: string
