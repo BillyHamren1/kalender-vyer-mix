@@ -48,7 +48,7 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
-import { mandateToScope, evaluateExportWmsReceipt, combineScopeWithExportReceipt, type ProductSyncScope } from '../_shared/productSyncScope.ts'
+import { mandateToScope, evaluateExportWmsReceipt, combineScopeWithExportReceipt, applyOperatorRebuildAuthorization, type ProductSyncScope } from '../_shared/productSyncScope.ts'
 import { pickBaseline, baselineDiffers, calendarPrevFrom, captureCalendarBaseline, clearCalendarBaseline, type CalendarBaseline } from '../_shared/calendarSourceBaseline.ts'
 import { reserveSameRevisionProductRepair, reserveSameRevisionCalendarRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
@@ -65,6 +65,9 @@ import {
   planProductDeletion,
   normalizeSyncQuantity,
   BOOKING_SOURCE_SYNC_PREFIX,
+  isWmsProjectionRow,
+  withoutWmsProjectionRows,
+  isSalesOwnedPackingItem,
 } from '../_shared/productCompleteness.ts'
 import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
 import {
@@ -1870,10 +1873,12 @@ export const checkProductChanges = async (
   // not just add/remove/quantity — otherwise price-only or notes-only edits in Booking never sync)
   let query = supabase
     .from('booking_products')
-    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags, package_components')
+    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags, package_components, sync_key')
     .eq('booking_id', bookingId);
   if (organizationId) query = query.eq('organization_id', organizationId);
-  const { data: existingProducts, error } = await query;
+  const { data: existingProductsRaw, error } = await query;
+  // WMS-projektionens rader ägs inte av Sales-importen.
+  const existingProducts = existingProductsRaw ? withoutWmsProjectionRows(existingProductsRaw as any[]) : existingProductsRaw;
 
   if (error) {
     console.error(`Error fetching existing products for ${bookingId}:`, error);
@@ -2125,7 +2130,8 @@ const expandPackageComponents = async (
     .select('id, name, quantity, sync_key, package_components, sort_index, inventory_package_id, is_package_component, parent_product_id')
     .eq('booking_id', bookingId);
   if (orgId) productQuery = productQuery.eq('organization_id', orgId);
-  const { data: products, error } = await productQuery;
+  const { data: productsRaw, error } = await productQuery;
+  const products = productsRaw ? withoutWmsProjectionRows(productsRaw as any[]) : productsRaw;
 
   if (error) {
     // Fail-closed: vi vet inte vilka komponenter som redan finns → expandera inte.
@@ -2291,11 +2297,19 @@ const syncPackingListAfterExpansion = async (
   const packingId = packingProject.id;
   const packingStatus = (packingProject as any)?.status || null;
 
-  const { data: allProducts, error: productsError } = await supabase
+  const { data: allProductsRaw, error: productsError } = await supabase
     .from('booking_products')
-    .select('id, name, quantity')
+    .select('id, name, quantity, sync_key')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
+  // Ägarskap: WMS-projektionens produkter och olänkade WMS-/manuella packrader
+  // hanteras av sync-booking-to-packing, aldrig av Sales-importen.
+  const wmsProjectionProductIds = new Set<string>(
+    ((allProductsRaw || []) as any[]).filter(isWmsProjectionRow).map((p: any) => p.id),
+  );
+  const allProducts = allProductsRaw ? withoutWmsProjectionRows(allProductsRaw as any[]) : allProductsRaw;
+  const salesOwned = (rows: any[] | null | undefined) =>
+    (rows || []).filter((i: any) => isSalesOwnedPackingItem(i, wmsProjectionProductIds));
 
   if (productsError) {
     console.error(`[Packing Sync] Error loading products for booking ${bookingId}:`, productsError);
@@ -2323,10 +2337,11 @@ const syncPackingListAfterExpansion = async (
       console.log(`[Packing Sync] Packing ${packingId} är tom trots status ${packingStatus} — fyller på listan`);
     } else {
     const frozenProductMap = new Map((allProducts || []).map((p: any) => [p.id, p]));
-    const frozenByProductId = new Map((frozenItems || []).map((i: any) => [i.booking_product_id, i]));
+    const frozenOwned = salesOwned(frozenItems);
+    const frozenByProductId = new Map(frozenOwned.map((i: any) => [i.booking_product_id, i]));
     const frozenMissing = (allProducts || []).filter((p: any) => !frozenByProductId.has(p.id));
-    const frozenOrphans = (frozenItems || []).filter((i: any) => i.booking_product_id && !frozenProductMap.has(i.booking_product_id));
-    const frozenQuantityDrift = (frozenItems || []).filter((i: any) => {
+    const frozenOrphans = frozenOwned.filter((i: any) => i.booking_product_id && !frozenProductMap.has(i.booking_product_id));
+    const frozenQuantityDrift = frozenOwned.filter((i: any) => {
       const product = frozenProductMap.get(i.booking_product_id) as any;
       return product && product.quantity !== i.quantity_to_pack;
     });
@@ -2357,13 +2372,14 @@ const syncPackingListAfterExpansion = async (
       console.warn(`[Packing Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: 0 products but completeness=${completeness} — keeping packing items`);
       return { changes: 0 };
     }
-    const { data: remaining, error: remainingError } = await supabase
+    const { data: remainingRaw, error: remainingError } = await supabase
       .from('packing_list_items')
-      .select('id')
+      .select('id, booking_product_id')
       .eq('packing_id', packingId);
     if (remainingError) {
       return { changes: 0, error: remainingError.message || String(remainingError) };
     }
+    const remaining = salesOwned(remainingRaw);
     if (remaining && remaining.length > 0) {
       opts.assertLease?.('packing_item_clear');
       const clearDel = await guardedDeleteByIds(supabase, {
@@ -2383,7 +2399,7 @@ const syncPackingListAfterExpansion = async (
     return { changes: 0 };
   }
 
-  const { data: existingItems, error: itemsError } = await supabase
+  const { data: existingItemsRaw, error: itemsError } = await supabase
     .from('packing_list_items')
     .select('id, booking_product_id, quantity_to_pack')
     .eq('packing_id', packingId);
@@ -2392,6 +2408,7 @@ const syncPackingListAfterExpansion = async (
     console.error(`[Packing Sync] Error loading packing items for packing ${packingId}:`, itemsError);
     return { changes: 0, error: itemsError.message || String(itemsError) };
   }
+  const existingItems = salesOwned(existingItemsRaw);
 
   const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
   const existingByProductId = new Map((existingItems || []).map((i: any) => [i.booking_product_id, i]));
@@ -2587,8 +2604,24 @@ serve(async (req) => {
           status: receipt.status, products_allowed: combined.productsAllowed,
         }));
       }
-      return combined;
+      if (combined.productsAllowed) return combined;
+      // Riktad operatörsreparation: endast en giltig, oförbrukad auktorisation
+      // för exakt denna org + bokning + canonical revision. Inget WMS-kvitto.
+      const rev = typeof sourceUpdatedAt === 'string' && Number.isFinite(Date.parse(sourceUpdatedAt)) ? sourceUpdatedAt : null;
+      if (!rev) return combined;
+      const { data: authId, error: authError } = await supabase.rpc('product_rebuild_authorization', {
+        p_organization_id: organizationId, p_booking_id: String(bookingId), p_source_updated_at: rev,
+      });
+      if (authError || !authId) return combined;
+      operatorRebuildAuthorizations.set(String(bookingId), String(authId));
+      const authorized = applyOperatorRebuildAuthorization(combined, { id: String(authId) });
+      console.warn('[Product Scope] operator rebuild authorization applied', JSON.stringify({
+        booking_id: bookingId, organization_id: organizationId, source_updated_at: rev,
+        authorization_id: authId, overridden_code: combined.code,
+      }));
+      return authorized;
     }
+    const operatorRebuildAuthorizations = new Map<string, string>();
     async function revisionMandate(bookingId: string, sourceUpdatedAt: unknown): Promise<ProductSyncScope> {
       if (trackedScopeBookings && !trackedScopeBookings.has(String(bookingId))) {
         return mandateToScope({ decision: 'allowed_legacy', allowed: true });
@@ -3922,11 +3955,12 @@ serve(async (req) => {
             }
             
             // Check if products need recovery (accessories missing parent_product_id or missing new metadata columns)
-            const { data: existingProducts, error: productCheckError } = await supabase
+            const { data: existingProductsAll, error: productCheckError } = await supabase
               .from('booking_products')
-              .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components')
+              .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components, sync_key')
               .eq('booking_id', existingBooking.id)
               .eq('organization_id', bookingData.organization_id);
+            const existingProducts = existingProductsAll ? withoutWmsProjectionRows(existingProductsAll as any[]) : existingProductsAll;
             
             if (!productCheckError && existingProducts) {
               // Check if any accessory is missing parent_product_id
@@ -4694,7 +4728,9 @@ serve(async (req) => {
             results.failed++;
             continue;
           }
-          oldProducts = oldProductsData || null;
+          // WMS-projektionens rader ägs av sync-booking-to-packing: Sales-importen
+          // matchar, skriver över eller raderar dem aldrig.
+          oldProducts = oldProductsData ? withoutWmsProjectionRows(oldProductsData as any[]) : null;
 
           
           
@@ -5535,6 +5571,19 @@ serve(async (req) => {
               outcome: 'partial',
               error: `revision_commit_failed:${committed.decision}`,
             })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
+          const rebuildAuthId = operatorRebuildAuthorizations.get(String(normalizedSingleBookingId));
+          if (rebuildAuthId) {
+            const { error: consumeError } = await supabase.rpc('consume_product_rebuild_authorization', {
+              p_authorization_id: rebuildAuthId,
+              p_result: {
+                imported: (results as any).imported ?? null, updated: (results as any).updated ?? null,
+                products_imported: (results as any).products_imported ?? null,
+                errors: ((results as any).errors || []).slice(0, 20),
+                product_repair_run: productRepairRun,
+              },
+            });
+            if (consumeError) console.error('[import-bookings] rebuild authorization consume failed', consumeError.message);
           }
           guardedIncomingRevision = null;
           guardedReservationToken = null;

@@ -297,6 +297,37 @@ export function planPackingReconnect(
 export const BOOKING_SOURCE_SYNC_PREFIX = 'src:';
 /** Äldre importversioner använde detta prefix för samma Booking-rad-id. */
 export const LEGACY_BOOKING_SOURCE_SYNC_PREFIX = 'booking:';
+/** Prefix för WMS-projektionens rader (sync-booking-to-packing). */
+export const WMS_PROJECTION_SYNC_PREFIX = 'wms:';
+
+/**
+ * Ägarskap: Sales-importen äger endast Booking-rader och Planning-genererade
+ * komponenter. WMS-projektionens rader (sync_key `wms:`) ägs av
+ * sync-booking-to-packing och får aldrig matchas, skrivas över, raderas eller
+ * få länkade packrader av Sales-importen.
+ */
+export function isWmsProjectionRow(row: any): boolean {
+  return (row?.sync_key ?? '').toString().startsWith(WMS_PROJECTION_SYNC_PREFIX);
+}
+
+export function withoutWmsProjectionRows<T>(rows: T[] | null | undefined): T[] {
+  return (rows || []).filter((row) => !isWmsProjectionRow(row));
+}
+
+/**
+ * Packrader som Sales-importens packsynk äger: länkade till en Sales-ägd
+ * produktrad. Olänkade rader (WMS-reservation/manuella) och rader länkade till
+ * WMS-projektionens produkter ägs av andra skrivare och räknas aldrig som
+ * föräldralösa av Sales-importen.
+ */
+export function isSalesOwnedPackingItem(
+  item: { booking_product_id?: string | null },
+  wmsProjectionProductIds: ReadonlySet<string>,
+): boolean {
+  const id = item?.booking_product_id;
+  return typeof id === 'string' && id.length > 0 && !wmsProjectionProductIds.has(id);
+}
+
 /** Prefix för Planning-genererade paketkomponenter. */
 export const PLANNING_COMPONENT_SYNC_PREFIX = 'cmp:';
 /** Äldre komponentexpansion använde detta prefix. */

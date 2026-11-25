@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isWmsProjectionRow } from '../_shared/productCompleteness.ts';
 import { normalizeBookingStatus } from "../_shared/booking-status.ts";
 import { evaluateExportWmsReceipt, mandateToScope } from "../_shared/productSyncScope.ts";
 
@@ -574,6 +575,9 @@ Deno.serve(async (req) => {
       const localProductsByBooking = new Map<string, any[]>();
       const allLocalProductsByBooking = new Map<string, any[]>();
       for (const p of (localProducts || [])) {
+        // WMS-projektionens rader (sync_key wms:) ägs av sync-booking-to-packing
+        // och jämförs/raderas aldrig mot Sales-exporten.
+        if (isWmsProjectionRow(p)) continue;
         const allArr = allLocalProductsByBooking.get(p.booking_id) || [];
         allArr.push(p);
         allLocalProductsByBooking.set(p.booking_id, allArr);

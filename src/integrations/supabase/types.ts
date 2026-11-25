@@ -804,6 +804,45 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_product_rebuild_authorizations: {
+        Row: {
+          authorized_by: string
+          booking_id: string
+          consumed_at: string | null
+          consumed_result: Json | null
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          reason: string
+          source_updated_at: string
+        }
+        Insert: {
+          authorized_by: string
+          booking_id: string
+          consumed_at?: string | null
+          consumed_result?: Json | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id: string
+          reason: string
+          source_updated_at: string
+        }
+        Update: {
+          authorized_by?: string
+          booking_id?: string
+          consumed_at?: string | null
+          consumed_result?: Json | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          source_updated_at?: string
+        }
+        Relationships: []
+      }
       booking_products: {
         Row: {
           assembly_cost: number | null
@@ -11670,6 +11709,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      consume_product_rebuild_authorization: {
+        Args: { p_authorization_id: string; p_result: Json }
+        Returns: boolean
+      }
       enqueue_booking_sync_job: {
         Args: {
           p_booking_id: string
@@ -11887,6 +11930,14 @@ export type Database = {
           p_request_hash: string
         }
         Returns: Json
+      }
+      product_rebuild_authorization: {
+        Args: {
+          p_booking_id: string
+          p_organization_id: string
+          p_source_updated_at: string
+        }
+        Returns: string
       }
       product_scope_tracked_bookings: {
         Args: { p_organization_id: string }

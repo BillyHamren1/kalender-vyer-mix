@@ -25,7 +25,28 @@ export const PARTIAL_DELIVERY_SCOPE = 'schedule_metadata';
 
 export type ProductScopeReason =
   | 'products_allowed'
-  | 'wms_products_not_accepted';
+  | 'wms_products_not_accepted'
+  /** Engångs, auditerad operatörsreparation för exakt (org, bokning, revision). */
+  | 'operator_rebuild_authorization';
+
+/**
+ * Riktad, auditerad återuppbyggnad: en service-role-only auktorisation för
+ * exakt (organisation, bokning, canonical revision) tillåter produktskrivning
+ * för just den revisionen. Den registrerar aldrig något WMS-kvitto och kan inte
+ * gälla en annan revision, bokning eller tenant.
+ */
+export function applyOperatorRebuildAuthorization(
+  scope: ProductSyncScope,
+  authorization: { id: string } | null,
+): ProductSyncScope {
+  if (scope.productsAllowed || !authorization?.id) return scope;
+  return {
+    productsAllowed: true,
+    reason: 'operator_rebuild_authorization',
+    code: `operator_rebuild:${authorization.id}`,
+    restrictedBy: [],
+  };
+}
 
 export interface ProductSyncScope {
   productsAllowed: boolean;
