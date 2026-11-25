@@ -132,3 +132,81 @@ export function toWarehouseSyncPayload(sig: WarehouseSyncSignal | null): Record<
     ...(accepted === null ? {} : { products_wms_accepted: accepted }),
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Revisionsbundet mottagarkontrakt (ersätter jobbsignal som beslutsunderlag).
+//
+// INVARIANT: Planning skriver produkter/packrader för canonical revision R
+// endast om (a) Sales levererat en VERIFIERAD full leverans för exakt R
+// (kvitto i booking_delivery_scope_receipts), eller (b) bokningen aldrig fått
+// en delleverans (oförändrat legacybeteende). Kvittot sparas i samma
+// transaktion som synkjobbet (enqueue_booking_sync_job_scoped), och mandatet
+// prövas per revision i importen — aldrig från jobbets signal.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type DeliveryScope = 'partial' | 'full' | 'neutral';
+
+export interface DeliveryClassification {
+  scope: DeliveryScope;
+  eventId: string | null;
+  sourceUpdatedAt: string | null;
+  code: string | null;
+  reason: string;
+}
+
+/** Sales-händelser som levererar full canonical snapshot (19ae78963). */
+const FULL_DELIVERY_EVENTS = new Set([
+  'booking_updated', 'booking_time_updated', 'booking_confirmed', 'booking_status_changed',
+  'booking_created', 'booking_cancelled',
+]);
+
+const validIso = (v: unknown): string | null => {
+  const s = str(v);
+  return s && Number.isFinite(Date.parse(s)) ? s : null;
+};
+
+const normEvent = (v: unknown) => (str(v) ?? '').toLowerCase().replace(/\./g, '_');
+
+/**
+ * Klassning av en mottagen Sales-leverans.
+ * - partial: delivery_scope='schedule_metadata', eller begränsande
+ *   warehouse_sync utan scope (utom cancellation-vägen som Sales själv
+ *   behåller som full). Kräver event_id + source_updated_at (annars ogiltig).
+ * - full: INGA markörer + event_id + giltig source_updated_at + products-array
+ *   + känd Sales-händelse. Endast detta kan ge produktmandat.
+ * - neutral: allt annat (legacy, poller, inkrementellt, ofullständigt) — häver
+ *   aldrig en begränsning och ger aldrig mandat.
+ */
+export function classifyDelivery(body: unknown): DeliveryClassification {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const sig = readWarehouseSync(b);
+  const eventId = str(b.event_id);
+  const sourceUpdatedAt = validIso(b.source_updated_at);
+  const cancelled = (str(b.canonical_status) ?? str(b.status) ?? '').toUpperCase() === 'CANCELLED';
+  const hasScope = sig?.deliveryScope === PARTIAL_DELIVERY_SCOPE;
+  if (hasScope || (isProductScopeRestricted(sig) && !cancelled)) {
+    return { scope: 'partial', eventId, sourceUpdatedAt, code: sig?.code ?? null, reason: 'sales_partial_delivery' };
+  }
+  if (sig) {
+    return { scope: 'neutral', eventId, sourceUpdatedAt, code: sig.code, reason: cancelled ? 'cancellation_marker' : 'marker_without_restriction' };
+  }
+  const verified = !!eventId && !!sourceUpdatedAt && Array.isArray(b.products)
+    && FULL_DELIVERY_EVENTS.has(normEvent(b.event_type));
+  return verified
+    ? { scope: 'full', eventId, sourceUpdatedAt, code: null, reason: 'verified_full_delivery' }
+    : { scope: 'neutral', eventId, sourceUpdatedAt, code: null, reason: 'unverified_or_legacy' };
+}
+
+export type MandateDecision =
+  | 'allowed_legacy' | 'allowed_exact_full'
+  | 'deferred_partial' | 'deferred_no_mandate' | 'deferred_invalid_revision'
+  | 'mandate_unavailable';
+
+/** Mandat → produktscope. Okänt/fel = fail-closed för spårade bokningar. */
+export function mandateToScope(m: { decision?: string; allowed?: boolean; code?: string | null } | null): ProductSyncScope {
+  const allowed = m?.allowed === true
+    && (m.decision === 'allowed_legacy' || m.decision === 'allowed_exact_full');
+  return allowed
+    ? { productsAllowed: true, reason: 'products_allowed', code: null, restrictedBy: [] }
+    : { productsAllowed: false, reason: 'wms_products_not_accepted', code: m?.code ?? m?.decision ?? 'mandate_unavailable', restrictedBy: ['job'] };
+}

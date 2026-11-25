@@ -729,6 +729,42 @@ export type Database = {
           },
         ]
       }
+      booking_delivery_scope_receipts: {
+        Row: {
+          booking_id: string
+          event_id: string
+          id: string
+          job_id: string | null
+          organization_id: string
+          received_at: string
+          scope: string
+          source_updated_at: string
+          wms_code: string | null
+        }
+        Insert: {
+          booking_id: string
+          event_id: string
+          id?: string
+          job_id?: string | null
+          organization_id: string
+          received_at?: string
+          scope: string
+          source_updated_at: string
+          wms_code?: string | null
+        }
+        Update: {
+          booking_id?: string
+          event_id?: string
+          id?: string
+          job_id?: string | null
+          organization_id?: string
+          received_at?: string
+          scope?: string
+          source_updated_at?: string
+          wms_code?: string | null
+        }
+        Relationships: []
+      }
       booking_import_audit: {
         Row: {
           action: string
@@ -951,6 +987,7 @@ export type Database = {
           products_pending_source_status: string | null
           products_pending_source_updated_at: string | null
           products_pending_source_version: number | null
+          products_repaired_source_updated_at: string | null
           revision_kind: string | null
           takeover_count: number
           updated_at: string
@@ -979,6 +1016,7 @@ export type Database = {
           products_pending_source_status?: string | null
           products_pending_source_updated_at?: string | null
           products_pending_source_version?: number | null
+          products_repaired_source_updated_at?: string | null
           revision_kind?: string | null
           takeover_count?: number
           updated_at?: string
@@ -1007,6 +1045,7 @@ export type Database = {
           products_pending_source_status?: string | null
           products_pending_source_updated_at?: string | null
           products_pending_source_version?: number | null
+          products_repaired_source_updated_at?: string | null
           revision_kind?: string | null
           takeover_count?: number
           updated_at?: string
@@ -11624,6 +11663,26 @@ export type Database = {
           job_status: string
         }[]
       }
+      enqueue_booking_sync_job_scoped: {
+        Args: {
+          p_booking_id: string
+          p_event_id: string
+          p_event_type: string
+          p_organization_id: string
+          p_priority: number
+          p_scope: string
+          p_source_updated_at: string
+          p_wms_code?: string
+        }
+        Returns: {
+          coalesced: boolean
+          job_event_type: string
+          job_id: string
+          job_priority: number
+          job_status: string
+          receipt: string
+        }[]
+      }
       enqueue_pending_booking_additions: {
         Args: { p_organization_id: string; p_root_booking_id: string }
         Returns: number
@@ -11804,6 +11863,18 @@ export type Database = {
           p_organization_id: string
           p_project_id: string
           p_request_hash: string
+        }
+        Returns: Json
+      }
+      product_scope_tracked_bookings: {
+        Args: { p_organization_id: string }
+        Returns: string[]
+      }
+      product_write_mandate: {
+        Args: {
+          p_booking_id: string
+          p_organization_id: string
+          p_source_updated_at: string
         }
         Returns: Json
       }

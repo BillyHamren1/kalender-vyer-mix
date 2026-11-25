@@ -13,7 +13,7 @@
  * It does NOT call import-bookings directly (no fire-and-forget).
  * The process-sync-jobs worker picks up pending jobs reliably.
  */
-import { readDeliverySignal, toWarehouseSyncPayload, isProductScopeRestricted } from '../_shared/productSyncScope.ts'
+import { classifyDelivery } from '../_shared/productSyncScope.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import {
@@ -138,13 +138,28 @@ serve(async (req) => {
     // the SELECT -> INSERT race between webhooks and the incremental poller.
     // If a critical event meets an existing routine job, the existing job is
     // promoted instead of silently keeping its old event type and priority.
+    // Leveransscope (Sales 19ae78963) sparas i SAMMA transaktion som jobbet,
+    // revisionsbundet på event_id + source_updated_at. Ingen worker kan se
+    // jobbet innan kvittot finns.
+    const delivery = classifyDelivery(body)
+    if (delivery.scope === 'partial' && (!delivery.eventId || !delivery.sourceUpdatedAt)) {
+      console.error('[receive-booking] partial delivery without revision rejected', JSON.stringify({ booking_id, organization_id }))
+      return new Response(
+        JSON.stringify({ error: 'invalid_partial_delivery', detail: 'event_id and source_updated_at required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     const { data: enqueueRows, error: enqueueError } = await supabase.rpc(
-      'enqueue_booking_sync_job',
+      'enqueue_booking_sync_job_scoped',
       {
         p_booking_id: booking_id,
         p_organization_id: organization_id,
         p_event_type: normalizedEventType,
         p_priority: priority,
+        p_scope: delivery.scope,
+        p_event_id: delivery.scope === 'neutral' ? null : delivery.eventId,
+        p_source_updated_at: delivery.scope === 'neutral' ? null : delivery.sourceUpdatedAt,
+        p_wms_code: delivery.code,
       },
     )
 
@@ -164,38 +179,11 @@ serve(async (req) => {
       )
     }
 
-    // ── 5b. Persist Sales warehouse_sync scope on the durable job ────────
-    // Import re-fetches canonical source; the webhook's partial-scope warning
-    // must survive coalescing and that refetch. A restricted signal that
-    // cannot be persisted fails closed (503, Sales retries) so products are
-    // never applied as fully WMS-accepted by mistake.
-    // Saknade markörer = full leverans (äldre meddelanden inkl.) och lyfter en
-    // tidigare partial-begränsning på samma jobb, så full repair kan ske.
-    const warehouseSync = readDeliverySignal(body)
-    {
-      const { data: scopeRow, error: scopeError } = await supabase.rpc(
-        'record_booking_sync_job_scope',
-        {
-          p_job_id: job.job_id,
-          p_organization_id: organization_id,
-          p_booking_id: booking_id,
-          p_warehouse_sync: toWarehouseSyncPayload(warehouseSync),
-        },
-      )
-      if (scopeError || scopeRow?.decision !== 'recorded') {
-        const restricted = isProductScopeRestricted(warehouseSync)
-        console.error('[receive-booking] warehouse_sync scope not persisted', JSON.stringify({
-          job_id: job.job_id, booking_id, organization_id, restricted,
-          error: scopeError?.message ?? scopeRow?.decision ?? 'unknown',
-        }))
-        if (restricted) {
-          return new Response(
-            JSON.stringify({ error: 'warehouse_sync_scope_not_persisted', retryable: true }),
-            { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      }
-    }
+    // ── 5b. Scope-kvitto skrevs atomiskt i enqueue ovan ─────────────────
+    console.log('[receive-booking] delivery scope', JSON.stringify({
+      job_id: job.job_id, booking_id, scope: delivery.scope, reason: delivery.reason,
+      receipt: (job as any).receipt ?? null, source_updated_at: delivery.sourceUpdatedAt,
+    }))
 
     // ── 6. Respond with 202 — job accepted ───────────────────────────────
     console.log('[receive-booking] Job accepted', JSON.stringify({

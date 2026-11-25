@@ -74,9 +74,9 @@ describe('webhook → job → import wiring', () => {
   const recv = fn('receive-booking/index.ts');
   const worker = fn('process-sync-jobs/index.ts');
   const imp = fn('import-bookings/index.ts');
-  it('receive-booking persists scope and fails closed (503) when restricted scope cannot be stored', () => {
-    expect(recv).toMatch(/record_booking_sync_job_scope/);
-    expect(recv).toMatch(/if \(restricted\)[\s\S]{0,200}status: 503/);
+  it('receive-booking stores scope atomically with enqueue (no separate scope write)', () => {
+    expect(recv).toMatch(/'enqueue_booking_sync_job_scoped'/);
+    expect(recv).not.toMatch(/record_booking_sync_job_scope/);
   });
   it('worker merges job scope and forwards it to import', () => {
     expect(worker).toMatch(/mergeJobWarehouseSync\(/);

@@ -46,7 +46,7 @@ describe('Sales partial delivery contract (19ae78963)', () => {
   });
   it('receiver always records scope; coalescing ordered by created_at', () => {
     const rb = readFileSync('supabase/functions/receive-booking/index.ts', 'utf8');
-    expect(rb).toContain('readDeliverySignal(body)');
+    expect(rb).toContain('classifyDelivery(body)');
     const ps = readFileSync('supabase/functions/process-sync-jobs/index.ts', 'utf8');
     expect(ps).toMatch(/orderedJobs[\s\S]*created_at/);
   });

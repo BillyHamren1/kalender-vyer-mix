@@ -48,7 +48,7 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
-import { readWarehouseSync, parseWarehouseSync, resolveProductSyncScope, type ProductSyncScope } from '../_shared/productSyncScope.ts'
+import { mandateToScope, type ProductSyncScope } from '../_shared/productSyncScope.ts'
 import { reserveSameRevisionProductRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
   readProductSourceCompleteness,
@@ -2564,7 +2564,24 @@ serve(async (req) => {
 
     const importStartedAt = new Date().toISOString();
     // Sales partial scope (webhook→job→import). Överlever canonical refetch.
-    const jobWarehouseSync = parseWarehouseSync(jobWarehouseSyncRaw);
+    // Jobbets warehouse_sync är endast observability; produktmandat prövas
+    // revisionsbundet mot booking_delivery_scope_receipts (product_write_mandate).
+    void jobWarehouseSyncRaw;
+    let trackedScopeBookings: Set<string> | null = null;
+    async function productMandate(bookingId: string, sourceUpdatedAt: unknown): Promise<ProductSyncScope> {
+      if (trackedScopeBookings && !trackedScopeBookings.has(String(bookingId))) {
+        return mandateToScope({ decision: 'allowed_legacy', allowed: true });
+      }
+      const rev = typeof sourceUpdatedAt === 'string' && Number.isFinite(Date.parse(sourceUpdatedAt)) ? sourceUpdatedAt : null;
+      const { data, error } = await supabase.rpc('product_write_mandate', {
+        p_organization_id: organizationId, p_booking_id: String(bookingId), p_source_updated_at: rev,
+      });
+      if (error) {
+        console.error('[Product Scope] mandate unavailable — products deferred', JSON.stringify({ booking_id: bookingId, error: error.message }));
+        return mandateToScope({ decision: 'mandate_unavailable', allowed: false });
+      }
+      return mandateToScope(data as any);
+    }
     // Samlat scope för single-booking: används för pending-markör före commit.
     let singleProductScope: ProductSyncScope | null = null;
     let productRepairRun = false;
@@ -3227,10 +3244,10 @@ serve(async (req) => {
     // ägarlås (lease + token) som hålls under HELA importen.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
       const canonicalRow: any = externalData.data[0];
-      singleProductScope = resolveProductSyncScope({
-        job: jobWarehouseSync,
-        canonical: readWarehouseSync(canonicalRow),
-      });
+      singleProductScope = await productMandate(
+        normalizedSingleBookingId,
+        canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
+      );
       const incoming = {
         sourceUpdatedAt: canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
         sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
@@ -3468,6 +3485,16 @@ serve(async (req) => {
       });
     };
 
+    // Batch/poller: bokningar utan delleveranshistorik kräver inget RPC-anrop
+    // (legacy). Misslyckas förhämtningen prövas varje bokning separat.
+    if (!isSingleBookingRefresh && externalData.data.length > 0) {
+      const { data: trackedRows, error: trackedError } = await supabase.rpc('product_scope_tracked_bookings', {
+        p_organization_id: organizationId,
+      });
+      trackedScopeBookings = trackedError
+        ? null
+        : new Set(((trackedRows as any[]) ?? []).map((r: any) => String(typeof r === 'string' ? r : r?.product_scope_tracked_bookings ?? r)));
+    }
     for (const externalBooking of externalData.data) {
       perf.beginBooking(String(externalBooking?.id ?? 'unknown'));
       perf.setCount('products_count', Array.isArray(externalBooking?.products) ? externalBooking.products.length : 0);
@@ -3495,10 +3522,14 @@ serve(async (req) => {
       let packingIdForReconnection: string | null = null;
       let oldProductsForReconnection: any[] = [];
       let needsProductUpdate = false;
-      const bookingProductScope: ProductSyncScope = resolveProductSyncScope({
-        job: jobWarehouseSync,
-        canonical: readWarehouseSync(externalBooking),
-      });
+      // Prövas efter revisionsreservationen, per bokning och exakt revision.
+      const bookingProductScope: ProductSyncScope = await productMandate(
+        externalBooking.id,
+        externalBooking?.source_updated_at ?? externalBooking?.updated_at ?? null,
+      );
+      if (isSingleBookingRefresh && String(externalBooking.id) === String(normalizedSingleBookingId)) {
+        singleProductScope = bookingProductScope;
+      }
       let oldProducts: any[] | null = null;
       const seenExistingIds = new Set<string>();
       let productChanges: { added: string[]; removed: string[]; updated: string[]; existingProducts: any[] } = { added: [], removed: [], updated: [], existingProducts: [] };
@@ -5366,6 +5397,22 @@ serve(async (req) => {
           // Products-pending-markör (samma lås/token). Begränsat scope →
           // markera; fullt scope → rensa. Datum/tider blockeras aldrig av
           // markören, men ett misslyckat markeringsförsök syns i envelope.
+          // Omprövning före commit: en delleverans för samma revision som
+          // sparats medan denna import körde gör revisionen products_pending,
+          // så en senare full leverans för exakt revisionen reparerar.
+          if (singleProductScope?.productsAllowed && guardedIncomingRevision) {
+            const recheck = await productMandate(
+              normalizedSingleBookingId,
+              (guardedIncomingRevision as any).sourceUpdatedAt ?? null,
+            );
+            if (!recheck.productsAllowed) {
+              console.warn('[Product Scope] scope changed during import — marking products_pending', JSON.stringify({
+                booking_id: normalizedSingleBookingId, code: recheck.code,
+              }));
+              (results as any).product_scope_changed_during_import = true;
+              singleProductScope = recheck;
+            }
+          }
           if (singleProductScope && guardedReservationToken) {
             const marker = await setProductsPending(supabase, {
               bookingId: normalizedSingleBookingId,
