@@ -945,6 +945,12 @@ export type Database = {
           pending_source_updated_at: string | null
           pending_source_version: number | null
           pending_started_at: string | null
+          products_pending_at: string | null
+          products_pending_code: string | null
+          products_pending_reason: string | null
+          products_pending_source_status: string | null
+          products_pending_source_updated_at: string | null
+          products_pending_source_version: number | null
           revision_kind: string | null
           takeover_count: number
           updated_at: string
@@ -967,6 +973,12 @@ export type Database = {
           pending_source_updated_at?: string | null
           pending_source_version?: number | null
           pending_started_at?: string | null
+          products_pending_at?: string | null
+          products_pending_code?: string | null
+          products_pending_reason?: string | null
+          products_pending_source_status?: string | null
+          products_pending_source_updated_at?: string | null
+          products_pending_source_version?: number | null
           revision_kind?: string | null
           takeover_count?: number
           updated_at?: string
@@ -989,6 +1001,12 @@ export type Database = {
           pending_source_updated_at?: string | null
           pending_source_version?: number | null
           pending_started_at?: string | null
+          products_pending_at?: string | null
+          products_pending_code?: string | null
+          products_pending_reason?: string | null
+          products_pending_source_status?: string | null
+          products_pending_source_updated_at?: string | null
+          products_pending_source_version?: number | null
           revision_kind?: string | null
           takeover_count?: number
           updated_at?: string
@@ -1084,6 +1102,7 @@ export type Database = {
           received_at: string
           started_at: string | null
           status: string
+          warehouse_sync: Json | null
           worker_id: string | null
           worker_token: string | null
         }
@@ -1104,6 +1123,7 @@ export type Database = {
           received_at?: string
           started_at?: string | null
           status?: string
+          warehouse_sync?: Json | null
           worker_id?: string | null
           worker_token?: string | null
         }
@@ -1124,6 +1144,7 @@ export type Database = {
           received_at?: string
           started_at?: string | null
           status?: string
+          warehouse_sync?: Json | null
           worker_id?: string | null
           worker_token?: string | null
         }
@@ -1390,6 +1411,8 @@ export type Database = {
           organization_id: string
           resource_id: string
           source_date: string
+          source_end_time: string | null
+          source_start_time: string | null
           start_time: string
           times_locked: boolean
           title: string
@@ -1408,6 +1431,8 @@ export type Database = {
           organization_id?: string
           resource_id: string
           source_date: string
+          source_end_time?: string | null
+          source_start_time?: string | null
           start_time: string
           times_locked?: boolean
           title: string
@@ -1426,6 +1451,8 @@ export type Database = {
           organization_id?: string
           resource_id?: string
           source_date?: string
+          source_end_time?: string | null
+          source_start_time?: string | null
           start_time?: string
           times_locked?: boolean
           title?: string
@@ -11501,6 +11528,7 @@ export type Database = {
               received_at: string
               started_at: string | null
               status: string
+              warehouse_sync: Json | null
               worker_id: string | null
               worker_token: string | null
             }[]
@@ -11535,6 +11563,7 @@ export type Database = {
               received_at: string
               started_at: string | null
               status: string
+              warehouse_sync: Json | null
               worker_id: string | null
               worker_token: string | null
             }[]
@@ -11803,14 +11832,46 @@ export type Database = {
         }
         Returns: Json
       }
+      record_booking_sync_job_scope: {
+        Args: {
+          p_booking_id: string
+          p_job_id: string
+          p_organization_id: string
+          p_warehouse_sync: Json
+        }
+        Returns: Json
+      }
       replace_hub_role_projection: {
         Args: { _organization_id: string; _roles: string[]; _user_id: string }
+        Returns: Json
+      }
+      reserve_booking_product_repair: {
+        Args: {
+          p_booking_id: string
+          p_lease_seconds?: number
+          p_organization_id: string
+          p_owner_job_id?: string
+          p_source_status: string
+          p_source_updated_at: string
+          p_source_version: number
+        }
         Returns: Json
       }
       resolve_hub_actor_v1: { Args: { _hub_user_id: string }; Returns: Json }
       scanner_staff_access_allowed: {
         Args: { _organization_id: string; _staff_id: string }
         Returns: boolean
+      }
+      set_booking_products_pending: {
+        Args: {
+          p_booking_id: string
+          p_code?: string
+          p_organization_id: string
+          p_pending: boolean
+          p_reason?: string
+          p_reservation_token: string
+        }
+        Returns: Json
       }
       set_packing_list_item_packability: {
         Args: {

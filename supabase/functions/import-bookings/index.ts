@@ -48,6 +48,8 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
+import { readWarehouseSync, parseWarehouseSync, resolveProductSyncScope, type ProductSyncScope } from '../_shared/productSyncScope.ts'
+import { reserveSameRevisionProductRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
   readProductSourceCompleteness,
   canDeleteProducts,
@@ -76,6 +78,7 @@ import {
   CALENDAR_DESTRUCTIVE_BLOCKED_LOG,
   CALENDAR_MUTATION_BLOCKED_LOG,
 } from '../_shared/calendarSourceAuthority.ts'
+import { decideExistingTimeUpdate, detectPhaseSourceChange, planDateMoves, shiftIsoByDays, readSourceCheckpoint, resolveRowSourceChange, checkpointNeedsWrite, checkpointedAbandonedDates } from '../_shared/calendarSourceChange.ts';
 import type { CalendarSyncContext } from '../_shared/calendarSourceAuthority.ts'
 import {
   canMutateProjection,
@@ -872,12 +875,19 @@ async function reconcileCalendarEvents(
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
   // STEG 4J: ett läsfel får ALDRIG tolkas som "0 existing events" — det skulle
   // leda till felaktiga inserts. Fail-closed före all mutation.
-  const { data: existingEvents, error: existingEventsError } = await supabase
+  const CAL_BASE_COLS = 'id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked';
+  const readExistingCalendar = (cols: string) => supabase
     .from('calendar_events')
-    .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked')
+    .select(cols)
     .eq('booking_id', bookingData.id)
     .eq('organization_id', bookingData.organization_id || organizationId)
     .neq('event_type', 'activity');
+  // Durable source checkpoint columns (additive migration). Före migrationen
+  // (42703 undefined_column) faller vi tillbaka till legacy-jämförelsen.
+  const checkpointRead: any = await readExistingCalendar(`${CAL_BASE_COLS}, source_start_time, source_end_time`);
+  const checkpointsAvailable = !(checkpointRead.error && checkpointRead.error.code === '42703');
+  if (!checkpointsAvailable) console.warn('[Calendar Reconcile] source checkpoint columns missing — legacy source-change detection');
+  const { data: existingEvents, error: existingEventsError } = checkpointsAvailable ? checkpointRead : await readExistingCalendar(CAL_BASE_COLS);
 
   if (existingEventsError) {
     console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: existing calendar_events read failed`, existingEventsError);
@@ -934,10 +944,17 @@ async function reconcileCalendarEvents(
       const downSet = new Set<string>(rigdownDates);
       const evDate = bookingData.eventdate as string | null;
 
+      // Canonical date move: the previous canonical date is not an "extra day".
+      const movedAway = new Set<string>();
+      for (const ph of ['rig', 'rigDown'] as const) {
+        const sc = detectPhaseSourceChange(existingBooking, bookingData, ph);
+        if (sc.dateChanged && sc.prevDate) movedAway.add(`${ph}|${sc.prevDate}`);
+      }
       for (const ev of (existingEvents || [])) {
         if (ev.event_type !== 'rig' && ev.event_type !== 'rigDown') continue;
         const d = (ev.source_date as string | null) || (ev.start_time as string | null)?.slice(0, 10) || '';
         if (!d) continue;
+        if (movedAway.has(`${ev.event_type}|${d}`)) continue;
         if (d < windowStart || d > windowEnd) continue; // utanför fönster = stale
         if (rigSet.has(d) || evSet.has(d) || downSet.has(d)) continue;
         if (ev.event_type === 'rigDown' || (evDate && d > evDate)) downSet.add(d);
@@ -1147,6 +1164,61 @@ async function reconcileCalendarEvents(
   desiredEvents.length = 0;
   desiredEvents.push(...(dedupedDesired as any[]));
 
+  // ── CANONICAL DATE MOVE ─────────────────────────────────────────────────
+  // Move the existing Booking-generated row (keeps id, resource_id/team,
+  // times_locked and thereby staff planning) instead of keeping the old row
+  // and inserting a new, re-assigned one. Gated like canonical deletes.
+  const sourceChangeByPhase = {
+    rig: detectPhaseSourceChange(existingBooking, bookingData, 'rig'),
+    rigDown: detectPhaseSourceChange(existingBooking, bookingData, 'rigDown'),
+  };
+  // Ett misslyckat MOVE får aldrig följas av en INSERT på måldatumet (då
+  // skulle gammal låst rad + ny rad finnas). Retry flyttar raden i stället.
+  const blockedInsertKeys = new Set<string>();
+  for (const ph of ['rig', 'rigDown'] as const) {
+    const sc = sourceChangeByPhase[ph];
+    const phaseDesiredDates = desiredEvents.filter((d) => d.event_type === ph).map((d) => d.date);
+    const prevCanonicalDates = [...new Set([
+      ...(sc.dateChanged && sc.prevDate ? [sc.prevDate] : []),
+      ...(checkpointsAvailable ? checkpointedAbandonedDates((existingEvents || []) as any[], ph, phaseDesiredDates, bookingData.id) : []),
+    ])];
+    if (prevCanonicalDates.length === 0) continue;
+    const moves = planDateMoves({
+      phase: ph,
+      existing: (existingEvents || []) as any[],
+      desiredDates: phaseDesiredDates,
+      prevCanonicalDates,
+      bookingId: bookingData.id,
+      ctx: calendarCtx,
+    });
+    for (const mv of moves) {
+      const want = desiredEvents.find((d) => d.event_type === ph && d.date === mv.toDate) as any;
+      const ev: any = mv.event;
+      const start_time = want?.isExplicitStart ? want.start_time : shiftIsoByDays(ev.start_time, mv.fromDate, mv.toDate);
+      const end_time = want?.isExplicitStart ? want.end_time : shiftIsoByDays(ev.end_time, mv.fromDate, mv.toDate);
+      const movePayload: any = { start_time, end_time, source_date: mv.toDate };
+      if (checkpointsAvailable && want?.isExplicitStart) {
+        movePayload.source_start_time = want.start_time;
+        movePayload.source_end_time = want.end_time;
+      }
+      const { error: moveErr } = await supabase
+        .from('calendar_events')
+        .update(movePayload)
+        .eq('id', ev.id)
+        .eq('organization_id', calendarOrgId)
+        .eq('booking_id', bookingData.id);
+      if (moveErr) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED move ${ev.id} ${mv.fromDate}→${mv.toDate}:`, moveErr);
+        calendarError = calendarError || `calendar_move_failed:${moveErr.message || moveErr}`;
+        blockedInsertKeys.add(`${ph}|${mv.toDate}`);
+        continue;
+      }
+      console.log(`[Calendar Reconcile] MOVE ${ph} ${ev.id} ${mv.fromDate}→${mv.toDate} (team ${ev.resource_id} kept, locked=${ev.times_locked === true})`);
+      ev.start_time = start_time; ev.end_time = end_time; ev.source_date = mv.toDate;
+      if (movePayload.source_start_time) { ev.source_start_time = movePayload.source_start_time; ev.source_end_time = movePayload.source_end_time; }
+    }
+  }
+
   const existingByKey = new Map<string, any>();
   for (const evt of (existingEvents || [])) {
     const evtDate = evt.source_date || evt.start_time?.split('T')[0] || '';
@@ -1173,23 +1245,47 @@ async function reconcileCalendarEvents(
       // now has an EXPLICIT time and that explicit time differs from existing.
       // LOCK GUARD: en rad som är låst ("Fast tid") ägs av användaren/Booking-låset
       // och får aldrig få sina tider omskrivna av en senare import.
+      // Fast tid skyddar manuell redigering, inte en nyare validerad källändring.
       const rowLocked = existing.times_locked === true;
-      const explicitTimeChanged = !rowLocked && desired.isExplicitStart && (
-        existing.start_time !== desired.start_time ||
-        existing.end_time !== desired.end_time
-      );
+      const timeDecision = decideExistingTimeUpdate({
+        rowLocked,
+        desiredExplicitStart: desired.isExplicitStart,
+        timesDiffer: existing.start_time !== desired.start_time || existing.end_time !== desired.end_time,
+        source: resolveRowSourceChange({
+          desiredExplicitStart: desired.isExplicitStart,
+          desiredStart: desired.start_time,
+          desiredEnd: desired.end_time,
+          checkpoint: checkpointsAvailable ? readSourceCheckpoint(existing) : null,
+          legacy: (sourceChangeByPhase as any)[desired.event_type] ?? { known: false, timeChanged: false },
+        }),
+      });
+      const explicitTimeChanged = timeDecision === 'update';
+      if (timeDecision === 'skip_locked' || timeDecision === 'skip_local_unchanged_source') {
+        console.log(`[Calendar Reconcile] KEEP-TIME ${existing.id} (${timeDecision})`);
+      }
       const metaChanged =
         existing.title !== desired.title ||
         existing.booking_number !== desired.booking_number ||
         existing.delivery_address !== desired.delivery_address;
 
-      if (explicitTimeChanged || metaChanged) {
+      // Checkpoint följer den canonical källtid som faktiskt applicerats eller
+      // redan stämmer. Vid KEEP-TIME (lokal ändring, oförändrad källa) skrivs
+      // den inte om. Saknad checkpoint på en rad som redan har källtiden
+      // backfillas så att senare lokala ändringar skyddas.
+      const cpWrite = checkpointsAvailable
+        && (explicitTimeChanged || timeDecision === 'skip_same')
+        && checkpointNeedsWrite(desired.isExplicitStart, desired.start_time, desired.end_time, readSourceCheckpoint(existing));
+      if (explicitTimeChanged || metaChanged || cpWrite) {
         console.log(`[Calendar Reconcile] UPDATE event ${existing.id} (${desired.event_type} on ${desired.date}): ${explicitTimeChanged ? 'explicit time' : 'meta'} changed`);
         const updatePayload: any = {
           title: desired.title,
           booking_number: desired.booking_number,
           delivery_address: desired.delivery_address,
         };
+        if (cpWrite) {
+          updatePayload.source_start_time = desired.start_time;
+          updatePayload.source_end_time = desired.end_time;
+        }
         if (explicitTimeChanged) {
           updatePayload.start_time = desired.start_time;
           updatePayload.end_time = desired.end_time;
@@ -1215,6 +1311,8 @@ async function reconcileCalendarEvents(
       } else {
         console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
       }
+    } else if (blockedInsertKeys.has(key)) {
+      console.warn(`[Calendar Reconcile] SKIP-INSERT ${key} (move failed; retry will move existing row)`);
     } else {
       // Rental-only: gå direkt till Lager-kolumnen (resource_id='transport'),
       // hoppa över team-1..5 round-robin helt.
@@ -1262,6 +1360,9 @@ async function reconcileCalendarEvents(
           source_date: desired.date,
           // Fast tid från Booking (explicit start + slut) → lås direkt.
           times_locked: desired.lockRequested === true,
+          ...(checkpointsAvailable && desired.isExplicitStart
+            ? { source_start_time: desired.start_time, source_end_time: desired.end_time }
+            : {}),
         });
 
       if (insertErr) {
@@ -2456,11 +2557,17 @@ serve(async (req) => {
       endDate,
       booking_id: singleBookingId = null,
       event_type: webhookEventType = null,
+      warehouse_sync: jobWarehouseSyncRaw = null,
       localOnly = false,
       skip_review = false,
     } = body;
 
     const importStartedAt = new Date().toISOString();
+    // Sales partial scope (webhook→job→import). Överlever canonical refetch.
+    const jobWarehouseSync = parseWarehouseSync(jobWarehouseSyncRaw);
+    // Samlat scope för single-booking: används för pending-markör före commit.
+    let singleProductScope: ProductSyncScope | null = null;
+    let productRepairRun = false;
 
     const normalizedSingleBookingId = typeof singleBookingId === 'string'
       ? singleBookingId.trim()
@@ -3120,6 +3227,10 @@ serve(async (req) => {
     // ägarlås (lease + token) som hålls under HELA importen.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
       const canonicalRow: any = externalData.data[0];
+      singleProductScope = resolveProductSyncScope({
+        job: jobWarehouseSync,
+        canonical: readWarehouseSync(canonicalRow),
+      });
       const incoming = {
         sourceUpdatedAt: canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
         sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
@@ -3141,12 +3252,33 @@ serve(async (req) => {
 
       // A repair must never erase the monotonic source watermark. The existing
       // same-revision safety net below may repair empty projections safely.
-      const reserved = await reserveCanonicalRevision(supabase, {
-        bookingId: normalizedSingleBookingId,
-        organizationId: organizationId,
-        incoming,
-        ownerJobId: `import-bookings:${crypto.randomUUID()}`,
-      });
+      let reserved = await reserveCanonicalRevisionOrRepair();
+      async function reserveCanonicalRevisionOrRepair() {
+        const first = await reserveCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId!,
+          organizationId: organizationId,
+          incoming,
+          ownerJobId: `import-bookings:${crypto.randomUUID()}`,
+        });
+        // Same-revision produktreparation: endast när detta jobb får skriva
+        // produkter OCH revisionen är markerad products_pending.
+        if (first.ok && first.decision === 'already_current' && singleProductScope?.productsAllowed) {
+          const repair = await reserveSameRevisionProductRepair(supabase, {
+            bookingId: normalizedSingleBookingId!,
+            organizationId,
+            incoming,
+            ownerJobId: `import-bookings:product-repair:${crypto.randomUUID()}`,
+          });
+          console.log('[import-bookings] same-revision product repair', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId, decision: repair.decision,
+          }));
+          if (repair.ok) {
+            productRepairRun = true;
+            return { ok: true, decision: 'reserved', reservationToken: repair.reservationToken, lockExpiresAt: null } as any;
+          }
+        }
+        return first;
+      }
       if (reserved.ok && reserved.decision === 'already_current') {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
@@ -3363,6 +3495,10 @@ serve(async (req) => {
       let packingIdForReconnection: string | null = null;
       let oldProductsForReconnection: any[] = [];
       let needsProductUpdate = false;
+      const bookingProductScope: ProductSyncScope = resolveProductSyncScope({
+        job: jobWarehouseSync,
+        canonical: readWarehouseSync(externalBooking),
+      });
       let oldProducts: any[] | null = null;
       const seenExistingIds = new Set<string>();
       let productChanges: { added: string[]; removed: string[]; updated: string[]; existingProducts: any[] } = { added: [], removed: [], updated: [], existingProducts: [] };
@@ -3791,6 +3927,25 @@ serve(async (req) => {
             }
           }
           
+          if (!bookingProductScope.productsAllowed) {
+            // WMS har inte accepterat produktändringen: datum/tider/metadata
+            // fortsätter, men ingen produkt-/packradsskrivning och ingen
+            // rapport om fullständig produktsynk.
+            if (needsProductUpdate || needsProductRecovery) {
+              console.warn('[Product Scope] products deferred (wms_products_not_accepted)', JSON.stringify({
+                booking_id: bookingData.id, code: bookingProductScope.code, restricted_by: bookingProductScope.restrictedBy,
+              }));
+            }
+            needsProductUpdate = false;
+            needsProductRecovery = false;
+            results.product_changes = results.product_changes.filter((c: any) => c.bookingId !== bookingData.id);
+            results.products_updated_bookings = results.products_updated_bookings.filter((id: string) => id !== bookingData.id);
+            (results as any).product_scope_deferred = [
+              ...(((results as any).product_scope_deferred) ?? []),
+              { booking_id: bookingData.id, reason: bookingProductScope.reason, code: bookingProductScope.code },
+            ];
+          }
+
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery && !needsProductUpdate) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             
@@ -4525,7 +4680,7 @@ serve(async (req) => {
         // Process products with parent-child relationship tracking
         if (!WMS_CANONICAL_PRODUCT_CUTOVER && externalBooking.products && Array.isArray(externalBooking.products)) {
         // Only re-process products if they have changed (prevents duplicates from parallel imports)
-        if (needsProductUpdate || !existingBooking) {
+        if ((needsProductUpdate || !existingBooking) && bookingProductScope.productsAllowed) {
           assertLeaseOwned('product_sync');
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
@@ -5207,6 +5362,28 @@ serve(async (req) => {
               outcome: 'failed',
               error: preCommitFailure.code,
             })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
+          // Products-pending-markör (samma lås/token). Begränsat scope →
+          // markera; fullt scope → rensa. Datum/tider blockeras aldrig av
+          // markören, men ett misslyckat markeringsförsök syns i envelope.
+          if (singleProductScope && guardedReservationToken) {
+            const marker = await setProductsPending(supabase, {
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              reservationToken: guardedReservationToken,
+              pending: !singleProductScope.productsAllowed,
+              reason: singleProductScope.productsAllowed ? null : singleProductScope.reason,
+              code: singleProductScope.code,
+            });
+            if (!marker.ok) {
+              console.error('[import-bookings] products_pending marker failed', JSON.stringify({
+                booking_id: normalizedSingleBookingId, organization_id: organizationId,
+                pending: !singleProductScope.productsAllowed, decision: marker.decision, error: marker.error,
+              }));
+              if (!singleProductScope.productsAllowed) {
+                results.errors.push({ booking_id: normalizedSingleBookingId, error: `products_pending_marker_failed:${marker.decision}` } as any);
+              }
+            }
           }
           const committed = await commitCanonicalRevision(supabase, {
             bookingId: normalizedSingleBookingId,

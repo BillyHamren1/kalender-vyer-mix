@@ -13,6 +13,7 @@
  * It does NOT call import-bookings directly (no fire-and-forget).
  * The process-sync-jobs worker picks up pending jobs reliably.
  */
+import { readWarehouseSync, toWarehouseSyncPayload, isProductScopeRestricted } from '../_shared/productSyncScope.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import {
@@ -161,6 +162,37 @@ serve(async (req) => {
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // ── 5b. Persist Sales warehouse_sync scope on the durable job ────────
+    // Import re-fetches canonical source; the webhook's partial-scope warning
+    // must survive coalescing and that refetch. A restricted signal that
+    // cannot be persisted fails closed (503, Sales retries) so products are
+    // never applied as fully WMS-accepted by mistake.
+    const warehouseSync = readWarehouseSync(body)
+    if (warehouseSync) {
+      const { data: scopeRow, error: scopeError } = await supabase.rpc(
+        'record_booking_sync_job_scope',
+        {
+          p_job_id: job.job_id,
+          p_organization_id: organization_id,
+          p_booking_id: booking_id,
+          p_warehouse_sync: toWarehouseSyncPayload(warehouseSync),
+        },
+      )
+      if (scopeError || scopeRow?.decision !== 'recorded') {
+        const restricted = isProductScopeRestricted(warehouseSync)
+        console.error('[receive-booking] warehouse_sync scope not persisted', JSON.stringify({
+          job_id: job.job_id, booking_id, organization_id, restricted,
+          error: scopeError?.message ?? scopeRow?.decision ?? 'unknown',
+        }))
+        if (restricted) {
+          return new Response(
+            JSON.stringify({ error: 'warehouse_sync_scope_not_persisted', retryable: true }),
+            { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
     }
 
     // ── 6. Respond with 202 — job accepted ───────────────────────────────

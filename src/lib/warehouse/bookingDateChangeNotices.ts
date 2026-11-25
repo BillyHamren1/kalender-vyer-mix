@@ -28,8 +28,14 @@ const FIELD_LABEL: Record<string, string> = {
   rigdaydate: 'Rigg',
   eventdate: 'Event',
   rigdowndate: 'Riv',
+  rig_start_time: 'Rigg start',
+  rig_end_time: 'Rigg slut',
+  event_start_time: 'Event start',
+  event_end_time: 'Event slut',
+  rigdown_start_time: 'Riv start',
+  rigdown_end_time: 'Riv slut',
 };
-const FIELD_ORDER = ['rigdaydate', 'eventdate', 'rigdowndate'];
+const FIELD_ORDER = ['rigdaydate', 'rig_start_time', 'rig_end_time', 'eventdate', 'event_start_time', 'event_end_time', 'rigdowndate', 'rigdown_start_time', 'rigdown_end_time'];
 
 export const dateFieldLabel = (field: string | null) => (field && FIELD_LABEL[field]) || field || 'Datum';
 

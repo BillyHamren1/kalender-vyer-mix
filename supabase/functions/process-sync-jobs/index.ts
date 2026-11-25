@@ -15,6 +15,7 @@
  *   - Permanent fel eller attempts >= max_attempts → status='failed'.
  *   - Batchen håller cursorn så länge det finns retriable jobb kvar.
  */
+import { mergeJobWarehouseSync, parseWarehouseSync, toWarehouseSyncPayload, type WarehouseSyncSignal } from '../_shared/productSyncScope.ts'
 import { isPackingSyncWorkerAuthorized } from '../_shared/packingSyncAuth.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
@@ -134,6 +135,7 @@ serve(async (req) => {
     attempts: number
     max_attempts: number
     priority: number
+    warehouse_sync: WarehouseSyncSignal | null
   }>()
 
   const jobIdList: string[] = []
@@ -160,7 +162,13 @@ serve(async (req) => {
       attempts: job.attempts ?? 0,
       max_attempts: job.max_attempts ?? 3,
       priority: job.priority ?? bookingSyncPriority(job.event_type),
+      warehouse_sync: null as WarehouseSyncSignal | null,
     }
+    // Partial-scope (WMS ej accepterat) är sticky över coalescade jobb.
+    entry.warehouse_sync = mergeJobWarehouseSync(
+      entry.warehouse_sync,
+      parseWarehouseSync((job as any).warehouse_sync),
+    )
     const incomingPriority = job.priority ?? bookingSyncPriority(job.event_type)
     if (incomingPriority > entry.priority) {
       entry.event_type = job.event_type
@@ -208,6 +216,7 @@ serve(async (req) => {
           booking_id: group.booking_id,
           organization_id: group.organization_id,
           event_type: group.event_type ?? null,
+          warehouse_sync: toWarehouseSyncPayload(group.warehouse_sync),
           quiet: false,
         }),
       })

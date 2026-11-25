@@ -1,0 +1,108 @@
+/**
+ * Mottagarkontrakt för Sales `warehouse_sync` (partial scope).
+ *
+ * Sales kan skicka en full snapshot där WMS inte accepterat produktändringen:
+ *   warehouse_sync: { status: 'attention_required', code, products_wms_accepted: false }
+ * Då får Planning uppdatera canonical datum/tider och säker metadata, men
+ * ALDRIG skriva/ersätta/radera produkter eller packrader, och aldrig
+ * rapportera produktsynken som fullständig. En senare accepterad
+ * produktsynk på samma revision ska kunna reparera produkterna.
+ *
+ * Ren TS utan Deno-API:er (testas från vitest).
+ */
+
+export interface WarehouseSyncSignal {
+  status: string | null;
+  code: string | null;
+  /** true/false endast när Sales uttryckligen angav boolean, annars null. */
+  productsAccepted: boolean | null;
+}
+
+export type ProductScopeReason =
+  | 'products_allowed'
+  | 'wms_products_not_accepted';
+
+export interface ProductSyncScope {
+  productsAllowed: boolean;
+  reason: ProductScopeReason;
+  code: string | null;
+  /** Källor som begränsade scope (job = webhook-signal, canonical = refetch). */
+  restrictedBy: Array<'job' | 'canonical'>;
+}
+
+const str = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim() : null;
+
+export function parseWarehouseSync(raw: unknown): WarehouseSyncSignal | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const accepted = r.products_wms_accepted;
+  return {
+    status: str(r.status)?.toLowerCase() ?? null,
+    code: str(r.code),
+    productsAccepted: accepted === true ? true : accepted === false ? false : null,
+  };
+}
+
+/** Läs signalen ur ett webhook-body/canonical-objekt (rot eller meta). */
+export function readWarehouseSync(source: unknown): WarehouseSyncSignal | null {
+  if (!source || typeof source !== 'object') return null;
+  const root = source as Record<string, unknown>;
+  return parseWarehouseSync(root.warehouse_sync)
+    ?? parseWarehouseSync((root.meta as Record<string, unknown> | undefined)?.warehouse_sync);
+}
+
+export function isProductScopeRestricted(sig: WarehouseSyncSignal | null): boolean {
+  if (!sig) return false;
+  if (sig.productsAccepted === false) return true;
+  // attention_required utan uttryckligt accept = fail-closed för produkter.
+  return sig.status === 'attention_required' && sig.productsAccepted !== true;
+}
+
+/**
+ * Coalescing av webhook-signaler på samma jobb. En begränsning är "sticky"
+ * tills en SENARE händelse uttryckligen säger products_wms_accepted: true.
+ * Händelser utan signal ändrar inget (behåller begränsningen).
+ */
+export function mergeJobWarehouseSync(
+  prev: WarehouseSyncSignal | null,
+  next: WarehouseSyncSignal | null,
+): WarehouseSyncSignal | null {
+  if (!next) return prev;
+  if (next.productsAccepted === true) return next;
+  if (isProductScopeRestricted(next)) return next;
+  return prev ?? next;
+}
+
+/**
+ * Slutligt scope för en import. Båda källor måste tillåta produkter.
+ * Saknad signal överallt = bakåtkompatibelt tillåtet (befintliga
+ * products_complete-regler gäller fortfarande för destruktiva operationer).
+ */
+export function resolveProductSyncScope(input: {
+  job: WarehouseSyncSignal | null;
+  canonical: WarehouseSyncSignal | null;
+}): ProductSyncScope {
+  const restrictedBy: Array<'job' | 'canonical'> = [];
+  if (isProductScopeRestricted(input.job)) restrictedBy.push('job');
+  if (isProductScopeRestricted(input.canonical)) restrictedBy.push('canonical');
+  if (restrictedBy.length === 0) {
+    return { productsAllowed: true, reason: 'products_allowed', code: null, restrictedBy };
+  }
+  return {
+    productsAllowed: false,
+    reason: 'wms_products_not_accepted',
+    code: input.job?.code ?? input.canonical?.code ?? null,
+    restrictedBy,
+  };
+}
+
+/** Serialiserbar form för jobbkolumn / import-body. */
+export function toWarehouseSyncPayload(sig: WarehouseSyncSignal | null): Record<string, unknown> | null {
+  if (!sig) return null;
+  return {
+    status: sig.status,
+    code: sig.code,
+    ...(sig.productsAccepted === null ? {} : { products_wms_accepted: sig.productsAccepted }),
+  };
+}
