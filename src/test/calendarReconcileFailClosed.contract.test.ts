@@ -58,7 +58,7 @@ describe('STEG 4J — planning guard reads är fail-closed', () => {
     ]) {
       const idx = reconcileBody.indexOf(marker);
       expect(idx, marker).toBeGreaterThan(-1);
-      expect(reconcileBody.slice(idx, idx + 160)).toContain('return { ok: true }');
+      expect(reconcileBody.slice(idx, idx + 160)).toMatch(/return \{ ok: true(, applied: false)? \}/);
     }
   });
 

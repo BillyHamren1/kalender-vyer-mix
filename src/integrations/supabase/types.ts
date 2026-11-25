@@ -968,6 +968,8 @@ export type Database = {
           applied_source_updated_at: string | null
           applied_source_version: number | null
           booking_id: string
+          calendar_baseline: Json | null
+          calendar_baseline_captured_at: string | null
           created_at: string
           highest_seen_source_updated_at: string | null
           highest_seen_source_version: number | null
@@ -997,6 +999,8 @@ export type Database = {
           applied_source_updated_at?: string | null
           applied_source_version?: number | null
           booking_id: string
+          calendar_baseline?: Json | null
+          calendar_baseline_captured_at?: string | null
           created_at?: string
           highest_seen_source_updated_at?: string | null
           highest_seen_source_version?: number | null
@@ -1026,6 +1030,8 @@ export type Database = {
           applied_source_updated_at?: string | null
           applied_source_version?: number | null
           booking_id?: string
+          calendar_baseline?: Json | null
+          calendar_baseline_captured_at?: string | null
           created_at?: string
           highest_seen_source_updated_at?: string | null
           highest_seen_source_version?: number | null
@@ -11540,6 +11546,14 @@ export type Database = {
         Args: { _organization_id: string }
         Returns: boolean
       }
+      capture_calendar_baseline: {
+        Args: {
+          p_baseline: Json
+          p_booking_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       claim_economy_cache_refresh: {
         Args: { p_booking_ids: string[]; p_organization_id: string }
         Returns: {
@@ -11631,6 +11645,14 @@ export type Database = {
           approved_deleted: number
           orphans_deleted: number
         }[]
+      }
+      clear_calendar_baseline: {
+        Args: {
+          p_baseline: Json
+          p_booking_id: string
+          p_organization_id: string
+        }
+        Returns: boolean
       }
       complete_sync_job: {
         Args: { _job_id: string; _worker_token: string }

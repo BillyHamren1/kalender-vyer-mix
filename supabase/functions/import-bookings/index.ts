@@ -49,6 +49,7 @@ import {
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
 import { mandateToScope, type ProductSyncScope } from '../_shared/productSyncScope.ts'
+import { pickBaseline, baselineDiffers, calendarPrevFrom, captureCalendarBaseline, clearCalendarBaseline, type CalendarBaseline } from '../_shared/calendarSourceBaseline.ts'
 import { reserveSameRevisionProductRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
   readProductSourceCompleteness,
@@ -773,15 +774,15 @@ async function reconcileCalendarEvents(
   results: any,
   existingBooking?: any,
   calendarCtx: CalendarSyncContext = fallbackCalendarContext(),
-): Promise<{ ok: boolean; error?: string }> {
-  if (bookingData.status !== 'CONFIRMED') return { ok: true };
+): Promise<{ ok: boolean; error?: string; applied?: boolean }> {
+  if (bookingData.status !== 'CONFIRMED') return { ok: true, applied: false };
 
   // ── STEG 3E: MUTATION GATE ──────────────────────────────────────────────
   // Ingen kalendermutation innan kontrakt + revision + lease är validerade.
   const mutationGate = canMutateCalendar(calendarCtx);
   if (!mutationGate.allowed) {
     console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: ${mutationGate.reason} → 0 calendar mutations`);
-    return { ok: true };
+    return { ok: true, applied: false };
   }
   const calendarOrgId = bookingData.organization_id || organizationId;
   let calendarError: string | null = null;
@@ -811,7 +812,7 @@ async function reconcileCalendarEvents(
     if (linkedProject?.planning_status === 'needs_planning') {
       // Legitim SKIP (read lyckades) → ok:true.
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
-      return { ok: true };
+      return { ok: true, applied: false };
     }
     const { data: parentForLP, error: parentForLPErr } = await supabase
       .from('bookings')
@@ -3495,6 +3496,21 @@ serve(async (req) => {
         ? null
         : new Set(((trackedRows as any[]) ?? []).map((r: any) => String(typeof r === 'string' ? r : r?.product_scope_tracked_bookings ?? r)));
     }
+    // Hållbar kalender-baseline: förhämta ofullbordade baselines (en query).
+    let calendarBaselines: Map<string, CalendarBaseline> | null = new Map();
+    if (externalData.data.length > 0) {
+      const { data: blRows, error: blErr } = await supabase
+        .from('booking_source_state')
+        .select('booking_id, calendar_baseline')
+        .eq('organization_id', organizationId)
+        .not('calendar_baseline', 'is', null);
+      if (blErr) {
+        console.warn('[Calendar Baseline] prefetch failed — capture per booking', blErr.message);
+        calendarBaselines = null;
+      } else {
+        for (const r of (blRows as any[]) ?? []) calendarBaselines.set(String(r.booking_id), r.calendar_baseline);
+      }
+    }
     for (const externalBooking of externalData.data) {
       perf.beginBooking(String(externalBooking?.id ?? 'unknown'));
       perf.setCount('products_count', Array.isArray(externalBooking?.products) ? externalBooking.products.length : 0);
@@ -3577,6 +3593,11 @@ serve(async (req) => {
         }
 
         const existingBooking = existingById || existingByNumber
+        // Föregående källa för kalendern = hållbar baseline om en tidigare
+        // körning sparade bokningen men inte hann fullborda kalendern.
+        let calendarBaselineUsed: CalendarBaseline | null =
+          (existingById && calendarBaselines?.get(String(externalBooking.id))) || null;
+        let calendarPrev: any = calendarPrevFrom(existingBooking, calendarBaselineUsed);
 
         if (existingBooking && !existingById && existingByNumber) {
           console.log(`DUPLICATE DETECTED: Booking number ${externalBooking.booking_number} already exists with different ID. Skipping import of ${externalBooking.id}`)
@@ -3805,8 +3826,12 @@ serve(async (req) => {
             return { ok: true };
           }
           const res = await reconcileCalendarEvents(
-            supabase, bookingData, organizationId, results, existingBooking, calendarSyncCtx,
+            supabase, bookingData, organizationId, results, calendarPrev, calendarSyncCtx,
           );
+          if (res.ok && res.applied !== false && calendarBaselineUsed) {
+            await clearCalendarBaseline(supabase, { organizationId, bookingId: bookingData.id, baseline: calendarBaselineUsed });
+            calendarBaselineUsed = null;
+          }
           if (!res.ok) {
             results.failed++;
             results.errors.push({ booking_id: bookingData.id, error: res.error || 'calendar_reconcile_failed' });
@@ -4544,6 +4569,21 @@ serve(async (req) => {
             delete updateData.assigned_to_project;
           }
 
+          // Hållbar baseline FÖRE booking-save: om kalender-relevanta källfält
+          // ändras sparas föregående värden tills kalendern fullbordats.
+          if ((calendarBaselineUsed === null) && (calendarBaselines === null || baselineDiffers(existingBooking, updateData))) {
+            const cap = await captureCalendarBaseline(supabase, {
+              organizationId, bookingId: existingBooking.id, baseline: pickBaseline(existingBooking),
+            });
+            if (!cap.ok) {
+              console.error(`[Calendar Baseline] FAIL-CLOSED ${existingBooking.id}: baseline not stored → booking not saved`, cap.error);
+              results.errors.push({ booking_id: existingBooking.id, error: `calendar_baseline_capture_failed:${cap.error}` });
+              results.failed++;
+              continue;
+            }
+            calendarBaselineUsed = cap.baseline;
+            calendarPrev = calendarPrevFrom(existingBooking, calendarBaselineUsed);
+          }
           // Update existing booking
           assertLeaseOwned('booking_update');
           const { error: updateError } = await supabase
