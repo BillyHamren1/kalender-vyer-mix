@@ -24,15 +24,30 @@ export type ProductRepairResult =
   | { ok: true; decision: 'reserved'; reservationToken: string }
   | { ok: false; decision: 'not_pending' | 'not_current' | 'booking_import_locked' | 'invalid_input' | 'rpc_unavailable'; error?: string };
 
-export async function reserveSameRevisionProductRepair(
+export function reserveSameRevisionProductRepair(supabase: any, input: ProductRepairInput): Promise<ProductRepairResult> {
+  return reserveSameRevisionRepair(supabase, 'reserve_booking_product_repair', input);
+}
+
+/**
+ * Same-revision kalenderreparation: revisionen är redan applicerad men en
+ * ofullbordad kalender-baseline finns kvar (booking_source_state.calendar_baseline).
+ * Ger importlåset tillbaka så kalendern kan spegla R; produkter styrs
+ * fortfarande enbart av produktmandatet.
+ */
+export function reserveSameRevisionCalendarRepair(supabase: any, input: ProductRepairInput): Promise<ProductRepairResult> {
+  return reserveSameRevisionRepair(supabase, 'reserve_booking_calendar_repair', input);
+}
+
+async function reserveSameRevisionRepair(
   supabase: any,
+  rpcName: 'reserve_booking_product_repair' | 'reserve_booking_calendar_repair',
   input: ProductRepairInput,
 ): Promise<ProductRepairResult> {
   const inc = normalizeIncomingRevision(input.incoming);
   if (!inc) return { ok: false, decision: 'invalid_input' };
   let res: any;
   try {
-    res = await supabase.rpc('reserve_booking_product_repair', {
+    res = await supabase.rpc(rpcName, {
       p_organization_id: input.organizationId,
       p_booking_id: input.bookingId,
       p_source_updated_at: inc.sourceUpdatedAt,

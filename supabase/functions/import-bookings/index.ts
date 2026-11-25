@@ -50,7 +50,7 @@ import {
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
 import { mandateToScope, evaluateExportWmsReceipt, combineScopeWithExportReceipt, type ProductSyncScope } from '../_shared/productSyncScope.ts'
 import { pickBaseline, baselineDiffers, calendarPrevFrom, captureCalendarBaseline, clearCalendarBaseline, type CalendarBaseline } from '../_shared/calendarSourceBaseline.ts'
-import { reserveSameRevisionProductRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
+import { reserveSameRevisionProductRepair, reserveSameRevisionCalendarRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
   readProductSourceCompleteness,
   canDeleteProducts,
@@ -3314,6 +3314,23 @@ serve(async (req) => {
           if (repair.ok) {
             productRepairRun = true;
             return { ok: true, decision: 'reserved', reservationToken: repair.reservationToken, lockExpiresAt: null } as any;
+          }
+        }
+        // Same-revision kalenderreparation: R är applicerad men kalendern har
+        // en ofullbordad baseline (speglar ännu inte R). Produkter styrs
+        // fortfarande enbart av singleProductScope/mandatet.
+        if (first.ok && first.decision === 'already_current') {
+          const cal = await reserveSameRevisionCalendarRepair(supabase, {
+            bookingId: normalizedSingleBookingId!,
+            organizationId,
+            incoming,
+            ownerJobId: `import-bookings:calendar-repair:${crypto.randomUUID()}`,
+          });
+          console.log('[import-bookings] same-revision calendar repair', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId, decision: cal.decision,
+          }));
+          if (cal.ok) {
+            return { ok: true, decision: 'reserved', reservationToken: cal.reservationToken, lockExpiresAt: null } as any;
           }
         }
         return first;
