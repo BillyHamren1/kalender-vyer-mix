@@ -65,3 +65,12 @@ describe('Import-wiring av exportkvitto', () => {
     expect(imp).toMatch(/'product_write_mandate'/);
   });
 });
+
+describe('Avstämningsverktyget följer samma produktregel', () => {
+  const rec = readFileSync('supabase/functions/sync-reconciliation/index.ts', 'utf8');
+  it('raderar lokala produkter endast med WMS-kvitto och revisionsmandat', () => {
+    expect(rec).toMatch(/evaluateExportWmsReceipt\(ext\)\.productsAllowed/);
+    expect(rec).toMatch(/"product_write_mandate"/);
+    expect(rec).toMatch(/productDeletesAllowed \? localProductNames : new Map/);
+  });
+});

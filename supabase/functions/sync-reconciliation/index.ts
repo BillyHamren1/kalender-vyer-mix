@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeBookingStatus } from "../_shared/booking-status.ts";
+import { evaluateExportWmsReceipt, mandateToScope } from "../_shared/productSyncScope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -788,8 +789,26 @@ Deno.serve(async (req) => {
           continue; // skip both delete-loop and field comparison
         }
 
+        // Produktmandat (samma regel som import-bookings): revisionsbundet
+        // Sales-kvitto OCH, om exporten bär fälten, giltigt WMS-kvitto
+        // (inventory_synced_version = canonical_sync_version). Annars rörs
+        // inga lokala produkter — endast jämförelse/visning.
+        let productDeletesAllowed = evaluateExportWmsReceipt(ext).productsAllowed;
+        if (productDeletesAllowed) {
+          const rev = typeof ext.source_updated_at === "string" && Number.isFinite(Date.parse(ext.source_updated_at))
+            ? ext.source_updated_at
+            : (typeof ext.updated_at === "string" && Number.isFinite(Date.parse(ext.updated_at)) ? ext.updated_at : null);
+          const { data: mandate, error: mandateErr } = await supabase.rpc("product_write_mandate", {
+            p_organization_id: organizationId, p_booking_id: String(bookingId), p_source_updated_at: rev,
+          });
+          productDeletesAllowed = !mandateErr && mandateToScope(mandate as any).productsAllowed;
+        }
+        if (!productDeletesAllowed) {
+          console.warn(`[sync-recon] booking ${bookingId}: product mutations deferred (no WMS/Sales product mandate for fetched revision)`);
+        }
+
         // STEP 1: Delete extra local products FIRST (before comparison)
-        for (const [name, localP] of localProductNames) {
+        for (const [name, localP] of (productDeletesAllowed ? localProductNames : new Map<string, any>())) {
           if (!extProductNames.has(name)) {
             const bookingProducts = allLocalProductsByBooking.get(bookingId) ||
               [];
