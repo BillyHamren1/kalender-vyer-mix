@@ -26,6 +26,7 @@ import WarehouseJobSheet from "@/components/warehouse/WarehouseJobSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import WarehouseDayBoard from "@/components/warehouse-day/WarehouseDayBoard";
+import BookingDateChangeNotices from "@/components/warehouse/BookingDateChangeNotices";
 
 const DONE = new Set(["completed", "done", "completed_in", "completed_out"]);
 const ACTIVE = new Set(["in_progress", "returning", "back", "started_back", "in_production"]);
@@ -165,6 +166,7 @@ const WarehouseOps = () => {
               visas som konkret jobb med knapp i åtgärdskön till höger. */}
 
         </header>
+        <div className="shrink-0"><BookingDateChangeNotices compact /></div>
 
         {view === "day" ? (
           <main className="min-h-0 flex-1 overflow-hidden">

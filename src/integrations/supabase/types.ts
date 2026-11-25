@@ -10402,45 +10402,67 @@ export type Database = {
           acknowledged: boolean
           acknowledged_at: string | null
           acknowledged_by: string | null
+          booking_id: string | null
+          booking_number: string | null
           change_type: string
           created_at: string
+          dedupe_key: string | null
           field_name: string | null
           id: string
           new_value: string | null
           old_value: string | null
           organization_id: string
+          packing_id: string | null
           source_booking_id: string | null
-          warehouse_project_id: string
+          source_revision: string | null
+          warehouse_project_id: string | null
         }
         Insert: {
           acknowledged?: boolean
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          booking_id?: string | null
+          booking_number?: string | null
           change_type: string
           created_at?: string
+          dedupe_key?: string | null
           field_name?: string | null
           id?: string
           new_value?: string | null
           old_value?: string | null
           organization_id: string
+          packing_id?: string | null
           source_booking_id?: string | null
-          warehouse_project_id: string
+          source_revision?: string | null
+          warehouse_project_id?: string | null
         }
         Update: {
           acknowledged?: boolean
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          booking_id?: string | null
+          booking_number?: string | null
           change_type?: string
           created_at?: string
+          dedupe_key?: string | null
           field_name?: string | null
           id?: string
           new_value?: string | null
           old_value?: string | null
           organization_id?: string
+          packing_id?: string | null
           source_booking_id?: string | null
-          warehouse_project_id?: string
+          source_revision?: string | null
+          warehouse_project_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "warehouse_project_changes_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "warehouse_project_changes_warehouse_project_id_fkey"
             columns: ["warehouse_project_id"]

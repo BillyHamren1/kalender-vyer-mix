@@ -15,6 +15,7 @@ import PackingComments from "@/components/packing/PackingComments";
 import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
 import MultiBookingScheduleCard from "@/components/packing/MultiBookingScheduleCard";
 import PackingChangeRequestsPanel from "@/components/packing/PackingChangeRequestsPanel";
+import BookingDateChangeNotices from "@/components/warehouse/BookingDateChangeNotices";
 
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
@@ -350,6 +351,7 @@ const PackingDetail = () => {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
 
         <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-[1600px]">
+          {packingId && <BookingDateChangeNotices packingId={packingId} />}
           {packingId && <PackingChangeRequestsPanel packingId={packingId} />}
           {/* Header */}
 
