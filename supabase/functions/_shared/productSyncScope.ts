@@ -210,3 +210,77 @@ export function mandateToScope(m: { decision?: string; allowed?: boolean; code?:
     ? { productsAllowed: true, reason: 'products_allowed', code: null, restrictedBy: [] }
     : { productsAllowed: false, reason: 'wms_products_not_accepted', code: m?.code ?? m?.decision ?? 'mandate_unavailable', restrictedBy: ['job'] };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WMS-kvitto i canonical export (Sales: inventory_synced_version +
+// canonical_sync_version, ev. inventory_sync_status).
+//
+// Stänger tidsluckan för bokningar utan partialhistorik: innehåller den
+// hämtade exporten UTTRYCKLIGEN fälten får produkter bara skrivas när
+// inventory_synced_version motsvarar canonical_sync_version för den hämtade
+// revisionen. Annars endast schema/metadata + products_pending. updated_at
+// jämförs aldrig här (kan flytta sig när Sales sparar kvittot).
+// Saknas fälten helt = bakåtkompatibelt (deploymentordning).
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ExportWmsReceiptDecision =
+  | 'absent' | 'accepted' | 'version_mismatch' | 'unverifiable' | 'status_failed';
+
+export interface ExportWmsReceipt {
+  decision: ExportWmsReceiptDecision;
+  productsAllowed: boolean;
+  inventorySyncedVersion: string | null;
+  canonicalSyncVersion: string | null;
+  status: string | null;
+}
+
+const has = (o: Record<string, unknown> | null, k: string) =>
+  !!o && Object.prototype.hasOwnProperty.call(o, k);
+
+const versionValue = (v: unknown): string | null => {
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  if (typeof v === 'bigint') return v.toString();
+  return str(v);
+};
+
+const sameVersion = (a: string, b: string): boolean => {
+  if (a === b) return true;
+  const na = Number(a), nb = Number(b);
+  return /^-?\d+(\.\d+)?$/.test(a) && /^-?\d+(\.\d+)?$/.test(b) && na === nb;
+};
+
+const NOT_REQUIRED_STATUSES = new Set(['not_required', 'not_applicable']);
+const FAILED_STATUSES = new Set(['failed', 'error', 'attention_required', 'rejected', 'conflict']);
+
+/** Läser kvittot ur en export-rad (rot, eller meta/sync-objekt). */
+export function evaluateExportWmsReceipt(row: unknown): ExportWmsReceipt {
+  const r = (row && typeof row === 'object' && !Array.isArray(row) ? row : {}) as Record<string, unknown>;
+  const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null);
+  const containers = [r, obj(r.meta), obj(r.sync), obj(r.inventory_sync)].filter(Boolean) as Record<string, unknown>[];
+  const src = containers.find((c) => has(c, 'inventory_synced_version') || has(c, 'canonical_sync_version')) ?? null;
+  const statusSrc = containers.find((c) => has(c, 'inventory_sync_status')) ?? null;
+  const status = statusSrc ? str(statusSrc.inventory_sync_status)?.toLowerCase() ?? null : null;
+  if (!src) {
+    return { decision: 'absent', productsAllowed: true, inventorySyncedVersion: null, canonicalSyncVersion: null, status };
+  }
+  const inv = versionValue(src.inventory_synced_version);
+  const can = versionValue(src.canonical_sync_version);
+  const base = { inventorySyncedVersion: inv, canonicalSyncVersion: can, status };
+  // Sales anger uttryckligen att bokningen inte ska till WMS → inget kvitto krävs.
+  if (status && NOT_REQUIRED_STATUSES.has(status)) return { ...base, decision: 'accepted', productsAllowed: true };
+  if (!inv || !can) return { ...base, decision: 'unverifiable', productsAllowed: false };
+  if (!sameVersion(inv, can)) return { ...base, decision: 'version_mismatch', productsAllowed: false };
+  if (status && FAILED_STATUSES.has(status)) return { ...base, decision: 'status_failed', productsAllowed: false };
+  return { ...base, decision: 'accepted', productsAllowed: true };
+}
+
+/** Revisionsmandat OCH exportkvitto måste båda tillåta produkter. */
+export function combineScopeWithExportReceipt(scope: ProductSyncScope, receipt: ExportWmsReceipt): ProductSyncScope {
+  if (!scope.productsAllowed || receipt.productsAllowed) return scope;
+  return {
+    productsAllowed: false,
+    reason: 'wms_products_not_accepted',
+    code: `export_wms_${receipt.decision}`,
+    restrictedBy: ['canonical'],
+  };
+}

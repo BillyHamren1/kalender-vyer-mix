@@ -48,7 +48,7 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
-import { mandateToScope, type ProductSyncScope } from '../_shared/productSyncScope.ts'
+import { mandateToScope, evaluateExportWmsReceipt, combineScopeWithExportReceipt, type ProductSyncScope } from '../_shared/productSyncScope.ts'
 import { pickBaseline, baselineDiffers, calendarPrevFrom, captureCalendarBaseline, clearCalendarBaseline, type CalendarBaseline } from '../_shared/calendarSourceBaseline.ts'
 import { reserveSameRevisionProductRepair, setProductsPending } from '../_shared/productRepairReservation.ts'
 import {
@@ -2569,7 +2569,22 @@ serve(async (req) => {
     // revisionsbundet mot booking_delivery_scope_receipts (product_write_mandate).
     void jobWarehouseSyncRaw;
     let trackedScopeBookings: Set<string> | null = null;
-    async function productMandate(bookingId: string, sourceUpdatedAt: unknown): Promise<ProductSyncScope> {
+    // Mandat (revision/tenant) OCH WMS-kvitto i den hämtade exporten.
+    async function productMandate(bookingId: string, sourceUpdatedAt: unknown, exportRow: unknown): Promise<ProductSyncScope> {
+      const scope = await revisionMandate(bookingId, sourceUpdatedAt);
+      const receipt = evaluateExportWmsReceipt(exportRow);
+      const combined = combineScopeWithExportReceipt(scope, receipt);
+      if (receipt.decision !== 'absent') {
+        console.log('[Product Scope] export WMS receipt', JSON.stringify({
+          booking_id: bookingId, decision: receipt.decision,
+          inventory_synced_version: receipt.inventorySyncedVersion,
+          canonical_sync_version: receipt.canonicalSyncVersion,
+          status: receipt.status, products_allowed: combined.productsAllowed,
+        }));
+      }
+      return combined;
+    }
+    async function revisionMandate(bookingId: string, sourceUpdatedAt: unknown): Promise<ProductSyncScope> {
       if (trackedScopeBookings && !trackedScopeBookings.has(String(bookingId))) {
         return mandateToScope({ decision: 'allowed_legacy', allowed: true });
       }
@@ -3248,6 +3263,7 @@ serve(async (req) => {
       singleProductScope = await productMandate(
         normalizedSingleBookingId,
         canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
+        canonicalRow,
       );
       const incoming = {
         sourceUpdatedAt: canonicalRow?.source_updated_at ?? canonicalRow?.updated_at ?? null,
@@ -3542,6 +3558,7 @@ serve(async (req) => {
       const bookingProductScope: ProductSyncScope = await productMandate(
         externalBooking.id,
         externalBooking?.source_updated_at ?? externalBooking?.updated_at ?? null,
+        externalBooking,
       );
       if (isSingleBookingRefresh && String(externalBooking.id) === String(normalizedSingleBookingId)) {
         singleProductScope = bookingProductScope;
@@ -5444,6 +5461,7 @@ serve(async (req) => {
             const recheck = await productMandate(
               normalizedSingleBookingId,
               (guardedIncomingRevision as any).sourceUpdatedAt ?? null,
+              externalData.data.find((r: any) => String(r?.id) === String(normalizedSingleBookingId)) ?? externalData.data[0],
             );
             if (!recheck.productsAllowed) {
               console.warn('[Product Scope] scope changed during import — marking products_pending', JSON.stringify({
