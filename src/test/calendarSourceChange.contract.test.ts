@@ -84,10 +84,14 @@ describe('date moves', () => {
     ['lease lost', { leaseOwned: false }],
     ['source missing', { sourceFound: false }],
     ['source error', { hadSourceError: true }],
-    ['incomplete dates', { datesCompleteness: 'unknown' as const }],
+    ['explicitly incomplete dates', { datesCompleteness: 'incomplete' as const }],
     ['phase absent', { datePresence: { rig: 'absent', event: 'present', rigDown: 'present' } as any }],
   ])('fail-closed: %s → no move', (_l, o) => {
     expect(planDateMoves({ phase: 'rig', existing: [ev('e', '2026-12-04')], desiredDates: ['2026-12-08'], prevCanonicalDates: ['2026-12-04'], bookingId: B, ctx: ctx(o as any) })).toHaveLength(0);
+  });
+  it('FA-2611-1: Sales utan dates_complete (unknown) flyttar samma rad i stället för ny rad', () => {
+    const m = planDateMoves({ phase: 'rig', existing: [ev('e', '2026-12-04')], desiredDates: ['2026-12-08'], prevCanonicalDates: ['2026-12-04'], bookingId: B, ctx: ctx({ datesCompleteness: 'unknown' } as any) });
+    expect(m.map((x) => [x.event.id, x.fromDate, x.toDate])).toEqual([['e', '2026-12-04', '2026-12-08']]);
   });
   it('shift keeps local time of day', () => {
     expect(shiftIsoByDays('2026-12-04T09:30:00+00:00', '2026-12-04', '2026-12-08')).toBe('2026-12-08T09:30:00+00:00');

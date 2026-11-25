@@ -294,14 +294,17 @@ const extractTimePart = (value: unknown): string | undefined => {
  * into discrete start and end time parts.
  * Returns { start, end } with HH:MM:SS strings, or undefined if unparsable.
  */
-const parseTimeRange = (value: unknown): { start: string; end: string } | undefined => {
+const parseTimeRange = (value: unknown): { start: string; end?: string } | undefined => {
   if (!value) return undefined;
   const asString = String(value).trim();
   if (!asString) return undefined;
 
   // Match patterns like "08:00 - 12:00", "08:00-12:00", "08:00 – 12:00"
   const rangeMatch = asString.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/);
-  if (!rangeMatch) return undefined;
+  // Sales kan skicka endast starttid ("14:00"): explicit start, sluttid
+  // saknas (kalendern använder då standardlängd från starttiden).
+  const singleMatch = rangeMatch ? null : asString.match(/^(\d{1,2}:\d{2}(?::\d{2})?)$/);
+  if (!rangeMatch && !singleMatch) return undefined;
 
   const normalizeTime = (t: string): string => {
     const parts = t.split(':');
@@ -311,6 +314,7 @@ const parseTimeRange = (value: unknown): { start: string; end: string } | undefi
     return `${hh}:${mm}:${ss}`;
   };
 
+  if (!rangeMatch) return { start: normalizeTime(singleMatch![1]) };
   return {
     start: normalizeTime(rangeMatch[1]),
     end: normalizeTime(rangeMatch[2]),
@@ -1850,6 +1854,7 @@ export const checkProductChanges = async (
   externalProducts: any[],
   completeness: ProductSourceCompleteness = 'unknown',
   organizationId?: string | null,
+  allowProductWrites = true,
 ): Promise<{
   changed: boolean;
   added: string[];
@@ -1914,7 +1919,7 @@ export const checkProductChanges = async (
   // Synliggör blockerade borttagningar i UI istället för att bara logga dem.
   // Produkter som saknas i Bookings lista men inte får raderas markeras;
   // produkter som finns i källan får markeringen rensad.
-  try {
+  if (allowProductWrites) try {
     const blockedSet = new Set(diff.blockedRemovals.map((n: string) => String(n)));
     const missingIds = (existingProducts || [])
       .filter((p: any) => blockedSet.has(String(p.name)))
@@ -3976,6 +3981,7 @@ serve(async (req) => {
               externalBooking.products,
               productCompleteness,
               bookingData.organization_id,
+              bookingProductScope.productsAllowed,
             );
             if ((productChanges as any).error) {
               results.errors.push({ booking_id: existingBooking.id, error: `product_changes_read_failed:${(productChanges as any).error}` });
@@ -5029,7 +5035,12 @@ serve(async (req) => {
           // STEG 3D: destruktiv delete kräver EXPLICIT products_complete === true.
           // Fail-closed: unknown/false → 0 deletes, oavsett antal produkter.
           const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
-          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
+          // Raderings-/expansions-/packsynkfasen hör till produktskrivningen:
+          // endast när produkterna faktiskt processats i denna import OCH
+          // produktmandat finns. Annars är seenExistingIds tom och planen
+          // skulle tolka ALLA lokala rader som borttagna.
+          const productWritePhase = (needsProductUpdate || !existingBooking) && bookingProductScope.productsAllowed;
+          if (productWritePhase && oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
             // Planning-genererade paketkomponenter ägs inte av Booking och får
             // aldrig raderas av produktsynken (de hanteras idempotent av expansionen).
             const deletionPlan = planProductDeletion(oldProducts, seenExistingIds);
@@ -5098,6 +5109,7 @@ serve(async (req) => {
           }
           // ─────────────────────────────────────────────────────────────────────
           
+          if (productWritePhase) {
           // EXPAND package_components JSONB into individual rows (shared function)
           const mainExpanded = await expandPackageComponents(supabase, bookingData.id, organizationId);
           if (mainExpanded.error) {
@@ -5117,7 +5129,8 @@ serve(async (req) => {
           if (mainPackingResult.changes > 0) {
             console.log(`[Main Flow] Synced ${mainPackingResult.changes} packing list items for booking ${bookingData.id}`);
           }
-        } // end if (needsProductUpdate || !existingBooking)
+          } // end if (productWritePhase)
+        } // end if (!WMS_CANONICAL_PRODUCT_CUTOVER && products)
         // RECONNECT PACKING LIST ITEMS after products have been created
         if (needsPackingReconnection && packingIdForReconnection) {
           console.log(`[Packing Reconnect] Starting packing list reconnection for booking ${bookingData.id}`);

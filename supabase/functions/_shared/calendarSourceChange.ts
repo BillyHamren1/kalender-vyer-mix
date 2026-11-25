@@ -89,7 +89,11 @@ export function planDateMoves<E extends CalendarEventRow & { id: string }>(i: {
 }): DateMove<E>[] {
   const c = i.ctx;
   if (c.hadSourceError || !c.sourceFound || !c.revisionValidated || !c.leaseOwned) return [];
-  if (c.datesCompleteness !== 'complete' || c.datePresence[i.phase] !== 'present') return [];
+  // En flytt behåller raden (id/team/lås) och är inte destruktiv: kräver
+  // att fasens datum finns i källan och att källan inte uttryckligen är
+  // ofullständig. Sales skickar inget dates_complete-fält, så 'unknown'
+  // räcker här (radering kräver fortfarande 'complete').
+  if (c.datesCompleteness === 'incomplete' || c.datePresence[i.phase] !== 'present') return [];
   const desired = new Set(i.desiredDates);
   const dateOf = (e: E) => (e.source_date as string | null) || (e.start_time as string | null)?.slice(0, 10) || '';
   const phaseRows = i.existing.filter((e) => e.event_type === i.phase);
