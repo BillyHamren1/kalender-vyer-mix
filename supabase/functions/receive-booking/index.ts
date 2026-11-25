@@ -13,7 +13,7 @@
  * It does NOT call import-bookings directly (no fire-and-forget).
  * The process-sync-jobs worker picks up pending jobs reliably.
  */
-import { readWarehouseSync, toWarehouseSyncPayload, isProductScopeRestricted } from '../_shared/productSyncScope.ts'
+import { readDeliverySignal, toWarehouseSyncPayload, isProductScopeRestricted } from '../_shared/productSyncScope.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import {
@@ -169,8 +169,10 @@ serve(async (req) => {
     // must survive coalescing and that refetch. A restricted signal that
     // cannot be persisted fails closed (503, Sales retries) so products are
     // never applied as fully WMS-accepted by mistake.
-    const warehouseSync = readWarehouseSync(body)
-    if (warehouseSync) {
+    // Saknade markörer = full leverans (äldre meddelanden inkl.) och lyfter en
+    // tidigare partial-begränsning på samma jobb, så full repair kan ske.
+    const warehouseSync = readDeliverySignal(body)
+    {
       const { data: scopeRow, error: scopeError } = await supabase.rpc(
         'record_booking_sync_job_scope',
         {

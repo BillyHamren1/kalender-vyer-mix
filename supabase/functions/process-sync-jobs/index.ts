@@ -139,7 +139,10 @@ serve(async (req) => {
   }>()
 
   const jobIdList: string[] = []
-  for (const job of jobs) {
+  // Deterministisk ordning: senaste leverans avgör scope vid coalescing.
+  const orderedJobs = [...jobs].sort((a: any, b: any) =>
+    String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')))
+  for (const job of orderedJobs) {
     if (!job.booking_id || !job.organization_id) {
       await supabase
         .from('booking_sync_jobs')

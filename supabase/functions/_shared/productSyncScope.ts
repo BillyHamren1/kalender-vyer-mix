@@ -16,7 +16,12 @@ export interface WarehouseSyncSignal {
   code: string | null;
   /** true/false endast när Sales uttryckligen angav boolean, annars null. */
   productsAccepted: boolean | null;
+  /** Sales delivery_scope ('schedule_metadata' = endast datum/tider/metadata). */
+  deliveryScope?: string | null;
 }
+
+/** Sales-kontrakt 19ae78963: partial delivery = endast schema/metadata. */
+export const PARTIAL_DELIVERY_SCOPE = 'schedule_metadata';
 
 export type ProductScopeReason =
   | 'products_allowed'
@@ -41,6 +46,7 @@ export function parseWarehouseSync(raw: unknown): WarehouseSyncSignal | null {
     status: str(r.status)?.toLowerCase() ?? null,
     code: str(r.code),
     productsAccepted: accepted === true ? true : accepted === false ? false : null,
+    deliveryScope: str(r.delivery_scope)?.toLowerCase() ?? null,
   };
 }
 
@@ -48,12 +54,27 @@ export function parseWarehouseSync(raw: unknown): WarehouseSyncSignal | null {
 export function readWarehouseSync(source: unknown): WarehouseSyncSignal | null {
   if (!source || typeof source !== 'object') return null;
   const root = source as Record<string, unknown>;
-  return parseWarehouseSync(root.warehouse_sync)
-    ?? parseWarehouseSync((root.meta as Record<string, unknown> | undefined)?.warehouse_sync);
+  const meta = (root.meta && typeof root.meta === 'object' ? root.meta : {}) as Record<string, unknown>;
+  const sig = parseWarehouseSync(root.warehouse_sync) ?? parseWarehouseSync(meta.warehouse_sync);
+  const scope = str(root.delivery_scope ?? meta.delivery_scope)?.toLowerCase() ?? null;
+  if (!sig && !scope) return null;
+  const base: WarehouseSyncSignal = sig ?? { status: null, code: null, productsAccepted: null };
+  return { ...base, deliveryScope: scope };
+}
+
+/**
+ * Signal för en mottagen Sales-leverans. Saknas BÅDA markörerna är det en
+ * full leverans (Sales tar bort dem efter WMS-success) — även äldre
+ * meddelanden utan fälten är fulla, precis som före kontraktet.
+ */
+export function readDeliverySignal(body: unknown): WarehouseSyncSignal {
+  return readWarehouseSync(body)
+    ?? { status: 'full', code: null, productsAccepted: true, deliveryScope: 'full' };
 }
 
 export function isProductScopeRestricted(sig: WarehouseSyncSignal | null): boolean {
   if (!sig) return false;
+  if (sig.deliveryScope === PARTIAL_DELIVERY_SCOPE) return true;
   if (sig.productsAccepted === false) return true;
   // attention_required utan uttryckligt accept = fail-closed för produkter.
   return sig.status === 'attention_required' && sig.productsAccepted !== true;
@@ -69,8 +90,8 @@ export function mergeJobWarehouseSync(
   next: WarehouseSyncSignal | null,
 ): WarehouseSyncSignal | null {
   if (!next) return prev;
-  if (next.productsAccepted === true) return next;
   if (isProductScopeRestricted(next)) return next;
+  if (next.productsAccepted === true) return next;
   return prev ?? next;
 }
 
@@ -100,9 +121,14 @@ export function resolveProductSyncScope(input: {
 /** Serialiserbar form för jobbkolumn / import-body. */
 export function toWarehouseSyncPayload(sig: WarehouseSyncSignal | null): Record<string, unknown> | null {
   if (!sig) return null;
+  const restricted = isProductScopeRestricted(sig);
+  // Begränsning serialiseras alltid som products_wms_accepted:false så att
+  // DB-funktionen record_booking_sync_job_scope känner igen den.
+  const accepted = restricted ? false : sig.productsAccepted;
   return {
     status: sig.status,
     code: sig.code,
-    ...(sig.productsAccepted === null ? {} : { products_wms_accepted: sig.productsAccepted }),
+    ...(sig.deliveryScope ? { delivery_scope: sig.deliveryScope } : {}),
+    ...(accepted === null ? {} : { products_wms_accepted: accepted }),
   };
 }
